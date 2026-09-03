@@ -21,15 +21,28 @@ fn main() {
         let method = v["method"].as_str().unwrap();
         let resp = match (mode.as_str(), method) {
             (_, "describe") => match mode.as_str() {
-                "echo-tool" => serde_json::json!({"id": id, "result": {"name": name_override.clone().unwrap_or("echo".into()), "kind": "tool", "version": "0.1.0"}}),
-                "flaky-tool" => serde_json::json!({"id": id, "result": {"name": "flaky", "kind": "tool", "version": "0.1.0"}}),
-                "fake-model" => serde_json::json!({"id": id, "result": {"name": name_override.clone().unwrap_or("fake-v1".into()), "kind": "model", "version": "0.1.0"}}),
-                "bogus" => serde_json::json!({"id": id, "result": {"name": "not-what-you-configured", "kind": "tool", "version": "0.1.0"}}),
-                m if m.starts_with("rail-") => serde_json::json!({"id": id, "result": {"name": m, "kind": "rail", "version": "0.1.0"}}),
+                "echo-tool" => {
+                    serde_json::json!({"id": id, "result": {"name": name_override.clone().unwrap_or("echo".into()), "kind": "tool", "version": "0.1.0"}})
+                }
+                "flaky-tool" => {
+                    serde_json::json!({"id": id, "result": {"name": "flaky", "kind": "tool", "version": "0.1.0"}})
+                }
+                "fake-model" => {
+                    serde_json::json!({"id": id, "result": {"name": name_override.clone().unwrap_or("fake-v1".into()), "kind": "model", "version": "0.1.0"}})
+                }
+                "bogus" => {
+                    serde_json::json!({"id": id, "result": {"name": "not-what-you-configured", "kind": "tool", "version": "0.1.0"}})
+                }
+                m if m.starts_with("rail-") => {
+                    serde_json::json!({"id": id, "result": {"name": m, "kind": "rail", "version": "0.1.0"}})
+                }
                 _ => serde_json::json!({"id": id, "error": "bad mode"}),
             },
             ("echo-tool", "tool.call") => {
-                let text = v["params"]["args"]["text"].as_str().unwrap_or("").to_string();
+                let text = v["params"]["args"]["text"]
+                    .as_str()
+                    .unwrap_or("")
+                    .to_string();
                 serde_json::json!({"id": id, "result": {"output": text}})
             }
             ("flaky-tool", "tool.call") => {
@@ -42,7 +55,10 @@ fn main() {
             }
             ("fake-model", "model.call") => {
                 let prompt = v["params"]["prompt"].as_str().unwrap_or("");
-                let completion = format!("fake-completion:{}", prompt.chars().rev().collect::<String>());
+                let completion = format!(
+                    "fake-completion:{}",
+                    prompt.chars().rev().collect::<String>()
+                );
                 serde_json::json!({"id": id, "result": {
                     "completion": completion,
                     "input_tokens": prompt.len() / 4 + 1,
@@ -57,7 +73,11 @@ fn main() {
                 let hook = v["params"]["hook"].as_str().unwrap_or("?");
                 let f = std::env::var("RAIL_LOG_FILE").unwrap();
                 use std::fs::OpenOptions;
-                let mut lf = OpenOptions::new().create(true).append(true).open(f).unwrap();
+                let mut lf = OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(f)
+                    .unwrap();
                 writeln!(lf, "{m}:{hook}").unwrap();
                 serde_json::json!({"id": id, "result": {}})
             }

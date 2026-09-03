@@ -145,7 +145,10 @@ name = "hs-cli"
 version = "0.1.0"
 dependencies = [
  "hs-core",
+ "hs-kernel",
  "hs-log",
+ "serde",
+ "serde_json",
  "sha2",
  "tempfile",
  "uuid",

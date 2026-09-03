@@ -28,7 +28,9 @@ pub enum KernelError {
     Log(LogError),
 }
 impl From<LogError> for KernelError {
-    fn from(e: LogError) -> Self { KernelError::Log(e) }
+    fn from(e: LogError) -> Self {
+        KernelError::Log(e)
+    }
 }
 impl std::fmt::Display for KernelError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -58,7 +60,9 @@ pub struct PluginEntry {
     #[serde(default)]
     pub priority: i64,
 }
-fn all_subjects() -> Vec<String> { vec!["*".into()] }
+fn all_subjects() -> Vec<String> {
+    vec!["*".into()]
+}
 
 #[derive(Debug, Clone, Deserialize, Default)]
 struct ConfigFile {
@@ -94,7 +98,9 @@ struct PluginProc {
 
 impl PluginProc {
     fn spawn(command: &[String]) -> Result<Self, KernelError> {
-        let (prog, args) = command.split_first().ok_or_else(|| KernelError::Config("empty command".into()))?;
+        let (prog, args) = command
+            .split_first()
+            .ok_or_else(|| KernelError::Config("empty command".into()))?;
         let mut child = Command::new(prog)
             .args(args)
             .stdin(Stdio::piped())
@@ -104,25 +110,43 @@ impl PluginProc {
             .map_err(|e| KernelError::Plugin(format!("spawn {}: {e}", command.join(" "))))?;
         let stdin = child.stdin.take().unwrap();
         let stdout = BufReader::new(child.stdout.take().unwrap());
-        Ok(PluginProc { child, stdin, stdout, next_id: 0 })
+        Ok(PluginProc {
+            child,
+            stdin,
+            stdout,
+            next_id: 0,
+        })
     }
 
     /// One request/response round trip. A dead plugin (EOF / no response /
     /// write failure) is reported as PluginError so the caller can respawn
     /// and retry exactly once.
-    fn call(&mut self, method: &str, params: serde_json::Value) -> Result<serde_json::Value, KernelError> {
+    fn call(
+        &mut self,
+        method: &str,
+        params: serde_json::Value,
+    ) -> Result<serde_json::Value, KernelError> {
         self.next_id += 1;
         let id = self.next_id;
         let req = serde_json::json!({"id": id, "method": method, "params": params});
-        writeln!(self.stdin, "{}", req).and_then(|_| self.stdin.flush()).map_err(|e| KernelError::Plugin(format!("write: {e}")))?;
+        writeln!(self.stdin, "{}", req)
+            .and_then(|_| self.stdin.flush())
+            .map_err(|e| KernelError::Plugin(format!("write: {e}")))?;
         let mut line = String::new();
-        let n = self.stdout.read_line(&mut line).map_err(|e| KernelError::Plugin(format!("read: {e}")))?;
+        let n = self
+            .stdout
+            .read_line(&mut line)
+            .map_err(|e| KernelError::Plugin(format!("read: {e}")))?;
         if n == 0 {
             return Err(KernelError::Plugin("plugin exited (EOF)".into()));
         }
-        let v: serde_json::Value = serde_json::from_str(&line).map_err(|e| KernelError::Protocol(format!("bad json from plugin: {e}")))?;
+        let v: serde_json::Value = serde_json::from_str(&line)
+            .map_err(|e| KernelError::Protocol(format!("bad json from plugin: {e}")))?;
         if v["id"] != id {
-            return Err(KernelError::Protocol(format!("id mismatch: sent {id}, got {}", v["id"])));
+            return Err(KernelError::Protocol(format!(
+                "id mismatch: sent {id}, got {}",
+                v["id"]
+            )));
         }
         if let Some(err) = v.get("error") {
             return Err(KernelError::Plugin(format!("plugin error: {err}")));
@@ -133,13 +157,19 @@ impl PluginProc {
 
 struct PluginSlot {
     entry: PluginEntry,
-    kind: &'static str, // tool | model | rail
     proc: Option<PluginProc>,
 }
 
 impl PluginSlot {
-    fn call(&mut self, method: &str, params: serde_json::Value) -> Result<serde_json::Value, KernelError> {
-        let mut p = self.proc.take().ok_or_else(|| KernelError::Plugin("not spawned".into()))?;
+    fn call(
+        &mut self,
+        method: &str,
+        params: serde_json::Value,
+    ) -> Result<serde_json::Value, KernelError> {
+        let mut p = self
+            .proc
+            .take()
+            .ok_or_else(|| KernelError::Plugin("not spawned".into()))?;
         match p.call(method, params.clone()) {
             Ok(r) => {
                 self.proc = Some(p);
@@ -196,21 +226,27 @@ impl Kernel {
     }
 
     fn apply_config(&self, parsed: ConfigFile) -> Result<(), KernelError> {
-        let spawn_describe = |entry: &PluginEntry, kind: &'static str| -> Result<PluginSlot, KernelError> {
-            let mut p = PluginProc::spawn(&entry.command)?;
-            let desc = p.call("describe", serde_json::json!({}))?;
-            if desc["name"].as_str() != Some(entry.name.as_str()) {
-                return Err(KernelError::Protocol(format!(
-                    "plugin {} describes itself as {}", entry.name, desc["name"]
-                )));
-            }
-            if desc["kind"].as_str() != Some(kind) {
-                return Err(KernelError::Protocol(format!(
-                    "plugin {} claims kind {}, expected {kind}", entry.name, desc["kind"]
-                )));
-            }
-            Ok(PluginSlot { entry: entry.clone(), kind, proc: Some(p) })
-        };
+        let spawn_describe =
+            |entry: &PluginEntry, kind: &'static str| -> Result<PluginSlot, KernelError> {
+                let mut p = PluginProc::spawn(&entry.command)?;
+                let desc = p.call("describe", serde_json::json!({}))?;
+                if desc["name"].as_str() != Some(entry.name.as_str()) {
+                    return Err(KernelError::Protocol(format!(
+                        "plugin {} describes itself as {}",
+                        entry.name, desc["name"]
+                    )));
+                }
+                if desc["kind"].as_str() != Some(kind) {
+                    return Err(KernelError::Protocol(format!(
+                        "plugin {} claims kind {}, expected {kind}",
+                        entry.name, desc["kind"]
+                    )));
+                }
+                Ok(PluginSlot {
+                    entry: entry.clone(),
+                    proc: Some(p),
+                })
+            };
         let mut tools = self.tools.borrow_mut();
         for e in &parsed.tools {
             if !tools.contains_key(&e.name) {
@@ -232,7 +268,12 @@ impl Kernel {
             new_rails.push(spawn_describe(e, "rail")?);
         }
         *rails = new_rails;
-        rails.sort_by(|a, b| a.entry.priority.cmp(&b.entry.priority).then(a.entry.name.cmp(&b.entry.name)));
+        rails.sort_by(|a, b| {
+            a.entry
+                .priority
+                .cmp(&b.entry.priority)
+                .then(a.entry.name.cmp(&b.entry.name))
+        });
         Ok(())
     }
 
@@ -255,66 +296,120 @@ impl Kernel {
     }
 
     pub fn list_tools(&self, subject: &str) -> Vec<PluginEntry> {
-        self.tools.borrow().values()
+        self.tools
+            .borrow()
+            .values()
             .filter(|s| Self::visible(&s.entry, subject))
-            .map(|s| s.entry.clone()).collect()
+            .map(|s| s.entry.clone())
+            .collect()
     }
     pub fn list_models(&self) -> Vec<PluginEntry> {
-        self.models.borrow().values().map(|s| s.entry.clone()).collect()
+        self.models
+            .borrow()
+            .values()
+            .map(|s| s.entry.clone())
+            .collect()
     }
 
-    pub fn call_tool(&self, subject: &str, name: &str, args: serde_json::Value) -> Result<ToolCallOutcome, KernelError> {
+    pub fn call_tool(
+        &self,
+        subject: &str,
+        name: &str,
+        args: serde_json::Value,
+    ) -> Result<ToolCallOutcome, KernelError> {
         let mut tools = self.tools.borrow_mut();
-        let slot = tools.get_mut(name).ok_or_else(|| KernelError::UnknownTool(name.into()))?;
+        let slot = tools
+            .get_mut(name)
+            .ok_or_else(|| KernelError::UnknownTool(name.into()))?;
         if !Self::visible(&slot.entry, subject) {
-            return Err(KernelError::Gated { name: name.into(), subject: subject.into() });
+            return Err(KernelError::Gated {
+                name: name.into(),
+                subject: subject.into(),
+            });
         }
         drop(tools);
         self.fire_rails("call.pre_tool", subject, name, &args);
         let t0 = Instant::now();
         let result = {
             let mut tools = self.tools.borrow_mut();
-            tools.get_mut(name).unwrap().call("tool.call", serde_json::json!({"args": args.clone()}))
+            tools
+                .get_mut(name)
+                .unwrap()
+                .call("tool.call", serde_json::json!({"args": args.clone()}))
         };
         let latency_ms = t0.elapsed().as_millis() as u32;
         match result {
             Ok(r) => {
-                self.record(EventKind::ToolCall, serde_json::json!({
-                    "plugin": name, "args": args, "result": r,
-                }), latency_ms, 0)?;
+                self.record(
+                    EventKind::ToolCall,
+                    serde_json::json!({
+                        "plugin": name, "args": args, "result": r,
+                    }),
+                    latency_ms,
+                    0,
+                )?;
                 self.fire_rails("call.post_tool", subject, name, &r);
-                Ok(ToolCallOutcome { output: r, latency_ms })
+                Ok(ToolCallOutcome {
+                    output: r,
+                    latency_ms,
+                })
             }
             Err(e) => {
-                self.record(EventKind::Observation, serde_json::json!({
-                    "plugin": name, "error": e.to_string(), "stage": "tool.call",
-                }), latency_ms, 0)?;
+                self.record(
+                    EventKind::Observation,
+                    serde_json::json!({
+                        "plugin": name, "error": e.to_string(), "stage": "tool.call",
+                    }),
+                    latency_ms,
+                    0,
+                )?;
                 Err(e)
             }
         }
     }
 
-    pub fn call_model(&self, subject: &str, model: Option<&str>, prompt: &str) -> Result<ModelOutcome, KernelError> {
+    pub fn call_model(
+        &self,
+        subject: &str,
+        model: Option<&str>,
+        prompt: &str,
+    ) -> Result<ModelOutcome, KernelError> {
         let name = {
             let models = self.models.borrow();
             match model {
                 Some(m) => m.to_string(),
-                None => models.values().find(|s| s.entry.default).map(|s| s.entry.name.clone())
+                None => models
+                    .values()
+                    .find(|s| s.entry.default)
+                    .map(|s| s.entry.name.clone())
                     .ok_or_else(|| KernelError::UnknownModel("(no default)".into()))?,
             }
         };
         {
             let models = self.models.borrow();
-            let slot = models.get(&name).ok_or_else(|| KernelError::UnknownModel(name.clone()))?;
+            let slot = models
+                .get(&name)
+                .ok_or_else(|| KernelError::UnknownModel(name.clone()))?;
             if !Self::visible(&slot.entry, subject) {
-                return Err(KernelError::Gated { name, subject: subject.into() });
+                return Err(KernelError::Gated {
+                    name,
+                    subject: subject.into(),
+                });
             }
         }
-        self.fire_rails("call.pre_model", subject, &name, &serde_json::json!({"prompt": prompt}));
+        self.fire_rails(
+            "call.pre_model",
+            subject,
+            &name,
+            &serde_json::json!({"prompt": prompt}),
+        );
         let t0 = Instant::now();
         let result = {
             let mut models = self.models.borrow_mut();
-            models.get_mut(&name).unwrap().call("model.call", serde_json::json!({"prompt": prompt}))
+            models
+                .get_mut(&name)
+                .unwrap()
+                .call("model.call", serde_json::json!({"prompt": prompt}))
         };
         let latency_ms = t0.elapsed().as_millis() as u32;
         let r = result?;
@@ -326,11 +421,21 @@ impl Kernel {
             latency_ms,
             model: name.clone(),
         };
-        self.record(EventKind::ModelCall, serde_json::json!({
-            "model": name, "prompt": prompt, "completion": out.completion,
-            "input_tokens": out.input_tokens, "output_tokens": out.output_tokens,
-        }), latency_ms, out.cost_usd_micros)?;
-        self.fire_rails("call.post_model", subject, &name, &serde_json::json!({"completion": out.completion}));
+        self.record(
+            EventKind::ModelCall,
+            serde_json::json!({
+                "model": name, "prompt": prompt, "completion": out.completion,
+                "input_tokens": out.input_tokens, "output_tokens": out.output_tokens,
+            }),
+            latency_ms,
+            out.cost_usd_micros,
+        )?;
+        self.fire_rails(
+            "call.post_model",
+            subject,
+            &name,
+            &serde_json::json!({"completion": out.completion}),
+        );
         Ok(out)
     }
 
@@ -345,19 +450,33 @@ impl Kernel {
             if !Self::visible(&slot.entry, subject) {
                 continue;
             }
-            let r = slot.call("rail.hook", serde_json::json!({
-                "hook": hook, "subject": subject, "target": target, "event": payload,
-            }));
+            let r = slot.call(
+                "rail.hook",
+                serde_json::json!({
+                    "hook": hook, "subject": subject, "target": target, "event": payload,
+                }),
+            );
             if let Err(e) = r {
                 let name = slot.entry.name.clone();
-                let _ = self.record(EventKind::Observation, serde_json::json!({
-                    "rail": name, "hook": hook, "error": e.to_string(), "stage": "rail.hook",
-                }), 0, 0);
+                let _ = self.record(
+                    EventKind::Observation,
+                    serde_json::json!({
+                        "rail": name, "hook": hook, "error": e.to_string(), "stage": "rail.hook",
+                    }),
+                    0,
+                    0,
+                );
             }
         }
     }
 
-    fn record(&self, kind: EventKind, body: serde_json::Value, latency_ms: u32, cost: i64) -> Result<(), KernelError> {
+    fn record(
+        &self,
+        kind: EventKind,
+        body: serde_json::Value,
+        latency_ms: u32,
+        cost: i64,
+    ) -> Result<(), KernelError> {
         if self.log_root.is_none() {
             return Ok(());
         }
@@ -377,13 +496,18 @@ impl Kernel {
         Ok(())
     }
 
-    pub fn stream_id(&self) -> Option<uuid::Uuid> { *self.stream_id.borrow() }
+    pub fn stream_id(&self) -> Option<uuid::Uuid> {
+        *self.stream_id.borrow()
+    }
 }
 
 fn read_config(path: &Path) -> Result<(ConfigFile, SystemTime), KernelError> {
     let text = std::fs::read_to_string(path).map_err(|e| KernelError::Config(e.to_string()))?;
-    let parsed: ConfigFile = toml::from_str(&text).map_err(|e| KernelError::Config(e.to_string()))?;
-    let mtime = std::fs::metadata(path).and_then(|m| m.modified()).map_err(|e| KernelError::Config(e.to_string()))?;
+    let parsed: ConfigFile =
+        toml::from_str(&text).map_err(|e| KernelError::Config(e.to_string()))?;
+    let mtime = std::fs::metadata(path)
+        .and_then(|m| m.modified())
+        .map_err(|e| KernelError::Config(e.to_string()))?;
     Ok((parsed, mtime))
 }
 
@@ -408,6 +532,8 @@ pub use testing::read_only_stream;
 
 impl std::fmt::Debug for Kernel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Kernel").field("config_path", &self.config_path).finish()
+        f.debug_struct("Kernel")
+            .field("config_path", &self.config_path)
+            .finish()
     }
 }

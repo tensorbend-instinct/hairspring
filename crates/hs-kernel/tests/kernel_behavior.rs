@@ -11,7 +11,8 @@ fn write_config(dir: &std::path::Path, body: &str) -> std::path::PathBuf {
 }
 
 fn base_config() -> String {
-    format!(r#"
+    format!(
+        r#"
 [[tools]]
 name = "echo"
 command = ["{FIXTURE}", "echo-tool"]
@@ -44,7 +45,8 @@ name = "rail-b"
 command = ["{FIXTURE}", "rail-b"]
 hooks = ["call.post_tool"]
 priority = 5
-"#)
+"#
+    )
 }
 
 #[test]
@@ -52,7 +54,11 @@ fn config_loads_and_describes_plugins() {
     let dir = tempfile::tempdir().unwrap();
     let path = write_config(dir.path(), &base_config());
     let k = Kernel::load(&path).unwrap();
-    let mut tools: Vec<_> = k.list_tools("alpha").iter().map(|t| t.name.clone()).collect();
+    let mut tools: Vec<_> = k
+        .list_tools("alpha")
+        .iter()
+        .map(|t| t.name.clone())
+        .collect();
     tools.sort();
     assert_eq!(tools, vec!["alpha-only", "echo"]);
     assert_eq!(k.list_tools("anyone").len(), 1);
@@ -62,12 +68,17 @@ fn config_loads_and_describes_plugins() {
 #[test]
 fn describe_mismatch_is_rejected() {
     let dir = tempfile::tempdir().unwrap();
-    let path = write_config(dir.path(), &format!(r#"
+    let path = write_config(
+        dir.path(),
+        &format!(
+            r#"
 [[tools]]
 name = "echo"
 command = ["{FIXTURE}", "bogus"]
 subjects = ["*"]
-"#));
+"#
+        ),
+    );
     let err = Kernel::load(&path).unwrap_err();
     assert!(matches!(err, KernelError::Protocol(_)), "{err:?}");
 }
@@ -80,9 +91,12 @@ fn visibility_gating_filters_by_subject() {
     // alpha sees both tools; beta sees only echo
     assert_eq!(k.list_tools("beta").len(), 1);
     assert_eq!(k.list_tools("alpha").len(), 2);
-    let err = k.call_tool("beta", "alpha-only", serde_json::json!({"text": "hi"})).unwrap_err();
+    let err = k
+        .call_tool("beta", "alpha-only", serde_json::json!({"text": "hi"}))
+        .unwrap_err();
     assert!(matches!(err, KernelError::Gated { .. }), "{err:?}");
-    k.call_tool("alpha", "alpha-only", serde_json::json!({"text": "hi"})).unwrap();
+    k.call_tool("alpha", "alpha-only", serde_json::json!({"text": "hi"}))
+        .unwrap();
 }
 
 #[test]
@@ -90,7 +104,9 @@ fn tool_call_executes_and_returns_output() {
     let dir = tempfile::tempdir().unwrap();
     let path = write_config(dir.path(), &base_config());
     let k = Kernel::load(&path).unwrap();
-    let out = k.call_tool("anyone", "echo", serde_json::json!({"text": "hairspring"})).unwrap();
+    let out = k
+        .call_tool("anyone", "echo", serde_json::json!({"text": "hairspring"}))
+        .unwrap();
     assert_eq!(out.output["output"], "hairspring");
     assert!(out.latency_ms < 5000);
 }
@@ -114,36 +130,51 @@ fn rails_fire_in_priority_order_with_name_tiebreak() {
     std::env::set_var("RAIL_LOG_FILE", &rail_log);
     let path = write_config(dir.path(), &base_config());
     let k = Kernel::load(&path).unwrap();
-    k.call_tool("anyone", "echo", serde_json::json!({"text": "x"})).unwrap();
+    k.call_tool("anyone", "echo", serde_json::json!({"text": "x"}))
+        .unwrap();
     let order = std::fs::read_to_string(&rail_log).unwrap();
     let lines: Vec<&str> = order.lines().collect();
     // priority 5 (rail-a, rail-b: name tiebreak) before priority 10 (rail-c)
-    assert_eq!(lines, vec![
-        "rail-a:call.post_tool",
-        "rail-b:call.post_tool",
-        "rail-c:call.post_tool",
-    ], "hook order");
+    assert_eq!(
+        lines,
+        vec![
+            "rail-a:call.post_tool",
+            "rail-b:call.post_tool",
+            "rail-c:call.post_tool",
+        ],
+        "hook order"
+    );
 }
 
 #[test]
 fn rail_failure_is_contained_and_logged() {
     let dir = tempfile::tempdir().unwrap();
-    let cfg = base_config() + &format!(r#"
+    let cfg = base_config()
+        + &format!(
+            r#"
 [[rails]]
 name = "rail-crash"
 command = ["{FIXTURE}", "rail-crash"]
 hooks = ["call.post_tool"]
 priority = 99
-"#);
+"#
+        );
     let path = write_config(dir.path(), &cfg);
     let mut logdir = tempfile::tempdir().unwrap();
     let k = Kernel::load_with_log(&path, logdir.path()).unwrap();
     // the tool call still succeeds even though a rail died
-    let out = k.call_tool("anyone", "echo", serde_json::json!({"text": "x"})).unwrap();
+    let out = k
+        .call_tool("anyone", "echo", serde_json::json!({"text": "x"}))
+        .unwrap();
     assert_eq!(out.output["output"], "x");
     // and the failure is on the canonical record
     let events = read_only_stream(logdir.path());
-    assert!(events.iter().any(|e| e.kind == hs_core::EventKind::Observation), "rail failure not logged");
+    assert!(
+        events
+            .iter()
+            .any(|e| e.kind == hs_core::EventKind::Observation),
+        "rail failure not logged"
+    );
     let _ = &mut logdir;
 }
 
@@ -151,31 +182,51 @@ priority = 99
 fn crashed_plugin_process_is_restarted() {
     let _ = std::fs::remove_file(std::env::temp_dir().join("hs-fixture-flaky-once"));
     let dir = tempfile::tempdir().unwrap();
-    let path = write_config(dir.path(), &format!(r#"
+    let path = write_config(
+        dir.path(),
+        &format!(
+            r#"
 [[tools]]
 name = "flaky"
 command = ["{FIXTURE}", "flaky-tool"]
 subjects = ["*"]
-"#));
+"#
+        ),
+    );
     let k = Kernel::load(&path).unwrap();
-    let out = k.call_tool("anyone", "flaky", serde_json::json!({})).unwrap();
-    assert_eq!(out.output["output"], "flaky-ok", "kernel did not restart the crashed plugin");
+    let out = k
+        .call_tool("anyone", "flaky", serde_json::json!({}))
+        .unwrap();
+    assert_eq!(
+        out.output["output"], "flaky-ok",
+        "kernel did not restart the crashed plugin"
+    );
 }
 
 #[test]
 fn hot_reload_adds_capability_without_restart() {
     let dir = tempfile::tempdir().unwrap();
-    let path = write_config(dir.path(), &format!(r#"
+    let path = write_config(
+        dir.path(),
+        &format!(
+            r#"
 [[tools]]
 name = "echo"
 command = ["{FIXTURE}", "echo-tool"]
 subjects = ["*"]
-"#));
+"#
+        ),
+    );
     let mut k = Kernel::load(&path).unwrap();
-    assert!(k.call_tool("anyone", "upper", serde_json::json!({})).is_err());
+    assert!(k
+        .call_tool("anyone", "upper", serde_json::json!({}))
+        .is_err());
     std::thread::sleep(std::time::Duration::from_millis(20)); // distinct mtime tick
-    // config changes on disk; harness code and process unchanged
-    std::fs::write(&path, format!(r#"
+                                                              // config changes on disk; harness code and process unchanged
+    std::fs::write(
+        &path,
+        format!(
+            r#"
 [[tools]]
 name = "echo"
 command = ["{FIXTURE}", "echo-tool"]
@@ -190,11 +241,16 @@ subjects = ["*"]
 name = "fake-v2"
 command = ["{FIXTURE}", "fake-model", "fake-v2"]
 default = true
-"#)).unwrap();
+"#
+        ),
+    )
+    .unwrap();
     // mtime granularity: ensure the change is visible
     std::thread::sleep(std::time::Duration::from_millis(20));
     assert!(k.reload_if_changed().unwrap(), "reload not detected");
-    let out = k.call_tool("anyone", "upper", serde_json::json!({"text": "new"})).unwrap();
+    let out = k
+        .call_tool("anyone", "upper", serde_json::json!({"text": "new"}))
+        .unwrap();
     assert_eq!(out.output["output"], "new");
     let m = k.call_model("anyone", Some("fake-v2"), "hi").unwrap();
     assert!(m.completion.starts_with("fake-completion:"));
@@ -206,12 +262,21 @@ fn calls_are_recorded_in_the_event_log() {
     let logdir = tempfile::tempdir().unwrap();
     let path = write_config(dir.path(), &base_config());
     let k = Kernel::load_with_log(&path, logdir.path()).unwrap();
-    k.call_tool("anyone", "echo", serde_json::json!({"text": "logged"})).unwrap();
+    k.call_tool("anyone", "echo", serde_json::json!({"text": "logged"}))
+        .unwrap();
     k.call_model("anyone", None, "count me").unwrap();
     let events = read_only_stream(logdir.path());
-    assert!(events.iter().any(|e| e.kind == hs_core::EventKind::ToolCall));
-    let mc = events.iter().find(|e| e.kind == hs_core::EventKind::ModelCall).expect("model_call event");
-    assert_eq!(mc.cost_usd_micros, 1300, "cost from the plugin must land on the canonical record");
+    assert!(events
+        .iter()
+        .any(|e| e.kind == hs_core::EventKind::ToolCall));
+    let mc = events
+        .iter()
+        .find(|e| e.kind == hs_core::EventKind::ModelCall)
+        .expect("model_call event");
+    assert_eq!(
+        mc.cost_usd_micros, 1300,
+        "cost from the plugin must land on the canonical record"
+    );
     let sid = events[0].stream_id;
     hs_log::verify_stream(logdir.path(), sid).unwrap();
 }
