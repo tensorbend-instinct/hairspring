@@ -11,6 +11,7 @@ use std::io::{BufRead, BufReader, Write};
 
 fn main() {
     let mode = std::env::args().nth(1).expect("mode arg");
+    let name_override = std::env::args().nth(2);
     let stdin = std::io::stdin();
     let mut out = std::io::stdout();
     for line in BufReader::new(stdin.lock()).lines() {
@@ -20,9 +21,9 @@ fn main() {
         let method = v["method"].as_str().unwrap();
         let resp = match (mode.as_str(), method) {
             (_, "describe") => match mode.as_str() {
-                "echo-tool" => serde_json::json!({"id": id, "result": {"name": "echo", "kind": "tool", "version": "0.1.0"}}),
+                "echo-tool" => serde_json::json!({"id": id, "result": {"name": name_override.clone().unwrap_or("echo".into()), "kind": "tool", "version": "0.1.0"}}),
                 "flaky-tool" => serde_json::json!({"id": id, "result": {"name": "flaky", "kind": "tool", "version": "0.1.0"}}),
-                "fake-model" => serde_json::json!({"id": id, "result": {"name": "fake-v1", "kind": "model", "version": "0.1.0"}}),
+                "fake-model" => serde_json::json!({"id": id, "result": {"name": name_override.clone().unwrap_or("fake-v1".into()), "kind": "model", "version": "0.1.0"}}),
                 "bogus" => serde_json::json!({"id": id, "result": {"name": "not-what-you-configured", "kind": "tool", "version": "0.1.0"}}),
                 m if m.starts_with("rail-") => serde_json::json!({"id": id, "result": {"name": m, "kind": "rail", "version": "0.1.0"}}),
                 _ => serde_json::json!({"id": id, "error": "bad mode"}),

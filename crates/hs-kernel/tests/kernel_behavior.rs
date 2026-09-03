@@ -1,7 +1,6 @@
 //! Gate-2 TDD: plugin kernel + Rails contract, written before the implementation.
 
 use hs_kernel::*;
-use std::io::Write;
 
 const FIXTURE: &str = env!("CARGO_BIN_EXE_hs-fixture-plugin");
 
@@ -20,7 +19,7 @@ subjects = ["*"]
 
 [[tools]]
 name = "alpha-only"
-command = ["{FIXTURE}", "echo-tool"]
+command = ["{FIXTURE}", "echo-tool", "alpha-only"]
 subjects = ["alpha"]
 
 [[models]]
@@ -53,9 +52,10 @@ fn config_loads_and_describes_plugins() {
     let dir = tempfile::tempdir().unwrap();
     let path = write_config(dir.path(), &base_config());
     let k = Kernel::load(&path).unwrap();
-    let mut tools: Vec<_> = k.list_tools("anyone").iter().map(|t| t.name.clone()).collect();
+    let mut tools: Vec<_> = k.list_tools("alpha").iter().map(|t| t.name.clone()).collect();
     tools.sort();
     assert_eq!(tools, vec!["alpha-only", "echo"]);
+    assert_eq!(k.list_tools("anyone").len(), 1);
     assert_eq!(k.list_models()[0].name, "fake-v1");
 }
 
@@ -173,6 +173,7 @@ subjects = ["*"]
 "#));
     let mut k = Kernel::load(&path).unwrap();
     assert!(k.call_tool("anyone", "upper", serde_json::json!({})).is_err());
+    std::thread::sleep(std::time::Duration::from_millis(20)); // distinct mtime tick
     // config changes on disk; harness code and process unchanged
     std::fs::write(&path, format!(r#"
 [[tools]]
@@ -182,12 +183,12 @@ subjects = ["*"]
 
 [[tools]]
 name = "upper"
-command = ["{FIXTURE}", "echo-tool"]
+command = ["{FIXTURE}", "echo-tool", "upper"]
 subjects = ["*"]
 
 [[models]]
 name = "fake-v2"
-command = ["{FIXTURE}", "fake-model"]
+command = ["{FIXTURE}", "fake-model", "fake-v2"]
 default = true
 "#)).unwrap();
     // mtime granularity: ensure the change is visible
