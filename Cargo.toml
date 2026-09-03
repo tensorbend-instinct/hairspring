@@ -1,0 +1,17 @@
+[workspace]
+resolver = "2"
+members = ["crates/hs-core", "crates/hs-log", "crates/hs-cli"]
+
+# Planned members for later gates (do NOT create before their gate):
+#   crates/hs-substrate-daemon  (gate 1 productization: daemon owning the log + secrets + sandbox manager)
+#   crates/hs-executor          (gate 2-3: policy layer, plugin kernel, inner loop)
+#   crates/hs-world             (gate 4/6: world service, proposal-consequence separation)
+#   crates/hs-scorer            (gate 7: tiered scorer, held-out assay, canaries)
+#   crates/hs-gateway           (gate 4: user-facing ingress)
+
+[workspace.package]
+edition = "2021"
+license = "Proprietary"
+
+[profile.release]
+debug = true
