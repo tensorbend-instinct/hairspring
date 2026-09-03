@@ -149,53 +149,20 @@ pub struct CallResult {
     pub cost_usd_micros: i64,
 }
 
-pub fn call(p: &Provider, prompt: &str) -> Result<serde_json::Value, String> {
-    let key = load_key(p)?;
-    let url = env_or(p.base_url_env, p.default_base_url);
-    let model = env_or(p.model_env, p.default_model);
-    let mut body = json!({
-        "model": model,
-        "temperature": 0,
-        "messages": [
-            {"role": "system", "content": SYSTEM},
-            {"role": "user", "content": prompt},
-        ],
-    });
-    if let Ok(extra) = std::env::var(p.extra_body_json_env) {
-        let extra: serde_json::Value = serde_json::from_str(&extra)
-            .map_err(|e| format!("{}: bad {}: {e}", p.name, p.extra_body_json_env))?;
-        if let (Some(b), Some(x)) = (body.as_object_mut(), extra.as_object()) {
-            for (k, v) in x {
-                b.insert(k.clone(), v.clone());
-            }
-        }
-    }
-    let agent: ureq::Agent = ureq::Agent::config_builder()
-        .timeout_global(Some(Duration::from_secs(600)))
-        .build()
-        .into();
-    let mut resp = None;
-    let mut last_err = String::new();
-    for attempt in 0..3 {
-        if attempt > 0 {
-            std::thread::sleep(Duration::from_secs(5 * attempt as u64));
-        }
-        match agent
-            .post(&url)
-            .header("Authorization", &format!("Bearer {key}"))
-            .header("Content-Type", "application/json")
-            .send_json(&body)
-        {
-            Ok(r) => {
-                resp = Some(r);
-                break;
-            }
-            // ureq errors never echo headers (no key leak); transport
-            // failures (timeouts, resets) are retried, HTTP statuses are Ok.
-            Err(e) => last_err = format!("{}: request failed: {e}", p.name),
-        }
-    }
-    let mut resp = resp.ok_or(last_err)?;
+fn attempt(
+    p: &Provider,
+    agent: &ureq::Agent,
+    url: &str,
+    key: &str,
+    body: &serde_json::Value,
+    model: &str,
+) -> Result<serde_json::Value, String> {
+    let mut resp = agent
+        .post(url)
+        .header("Authorization", &format!("Bearer {key}"))
+        .header("Content-Type", "application/json")
+        .send_json(body)
+        .map_err(|e| format!("{}: request failed: {e}", p.name))?;
     let status = resp.status();
     if !status.is_success() {
         return Err(format!(
@@ -230,19 +197,90 @@ pub fn call(p: &Provider, prompt: &str) -> Result<serde_json::Value, String> {
         + (input_tokens - cached) as f64 * pin
         + output_tokens as f64 * pout)
         .round() as i64;
-    let r = CallResult {
-        completion,
-        input_tokens,
-        output_tokens,
-        cached_tokens: cached,
-        cost_usd_micros: cost,
-    };
     Ok(json!({
-        "completion": r.completion,
-        "input_tokens": r.input_tokens,
-        "output_tokens": r.output_tokens,
-        "cached_tokens": r.cached_tokens,
-        "cost_usd_micros": r.cost_usd_micros,
+        "completion": completion,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "cached_tokens": cached,
+        "cost_usd_micros": cost,
         "provider_model": model,
     }))
+}
+
+/// Sentinel completion returned when the provider holds a call past the
+/// watchdog. It is deliberately NOT a JSON tool call: the inner loop records
+/// it as a malformed completion and feeds it back, so a hung provider costs
+/// the mission a step instead of hanging the harness forever.
+pub const WATCHDOG_SENTINEL: &str = "__provider_watchdog_timeout__";
+
+/// Watchdog per attempt (seconds), env-overridable. Grounded 2026-09-03:
+/// max-effort calls complete in ~30-90s typical; 420s is 5x headroom.
+/// ureq's timeout_global (600s) demonstrably does NOT fire on a stalled
+/// response-body read (observed: calls stuck 31+ min, zero harness events),
+/// so the watchdog wraps the entire attempt in a thread with a recv_timeout.
+pub fn watchdog_secs() -> u64 {
+    std::env::var("HS_REALMODEL_CALL_TIMEOUT_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(420)
+}
+
+pub fn call(p: &'static Provider, prompt: &str) -> Result<serde_json::Value, String> {
+    let key = load_key(p)?;
+    let url = env_or(p.base_url_env, p.default_base_url);
+    let model = env_or(p.model_env, p.default_model);
+    let mut body = json!({
+        "model": model,
+        "temperature": 0,
+        "messages": [
+            {"role": "system", "content": SYSTEM},
+            {"role": "user", "content": prompt},
+        ],
+    });
+    if let Ok(extra) = std::env::var(p.extra_body_json_env) {
+        let extra: serde_json::Value = serde_json::from_str(&extra)
+            .map_err(|e| format!("{}: bad {}: {e}", p.name, p.extra_body_json_env))?;
+        if let (Some(b), Some(x)) = (body.as_object_mut(), extra.as_object()) {
+            for (k, v) in x {
+                b.insert(k.clone(), v.clone());
+            }
+        }
+    }
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_global(Some(Duration::from_secs(600)))
+        .build()
+        .into();
+    let watchdog = watchdog_secs();
+    let mut last_err = String::new();
+    for attempt_no in 0..3 {
+        if attempt_no > 0 {
+            std::thread::sleep(Duration::from_secs(5 * attempt_no as u64));
+        }
+        let (tx, rx) = std::sync::mpsc::channel();
+        let (a, u, k, b, m) = (agent.clone(), url.clone(), key.clone(), body.clone(), model.clone());
+        std::thread::spawn(move || {
+            let r = attempt(p, &a, &u, &k, &b, &m);
+            let _ = tx.send(r);
+        });
+        match rx.recv_timeout(Duration::from_secs(watchdog)) {
+            Ok(Ok(v)) => return Ok(v),
+            Ok(Err(e)) => last_err = e,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                // Hung provider: do NOT retry (a hung endpoint hangs retries
+                // too). Sentinel = feedback, not a harness error.
+                return Ok(json!({
+                    "completion": WATCHDOG_SENTINEL,
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "cached_tokens": 0,
+                    "cost_usd_micros": 0,
+                    "provider_model": model,
+                }));
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                last_err = format!("{}: worker thread died", p.name);
+            }
+        }
+    }
+    Err(last_err)
 }

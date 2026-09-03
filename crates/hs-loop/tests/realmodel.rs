@@ -4,6 +4,10 @@
 //! loading and JSON extraction from fenced/prose-wrapped output.
 
 use hs_loop::realmodel::*;
+
+/// Env vars are process-global: tests that point providers at mock servers
+/// must not run concurrently.
+static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpListener;
 use std::sync::{Mutex, OnceLock};
@@ -73,6 +77,7 @@ fn extract_json_from_wrapped_output() {
 
 #[test]
 fn adapters_against_mock_server() {
+    let _g = ENV_LOCK.lock().unwrap();
     let _g = env_lock().lock().unwrap();
 
     // GLM: key from env, fenced completion, openai-style usage
@@ -141,4 +146,43 @@ fn adapters_against_mock_server() {
     let e = call(&DEEPSEEK, "x").unwrap_err();
     assert!(e.contains("401"), "{e}");
     assert!(!e.contains("mock-ds-key"));
+}
+
+/// A provider that accepts the connection and never responds must be cut
+/// off by the watchdog with the sentinel completion - the pre-fix behavior
+/// hung the whole harness for 30+ minutes (observed live 2026-09-03).
+#[test]
+fn watchdog_cutoff_returns_sentinel_not_hang() {
+    let _g = ENV_LOCK.lock().unwrap();
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        for s in listener.incoming() {
+            if let Ok(s) = s {
+                // hold the connection open, say nothing, for far longer
+                // than the watchdog
+                std::thread::sleep(std::time::Duration::from_secs(30));
+                drop(s);
+            }
+        }
+    });
+    std::env::set_var(
+        "HS_GLM_BASE_URL",
+        format!("http://127.0.0.1:{port}/chat/completions"),
+    );
+    std::env::set_var("HS_GLM_API_KEY", "test-dummy-not-a-real-key");
+    std::env::set_var("HS_REALMODEL_CALL_TIMEOUT_SECS", "2");
+    let t0 = std::time::Instant::now();
+    let r = hs_loop::realmodel::call(&hs_loop::realmodel::GLM, "hi").unwrap();
+    assert!(
+        t0.elapsed() < std::time::Duration::from_secs(15),
+        "watchdog did not cut the hung call: {:?}",
+        t0.elapsed()
+    );
+    assert_eq!(
+        r["completion"],
+        hs_loop::realmodel::WATCHDOG_SENTINEL,
+        "hung provider must yield the sentinel (feedback), not an error"
+    );
+    assert_eq!(r["cost_usd_micros"], 0);
 }
