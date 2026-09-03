@@ -1,0 +1,17 @@
+[package]
+name = "hs-world"
+description = "HAIRSPRING gate 6: shared world service - proposal/consequence separation, artifact registry, installed controllers, executable inheritance"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+hs-core = { path = "../hs-core" }
+hs-log = { path = "../hs-log" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+sha2 = "0.10"
+
+[dev-dependencies]
+tempfile = "3"
