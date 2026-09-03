@@ -7,4 +7,4 @@ license.workspace = true
 
 [dependencies]
 sha2 = "0.10"
-uuid = { version = "1", features = ["v4"] }
+uuid = { version = "1", features = ["v4", "serde"] }

@@ -122,6 +122,18 @@ impl InnerLoop {
             // the only model round trip in the step
             let out = self.kernel.call_model("operator", None, &ctx)?;
             model_calls += 1;
+            self.writer.append(
+                EventBuilder::new(EventKind::ModelCall)
+                    .payload(Payload::Inline(
+                        serde_json::to_vec(&serde_json::json!({
+                            "model": out.model, "prompt": ctx, "completion": out.completion,
+                            "input_tokens": out.input_tokens, "output_tokens": out.output_tokens,
+                        }))
+                        .unwrap(),
+                    ))
+                    .latency_ms(out.latency_ms)
+                    .cost_usd_micros(out.cost_usd_micros),
+            )?;
             if injected {
                 self.writer.append(
                     EventBuilder::new(EventKind::ContextInject).payload(Payload::Inline(
@@ -142,7 +154,17 @@ impl InnerLoop {
             let args = plan["args"].clone();
 
             // submit
-            self.kernel.call_tool("operator", tool, args)?;
+            let tool_out = self.kernel.call_tool("operator", tool, args.clone())?;
+            self.writer.append(
+                EventBuilder::new(EventKind::ToolCall)
+                    .payload(Payload::Inline(
+                        serde_json::to_vec(&serde_json::json!({
+                            "plugin": tool, "args": args, "result": tool_out.output,
+                        }))
+                        .unwrap(),
+                    ))
+                    .latency_ms(tool_out.latency_ms),
+            )?;
 
             // the world answers (checker = ground truth at this gate)
             let verdict = self.kernel.call_tool(

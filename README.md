@@ -64,6 +64,27 @@ the verified chain.
 3.00 vs OFF 6.00; pass rate 75% vs 0% (no regression); coverage limit 25%
 of failure classes carry no injectable fix. Published in PROOF-gate3.txt.
 
+## Gate 4 (tag gate-4): outer loop - Goal Mode, budgets, gateway
+
+- `crates/hs-goal` - Goal records (spec section 5) with completion modes
+  self / independent / hybrid; checkers are the only completion authority
+  outside self mode; checker triggers are artifact-changed or done-declared,
+  not every step. Budgets (steps + cost) read the log's own latency/cost
+  records; exceed = budget_update + breakpoint, honest stop. Gateway = async
+  append-only inbox drained at step boundaries; cancel/redirect/add_task
+  land mid-run without touching progress.
+- Every model/tool call is recorded on the mission stream with latency and
+  cost (substrate completeness fix applied to gate 3's loop too).
+
+### Gate-4 proof (spec section 10, row 4)
+
+`cargo test -p hs-goal --test gate4_proof -- --nocapture`: 8 planted tasks,
+4 of them false completions (visible spec met, hidden test fails, model
+declares done). Independent and hybrid modes: 0 false passes (100% caught).
+Self mode: 4/4 false plants falsely passed - miss rate measured and
+published, not assumed. Gateway cancel/redirect proofs in
+`tests/outer_loop.rs` (chains verify, history unbroken, work intact).
+
 ## Layout for later gates
 
 One crate per spec component: substrate daemon, executor, world service,
