@@ -121,11 +121,21 @@ impl std::error::Error for DecodeError {}
 
 struct Writer(Vec<u8>);
 impl Writer {
-    fn u8(&mut self, v: u8) { self.0.push(v) }
-    fn u32(&mut self, v: u32) { self.0.extend(v.to_le_bytes()) }
-    fn u64(&mut self, v: u64) { self.0.extend(v.to_le_bytes()) }
-    fn i64(&mut self, v: i64) { self.0.extend(v.to_le_bytes()) }
-    fn raw(&mut self, v: &[u8]) { self.0.extend(v) }
+    fn u8(&mut self, v: u8) {
+        self.0.push(v)
+    }
+    fn u32(&mut self, v: u32) {
+        self.0.extend(v.to_le_bytes())
+    }
+    fn u64(&mut self, v: u64) {
+        self.0.extend(v.to_le_bytes())
+    }
+    fn i64(&mut self, v: i64) {
+        self.0.extend(v.to_le_bytes())
+    }
+    fn raw(&mut self, v: &[u8]) {
+        self.0.extend(v)
+    }
 }
 
 struct Reader<'a> {
@@ -141,7 +151,9 @@ impl<'a> Reader<'a> {
         self.pos += n;
         Ok(s)
     }
-    fn u8(&mut self, at: &'static str) -> Result<u8, DecodeError> { Ok(self.take(1, at)?[0]) }
+    fn u8(&mut self, at: &'static str) -> Result<u8, DecodeError> {
+        Ok(self.take(1, at)?[0])
+    }
     fn u32(&mut self, at: &'static str) -> Result<u32, DecodeError> {
         Ok(u32::from_le_bytes(self.take(4, at)?.try_into().unwrap()))
     }
@@ -233,7 +245,9 @@ impl Event {
         };
         let parent_event_id = match r.u8("parent")? {
             0 => None,
-            _ => Some(Uuid::from_bytes(r.take(16, "parent.id")?.try_into().unwrap())),
+            _ => Some(Uuid::from_bytes(
+                r.take(16, "parent.id")?.try_into().unwrap(),
+            )),
         };
         let latency_ms = r.u32("latency_ms")?;
         let cost_usd_micros = r.i64("cost_usd_micros")?;
@@ -247,8 +261,18 @@ impl Event {
             return Err(DecodeError::TrailingBytes(buf.len() - r.pos));
         }
         Ok(Event {
-            event_id, stream_id, seq, ts_wall_ms, kind, payload, parent_event_id,
-            latency_ms, cost_usd_micros, sandbox_snap_id, prev_hash, hash,
+            event_id,
+            stream_id,
+            seq,
+            ts_wall_ms,
+            kind,
+            payload,
+            parent_event_id,
+            latency_ms,
+            cost_usd_micros,
+            sandbox_snap_id,
+            prev_hash,
+            hash,
         })
     }
 }
@@ -277,16 +301,38 @@ impl EventBuilder {
             },
         }
     }
-    pub fn payload(mut self, p: Payload) -> Self { self.event.payload = p; self }
-    pub fn parent(mut self, id: Uuid) -> Self { self.event.parent_event_id = Some(id); self }
-    pub fn latency_ms(mut self, v: u32) -> Self { self.event.latency_ms = v; self }
-    pub fn cost_usd_micros(mut self, v: i64) -> Self { self.event.cost_usd_micros = v; self }
-    pub fn sandbox_snap(mut self, id: Uuid) -> Self { self.event.sandbox_snap_id = Some(id); self }
-    pub fn ts_wall_ms(mut self, v: i64) -> Self { self.event.ts_wall_ms = v; self }
+    pub fn payload(mut self, p: Payload) -> Self {
+        self.event.payload = p;
+        self
+    }
+    pub fn parent(mut self, id: Uuid) -> Self {
+        self.event.parent_event_id = Some(id);
+        self
+    }
+    pub fn latency_ms(mut self, v: u32) -> Self {
+        self.event.latency_ms = v;
+        self
+    }
+    pub fn cost_usd_micros(mut self, v: i64) -> Self {
+        self.event.cost_usd_micros = v;
+        self
+    }
+    pub fn sandbox_snap(mut self, id: Uuid) -> Self {
+        self.event.sandbox_snap_id = Some(id);
+        self
+    }
+    pub fn ts_wall_ms(mut self, v: i64) -> Self {
+        self.event.ts_wall_ms = v;
+        self
+    }
     /// Partial build for schema/unit tests: ids, seq, and chain fields left unset.
-    pub fn build_part(self) -> Event { self.event }
+    pub fn build_part(self) -> Event {
+        self.event
+    }
     /// Full build used by the log writer after it assigns chain fields.
-    pub fn build(self) -> Event { self.event }
+    pub fn build(self) -> Event {
+        self.event
+    }
 }
 
 /// Test-only helpers exposing encoding layout without making it public API.

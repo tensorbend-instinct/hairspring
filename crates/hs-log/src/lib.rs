@@ -31,10 +31,14 @@ pub enum LogError {
     Corruption(Corruption),
 }
 impl From<io::Error> for LogError {
-    fn from(e: io::Error) -> Self { LogError::Io(e) }
+    fn from(e: io::Error) -> Self {
+        LogError::Io(e)
+    }
 }
 impl From<hs_core::DecodeError> for LogError {
-    fn from(e: hs_core::DecodeError) -> Self { LogError::Decode(e) }
+    fn from(e: hs_core::DecodeError) -> Self {
+        LogError::Decode(e)
+    }
 }
 impl std::fmt::Display for LogError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -77,7 +81,10 @@ fn stream_dir(root: &Path, stream: Uuid) -> PathBuf {
 }
 fn blob_path_inner(root: &Path, hash: &[u8; 32]) -> PathBuf {
     let hex = hex_encode(hash);
-    root.join("blobs").join(&hex[0..2]).join(&hex[2..4]).join(hex)
+    root.join("blobs")
+        .join(&hex[0..2])
+        .join(&hex[2..4])
+        .join(hex)
 }
 fn hex_encode(b: &[u8]) -> String {
     b.iter().map(|x| format!("{x:02x}")).collect()
@@ -118,8 +125,8 @@ fn write_frame(file: &mut File, body: &[u8]) -> io::Result<u64> {
 }
 
 enum FrameRead {
-    Ok(Event, u64),       // event, total frame bytes
-    TornTail(u64),        // bytes present but incomplete
+    Ok(Event, u64), // event, total frame bytes
+    TornTail(u64),  // bytes present but incomplete
     Corrupt(Corruption),
     End,
 }
@@ -147,11 +154,17 @@ fn read_frame(file: &mut File) -> Result<FrameRead, LogError> {
     if crc32fast::hash(&body) != crc {
         // CRC failed: we cannot trust the seq field, so report at the
         // position the caller tracks.
-        return Ok(FrameRead::Corrupt(Corruption { seq: u64::MAX, kind: CorruptionKind::CrcMismatch }));
+        return Ok(FrameRead::Corrupt(Corruption {
+            seq: u64::MAX,
+            kind: CorruptionKind::CrcMismatch,
+        }));
     }
     match Event::decode(&body) {
         Ok(e) => Ok(FrameRead::Ok(e, 8 + len as u64)),
-        Err(e) => Ok(FrameRead::Corrupt(Corruption { seq: u64::MAX, kind: CorruptionKind::Decode(e.to_string()) })),
+        Err(e) => Ok(FrameRead::Corrupt(Corruption {
+            seq: u64::MAX,
+            kind: CorruptionKind::Decode(e.to_string()),
+        })),
     }
 }
 
@@ -193,7 +206,10 @@ impl StreamWriter {
         }
         fs::create_dir_all(&dir)?;
         fsync_dir(&dir.join("..").canonicalize().unwrap_or(dir.clone()))?;
-        let file = OpenOptions::new().create_new(true).append(true).open(dir.join("seg-000000.hslog"))?;
+        let file = OpenOptions::new()
+            .create_new(true)
+            .append(true)
+            .open(dir.join("seg-000000.hslog"))?;
         fsync_dir(&dir)?;
         Ok(StreamWriter {
             root: root.to_path_buf(),
@@ -289,9 +305,15 @@ impl StreamWriter {
         })
     }
 
-    pub fn last_hash(&self) -> [u8; 32] { self.last_hash }
-    pub fn last_event_id(&self) -> Option<Uuid> { self.last_event_id }
-    pub fn next_seq(&self) -> u64 { self.next_seq }
+    pub fn last_hash(&self) -> [u8; 32] {
+        self.last_hash
+    }
+    pub fn last_event_id(&self) -> Option<Uuid> {
+        self.last_event_id
+    }
+    pub fn next_seq(&self) -> u64 {
+        self.next_seq
+    }
 
     /// Append one event. The writer assigns seq, prev_hash, and hash; the
     /// caller owns everything else. Durable (fsynced) when returned.
@@ -308,7 +330,10 @@ impl StreamWriter {
         if let Payload::Inline(bytes) = &e.payload {
             if bytes.len() > INLINE_CAP {
                 let hash = self.store_blob(bytes)?;
-                e.payload = Payload::BlobRef { hash, len: bytes.len() as u64 };
+                e.payload = Payload::BlobRef {
+                    hash,
+                    len: bytes.len() as u64,
+                };
             }
         }
         e.hash = e.compute_hash();
@@ -355,17 +380,26 @@ fn check_chain(e: &Event, expected_seq: u64, expected_prev: [u8; 32]) -> Result<
     if e.seq != expected_seq {
         return Err(LogError::Corruption(Corruption {
             seq: expected_seq,
-            kind: CorruptionKind::SeqGap { expected: expected_seq, found: e.seq },
+            kind: CorruptionKind::SeqGap {
+                expected: expected_seq,
+                found: e.seq,
+            },
         }));
     }
     if e.prev_hash != expected_prev {
         return Err(LogError::Corruption(Corruption {
             seq: e.seq,
-            kind: CorruptionKind::PrevHashMismatch { expected: expected_prev, found: e.prev_hash },
+            kind: CorruptionKind::PrevHashMismatch {
+                expected: expected_prev,
+                found: e.prev_hash,
+            },
         }));
     }
     if !e.verify_hash() {
-        return Err(LogError::Corruption(Corruption { seq: e.seq, kind: CorruptionKind::HashMismatch }));
+        return Err(LogError::Corruption(Corruption {
+            seq: e.seq,
+            kind: CorruptionKind::HashMismatch,
+        }));
     }
     Ok(())
 }
@@ -380,7 +414,10 @@ impl StreamReader {
         if segment_files(root, stream)?.is_empty() {
             return Err(LogError::StreamMissing(stream));
         }
-        Ok(StreamReader { root: root.to_path_buf(), stream })
+        Ok(StreamReader {
+            root: root.to_path_buf(),
+            stream,
+        })
     }
 
     /// All events in chain order. CRC/decode failures surface as corruption;
@@ -405,7 +442,11 @@ impl StreamReader {
 
     /// Events up to and including `seq`: the rewind read path.
     pub fn replay_to(&self, seq: u64) -> Result<Vec<Event>, LogError> {
-        Ok(self.events()?.into_iter().take_while(|e| e.seq <= seq).collect())
+        Ok(self
+            .events()?
+            .into_iter()
+            .take_while(|e| e.seq <= seq)
+            .collect())
     }
 
     pub fn resolve_payload(&self, e: &Event) -> Result<Vec<u8>, LogError> {
@@ -443,25 +484,37 @@ pub fn verify_stream(root: &Path, stream: Uuid) -> Result<VerifyReport, Corrupti
     })?;
     let events = reader.events().map_err(|e| match e {
         LogError::Corruption(c) => c,
-        other => Corruption { seq: 0, kind: CorruptionKind::Decode(other.to_string()) },
+        other => Corruption {
+            seq: 0,
+            kind: CorruptionKind::Decode(other.to_string()),
+        },
     })?;
     let mut expected_seq = 0u64;
     let mut expected_prev = [0u8; 32];
     for e in &events {
         check_chain(e, expected_seq, expected_prev).map_err(|e| match e {
             LogError::Corruption(c) => c,
-            other => Corruption { seq: expected_seq, kind: CorruptionKind::Decode(other.to_string()) },
+            other => Corruption {
+                seq: expected_seq,
+                kind: CorruptionKind::Decode(other.to_string()),
+            },
         })?;
         if let Payload::BlobRef { .. } = &e.payload {
             reader.resolve_payload(e).map_err(|le| match le {
                 LogError::Corruption(c) => c,
-                other => Corruption { seq: e.seq, kind: CorruptionKind::Decode(other.to_string()) },
+                other => Corruption {
+                    seq: e.seq,
+                    kind: CorruptionKind::Decode(other.to_string()),
+                },
             })?;
         }
         expected_seq = e.seq + 1;
         expected_prev = e.hash;
     }
-    Ok(VerifyReport { events: events.len() as u64, last_hash: expected_prev })
+    Ok(VerifyReport {
+        events: events.len() as u64,
+        last_hash: expected_prev,
+    })
 }
 
 /// Test-support helpers: deliberate log surgery for the corruption proofs.
@@ -477,7 +530,11 @@ pub mod testing {
     /// Flip one byte inside the encoded body of the event with `seq`.
     pub fn corrupt_event_byte(root: &Path, stream: Uuid, seq: u64, body_offset: usize) {
         for path in segment_files(root, stream).unwrap() {
-            let mut f = OpenOptions::new().read(true).write(true).open(&path).unwrap();
+            let mut f = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(&path)
+                .unwrap();
             let mut frame_start = 0u64;
             loop {
                 let mut hdr = [0u8; 8];
@@ -490,10 +547,12 @@ pub mod testing {
                 if let Ok(e) = Event::decode(&body) {
                     if e.seq == seq {
                         let off = body_offset.min(len - 1);
-                        f.seek(SeekFrom::Start(frame_start + 8 + off as u64)).unwrap();
+                        f.seek(SeekFrom::Start(frame_start + 8 + off as u64))
+                            .unwrap();
                         let mut b = [0u8; 1];
                         f.read_exact(&mut b).unwrap();
-                        f.seek(SeekFrom::Start(frame_start + 8 + off as u64)).unwrap();
+                        f.seek(SeekFrom::Start(frame_start + 8 + off as u64))
+                            .unwrap();
                         f.write_all(&[b[0] ^ 0xFF]).unwrap();
                         f.sync_all().unwrap();
                         return;

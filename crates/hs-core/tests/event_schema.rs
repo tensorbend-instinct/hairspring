@@ -26,12 +26,24 @@ fn sample_event(kind: EventKind) -> Event {
 fn every_spec_kind_exists_and_roundtrips_through_encoding() {
     // The 18 kinds from the spec, in spec order.
     let spec_kinds = [
-        EventKind::ModelCall, EventKind::ToolCall, EventKind::Observation,
-        EventKind::Decision, EventKind::ContextInject, EventKind::Feedback,
-        EventKind::SnapshotRef, EventKind::Proposal, EventKind::Consequence,
-        EventKind::GoalUpdate, EventKind::BudgetUpdate, EventKind::Spawn,
-        EventKind::Message, EventKind::Mutation, EventKind::Score,
-        EventKind::ScorerPin, EventKind::CanaryResult, EventKind::Prefetch,
+        EventKind::ModelCall,
+        EventKind::ToolCall,
+        EventKind::Observation,
+        EventKind::Decision,
+        EventKind::ContextInject,
+        EventKind::Feedback,
+        EventKind::SnapshotRef,
+        EventKind::Proposal,
+        EventKind::Consequence,
+        EventKind::GoalUpdate,
+        EventKind::BudgetUpdate,
+        EventKind::Spawn,
+        EventKind::Message,
+        EventKind::Mutation,
+        EventKind::Score,
+        EventKind::ScorerPin,
+        EventKind::CanaryResult,
+        EventKind::Prefetch,
     ];
     assert_eq!(spec_kinds.len(), 18);
     for k in spec_kinds {
@@ -48,7 +60,11 @@ fn reserved_kinds_for_gates_7_and_8_are_in_kind_space() {
     // as a different kind than evolved-fitness scores, and regression records
     // ("verified at event N, regressed at event M") are a tracked record type.
     // Reserved now so later gates need no schema migration.
-    for k in [EventKind::CapabilityDelta, EventKind::FitnessDelta, EventKind::Regression] {
+    for k in [
+        EventKind::CapabilityDelta,
+        EventKind::FitnessDelta,
+        EventKind::Regression,
+    ] {
         let e = sample_event(k);
         let back = Event::decode(&e.encode()).expect("decode reserved kind");
         assert_eq!(back, e);
@@ -96,7 +112,10 @@ fn hash_is_sha256_over_canonical_encoding_without_hash_field() {
     h.update([0u8]); // no sandbox snap
     h.update(e.prev_hash);
     let expected: [u8; 32] = h.finalize().into();
-    assert_eq!(e.hash, expected, "canonical hash layout changed; this is a schema break");
+    assert_eq!(
+        e.hash, expected,
+        "canonical hash layout changed; this is a schema break"
+    );
     assert!(e.verify_hash());
 }
 
@@ -104,7 +123,8 @@ fn hash_is_sha256_over_canonical_encoding_without_hash_field() {
 fn changing_any_field_breaks_verify() {
     let base = sample_event(EventKind::ModelCall);
     let mut e = base.clone();
-    e.seq += 1; e.hash = e.compute_hash();
+    e.seq += 1;
+    e.hash = e.compute_hash();
     e.seq -= 1; // restore field but keep stale hash -> verify must fail
     assert!(!e.verify_hash());
     let mut e2 = base.clone();
@@ -118,7 +138,10 @@ fn payload_variants_roundtrip() {
         Payload::None,
         Payload::Inline(vec![]),
         Payload::Inline(b"x".to_vec()),
-        Payload::BlobRef { hash: [7u8; 32], len: 999_999 },
+        Payload::BlobRef {
+            hash: [7u8; 32],
+            len: 999_999,
+        },
     ] {
         let mut e = sample_event(EventKind::Observation);
         e.payload = p.clone();
@@ -132,6 +155,8 @@ fn payload_variants_roundtrip() {
 #[test]
 fn cost_is_decimal_micros_not_float() {
     // spec: cost_usd is decimal; floats are forbidden in the canonical record.
-    let e = EventBuilder::new(EventKind::ModelCall).cost_usd_micros(1).build_part();
+    let e = EventBuilder::new(EventKind::ModelCall)
+        .cost_usd_micros(1)
+        .build_part();
     assert_eq!(e.cost_usd_micros, 1);
 }
