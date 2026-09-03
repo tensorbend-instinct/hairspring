@@ -40,6 +40,52 @@ fn ledger_total() -> u64 {
         .sum()
 }
 
+fn progress_path() -> std::path::PathBuf {
+    std::env::var("HS_REALBENCH_PROGRESS")
+        .map(Into::into)
+        .unwrap_or_else(|_| "/tmp/hs-realbench-progress.txt".into())
+}
+
+/// Prior completed missions for this (model, arm): tag -> (passed, steps, cost).
+fn progress_done(
+    model: &str,
+    feedback: bool,
+) -> std::collections::HashMap<String, (bool, u64, u64)> {
+    let prefix = format!("{model}:{feedback}:");
+    std::fs::read_to_string(progress_path())
+        .unwrap_or_default()
+        .lines()
+        .filter(|l| l.starts_with(&prefix))
+        .filter_map(|l| {
+            let mut p = l.split(':');
+            let tag = p.nth(2)?.to_string();
+            Some((
+                tag,
+                (
+                    p.next()? == "1",
+                    p.next()?.parse().ok()?,
+                    p.next()?.parse().ok()?,
+                ),
+            ))
+        })
+        .collect()
+}
+
+fn progress_add(model: &str, feedback: bool, task: usize, passed: bool, steps: u32, cost: u64) {
+    use std::io::Write;
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(progress_path())
+        .unwrap();
+    writeln!(
+        f,
+        "{model}:{feedback}:task-{task}:{}:{steps}:{cost}",
+        passed as u8
+    )
+    .unwrap();
+}
+
 fn ledger_add(micros: u64) {
     use std::io::Write;
     let mut f = std::fs::OpenOptions::new()
@@ -108,6 +154,7 @@ default = true
         let cost = l.total_cost_micros();
         ledger_add(cost);
         arm.cost_micros += cost;
+        progress_add(model_name, feedback, t, r.passed, r.steps, cost);
         if r.passed {
             arm.passed += 1;
         }
