@@ -163,6 +163,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "hs-goal"
+version = "0.1.0"
+dependencies = [
+ "hs-core",
+ "hs-kernel",
+ "hs-log",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "uuid",
+]
+
+[[package]]
 name = "hs-kernel"
 version = "0.1.0"
 dependencies = [
