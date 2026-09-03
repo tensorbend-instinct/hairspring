@@ -30,6 +30,9 @@ pub struct Provider {
     pub default_cached_micros: f64,
     pub price_out_env: &'static str,
     pub default_out_micros: f64,
+    /// Optional env var holding a JSON object merged into the request body
+    /// (e.g. HS_DEEPSEEK_EXTRA_BODY_JSON='{"thinking":{"type":"disabled"}}').
+    pub extra_body_json_env: &'static str,
 }
 
 pub const GLM: Provider = Provider {
@@ -46,6 +49,7 @@ pub const GLM: Provider = Provider {
     default_cached_micros: 0.26,
     price_out_env: "HS_GLM_PRICE_OUT_MICROS",
     default_out_micros: 4.40,
+    extra_body_json_env: "HS_GLM_EXTRA_BODY_JSON",
 };
 
 pub const DEEPSEEK: Provider = Provider {
@@ -62,6 +66,7 @@ pub const DEEPSEEK: Provider = Provider {
     default_cached_micros: 0.014,
     price_out_env: "HS_DEEPSEEK_PRICE_OUT_MICROS",
     default_out_micros: 1.32,
+    extra_body_json_env: "HS_DEEPSEEK_EXTRA_BODY_JSON",
 };
 
 const SYSTEM: &str = "You are the model plugin of an autonomous coding agent. \
@@ -148,7 +153,7 @@ pub fn call(p: &Provider, prompt: &str) -> Result<serde_json::Value, String> {
     let key = load_key(p)?;
     let url = env_or(p.base_url_env, p.default_base_url);
     let model = env_or(p.model_env, p.default_model);
-    let body = json!({
+    let mut body = json!({
         "model": model,
         "temperature": 0,
         "messages": [
@@ -156,6 +161,15 @@ pub fn call(p: &Provider, prompt: &str) -> Result<serde_json::Value, String> {
             {"role": "user", "content": prompt},
         ],
     });
+    if let Ok(extra) = std::env::var(p.extra_body_json_env) {
+        let extra: serde_json::Value = serde_json::from_str(&extra)
+            .map_err(|e| format!("{}: bad {}: {e}", p.name, p.extra_body_json_env))?;
+        if let (Some(b), Some(x)) = (body.as_object_mut(), extra.as_object()) {
+            for (k, v) in x {
+                b.insert(k.clone(), v.clone());
+            }
+        }
+    }
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .timeout_global(Some(Duration::from_secs(120)))
         .build()
