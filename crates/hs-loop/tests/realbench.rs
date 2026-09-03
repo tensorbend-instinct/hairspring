@@ -110,7 +110,18 @@ fn run_arm(root: &std::path::Path, feedback: bool, model_name: &str, model_bin: 
         cost_micros: 0,
         stopped_early: false,
     };
+    let done = progress_done(model_name, feedback);
     for t in 0..TASKS {
+        let tag = format!("task-{t}");
+        if let Some(&(passed, steps, cost)) = done.get(&tag) {
+            eprintln!("resume: {model_name} arm={feedback} {tag} already done (passed={passed}, steps={steps})");
+            if passed {
+                arm.passed += 1;
+            }
+            arm.steps_total += steps;
+            arm.cost_micros += cost;
+            continue;
+        }
         if ledger_total() >= cap_micros() {
             eprintln!("REALBENCH BUDGET CAP reached before arm={feedback} task-{t}; stopping");
             arm.stopped_early = true;
