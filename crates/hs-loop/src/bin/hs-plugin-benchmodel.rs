@@ -10,14 +10,25 @@ fn main() {
     serve("benchmodel", "model", &mut |method, params| match method {
         "model.call" => {
             let prompt = params["prompt"].as_str().unwrap_or("");
-            let path = prompt.lines()
-                .find_map(|l| l.strip_prefix("ANSWER_PATH: ")).unwrap_or("").to_string();
-            let attempt: usize = prompt.lines()
-                .find_map(|l| l.strip_prefix("ATTEMPT: ")).and_then(|v| v.parse().ok()).unwrap_or(1);
-            let feedback_fix = prompt.lines()
-                .find_map(|l| l.trim_start_matches("- ").strip_prefix("line 1: expected token "))
+            let path = prompt
+                .lines()
+                .find_map(|l| l.strip_prefix("ANSWER_PATH: "))
+                .unwrap_or("")
+                .to_string();
+            let attempt: usize = prompt
+                .lines()
+                .find_map(|l| l.strip_prefix("ATTEMPT: "))
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(1);
+            let feedback_fix = prompt
+                .lines()
+                .find_map(|l| {
+                    l.trim_start_matches("- ")
+                        .strip_prefix("line 1: expected token ")
+                })
                 .map(|s| s.to_string());
-            let content = feedback_fix.unwrap_or_else(|| BLIND[(attempt - 1) % BLIND.len()].to_string());
+            let content =
+                feedback_fix.unwrap_or_else(|| BLIND[(attempt - 1) % BLIND.len()].to_string());
             let completion = serde_json::json!({
                 "tool": "answer.write",
                 "args": {"path": path, "content": content}

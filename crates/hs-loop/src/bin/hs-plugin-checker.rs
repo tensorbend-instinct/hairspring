@@ -6,7 +6,9 @@ include!("shared/sdk.rs");
 
 fn expected(task_id: &str) -> Option<(usize, String)> {
     let n: usize = task_id.strip_prefix("task-")?.parse().ok()?;
-    if n >= 24 { return None; }
+    if n >= 24 {
+        return None;
+    }
     Some((n, format!("TOKEN-{n}-SECRET")))
 }
 

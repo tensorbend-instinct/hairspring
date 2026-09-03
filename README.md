@@ -47,6 +47,23 @@ process gains a brand-new tool and a brand-new model after a config-file-only
 change - same pid before and after, harness binaries untouched, all calls on
 the verified chain.
 
+## Gate 3 (tag gate-3): inner loop with semantic feedback
+
+- `crates/hs-loop` - the spec section 6 step: observe -> drain_feedback ->
+  assemble -> model.call -> validate -> submit -> checker verdict. The
+  verdict is recorded as a feedback event in both ablation arms; in the ON
+  arm it is injected into the next step (recorded as context_inject: what
+  entered the window and why). Feedback costs zero extra model round trips.
+- Bench family: 24 deterministic coding tasks, 18 feedback-repairable,
+  6 not (checker verdict carries no usable signal). Scripted deterministic
+  model: no API spend, and the harness mechanism is what is under test.
+
+### Gate-3 proof (spec section 10, row 3)
+
+`cargo test -p hs-loop --test gate3_proof -- --nocapture`: steps-to-pass ON
+3.00 vs OFF 6.00; pass rate 75% vs 0% (no regression); coverage limit 25%
+of failure classes carry no injectable fix. Published in PROOF-gate3.txt.
+
 ## Layout for later gates
 
 One crate per spec component: substrate daemon, executor, world service,

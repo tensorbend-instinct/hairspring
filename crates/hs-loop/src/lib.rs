@@ -19,13 +19,19 @@ pub enum LoopError {
     Io(std::io::Error),
 }
 impl From<std::io::Error> for LoopError {
-    fn from(e: std::io::Error) -> Self { LoopError::Io(e) }
+    fn from(e: std::io::Error) -> Self {
+        LoopError::Io(e)
+    }
 }
 impl From<KernelError> for LoopError {
-    fn from(e: KernelError) -> Self { LoopError::Kernel(e) }
+    fn from(e: KernelError) -> Self {
+        LoopError::Kernel(e)
+    }
 }
 impl From<LogError> for LoopError {
-    fn from(e: LogError) -> Self { LoopError::Log(e) }
+    fn from(e: LogError) -> Self {
+        LoopError::Log(e)
+    }
 }
 impl std::fmt::Display for LoopError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -58,7 +64,12 @@ pub struct InnerLoop {
 }
 
 impl InnerLoop {
-    pub fn new(kernel: Kernel, log_root: &Path, feedback_injection: bool, max_steps: u32) -> Result<Self, LoopError> {
+    pub fn new(
+        kernel: Kernel,
+        log_root: &Path,
+        feedback_injection: bool,
+        max_steps: u32,
+    ) -> Result<Self, LoopError> {
         let stream_id = uuid::Uuid::new_v4();
         let writer = StreamWriter::create(log_root, stream_id)?;
         Ok(InnerLoop {
@@ -71,7 +82,9 @@ impl InnerLoop {
         })
     }
 
-    pub fn stream_id(&self) -> uuid::Uuid { self.stream_id }
+    pub fn stream_id(&self) -> uuid::Uuid {
+        self.stream_id
+    }
 
     /// Run one mission to a checker verdict or the step cap.
     pub fn run_mission(&mut self, mission: &str) -> Result<MissionResult, LoopError> {
@@ -91,7 +104,11 @@ impl InnerLoop {
             let mut ctx = format!(
                 "MISSION: {mission}\nATTEMPT: {step}\nANSWER_PATH: {}\nARTIFACT: {}\n",
                 answer_path.display(),
-                if artifact.is_empty() { "<none>" } else { artifact.trim() }
+                if artifact.is_empty() {
+                    "<none>"
+                } else {
+                    artifact.trim()
+                }
             );
             let mut injected = false;
             if self.feedback_injection && !drained.is_empty() {
@@ -110,7 +127,8 @@ impl InnerLoop {
                     EventBuilder::new(EventKind::ContextInject).payload(Payload::Inline(
                         serde_json::to_vec(&serde_json::json!({
                             "what": drained, "why": "checker verdict since last step",
-                        })).unwrap(),
+                        }))
+                        .unwrap(),
                     )),
                 )?;
             }
@@ -118,7 +136,9 @@ impl InnerLoop {
             // validate: the plan must be a single well-formed action
             let plan: serde_json::Value = serde_json::from_str(&out.completion)
                 .map_err(|e| LoopError::ModelOutput(format!("unparsable completion: {e}")))?;
-            let tool = plan["tool"].as_str().ok_or_else(|| LoopError::ModelOutput("no tool".into()))?;
+            let tool = plan["tool"]
+                .as_str()
+                .ok_or_else(|| LoopError::ModelOutput("no tool".into()))?;
             let args = plan["args"].clone();
 
             // submit
@@ -137,25 +157,33 @@ impl InnerLoop {
                     serde_json::to_vec(&serde_json::json!({
                         "checker": "checker.run", "task_id": mission,
                         "passed": passed, "error": error,
-                    })).unwrap(),
+                    }))
+                    .unwrap(),
                 )),
             )?;
             if passed {
                 self.writer.append(
                     EventBuilder::new(EventKind::GoalUpdate).payload(Payload::Inline(
-                        serde_json::to_vec(&serde_json::json!({"mission": mission, "done": true})).unwrap(),
+                        serde_json::to_vec(&serde_json::json!({"mission": mission, "done": true}))
+                            .unwrap(),
                     )),
                 )?;
                 return Ok(MissionResult {
-                    passed: true, steps, model_calls,
-                    stream_id: self.stream_id, answer_path,
+                    passed: true,
+                    steps,
+                    model_calls,
+                    stream_id: self.stream_id,
+                    answer_path,
                 });
             }
             pending_feedback.push(error);
         }
         Ok(MissionResult {
-            passed: false, steps, model_calls,
-            stream_id: self.stream_id, answer_path,
+            passed: false,
+            steps,
+            model_calls,
+            stream_id: self.stream_id,
+            answer_path,
         })
     }
 }
