@@ -24,6 +24,7 @@ pub struct ChildReport {
 }
 
 /// The spawner: creates child streams in the parent's log root.
+#[allow(dead_code)] // fields consumed when the red test goes green
 pub struct Spawner {
     log_root: PathBuf,
     kernel_config: PathBuf,
