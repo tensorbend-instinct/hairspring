@@ -6,6 +6,8 @@
 //! into the next step's context (recorded as context_inject: what entered
 //! the window, and why). Feedback never costs a model round trip.
 
+pub mod realmodel;
+
 use hs_core::{EventBuilder, EventKind, Payload};
 use hs_kernel::{Kernel, KernelError};
 use hs_log::{LogError, StreamWriter};
@@ -61,6 +63,7 @@ pub struct InnerLoop {
     log_root: PathBuf,
     feedback_injection: bool,
     max_steps: u32,
+    cost_total_micros: u64,
 }
 
 impl InnerLoop {
@@ -79,11 +82,18 @@ impl InnerLoop {
             log_root: log_root.to_path_buf(),
             feedback_injection,
             max_steps,
+            cost_total_micros: 0,
         })
     }
 
     pub fn stream_id(&self) -> uuid::Uuid {
         self.stream_id
+    }
+
+    /// Cumulative real-model spend across this loop's missions (micro-USD),
+    /// summed from the providers' own usage reports.
+    pub fn total_cost_micros(&self) -> u64 {
+        self.cost_total_micros
     }
 
     /// Run one mission to a checker verdict or the step cap.
@@ -122,6 +132,7 @@ impl InnerLoop {
             // the only model round trip in the step
             let out = self.kernel.call_model("operator", None, &ctx)?;
             model_calls += 1;
+            self.cost_total_micros += out.cost_usd_micros.max(0) as u64;
             self.writer.append(
                 EventBuilder::new(EventKind::ModelCall)
                     .payload(Payload::Inline(
