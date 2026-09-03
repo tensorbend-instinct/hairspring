@@ -30,7 +30,7 @@ fn main() {
             let completion = if attempt >= 2 {
                 serde_json::json!({"done": true, "claim": "artifact meets the visible spec"})
             } else {
-                let content = if i % 2 == 0 {
+                let content = if i.is_multiple_of(2) {
                     format!("VISIBLE-{i}\nHIDDEN-{i}")
                 } else {
                     format!("VISIBLE-{i}")
