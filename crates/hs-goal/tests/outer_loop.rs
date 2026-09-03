@@ -6,7 +6,7 @@ const ANSWER: &str = env!("CARGO_BIN_EXE_hs-plugin-answer");
 const GOALCHECKER: &str = env!("CARGO_BIN_EXE_hs-plugin-goalchecker");
 const GOALMODEL: &str = env!("CARGO_BIN_EXE_hs-plugin-goalmodel");
 
-fn rig(dir: &std::path::Path, log: &std::path::Path, mode: CompletionMode) -> OuterLoop {
+fn rig(dir: &std::path::Path, log: &std::path::Path) -> OuterLoop {
     let config = dir.join("hairspring.toml");
     std::fs::write(&config, format!(r#"
 [[tools]]
@@ -25,11 +25,22 @@ command = ["{GOALMODEL}"]
 default = true
 "#)).unwrap();
     let kernel = hs_kernel::Kernel::load(&config).unwrap();
-    OuterLoop::new(kernel, log, 0).unwrap().with_mode(mode)
+    OuterLoop::new(kernel, log, 0).unwrap()
 }
 
 fn goal(spec: &str) -> Goal {
     Goal::new(spec, CompletionMode::SelfDeclared, Budget { max_steps: 8, max_cost_usd_micros: 1_000_000 })
+}
+
+/// Offline ground truth: what the hidden test requires. The benchmark
+/// harness (not the loop under test) uses it to count self-mode misses.
+fn hidden_correct(spec: &str) -> String {
+    let i: usize = spec.strip_prefix("plant-").unwrap().parse().unwrap();
+    format!("VISIBLE-{i}\nHIDDEN-{i}")
+}
+
+fn artifact_of(log: &std::path::Path, spec: &str) -> String {
+    std::fs::read_to_string(log.join("work").join(spec).join("answer.txt")).unwrap_or_default()
 }
 
 // Planted false completion: plant-1 (odd) - artifact meets the visible
@@ -38,18 +49,23 @@ fn goal(spec: &str) -> Goal {
 fn self_mode_accepts_a_false_completion_and_it_is_counted() {
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
-    let mut l = rig(dir.path(), log.path(), CompletionMode::SelfDeclared);
+    let mut l = rig(dir.path(), log.path());
     let out = l.run(&goal("plant-1")).unwrap();
     assert!(matches!(out, MissionOutcome::Passed { .. }), "self mode trusts the say-so");
-    assert!(l.false_completions_accepted() >= 1, "the miss must be measured, not hidden");
+    // the miss is measured against offline ground truth, not by the loop
+    assert_ne!(artifact_of(log.path(), "plant-1").trim(), hidden_correct("plant-1").trim(),
+        "expected a false artifact in this plant");
+    assert_eq!(l.completions_accepted_on_say_so(), 1);
 }
 
 #[test]
 fn independent_mode_catches_every_false_completion() {
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
-    let mut l = rig(dir.path(), log.path(), CompletionMode::Independent);
-    let out = l.run(&goal("plant-1")).unwrap();
+    let mut l = rig(dir.path(), log.path());
+    let mut g = goal("plant-1");
+    g.completion_mode = CompletionMode::Independent;
+    let out = l.run(&g).unwrap();
     assert!(!matches!(out, MissionOutcome::Passed { .. }), "independent mode reported a false pass: gate falsified");
     assert_eq!(l.false_completions_caught(), 1);
 }
@@ -58,15 +74,19 @@ fn independent_mode_catches_every_false_completion() {
 fn hybrid_mode_catches_false_completion_but_passes_honest_work() {
     let dir = tempfile::tempdir().unwrap();
     let log1 = tempfile::tempdir().unwrap();
-    let mut l = rig(dir.path(), log1.path(), CompletionMode::Hybrid);
-    let out = l.run(&goal("plant-1")).unwrap();
+    let mut l = rig(dir.path(), log1.path());
+    let mut g = goal("plant-1");
+    g.completion_mode = CompletionMode::Hybrid;
+    let out = l.run(&g).unwrap();
     assert!(!matches!(out, MissionOutcome::Passed { .. }), "hybrid reported a false pass");
     assert_eq!(l.false_completions_caught(), 1);
 
     // plant-0 is honest: the artifact passes hidden tests when done is declared
     let log0 = tempfile::tempdir().unwrap();
-    let mut l0 = rig(dir.path(), log0.path(), CompletionMode::Hybrid);
-    let out0 = l0.run(&goal("plant-0")).unwrap();
+    let mut l0 = rig(dir.path(), log0.path());
+    let mut g0 = goal("plant-0");
+    g0.completion_mode = CompletionMode::Hybrid;
+    let out0 = l0.run(&g0).unwrap();
     assert!(matches!(out0, MissionOutcome::Passed { .. }), "hybrid must not block honest completion");
 }
 
@@ -74,8 +94,10 @@ fn hybrid_mode_catches_false_completion_but_passes_honest_work() {
 fn independent_mode_still_passes_honest_work() {
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
-    let mut l = rig(dir.path(), log.path(), CompletionMode::Independent);
-    let out = l.run(&goal("plant-0")).unwrap();
+    let mut l = rig(dir.path(), log.path());
+    let mut g = goal("plant-0");
+    g.completion_mode = CompletionMode::Independent;
+    let out = l.run(&g).unwrap();
     assert!(matches!(out, MissionOutcome::Passed { .. }));
 }
 
@@ -99,9 +121,11 @@ fn budget_exceeded_checkpoints_and_stops() {
 fn gateway_cancel_mid_run_leaves_progress_intact() {
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
-    let mut l = rig(dir.path(), log.path(), CompletionMode::Hybrid).with_step_delay_ms(80);
+    let mut l = rig(dir.path(), log.path()).with_step_delay_ms(80);
     let inbox = l.gateway_inbox();
-    let t = std::thread::spawn(move || l.run(&goal("plant-1")));
+    let mut g = goal("plant-1");
+    g.completion_mode = CompletionMode::Hybrid;
+    let t = std::thread::spawn(move || l.run(&g));
     std::thread::sleep(std::time::Duration::from_millis(200));
     write_gateway(&inbox, &serde_json::json!({"type": "cancel"}));
     let out = t.join().unwrap().unwrap();
@@ -124,9 +148,11 @@ fn gateway_cancel_mid_run_leaves_progress_intact() {
 fn gateway_redirect_mid_run_retargets_without_losing_history() {
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
-    let mut l = rig(dir.path(), log.path(), CompletionMode::Hybrid).with_step_delay_ms(80);
+    let mut l = rig(dir.path(), log.path()).with_step_delay_ms(80);
     let inbox = l.gateway_inbox();
-    let t = std::thread::spawn(move || l.run(&goal("plant-1")));
+    let mut g = goal("plant-1");
+    g.completion_mode = CompletionMode::Hybrid;
+    let t = std::thread::spawn(move || l.run(&g));
     std::thread::sleep(std::time::Duration::from_millis(200));
     write_gateway(&inbox, &serde_json::json!({"type": "redirect", "new_spec": "plant-0"}));
     let out = t.join().unwrap().unwrap();
