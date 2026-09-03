@@ -125,13 +125,14 @@ fn adapters_against_mock_server() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
     std::thread::spawn(move || {
-        let (mut s, _) = listener.accept().unwrap();
-        let mut buf = [0u8; 4096];
-        let _ = s.read(&mut buf);
-        s.write_all(
-            b"HTTP/1.1 401 Unauthorized\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}",
-        )
-        .unwrap();
+        // serve every connection the client opens (retry-safe)
+        while let Ok((mut s, _)) = listener.accept() {
+            let mut buf = [0u8; 8192];
+            let _ = s.read(&mut buf);
+            let _ = s.write_all(
+                b"HTTP/1.1 401 Unauthorized\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}",
+            );
+        }
     });
     std::env::set_var(
         DEEPSEEK.base_url_env,
