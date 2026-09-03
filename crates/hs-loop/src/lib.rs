@@ -86,6 +86,27 @@ impl InnerLoop {
         })
     }
 
+    /// Run on a pre-created stream (gate 5: a spawned child's stream is
+    /// created and linked by the spawner, then adopted here).
+    pub fn with_stream(
+        kernel: Kernel,
+        log_root: &Path,
+        stream_id: uuid::Uuid,
+        feedback_injection: bool,
+        max_steps: u32,
+    ) -> Result<Self, LoopError> {
+        let outcome = StreamWriter::resume(log_root, stream_id)?;
+        Ok(InnerLoop {
+            kernel,
+            writer: outcome.writer,
+            stream_id,
+            log_root: log_root.to_path_buf(),
+            feedback_injection,
+            max_steps,
+            cost_total_micros: 0,
+        })
+    }
+
     pub fn stream_id(&self) -> uuid::Uuid {
         self.stream_id
     }

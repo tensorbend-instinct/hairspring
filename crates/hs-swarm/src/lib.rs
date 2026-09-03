@@ -4,7 +4,10 @@
 //! Spawn event on the parent stream linking to the child stream_id.
 //! Delegation overhead is measured in milliseconds, not deployment.
 
+use hs_core::{EventBuilder, EventKind, Payload};
+use hs_log::StreamWriter;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 /// Handle to a spawned child run.
 pub struct Child {
@@ -23,13 +26,35 @@ pub struct ChildReport {
     pub cost_usd_micros: i64,
 }
 
+#[derive(Debug)]
+pub enum SpawnError {
+    Log(hs_log::LogError),
+    Kernel(hs_kernel::KernelError),
+    Loop(hs_loop::LoopError),
+}
+
+impl From<hs_log::LogError> for SpawnError {
+    fn from(e: hs_log::LogError) -> Self {
+        Self::Log(e)
+    }
+}
+impl From<hs_kernel::KernelError> for SpawnError {
+    fn from(e: hs_kernel::KernelError) -> Self {
+        Self::Kernel(e)
+    }
+}
+impl From<hs_loop::LoopError> for SpawnError {
+    fn from(e: hs_loop::LoopError) -> Self {
+        Self::Loop(e)
+    }
+}
+
 /// The spawner: creates child streams in the parent's log root.
-#[allow(dead_code)] // fields consumed when the red test goes green
 pub struct Spawner {
     log_root: PathBuf,
     kernel_config: PathBuf,
-    max_steps: u32,
     feedback: bool,
+    max_steps: u32,
 }
 
 impl Spawner {
@@ -37,26 +62,79 @@ impl Spawner {
         Self {
             log_root: log_root.to_path_buf(),
             kernel_config: kernel_config.to_path_buf(),
-            max_steps,
             feedback,
+            max_steps,
         }
     }
 
-    /// Spawn a child: append a Spawn event naming the child stream_id to the
-    /// parent stream, create the child stream in the same log root.
-    /// Returns the child handle plus delegation overhead in milliseconds.
+    /// Spawn a child: create its stream in the same log root with a
+    /// mission-start event, then append a Spawn event naming the child
+    /// stream_id to the parent stream. Returns the child handle plus the
+    /// delegation overhead in milliseconds (decision -> linked child stream).
     pub fn spawn(
         &self,
-        _parent_log: &Path,
-        _parent_stream: uuid::Uuid,
+        parent_log: &Path,
+        parent_stream: uuid::Uuid,
         mission: &str,
-    ) -> (Child, f64) {
-        let _ = (self, mission);
-        unimplemented!("gate 5 red")
+    ) -> Result<(Child, f64), SpawnError> {
+        let t0 = Instant::now();
+        let child_id = uuid::Uuid::new_v4();
+
+        // child stream + first event: it exists on the substrate from this
+        // moment, verifiable like any other stream
+        let mut cw = StreamWriter::create(&self.log_root, child_id)?;
+        cw.append(
+            EventBuilder::new(EventKind::GoalUpdate).payload(Payload::Inline(
+                serde_json::to_vec(&serde_json::json!({
+                    "mission": mission, "child_of": parent_stream, "done": false,
+                }))
+                .unwrap(),
+            )),
+        )?;
+        drop(cw);
+
+        // parent records the delegation
+        let mut pw = StreamWriter::resume(parent_log, parent_stream)?.writer;
+        pw.append(
+            EventBuilder::new(EventKind::Spawn).payload(Payload::Inline(
+                serde_json::to_vec(&serde_json::json!({
+                    "child_stream_id": child_id,
+                    "mission": mission,
+                    "budget": {"max_steps": self.max_steps},
+                }))
+                .unwrap(),
+            )),
+        )?;
+
+        let overhead_ms = t0.elapsed().as_secs_f64() * 1000.0;
+        Ok((
+            Child {
+                stream_id: child_id,
+                mission: mission.to_string(),
+                work_dir: self.log_root.join("work").join(mission),
+            },
+            overhead_ms,
+        ))
     }
 
-    /// Drive a child to completion on this thread (parallel = N threads).
-    pub fn run_to_completion(&self, _child: &Child) -> ChildReport {
-        unimplemented!("gate 5 red")
+    /// Drive a child to completion on this thread (parallel = N threads,
+    /// one Spawner clone per thread via `new`).
+    pub fn run_to_completion(&self, child: &Child) -> Result<ChildReport, SpawnError> {
+        let kernel = hs_kernel::Kernel::load(&self.kernel_config)?;
+        let mut l = hs_loop::InnerLoop::with_stream(
+            kernel,
+            &self.log_root,
+            child.stream_id,
+            self.feedback,
+            self.max_steps,
+        )?;
+        let r = l.run_mission(&child.mission)?;
+        Ok(ChildReport {
+            stream_id: child.stream_id,
+            mission: child.mission.clone(),
+            passed: r.passed,
+            steps: r.steps,
+            cost_usd_micros: l.total_cost_micros() as i64,
+        })
     }
 }

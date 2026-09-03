@@ -85,6 +85,22 @@ Self mode: 4/4 false plants falsely passed - miss rate measured and
 published, not assumed. Gateway cancel/redirect proofs in
 `tests/outer_loop.rs` (chains verify, history unbroken, work intact).
 
+## Gate 5 (tag gate-5): sub-agent spawner + swarm operators
+
+- `crates/hs-swarm` - Spawner: a delegated subtask runs the SAME substrate
+  as a child stream (same log root, same kernel config). The parent stream
+  records a `spawn` event naming the child stream_id; the child runs the
+  gate-3 inner loop on its own verifiable stream. Failed children return an
+  honest passed=false report; all chains verify.
+- `InnerLoop::with_stream` (hs-loop) adopts a pre-created child stream.
+
+### Gate-5 proof (spec section 10, row 5)
+
+`cargo test -p hs-swarm --test gate5_proof -- --nocapture`: 8 delegated
+subtasks run as child streams in the parent's log root, every chain
+verifies, spawn events name every child, delegation overhead measured:
+median 1.9ms (min 1.4, max 4.6) - milliseconds, not deployment.
+
 ## Layout for later gates
 
 One crate per spec component: substrate daemon, executor, world service,

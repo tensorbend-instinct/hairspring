@@ -54,7 +54,9 @@ fn gate5_proof_child_streams_and_delegation_overhead() {
     let mut overheads = Vec::new();
     let mut children = Vec::new();
     for c in 0..CHILDREN {
-        let (child, overhead_ms) = spawner.spawn(&log_root, parent_stream, &format!("task-{c}"));
+        let (child, overhead_ms) = spawner
+            .spawn(&log_root, parent_stream, &format!("task-{c}"))
+            .unwrap();
         overheads.push(overhead_ms);
         children.push(child);
     }
@@ -62,7 +64,7 @@ fn gate5_proof_child_streams_and_delegation_overhead() {
     // every child runs to completion on the same substrate
     let reports: Vec<ChildReport> = children
         .iter()
-        .map(|c| spawner.run_to_completion(c))
+        .map(|c| spawner.run_to_completion(c).unwrap())
         .collect();
 
     // THE GATE:
@@ -109,6 +111,43 @@ fn gate5_proof_child_streams_and_delegation_overhead() {
 }
 
 fn read_all_payloads(log_root: &std::path::Path, stream: uuid::Uuid) -> Vec<serde_json::Value> {
-    let _ = (log_root, stream);
-    unimplemented!("gate 5 red: stream payload reader")
+    let reader = hs_log::StreamReader::open(log_root, stream).unwrap();
+    reader
+        .events()
+        .unwrap()
+        .iter()
+        .map(|e| {
+            let payload = reader.resolve_payload(e).unwrap();
+            serde_json::json!({
+                "kind": format!("{:?}", e.kind).to_lowercase(),
+                "payload": serde_json::from_slice::<serde_json::Value>(&payload).unwrap(),
+            })
+        })
+        .collect()
+}
+
+#[test]
+fn gate5_adversarial_failed_child_is_recorded_honestly() {
+    let root = tempfile::tempdir().unwrap();
+    let log_root = root.path().join("log");
+    let config = kernel_config(root.path());
+    let parent_stream = uuid::Uuid::new_v4();
+    let _pw = hs_log::StreamWriter::create(&log_root, parent_stream).unwrap();
+
+    let spawner = Spawner::new(&log_root, &config, true, 4);
+    // two good subtasks, one that can never pass (checker has no task-20)
+    let (c0, _) = spawner.spawn(&log_root, parent_stream, "task-0").unwrap();
+    let (c1, _) = spawner.spawn(&log_root, parent_stream, "task-1").unwrap();
+    let (c2, _) = spawner.spawn(&log_root, parent_stream, "task-20").unwrap();
+
+    let r0 = spawner.run_to_completion(&c0).unwrap();
+    let r2 = spawner.run_to_completion(&c2).unwrap(); // fails, but returns a report
+    let r1 = spawner.run_to_completion(&c1).unwrap();
+
+    assert!(r0.passed && r1.passed, "good children pass");
+    assert!(!r2.passed, "unpassable child reports failure, not a crash");
+    for r in [&r0, &r1, &r2] {
+        hs_log::verify_stream(&log_root, r.stream_id).unwrap();
+    }
+    println!("PROOF-GATE5 adversarial: failed child returned passed=false, all chains verify");
 }
