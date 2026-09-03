@@ -156,26 +156,51 @@ impl InnerLoop {
                 )?;
             }
 
-            // validate: the plan must be a single well-formed action
-            let plan: serde_json::Value = serde_json::from_str(&out.completion)
-                .map_err(|e| LoopError::ModelOutput(format!("unparsable completion: {e}")))?;
-            let tool = plan["tool"]
-                .as_str()
-                .ok_or_else(|| LoopError::ModelOutput("no tool".into()))?;
-            let args = plan["args"].clone();
+            // validate: the plan must be a single well-formed action. A real
+            // model's malformed output is not a harness failure: record it as
+            // a tool error and feed it back on the next step.
+            let plan: Result<serde_json::Value, _> = serde_json::from_str(&out.completion);
+            let validated = plan.ok().and_then(|plan| {
+                let tool = plan["tool"].as_str()?.to_string();
+                Some((tool, plan["args"].clone()))
+            });
 
-            // submit
-            let tool_out = self.kernel.call_tool("operator", tool, args.clone())?;
-            self.writer.append(
-                EventBuilder::new(EventKind::ToolCall)
-                    .payload(Payload::Inline(
-                        serde_json::to_vec(&serde_json::json!({
-                            "plugin": tool, "args": args, "result": tool_out.output,
-                        }))
-                        .unwrap(),
-                    ))
-                    .latency_ms(tool_out.latency_ms),
-            )?;
+            // submit (tool errors are feedback too: models produce bad args)
+            let tool_feedback = match validated {
+                None => Some(r#"your reply was not a single JSON tool call; respond with exactly {"tool":"answer.write","args":{"path":<ANSWER_PATH>,"content":...}}"#.to_string()),
+                Some((tool, args)) => match self.kernel.call_tool("operator", &tool, args.clone()) {
+                    Ok(tool_out) => {
+                        self.writer.append(
+                            EventBuilder::new(EventKind::ToolCall)
+                                .payload(Payload::Inline(
+                                    serde_json::to_vec(&serde_json::json!({
+                                        "plugin": tool, "args": args, "result": tool_out.output,
+                                    }))
+                                    .unwrap(),
+                                ))
+                                .latency_ms(tool_out.latency_ms),
+                        )?;
+                        None
+                    }
+                    Err(e) => {
+                        let msg = format!("tool {tool} failed: {e}");
+                        self.writer.append(
+                            EventBuilder::new(EventKind::ToolCall)
+                                .payload(Payload::Inline(
+                                    serde_json::to_vec(&serde_json::json!({
+                                        "plugin": tool, "args": args, "error": msg,
+                                    }))
+                                    .unwrap(),
+                                )),
+                        )?;
+                        Some(msg)
+                    }
+                },
+            };
+            if let Some(msg) = tool_feedback {
+                pending_feedback.push(format!("harness: {msg}"));
+                continue;
+            }
 
             // the world answers (checker = ground truth at this gate)
             let verdict = self.kernel.call_tool(
