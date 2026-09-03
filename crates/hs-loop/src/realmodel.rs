@@ -171,18 +171,31 @@ pub fn call(p: &Provider, prompt: &str) -> Result<serde_json::Value, String> {
         }
     }
     let agent: ureq::Agent = ureq::Agent::config_builder()
-        .timeout_global(Some(Duration::from_secs(120)))
+        .timeout_global(Some(Duration::from_secs(600)))
         .build()
         .into();
-    let resp = agent
-        .post(&url)
-        .header("Authorization", &format!("Bearer {key}"))
-        .header("Content-Type", "application/json")
-        .send_json(&body);
-    let mut resp = match resp {
-        Ok(r) => r,
-        Err(e) => return Err(format!("{}: request failed: {e}", p.name)), // ureq errors never echo headers
-    };
+    let mut resp = None;
+    let mut last_err = String::new();
+    for attempt in 0..3 {
+        if attempt > 0 {
+            std::thread::sleep(Duration::from_secs(5 * attempt as u64));
+        }
+        match agent
+            .post(&url)
+            .header("Authorization", &format!("Bearer {key}"))
+            .header("Content-Type", "application/json")
+            .send_json(&body)
+        {
+            Ok(r) => {
+                resp = Some(r);
+                break;
+            }
+            // ureq errors never echo headers (no key leak); transport
+            // failures (timeouts, resets) are retried, HTTP statuses are Ok.
+            Err(e) => last_err = format!("{}: request failed: {e}", p.name),
+        }
+    }
+    let mut resp = resp.ok_or(last_err)?;
     let status = resp.status();
     if !status.is_success() {
         return Err(format!(
