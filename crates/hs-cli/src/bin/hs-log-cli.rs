@@ -49,8 +49,8 @@ fn main() {
                         e.event_id,
                         e.seq,
                         e.kind,
-                        hex(&e.prev_hash)[..8].to_string(),
-                        hex(&e.hash)[..8].to_string()
+                        &hex(&e.prev_hash)[..8],
+                        &hex(&e.hash)[..8]
                     );
                 }
             }
