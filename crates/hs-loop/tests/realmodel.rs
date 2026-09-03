@@ -108,7 +108,7 @@ fn adapters_against_mock_server() {
     let out = call(&DEEPSEEK, "MISSION: task-1\nANSWER_PATH: /p").unwrap();
     assert_eq!(ds_mock.got_auth.recv().unwrap(), "Bearer mock-ds-key");
     let body: serde_json::Value = serde_json::from_str(&ds_mock.got_body.recv().unwrap()).unwrap();
-    assert_eq!(body["model"], "deepseek-v4-flash-vision-exp");
+    assert_eq!(body["model"], "deepseek-v4-flash");
     assert_eq!(out["cached_tokens"], 600);
     // 600*0.014 + 400*0.44 + 250*1.32 = 8.4 + 176 + 330 = 514.4 -> 514
     assert_eq!(out["cost_usd_micros"], 514);

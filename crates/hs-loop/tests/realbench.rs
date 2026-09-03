@@ -162,5 +162,5 @@ fn real_ablation_deepseek() {
     let root = tempfile::tempdir().unwrap();
     let on = run_arm(root.path(), true, "deepseek", DEEPSEEK_BIN);
     let off = run_arm(root.path(), false, "deepseek", DEEPSEEK_BIN);
-    report("deepseek-v4-flash-vision-exp", &on, &off);
+    report("deepseek-v4-flash", &on, &off);
 }

@@ -6,8 +6,9 @@
 //! logged, never in fixtures, never committed. Prices are micro-USD per
 //! token (numerically equal to USD per 1M tokens), grounded 2026-09-02:
 //!   GLM-5.3: in $1.40/M, cached $0.26/M, out $4.40/M  (docs.z.ai/guides/overview/pricing)
-//!   deepseek-v4-flash-vision-exp: peak in $0.44/M (miss), $0.014/M (hit),
-//!   out $1.32/M; off-peak half  (api-docs.deepseek.com/quick_start/pricing)
+//!   deepseek-v4-flash (= "deepseek-chat" alias = base V4 latest, verified
+//!   2026-09-02): peak in $0.44/M (miss), $0.014/M (hit), out $1.32/M;
+//!   off-peak half  (api-docs.deepseek.com/quick_start/pricing)
 //! Rates and endpoints are env-overridable so a price change is a config
 //! change, not a code change.
 
@@ -52,7 +53,7 @@ pub const DEEPSEEK: Provider = Provider {
     base_url_env: "HS_DEEPSEEK_BASE_URL",
     default_base_url: "https://api.deepseek.com/chat/completions",
     model_env: "HS_DEEPSEEK_MODEL",
-    default_model: "deepseek-v4-flash-vision-exp",
+    default_model: "deepseek-v4-flash",
     key_env: "HS_DEEPSEEK_API_KEY",
     key_file_env: "HS_DEEPSEEK_API_KEY_FILE",
     price_in_env: "HS_DEEPSEEK_PRICE_IN_MICROS",
