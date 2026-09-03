@@ -286,7 +286,7 @@ impl EventBuilder {
     /// Partial build for schema/unit tests: ids, seq, and chain fields left unset.
     pub fn build_part(self) -> Event { self.event }
     /// Full build used by the log writer after it assigns chain fields.
-    pub(crate) fn build(self) -> Event { self.event }
+    pub fn build(self) -> Event { self.event }
 }
 
 /// Test-only helpers exposing encoding layout without making it public API.
