@@ -207,7 +207,8 @@ fn real_ablation_glm() {
 #[ignore = "real API spend; run explicitly with vault-populated keys"]
 fn real_ablation_deepseek() {
     let root = tempfile::tempdir().unwrap();
+    let label = std::env::var("HS_DEEPSEEK_MODEL").unwrap_or_else(|_| "deepseek-v4-flash".into());
     let on = run_arm(root.path(), true, "deepseek", DEEPSEEK_BIN);
     let off = run_arm(root.path(), false, "deepseek", DEEPSEEK_BIN);
-    report("deepseek-v4-flash", &on, &off);
+    report(&label, &on, &off);
 }
