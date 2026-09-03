@@ -91,6 +91,25 @@ fn gate6_proof_shared_world_executable_inheritance() {
         "hash forgery rejected"
     );
 
+    // THE GATE, structurally: zero Message-kind events anywhere in the log
+    for s in [stream_a, stream_b] {
+        let r = hs_log::StreamReader::open(&log_root, s).unwrap();
+        let msgs = r
+            .events()
+            .unwrap()
+            .iter()
+            .filter(|e| e.kind == hs_core::EventKind::Message)
+            .count();
+        assert_eq!(
+            msgs, 0,
+            "coordination must run through the world, not messages"
+        );
+    }
+    // every chain verifies: world stream + both agent streams
+    for s in [stream_a, stream_b] {
+        hs_log::verify_stream(&log_root, s).unwrap();
+    }
+
     println!("PROOF-GATE6 shared world + executable inheritance: PASS");
     println!("  B reused A's installed controller by observation; zero A<->B messages; controller kept acting after A's uninstall");
 }

@@ -101,6 +101,25 @@ subtasks run as child streams in the parent's log root, every chain
 verifies, spawn events name every child, delegation overhead measured:
 median 1.9ms (min 1.4, max 4.6) - milliseconds, not deployment.
 
+## Gate 6 (tag gate-6): shared world + executable inheritance
+
+- `crates/hs-world` - world service: agents write Proposal events; only the
+  world service validates and writes Consequence events (proposal-
+  consequence separation). Artifact registry (spec schema: kind, content
+  hash, world_path, lineage, status) replayed from the world stream;
+  content-addressed storage in the gate-1 blob store.
+- Zero-message coordination: `observe()` is how agent B finds agent A's
+  work. Installed controllers are world property: uninstalling the author
+  does not stop them (executable inheritance).
+
+### Gate-6 proof (spec section 10, row 6)
+
+`cargo test -p hs-world --test gate6_proof -- --nocapture`: agent B reuses
+agent A's installed controller purely by world observation (zero Message
+events anywhere in the log, asserted); after A is fully uninstalled the
+controller keeps acting on ticks; forged content hashes and illegal status
+transitions are rejected; all chains verify.
+
 ## Layout for later gates
 
 One crate per spec component: substrate daemon, executor, world service,

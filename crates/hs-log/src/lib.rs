@@ -358,8 +358,16 @@ impl StreamWriter {
     }
 
     fn store_blob(&self, bytes: &[u8]) -> Result<[u8; 32], LogError> {
+        write_blob(&self.root, bytes)
+    }
+}
+
+/// Content-addressed blob store (gate 6's world service stores artifact
+/// content here by hash; same durability discipline as payloads).
+pub fn write_blob(root: &Path, bytes: &[u8]) -> Result<[u8; 32], LogError> {
+    {
         let hash: [u8; 32] = Sha256::digest(bytes).into();
-        let path = blob_path_inner(&self.root, &hash);
+        let path = blob_path_inner(root, &hash);
         if !path.exists() {
             let dir = path.parent().unwrap().to_path_buf();
             fs::create_dir_all(&dir)?;
@@ -374,6 +382,11 @@ impl StreamWriter {
         }
         Ok(hash)
     }
+}
+
+/// Read a blob by content hash.
+pub fn read_blob(root: &Path, hash: &[u8; 32]) -> Result<Vec<u8>, LogError> {
+    Ok(fs::read(blob_path_inner(root, hash))?)
 }
 
 fn check_chain(e: &Event, expected_seq: u64, expected_prev: [u8; 32]) -> Result<(), LogError> {
