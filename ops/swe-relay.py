@@ -32,13 +32,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                  context=ssl.create_default_context())
         try:
             fwd = {k: v for k, v in self.headers.items()
-                   if k.lower() not in ("host", "content-length", "connection")}
+                   if k.lower() not in ("host", "content-length", "connection", "accept-encoding")}
             conn.request("POST", TARGET_PREFIX + self.path, body=body, headers=fwd)
             resp = conn.getresponse()
             data = resp.read()
             rlog(f"POST {self.path} -> {resp.status} ({len(data)} bytes)")
             self.send_response(resp.status)
             self.send_header("Content-Type", resp.getheader("Content-Type") or "application/json")
+            ce = resp.getheader("Content-Encoding")
+            if ce:
+                self.send_header("Content-Encoding", ce)
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)
