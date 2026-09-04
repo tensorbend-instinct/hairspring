@@ -1,10 +1,10 @@
 #!/bin/bash
-RUN=/home/sandbox/swbench/single
+RUN=${SWE_RUN_DIR:-/home/sandbox/swbench/smoke-force}
 DUMP=/home/sandbox/hairspring/target/debug/hs-log-cli
 GLMPID=$(pgrep -f hs-plugin-glm | head -1)
 {
 echo "HAIRSPRING gate-8 live mission mirror"
-echo "instance: yt-dlp__yt-dlp-12684 | model: glm-5.3 | feedback: ON | cap: \$1 | updated: $(date '+%F %T %Z')"
+echo "instance: yt-dlp__yt-dlp-12684 | model: glm-5.3 | feedback: ON | cap: \$10 | updated: $(date '+%F %T %Z')"
 echo "======================================================================"
 if [ -f "$RUN/result.json" ]; then echo "=== RESULT ==="; cat "$RUN/result.json"; echo; fi
 echo "=== now ==="

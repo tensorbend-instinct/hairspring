@@ -5,7 +5,7 @@ while true; do
   bash /tmp/mk-mirror.sh
   tools google-drive update --file-id "$FILE_ID" --file-path /tmp/mirror.txt --mime-type text/plain >/dev/null 2>&1 \
     || echo "$(date '+%F %T') update failed" >> /tmp/swe-mirror.log
-  if [ -f /home/sandbox/swbench/single/result.json ]; then
+  if [ -f ${SWE_RUN_DIR:-/home/sandbox/swbench/smoke-force}/result.json ]; then
     sleep 20; bash /tmp/mk-mirror.sh
     tools google-drive update --file-id "$FILE_ID" --file-path /tmp/mirror.txt --mime-type text/plain >/dev/null 2>&1
     echo "$(date '+%F %T') result present, final update done" >> /tmp/swe-mirror.log

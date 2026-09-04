@@ -25,6 +25,8 @@
 8. Launch: bash ops/.swe-launch.sh (sets HS_* env, seeds last answer)
    Supervisor: setsid bash ops/.swe-supervisor.sh (v6 freeze sentinel)
    Mirror: setsid bash ops/.swe-mirror.sh (Drive updater, ~60s)
+   Beats: setsid bash ops/swe-beats.sh (15s stream diff -> parent beats, exits on result.json)
+   Forced run launcher: ops/swe-launch-force.sh (max effort + repo.exec nudge, $10 cap); supervisor: SWE_RUN_DIR=/home/sandbox/swbench/smoke-force SWE_LAUNCHER=<launcher> setsid bash ops/swe-supervisor.sh
 9. Wake schedule on the platform side keeps monitoring (20-min cadence).
 
 ## Run parameters
