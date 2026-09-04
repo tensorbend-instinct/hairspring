@@ -93,3 +93,43 @@ fn search_rejects_empty_pattern() {
     let d = ws();
     assert!(hs_loop::repotools::search_repo(d.path(), "").is_err());
 }
+
+// Ranged reads (red, 2026-09-04): jsinterp.py's target code sits at byte
+// 36071 - a 20KB transcript entry cap made it invisible and the model
+// re-read the same file 17 times in one arm. Paging is the faithful shape.
+#[test]
+fn windowed_read_returns_requested_lines() {
+    let d = tempfile::tempdir().unwrap();
+    let body: String = (1..=200).map(|i| format!("line {i}\n")).collect();
+    std::fs::write(d.path().join("big.txt"), body).unwrap();
+    let v = hs_loop::repotools::read_repo_window(d.path(), "big.txt", Some(50), Some(10))
+        .unwrap();
+    assert_eq!(v["start_line"], 50);
+    assert_eq!(v["end_line"], 59);
+    assert_eq!(v["total_lines"], 200);
+    assert_eq!(v["truncated"], true, "more content beyond the window");
+    let c = v["content"].as_str().unwrap();
+    assert!(c.starts_with("line 50\n") && c.ends_with("line 59\n"), "got: {c}");
+}
+
+#[test]
+fn windowed_read_past_end_is_empty_not_an_error() {
+    let d = tempfile::tempdir().unwrap();
+    std::fs::write(d.path().join("small.txt"), "a\nb\n").unwrap();
+    let v = hs_loop::repotools::read_repo_window(d.path(), "small.txt", Some(500), Some(10))
+        .unwrap();
+    assert_eq!(v["content"], "");
+    assert_eq!(v["total_lines"], 2);
+    assert_eq!(v["truncated"], false);
+}
+
+#[test]
+fn windowed_read_last_page_is_not_truncated() {
+    let d = tempfile::tempdir().unwrap();
+    let body: String = (1..=200).map(|i| format!("line {i}\n")).collect();
+    std::fs::write(d.path().join("big.txt"), body).unwrap();
+    let v = hs_loop::repotools::read_repo_window(d.path(), "big.txt", Some(195), Some(50))
+        .unwrap();
+    assert_eq!(v["end_line"], 200);
+    assert_eq!(v["truncated"], false, "no content beyond the file end");
+}
