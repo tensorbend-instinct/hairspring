@@ -1,0 +1,16 @@
+[package]
+name = "hs-scorer"
+description = "HAIRSPRING gate 7: tiered scorer f, held-out assay, best-of-N baseline, canaries"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+hs-core = { path = "../hs-core" }
+hs-log = { path = "../hs-log" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+
+[dev-dependencies]
+tempfile = "3"
