@@ -33,3 +33,14 @@
 - model glm (glm-5.3), feedback ON, budget 1_000_000 micros ($1), max-steps 25
 - HS_REALMODEL_CALL_TIMEOUT_SECS=900
 - F2P: python3 -m pytest test/test_jsinterp.py::TestJSInterpreter::test_extract_function_with_global_stack -x -q
+
+## Known artifact: ghost 502s on the relay during box suspend
+
+Observed 2026-09-04 (the "17-minute mission" anomaly): when the box suspends
+mid-stream (agent-idle triggers suspend after 23-150s), the relay's open
+connection to the GLM endpoint drops and fast-fails with a 502; the harness
+retries (HTTP 200) after the box wakes. The stream's own records
+(ModelCall.latency_ms and wall-clock gaps between events) distinguish this
+from a slow model call: a genuine 187s max-effort call tracks output token
+count; a suspend shows as a wall-clock gap with no latency_ms to match. Not
+a harness bug - an environment artifact of the suspend lifecycle.
