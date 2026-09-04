@@ -3,6 +3,7 @@
 //!   hs-log-cli dump  --dir D     print one line per event
 
 use hs_log::*;
+use hs_core::Payload;
 use std::path::PathBuf;
 use uuid::Uuid;
 
@@ -41,6 +42,7 @@ fn main() {
             std::process::exit(if bad { 1 } else { 0 });
         }
         "dump" => {
+            let with_payloads = args.iter().any(|a| a == "--payloads");
             for s in &streams {
                 let r = StreamReader::open(&dir, *s).unwrap();
                 for e in r.events().unwrap() {
@@ -52,6 +54,21 @@ fn main() {
                         &hex(&e.prev_hash)[..8],
                         &hex(&e.hash)[..8]
                     );
+                    if with_payloads {
+                        let bytes: Option<Vec<u8>> = match &e.payload {
+                            Payload::Inline(b) => Some(b.clone()),
+                            Payload::BlobRef { hash, .. } => read_blob(&dir, hash).ok(),
+                            _ => None,
+                        };
+                        if let Some(b) = bytes {
+                            let mut t = String::from_utf8_lossy(&b).into_owned();
+                            if t.len() > 3000 {
+                                t.truncate(3000);
+                                t.push_str("\n...[truncated]");
+                            }
+                            println!("  payload: {t}");
+                        }
+                    }
                 }
             }
         }
