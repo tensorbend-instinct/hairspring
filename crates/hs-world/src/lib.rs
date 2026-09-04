@@ -65,6 +65,10 @@ fn world_stream_id() -> uuid::Uuid {
 
 struct State {
     artifacts: HashMap<(uuid::Uuid, u32), Artifact>,
+    /// Streams currently in self-modification quarantine (spec fig 5: assay
+    /// forks). Runtime session state - forks are short-lived and in-process,
+    /// so this set is intentionally not part of the replayed artifact state.
+    quarantined: std::collections::HashSet<uuid::Uuid>,
 }
 
 /// The shared world: artifact registry + installed controllers, all state
@@ -76,7 +80,48 @@ pub struct World {
     state: Mutex<State>,
 }
 
+/// Effects a policy layer can attempt to cause. External effects (sends,
+/// spend, writes outside the sandbox) are exactly what quarantine exists to
+/// deny (spec fig 5: "no sends, no spend, no writes outside the sandbox").
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum Effect {
+    SendMessage,
+    Spend,
+    WriteOutsideSandbox,
+    /// Work confined to the fork's own sandbox: always allowed.
+    SandboxWrite,
+}
+impl Effect {
+    pub fn is_external(self) -> bool {
+        !matches!(self, Effect::SandboxWrite)
+    }
+}
+
 impl World {
+    /// Mark a stream as a quarantined self-modification fork.
+    pub fn quarantine(&self, stream: uuid::Uuid) {
+        self.state.lock().unwrap().quarantined.insert(stream);
+    }
+    /// Lift quarantine (promotion or rewind ends the fork's session).
+    pub fn lift_quarantine(&self, stream: uuid::Uuid) {
+        self.state.lock().unwrap().quarantined.remove(&stream);
+    }
+    /// The world service is the single authority on side effects: a
+    /// quarantined fork may NOT cause external effects (spec fig 5). The
+    /// rejection is stream-scoped, not blanket: once the fork's lineage is
+    /// promoted and quarantine lifts, the same effect class is authorized.
+    pub fn authorize_effect(&self, stream: uuid::Uuid, effect: Effect) -> Result<(), WorldError> {
+        if effect.is_external() && self.state.lock().unwrap().quarantined.contains(&stream) {
+            return Err(WorldError::Rejected(format!(
+                "quarantined stream {stream} may not cause external effect {effect:?}"
+            )));
+        }
+        Ok(())
+    }
+    pub fn log_root(&self) -> &std::path::Path {
+        &self.log_root
+    }
+
     pub fn open(log_root: &Path) -> Result<Self, WorldError> {
         let stream = world_stream_id();
         if !log_root.join("streams").join(stream.to_string()).exists() {
@@ -96,7 +141,10 @@ impl World {
         Ok(Self {
             log_root: log_root.to_path_buf(),
             world_stream: stream,
-            state: Mutex::new(State { artifacts }),
+            state: Mutex::new(State {
+                artifacts,
+                quarantined: std::collections::HashSet::new(),
+            }),
         })
     }
 

@@ -52,7 +52,10 @@ fn seed_policy() -> PolicyLayer {
     let mut tools = BTreeMap::new();
     tools.insert("answer".to_string(), PolicyTool::Table(table));
     let mut prompts = BTreeMap::new();
-    prompts.insert("system".to_string(), "answer from the lookup table".to_string());
+    prompts.insert(
+        "system".to_string(),
+        "answer from the lookup table".to_string(),
+    );
     PolicyLayer::new(prompts, tools)
 }
 
@@ -114,7 +117,7 @@ fn gate8_proof_1_good_mutation_promotes_after_soak_with_lineage_record() {
 
     // self-report on the visible suite passes (policy-layer self-check)
     let v_vis = sm.run_visible(&fork, &visible_suite()).unwrap();
-    assert!(v_vis.passed(), "good mutation must pass visible suite");
+    assert!(v_vis.passed, "good mutation must pass visible suite");
 
     // held-out assay under the pin
     let verdict = sm.assay(&fork, &heldout_suite(), &pin).unwrap();
@@ -138,11 +141,7 @@ fn gate8_proof_1_good_mutation_promotes_after_soak_with_lineage_record() {
         Some(&PolicyTool::PrefixRule),
         "promoted tool must be live"
     );
-    assert!(live
-        .prompts
-        .get("system")
-        .unwrap()
-        .contains("prefix rule"));
+    assert!(live.prompts.get("system").unwrap().contains("prefix rule"));
 
     // lineage record: durable file with held-out score + pin hash
     let cand_name = fork.candidate_name();
@@ -158,12 +157,18 @@ fn gate8_proof_1_good_mutation_promotes_after_soak_with_lineage_record() {
 
     // substrate events: Mutation applied, CapabilityDelta + FitnessDelta on promote
     let kinds: Vec<EventKind> = sm.selfmod_events().iter().map(|e| e.kind).collect();
-    assert!(kinds.contains(&EventKind::Mutation), "mutation event missing");
+    assert!(
+        kinds.contains(&EventKind::Mutation),
+        "mutation event missing"
+    );
     assert!(
         kinds.contains(&EventKind::CapabilityDelta),
         "capability_delta event missing"
     );
-    assert!(kinds.contains(&EventKind::FitnessDelta), "fitness_delta event missing");
+    assert!(
+        kinds.contains(&EventKind::FitnessDelta),
+        "fitness_delta event missing"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -183,7 +188,7 @@ fn gate8_proof_2_bad_mutation_assay_catches_and_rewinds_to_known_good() {
 
     // passes what it can see (self-report)
     let v_vis = sm.run_visible(&fork, &visible_suite()).unwrap();
-    assert!(v_vis.passed());
+    assert!(v_vis.passed);
 
     // the assay sees through it
     let verdict = sm.assay(&fork, &heldout_suite(), &pin).unwrap();
@@ -203,7 +208,10 @@ fn gate8_proof_2_bad_mutation_assay_catches_and_rewinds_to_known_good() {
     );
 
     let kinds: Vec<EventKind> = sm.scorer_events().iter().map(|e| e.kind).collect();
-    assert!(kinds.contains(&EventKind::Regression), "regression event missing");
+    assert!(
+        kinds.contains(&EventKind::Regression),
+        "regression event missing"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -218,7 +226,11 @@ fn gate8_proof_3_quarantine_world_service_rejects_external_effects() {
     let mut sm = fresh_loop(tmp.path(), Duration::from_millis(0));
 
     let fork = sm.fork();
-    for eff in [Effect::SendMessage, Effect::Spend, Effect::WriteOutsideSandbox] {
+    for eff in [
+        Effect::SendMessage,
+        Effect::Spend,
+        Effect::WriteOutsideSandbox,
+    ] {
         let r = sm.attempt_effect(&fork, eff);
         assert!(
             matches!(r, Err(SelfModError::QuarantinedEffect(_))),
