@@ -174,6 +174,52 @@ impl InnerLoop {
                 }
                 injected = true;
             }
+            // Mission memory per spec v4: "Memory, recovery, evaluation...
+            // are all read paths over the same log." The transcript is READ
+            // BACK from this stream's own event record (ToolCall payloads
+            // carry args+result), newest-first capped to 60KB - no parallel
+            // store, and it survives process restarts/freeze recovery.
+            // Part of the feedback channel: no injection, no memory.
+            if self.feedback_injection {
+                if let Ok(reader) = hs_log::StreamReader::open(&self.log_root, self.stream_id) {
+                    if let Ok(events) = reader.events() {
+                        let mut entries: Vec<String> = vec![];
+                        let mut budget = 60_000usize;
+                        for e in events.iter().rev() {
+                            if e.kind != hs_core::EventKind::ToolCall {
+                                continue;
+                            }
+                            if let hs_core::Payload::Inline(bytes) = &e.payload {
+                                if let Ok(v) = serde_json::from_slice::<serde_json::Value>(bytes)
+                                {
+                                    let mut line = format!(
+                                        "{}({}) => {}",
+                                        v["plugin"].as_str().unwrap_or("?"),
+                                        v["args"],
+                                        v["result"]
+                                    );
+                                    if line.len() > 20_000 {
+                                        line.truncate(20_000);
+                                        line.push_str("...[truncated]");
+                                    }
+                                    if line.len() + 8 > budget {
+                                        break;
+                                    }
+                                    budget -= line.len() + 8;
+                                    entries.push(line);
+                                }
+                            }
+                        }
+                        if !entries.is_empty() {
+                            entries.reverse();
+                            ctx.push_str("TRANSCRIPT (earlier tool calls):\n");
+                            for e in &entries {
+                                ctx.push_str(&format!("- {e}\n"));
+                            }
+                        }
+                    }
+                }
+            }
 
             // the only model round trip in the step
             let out = self.kernel.call_model("operator", None, &ctx)?;
@@ -250,19 +296,10 @@ impl InnerLoop {
                         )?;
                         if tool == "answer.write" {
                             wrote_answer = true;
-                        } else {
-                            // Read/search steps exist so the model can SEE
-                            // the world: the result must enter the next
-                            // step's context, or the tool is decoration
-                            // (observed 2026-09-04: 19 identical reads).
-                            let mut body = serde_json::to_string(&tool_out.output)
-                                .unwrap_or_else(|_| "<unprintable>".to_string());
-                            if body.len() > 20_000 {
-                                body.truncate(20_000);
-                                body.push_str("...[truncated]");
-                            }
-                            pending_feedback.push(format!("result of {tool}: {body}"));
                         }
+                        // non-write results reach future steps via the
+                        // log-sourced TRANSCRIPT above (read back from this
+                        // stream's own ToolCall events), not a side channel
                         None
                     }
                     Err(e) => {
