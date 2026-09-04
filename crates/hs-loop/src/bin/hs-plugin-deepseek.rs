@@ -8,7 +8,7 @@ fn main() {
     serve("deepseek", "model", &mut |method, params| match method {
         "model.call" => {
             let prompt = params["prompt"].as_str().unwrap_or("");
-            match hs_loop::realmodel::call(&hs_loop::realmodel::DEEPSEEK, prompt) {
+            match hs_loop::realmodel::call(&hs_loop::realmodel::deepseek(), prompt) {
                 Ok(v) => v,
                 Err(e) => serde_json::json!({"$error": e}),
             }

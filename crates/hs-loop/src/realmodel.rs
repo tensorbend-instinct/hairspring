@@ -17,57 +17,139 @@ use std::time::Duration;
 
 #[derive(Clone, Debug)]
 pub struct Provider {
-    pub name: &'static str,
-    pub base_url_env: &'static str,
-    pub default_base_url: &'static str,
-    pub model_env: &'static str,
-    pub default_model: &'static str,
-    pub key_env: &'static str,
-    pub key_file_env: &'static str,
-    pub price_in_env: &'static str,
+    pub name: String,
+    pub base_url_env: String,
+    pub default_base_url: String,
+    pub model_env: String,
+    pub default_model: String,
+    pub key_env: String,
+    pub key_file_env: String,
+    pub price_in_env: String,
     pub default_in_micros: f64,
-    pub price_cached_env: &'static str,
+    pub price_cached_env: String,
     pub default_cached_micros: f64,
-    pub price_out_env: &'static str,
+    pub price_out_env: String,
     pub default_out_micros: f64,
     /// Optional env var holding a JSON object merged into the request body
     /// (e.g. HS_DEEPSEEK_EXTRA_BODY_JSON='{"thinking":{"type":"disabled"}}').
-    pub extra_body_json_env: &'static str,
+    pub extra_body_json_env: String,
+    /// TOML-sourced extra body; the env var above wins when both are set.
+    pub default_extra_body_json: Option<String>,
 }
 
-pub const GLM: Provider = Provider {
-    name: "glm",
-    base_url_env: "HS_GLM_BASE_URL",
-    default_base_url: "https://api.z.ai/api/paas/v4/chat/completions",
-    model_env: "HS_GLM_MODEL",
-    default_model: "glm-5.3",
-    key_env: "HS_GLM_API_KEY",
-    key_file_env: "HS_GLM_API_KEY_FILE",
-    price_in_env: "HS_GLM_PRICE_IN_MICROS",
-    default_in_micros: 1.40,
-    price_cached_env: "HS_GLM_PRICE_CACHED_MICROS",
-    default_cached_micros: 0.26,
-    price_out_env: "HS_GLM_PRICE_OUT_MICROS",
-    default_out_micros: 4.40,
-    extra_body_json_env: "HS_GLM_EXTRA_BODY_JSON",
-};
+fn builtin(
+    name: &str,
+    default_base_url: &str,
+    default_model: &str,
+    in_micros: f64,
+    cached_micros: f64,
+    out_micros: f64,
+    default_extra: Option<&str>,
+) -> Provider {
+    let up = name.to_uppercase().replace('-', "_");
+    Provider {
+        name: name.into(),
+        base_url_env: format!("HS_{up}_BASE_URL"),
+        default_base_url: default_base_url.into(),
+        model_env: format!("HS_{up}_MODEL"),
+        default_model: default_model.into(),
+        key_env: format!("HS_{up}_API_KEY"),
+        key_file_env: format!("HS_{up}_API_KEY_FILE"),
+        price_in_env: format!("HS_{up}_PRICE_IN_MICROS"),
+        default_in_micros: in_micros,
+        price_cached_env: format!("HS_{up}_PRICE_CACHED_MICROS"),
+        default_cached_micros: cached_micros,
+        price_out_env: format!("HS_{up}_PRICE_OUT_MICROS"),
+        default_out_micros: out_micros,
+        extra_body_json_env: format!("HS_{up}_EXTRA_BODY_JSON"),
+        default_extra_body_json: default_extra.map(|s| s.to_string()),
+    }
+}
 
-pub const DEEPSEEK: Provider = Provider {
-    name: "deepseek",
-    base_url_env: "HS_DEEPSEEK_BASE_URL",
-    default_base_url: "https://api.deepseek.com/chat/completions",
-    model_env: "HS_DEEPSEEK_MODEL",
-    default_model: "deepseek-v4-flash",
-    key_env: "HS_DEEPSEEK_API_KEY",
-    key_file_env: "HS_DEEPSEEK_API_KEY_FILE",
-    price_in_env: "HS_DEEPSEEK_PRICE_IN_MICROS",
-    default_in_micros: 0.44,
-    price_cached_env: "HS_DEEPSEEK_PRICE_CACHED_MICROS",
-    default_cached_micros: 0.014,
-    price_out_env: "HS_DEEPSEEK_PRICE_OUT_MICROS",
-    default_out_micros: 1.32,
-    extra_body_json_env: "HS_DEEPSEEK_EXTRA_BODY_JSON",
-};
+pub fn glm() -> Provider {
+    builtin(
+        "glm",
+        "https://api.z.ai/api/paas/v4/chat/completions",
+        "glm-5.3",
+        1.40,
+        0.26,
+        4.40,
+        None,
+    )
+}
+
+pub fn deepseek() -> Provider {
+    builtin(
+        "deepseek",
+        "https://api.deepseek.com/chat/completions",
+        "deepseek-v4-flash",
+        0.44,
+        0.014,
+        1.32,
+        None,
+    )
+}
+
+/// One [[providers]] entry. Key material never appears here: key_env NAMES
+/// the env var that holds it (vault-populated, fill-only).
+#[derive(Clone, Debug, serde::Deserialize)]
+pub struct ProviderConfig {
+    pub name: String,
+    pub base_url: String,
+    pub model: String,
+    pub key_env: Option<String>,
+    pub extra_body_json: Option<String>,
+    pub price_in_micros: Option<f64>,
+    pub price_cached_micros: Option<f64>,
+    pub price_out_micros: Option<f64>,
+}
+
+#[derive(serde::Deserialize)]
+struct ProvidersFile {
+    providers: Vec<ProviderConfig>,
+}
+
+pub fn load_providers_toml(path: &std::path::Path) -> Result<Vec<ProviderConfig>, String> {
+    let text = std::fs::read_to_string(path)
+        .map_err(|e| format!("providers TOML {}: {e}", path.display()))?;
+    let f: ProvidersFile =
+        toml::from_str(&text).map_err(|e| format!("providers TOML {}: {e}", path.display()))?;
+    if f.providers.is_empty() {
+        return Err(format!("providers TOML {}: no [[providers]] entries", path.display()));
+    }
+    Ok(f.providers)
+}
+
+pub fn find_provider<'a>(cfgs: &'a [ProviderConfig], name: &str) -> Result<&'a ProviderConfig, String> {
+    cfgs.iter()
+        .find(|c| c.name == name)
+        .ok_or_else(|| format!("unknown provider '{name}' (not in providers TOML)"))
+}
+
+/// Resolve a TOML entry into a working Provider. Env overrides still win:
+/// HS_{NAME}_BASE_URL over the TOML base_url, and so on.
+pub fn provider_from_config(c: &ProviderConfig) -> Result<Provider, String> {
+    let up = c.name.to_uppercase().replace('-', "_");
+    let base_url_env = format!("HS_{up}_BASE_URL");
+    let default_base_url = env_or(&base_url_env, &c.base_url);
+    Ok(Provider {
+        name: c.name.clone(),
+        base_url_env: String::new(), // already resolved above
+        default_base_url,
+        model_env: format!("HS_{up}_MODEL"),
+        default_model: c.model.clone(),
+        key_env: c.key_env.clone().unwrap_or_else(|| format!("HS_{up}_API_KEY")),
+        key_file_env: format!("HS_{up}_API_KEY_FILE"),
+        price_in_env: format!("HS_{up}_PRICE_IN_MICROS"),
+        default_in_micros: c.price_in_micros.unwrap_or(0.0),
+        price_cached_env: format!("HS_{up}_PRICE_CACHED_MICROS"),
+        default_cached_micros: c.price_cached_micros.unwrap_or(0.0),
+        price_out_env: format!("HS_{up}_PRICE_OUT_MICROS"),
+        default_out_micros: c.price_out_micros.unwrap_or(0.0),
+        extra_body_json_env: format!("HS_{up}_EXTRA_BODY_JSON"),
+        default_extra_body_json: c.extra_body_json.clone(),
+    })
+}
 
 const SYSTEM: &str = "You are the model plugin of an autonomous coding agent. \
 Reply with EXACTLY one JSON object and nothing else (no markdown fences, no prose): \
@@ -92,12 +174,12 @@ fn env_f64(key: &str, default: f64) -> f64 {
 /// Load the API key from env or file. The value is returned for the auth
 /// header and must never be logged or included in an error.
 pub fn load_key(p: &Provider) -> Result<String, String> {
-    if let Ok(k) = std::env::var(p.key_env) {
+    if let Ok(k) = std::env::var(&p.key_env) {
         if !k.trim().is_empty() {
             return Ok(k.trim().to_string());
         }
     }
-    if let Ok(path) = std::env::var(p.key_file_env) {
+    if let Ok(path) = std::env::var(&p.key_file_env) {
         return std::fs::read_to_string(&path)
             .map(|s| s.trim().to_string())
             .map_err(|e| format!("{}: cannot read key file {path}: {e}", p.name));
@@ -196,9 +278,9 @@ fn attempt(
         .or_else(|| usage["prompt_tokens_details"]["cached_tokens"].as_u64())
         .unwrap_or(0)
         .min(input_tokens);
-    let pin = env_f64(p.price_in_env, p.default_in_micros);
-    let pcached = env_f64(p.price_cached_env, p.default_cached_micros);
-    let pout = env_f64(p.price_out_env, p.default_out_micros);
+    let pin = env_f64(&p.price_in_env, p.default_in_micros);
+    let pcached = env_f64(&p.price_cached_env, p.default_cached_micros);
+    let pout = env_f64(&p.price_out_env, p.default_out_micros);
     let cost = (cached as f64 * pcached
         + (input_tokens - cached) as f64 * pin
         + output_tokens as f64 * pout)
@@ -233,10 +315,10 @@ pub fn watchdog_secs() -> u64 {
         .unwrap_or(420)
 }
 
-pub fn call(p: &'static Provider, prompt: &str) -> Result<serde_json::Value, String> {
+pub fn call(p: &Provider, prompt: &str) -> Result<serde_json::Value, String> {
     let key = load_key(p)?;
-    let url = env_or(p.base_url_env, p.default_base_url);
-    let model = env_or(p.model_env, p.default_model);
+    let url = env_or(&p.base_url_env, &p.default_base_url);
+    let model = env_or(&p.model_env, &p.default_model);
     let mut body = json!({
         "model": model,
         "temperature": 0,
@@ -246,9 +328,12 @@ pub fn call(p: &'static Provider, prompt: &str) -> Result<serde_json::Value, Str
             {"role": "user", "content": prompt},
         ],
     });
-    if let Ok(extra) = std::env::var(p.extra_body_json_env) {
+    let extra_src = std::env::var(&p.extra_body_json_env)
+        .ok()
+        .or_else(|| p.default_extra_body_json.clone());
+    if let Some(extra) = extra_src {
         let extra: serde_json::Value = serde_json::from_str(&extra)
-            .map_err(|e| format!("{}: bad {}: {e}", p.name, p.extra_body_json_env))?;
+            .map_err(|e| format!("{}: bad extra_body_json: {e}", p.name))?;
         if let (Some(b), Some(x)) = (body.as_object_mut(), extra.as_object()) {
             for (k, v) in x {
                 b.insert(k.clone(), v.clone());
@@ -273,8 +358,9 @@ pub fn call(p: &'static Provider, prompt: &str) -> Result<serde_json::Value, Str
             body.clone(),
             model.clone(),
         );
+        let pt = p.clone();
         std::thread::spawn(move || {
-            let r = attempt(p, &a, &u, &k, &b, &m);
+            let r = attempt(&pt, &a, &u, &k, &b, &m);
             let _ = tx.send(r);
         });
         match rx.recv_timeout(Duration::from_secs(watchdog)) {

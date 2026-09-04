@@ -137,9 +137,13 @@ fn extra_body_json_from_toml_reaches_the_request() {
     std::env::set_var("HS_GLM_API_KEY", "mock-key-fill-only");
     let p = provider_from_config(find_provider(&cfgs, "glm").unwrap()).unwrap();
     let out = call(&p, "MISSION: t\nANSWER_PATH: /p").unwrap();
-    assert_eq!(out["tool"], "answer.write");
+    let comp: serde_json::Value =
+        serde_json::from_str(out["completion"].as_str().unwrap()).unwrap();
+    assert_eq!(comp["tool"], "answer.write");
+    assert_eq!(comp["args"]["content"], "ok");
     let body = rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap();
-    assert!(body.contains("\"reasoning_effort\":\"max\""), "extra body merged: {body}");
+    let v: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(v["reasoning_effort"], "max", "extra body merged: {body}");
     std::env::remove_var("HS_GLM_API_KEY");
 }
 
