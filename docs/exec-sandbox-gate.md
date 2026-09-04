@@ -1,8 +1,14 @@
 # Exec Sandbox Gate (scoped 2026-09-04, Eric's directive)
 
-Status: scoped, not started. Queue: after repo.exec seam test + live smoke
-mission (verification of the interim allowlist version), alongside/before
-provider-config collapse. Replaces the allowlist when landed.
+Status: scoped, not started. PRIORITY BUILD ITEM immediately after the
+repo.exec seam test (landed 8272f62) + live smoke mission close.
+
+Eric's ruling (2026-09-04 14:04): the allowlist is a temporary scaffold to be
+DELETED by this gate, not a feature to refine. Design principle: HAIRSPRING is
+a generic system - no domain-specific constraint mechanisms in generic paths
+(a coding-specific allowlist in a general exec tool is exactly the brittleness
+being rejected). End state: open shell, any command, zero list, safety from
+isolation only.
 
 ## Eric's directive
 repo.exec should run ANY command the model thinks it needs before
@@ -10,7 +16,7 @@ submission, not an allowlist. Agreed path (parent 13:59): per-mission
 sandbox so an open shell is safe by construction; allowlist stays as the
 interim guardrail until this lands.
 
-## Why the allowlist exists at all
+## Why the allowlist exists at all (interim only - deleted by this gate)
 Today's repo.exec runs the command as the harness user with the mission's
 full environment and filesystem. An open shell in that shape could read the
 GLM key file (~/.keys), mutate the live workspace or repo checkout, or
@@ -47,14 +53,14 @@ Per repo.exec call:
      sandbox - proves net ns is empty, not just unreachable-by-policy.
    - open shell: an arbitrary non-allowlisted command (e.g. `echo hi |
      rev`) now RUNS and returns output (the old allowlist rejection test
-     is inverted behind the sandbox config flag).
+     is DELETED - no list remains, open shell is the only mode).
    - resource cap: a memory-bomber (`tail /dev/zero`) is killed by rlimit,
      reported as such; timeout path unchanged.
    - die-with-parent: kill the harness mid-exec, assert no orphan remains.
 2. Implementation: repexec::run gains sandbox mode (bwrap command line
    builder, pure function, unit-tested string); config flag in
-   hairspring.toml ([exec] sandbox = true, allowlist fallback); plugin
-   passes it through.
+   hairspring.toml ([exec] sandbox = true, default on once proven);
+   the allowlist code path is removed, not kept as a fallback.
 3. Seam test: scripted benchmodel mission where the model runs an
    off-allowlist command successfully through the real kernel path.
 4. Live GLM smoke mission re-run of one arm with sandbox on: confirm the
