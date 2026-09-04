@@ -334,6 +334,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "hs-scorer"
+version = "0.1.0"
+dependencies = [
+ "hs-core",
+ "hs-log",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "uuid",
+]
+
+[[package]]
 name = "hs-swarm"
 version = "0.1.0"
 dependencies = [

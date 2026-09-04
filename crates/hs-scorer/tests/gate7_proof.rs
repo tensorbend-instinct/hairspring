@@ -28,17 +28,34 @@ use std::collections::BTreeMap;
 // ---------------------------------------------------------------------------
 
 fn visible_suite() -> TaskSuite {
-    TaskSuite::new("token-visible", (0..6).map(|i| Task::secret(format!("V{i}"), format!("VISIBLE-{i}"))).collect())
+    TaskSuite::new(
+        "token-visible",
+        (0..6)
+            .map(|i| Task::new(format!("V{i}"), format!("VISIBLE-{i}")))
+            .collect(),
+    )
 }
 fn heldout_suite() -> TaskSuite {
-    TaskSuite::new("token-heldout", (0..6).map(|i| Task::secret(format!("H{i}"), format!("HIDDEN-{i}"))).collect())
+    TaskSuite::new(
+        "token-heldout",
+        (0..6)
+            .map(|i| Task::new(format!("H{i}"), format!("HIDDEN-{i}")))
+            .collect(),
+    )
 }
 
 /// Candidate that genuinely generalizes: answers any task by rule.
 fn generalizing_artifact() -> Artifact {
     Artifact::by_rule(|task: &Task| {
         let i: usize = task.id[1..].parse().unwrap();
-        Some(format!("{}-{i}", if task.id.starts_with('V') { "VISIBLE" } else { "HIDDEN" }))
+        Some(format!(
+            "{}-{i}",
+            if task.id.starts_with('V') {
+                "VISIBLE"
+            } else {
+                "HIDDEN"
+            }
+        ))
     })
 }
 
@@ -58,13 +75,29 @@ fn memorizing_artifact() -> Artifact {
 fn plausibility_panel() -> JudgePanel {
     JudgePanel::new(vec![
         Box::new(ClosureJudge::new("judge-a", "family-x", |art, _task| {
-            if art.answer_text().map(|a| !a.is_empty() && a.contains('-')).unwrap_or(false) { 0.95 } else { 0.05 }
+            if art
+                .answer_text()
+                .map(|a| !a.is_empty() && a.contains('-'))
+                .unwrap_or(false)
+            {
+                0.95
+            } else {
+                0.05
+            }
         })),
         Box::new(ClosureJudge::new("judge-b", "family-y", |art, _task| {
-            if art.answer_text().map(|a| !a.is_empty()).unwrap_or(false) { 0.90 } else { 0.10 }
+            if art.answer_text().map(|a| !a.is_empty()).unwrap_or(false) {
+                0.90
+            } else {
+                0.10
+            }
         })),
         Box::new(ClosureJudge::new("judge-c", "family-z", |art, _task| {
-            if art.answer_text().map(|a| a.len() > 3).unwrap_or(false) { 0.92 } else { 0.08 }
+            if art.answer_text().map(|a| a.len() > 3).unwrap_or(false) {
+                0.92
+            } else {
+                0.08
+            }
         })),
     ])
 }
@@ -94,9 +127,13 @@ fn gate7_proof_1_regression_caught_by_heldout_assay() {
     let champ = Candidate::new("champ-v1", generalizing_artifact());
     let s0 = scorer.tier01_execution(&champ, &visible_suite()).unwrap();
     assert!(s0.passed);
-    let s1 = scorer.tier02_rubric(&champ, &visible_suite(), &plausibility_panel()).unwrap();
+    let s1 = scorer
+        .tier02_rubric(&champ, &visible_suite(), &plausibility_panel())
+        .unwrap();
     assert!(s1.mean >= 0.5 && !s1.veto);
-    let v = scorer.held_out_assay(&champ, &heldout_suite(), &pin).unwrap();
+    let v = scorer
+        .held_out_assay(&champ, &heldout_suite(), &pin)
+        .unwrap();
     assert!(v.pass_rate == 1.0);
     lineage.record(&champ, s0, s1, v.clone());
     lineage.promote(&champ, &v, &pin, &scorer).unwrap();
@@ -107,8 +144,13 @@ fn gate7_proof_1_regression_caught_by_heldout_assay() {
     let bad = Candidate::new("cand-v2-memorizer", memorizing_artifact());
     let s0 = scorer.tier01_execution(&bad, &visible_suite()).unwrap();
     assert!(s0.passed, "seeded regression must pass self-report tier");
-    let s1 = scorer.tier02_rubric(&bad, &visible_suite(), &plausibility_panel()).unwrap();
-    assert!(s1.mean >= 0.5 && !s1.veto, "seeded regression must fool rubric judges");
+    let s1 = scorer
+        .tier02_rubric(&bad, &visible_suite(), &plausibility_panel())
+        .unwrap();
+    assert!(
+        s1.mean >= 0.5 && !s1.veto,
+        "seeded regression must fool rubric judges"
+    );
     let v = scorer.held_out_assay(&bad, &heldout_suite(), &pin).unwrap();
     assert!(v.pass_rate < 1.0, "held-out assay must see the failure");
     lineage.record(&bad, s0, s1, v.clone());
@@ -135,9 +177,16 @@ fn gate7_proof_1b_promotion_replayable_and_pin_bound() {
     let (mut scorer, _lineage) = fresh_lineage(tmp.path());
     let pin = scorer.pin();
     let cand = Candidate::new("cand", generalizing_artifact());
-    let v1 = scorer.held_out_assay(&cand, &heldout_suite(), &pin).unwrap();
-    let v2 = scorer.held_out_assay(&cand, &heldout_suite(), &pin).unwrap();
-    assert_eq!(v1, v2, "same pin + conditions must replay to identical verdict");
+    let v1 = scorer
+        .held_out_assay(&cand, &heldout_suite(), &pin)
+        .unwrap();
+    let v2 = scorer
+        .held_out_assay(&cand, &heldout_suite(), &pin)
+        .unwrap();
+    assert_eq!(
+        v1, v2,
+        "same pin + conditions must replay to identical verdict"
+    );
 
     let moved = scorer.pin_with_conditions("tampered-conditions");
     assert_ne!(pin.hash(), moved.hash());
@@ -166,15 +215,25 @@ fn gate7_proof_2_scorer_drift_flagged_by_canaries_before_promotion() {
         Canary::known_good("cg-1", generalizing_artifact()),
         Canary::known_bad("cb-1", memorizing_artifact()),
     ]);
-    let report = scorer.run_canaries(&canaries, &heldout_suite(), &pin).unwrap();
+    let report = scorer
+        .run_canaries(&canaries, &heldout_suite(), &pin)
+        .unwrap();
     assert!(!report.drifted, "healthy scorer must not trip canaries");
     assert!(!scorer.is_frozen());
 
     // healthy scorer promotes the generalizer fine (control)
     let good = Candidate::new("control", generalizing_artifact());
-    let v = scorer.held_out_assay(&good, &heldout_suite(), &pin).unwrap();
-    lineage.record(&good, scorer.tier01_execution(&good, &visible_suite()).unwrap(),
-                   scorer.tier02_rubric(&good, &visible_suite(), &plausibility_panel()).unwrap(), v.clone());
+    let v = scorer
+        .held_out_assay(&good, &heldout_suite(), &pin)
+        .unwrap();
+    lineage.record(
+        &good,
+        scorer.tier01_execution(&good, &visible_suite()).unwrap(),
+        scorer
+            .tier02_rubric(&good, &visible_suite(), &plausibility_panel())
+            .unwrap(),
+        v.clone(),
+    );
     lineage.promote(&good, &v, &pin, &scorer).unwrap();
 
     // SEED DRIFT: corrupt the scorer's held-out evaluation so failures read
@@ -184,21 +243,39 @@ fn gate7_proof_2_scorer_drift_flagged_by_canaries_before_promotion() {
     scorer.seed_drift_for_test(DriftKind::HeldOutAlwaysPasses);
 
     // canaries flag it and freeze the scorer for promotion decisions
-    let report = scorer.run_canaries(&canaries, &heldout_suite(), &pin).unwrap();
+    let report = scorer
+        .run_canaries(&canaries, &heldout_suite(), &pin)
+        .unwrap();
     assert!(report.drifted, "canary suite must flag the drifted scorer");
     assert!(scorer.is_frozen());
-    assert!(scorer.log_events().iter().any(|e| e.kind == EventKind::CanaryResult));
+    assert!(scorer
+        .log_events()
+        .iter()
+        .any(|e| e.kind == EventKind::CanaryResult));
 
     // the drifted scorer would now "pass" the memorizer at the assay...
     let bad = Candidate::new("bad-under-drift", memorizing_artifact());
     let v = scorer.held_out_assay(&bad, &heldout_suite(), &pin).unwrap();
-    assert_eq!(v.pass_rate, 1.0, "drifted scorer mis-reads failures as passes");
+    assert_eq!(
+        v.pass_rate, 1.0,
+        "drifted scorer mis-reads failures as passes"
+    );
     // ...but no promotion may use it
-    lineage.record(&bad, scorer.tier01_execution(&bad, &visible_suite()).unwrap(),
-                   scorer.tier02_rubric(&bad, &visible_suite(), &plausibility_panel()).unwrap(), v.clone());
+    lineage.record(
+        &bad,
+        scorer.tier01_execution(&bad, &visible_suite()).unwrap(),
+        scorer
+            .tier02_rubric(&bad, &visible_suite(), &plausibility_panel())
+            .unwrap(),
+        v.clone(),
+    );
     let err = lineage.promote(&bad, &v, &pin, &scorer).unwrap_err();
     assert!(matches!(err, PromotionError::ScorerFrozen));
-    assert_eq!(lineage.champion().unwrap().name(), "control", "drifted scorer must not move champion status");
+    assert_eq!(
+        lineage.champion().unwrap().name(),
+        "control",
+        "drifted scorer must not move champion status"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -210,7 +287,12 @@ fn gate7_proof_2_scorer_drift_flagged_by_canaries_before_promotion() {
 #[test]
 fn gate7_proof_3_best_of_n_envelope_published() {
     let tmp = tempfile::tempdir().unwrap();
-    let family = TaskSuite::new("token-family", (0..8).map(|i| Task::secret(format!("F{i}"), format!("FAM-{i}"))).collect());
+    let family = TaskSuite::new(
+        "token-family",
+        (0..8)
+            .map(|i| Task::new(format!("F{i}"), format!("FAM-{i}")))
+            .collect(),
+    );
 
     // N isolated agents, each with the SAME decision opportunities as the
     // collective candidate gets. Isolates here: memorizers each seeded with a
@@ -234,27 +316,40 @@ fn gate7_proof_3_best_of_n_envelope_published() {
 
     // the collective candidate under test: the generalizer
     let candidate = Candidate::new("collective", generalizing_artifact());
-    let cmp = envelope.compare(&candidate, tmp.path()).unwrap();
+    let cmp = envelope.compare(&candidate, &family, tmp.path()).unwrap();
 
     // published artifact, win or lose
     let published = std::fs::read_to_string(cmp.artifact_path()).unwrap();
     assert!(published.contains("best-of-N"));
     assert!(published.contains("envelope_pass_rate"));
     assert!(published.contains("candidate_pass_rate"));
-    assert_eq!(cmp.envelope_pass_rate() + cmp.candidate_pass_rate() >= 0.0, true);
+    assert_eq!(
+        cmp.envelope_pass_rate() + cmp.candidate_pass_rate() >= 0.0,
+        true
+    );
 
     // matched search: envelope pass rate is the endpoint-wise max over
     // isolates, not the sum - independent search gets N independent tries
     // and we credit it the best single endpoint.
     let best_isolate = isolates
         .iter()
-        .map(|a| family.tasks().iter().filter(|t| a.answer(t).as_deref() == Some(t.secret())).count())
+        .map(|a| {
+            family
+                .tasks()
+                .iter()
+                .filter(|t| a.answer(t).as_deref() == Some(t.secret()))
+                .count()
+        })
         .max()
         .unwrap() as f64
         / 8.0;
     assert!((cmp.envelope_pass_rate() - best_isolate).abs() < 1e-9);
 
     // outcome printed, win or lose (spec: publish the comparison, win or lose)
-    println!("best-of-N comparison: envelope={:.3} candidate={:.3} verdict={:?}",
-             cmp.envelope_pass_rate(), cmp.candidate_pass_rate(), cmp.verdict());
+    println!(
+        "best-of-N comparison: envelope={:.3} candidate={:.3} verdict={:?}",
+        cmp.envelope_pass_rate(),
+        cmp.candidate_pass_rate(),
+        cmp.verdict()
+    );
 }
