@@ -12,6 +12,7 @@
 //! - the best-of-N envelope is endpoint-wise with identical decision
 //!   opportunities, and the comparison is published win or lose.
 
+pub mod attribution;
 pub mod evidence;
 
 use evidence::{ClaimKind, EvidenceClaim};
@@ -485,6 +486,48 @@ impl Scorer {
             .into_iter()
             .filter(|c| c.kind == ClaimKind::VerifiedClaim && c.status == evidence::ClaimStatus::Open)
             .collect()
+    }
+
+
+    /// GATE 9e (spec v5): record a capability swap as a first-class
+    /// capability_change event on this stream. Single-writer discipline:
+    /// whoever performs the swap (migration transaction, operator) records
+    /// it BEFORE the next assay so attribution sees the boundary.
+    pub fn record_capability_change(&mut self, binding: &str, reason: &str) -> Event {
+        self.emit(
+            EventKind::CapabilityChange,
+            &format!("capability_change binding={} reason={}", binding, reason),
+        )
+    }
+
+    /// GATE 9e (spec v5): fitness slope, projected from the canonical log.
+    /// Only deltas with NO capability_change between the two assays -
+    /// same substrate, same bindings, evolved policy.
+    pub fn fitness_deltas(&self) -> Vec<attribution::FitnessDeltaRec> {
+        let events = self.log_events();
+        let reader = StreamReader::open(&self.log_root, self.stream).unwrap();
+        attribution::project(&events, &|e| {
+            reader
+                .resolve_payload(e)
+                .ok()
+                .map(|b| String::from_utf8_lossy(&b).into_owned())
+        })
+        .0
+    }
+
+    /// GATE 9e (spec v5): deltas straddling a capability_change boundary,
+    /// attributed to the swap and recorded against the new binding. Never
+    /// counted as evolved improvement.
+    pub fn capability_attributed(&self) -> Vec<attribution::AttributedDelta> {
+        let events = self.log_events();
+        let reader = StreamReader::open(&self.log_root, self.stream).unwrap();
+        attribution::project(&events, &|e| {
+            reader
+                .resolve_payload(e)
+                .ok()
+                .map(|b| String::from_utf8_lossy(&b).into_owned())
+        })
+        .1
     }
 
     /// Pin scorer version + assay conditions BEFORE any mutation; recorded
