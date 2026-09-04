@@ -233,6 +233,7 @@ impl InnerLoop {
             });
 
             // submit (tool errors are feedback too: models produce bad args)
+            let mut wrote_answer = false;
             let tool_feedback = match validated {
                 None => Some(r#"your reply was not a single JSON tool call; respond with exactly {"tool":"answer.write","args":{"path":<ANSWER_PATH>,"content":...}}"#.to_string()),
                 Some((tool, args)) => match self.kernel.call_tool("operator", &tool, args.clone()) {
@@ -247,6 +248,21 @@ impl InnerLoop {
                                 ))
                                 .latency_ms(tool_out.latency_ms),
                         )?;
+                        if tool == "answer.write" {
+                            wrote_answer = true;
+                        } else {
+                            // Read/search steps exist so the model can SEE
+                            // the world: the result must enter the next
+                            // step's context, or the tool is decoration
+                            // (observed 2026-09-04: 19 identical reads).
+                            let mut body = serde_json::to_string(&tool_out.output)
+                                .unwrap_or_else(|_| "<unprintable>".to_string());
+                            if body.len() > 20_000 {
+                                body.truncate(20_000);
+                                body.push_str("...[truncated]");
+                            }
+                            pending_feedback.push(format!("result of {tool}: {body}"));
+                        }
                         None
                     }
                     Err(e) => {
@@ -268,8 +284,12 @@ impl InnerLoop {
                 pending_feedback.push(format!("harness: {msg}"));
                 continue;
             }
+            if !wrote_answer {
+                continue;
+            }
 
-            // the world answers (checker = ground truth at this gate)
+            // the world answers (checker = ground truth at this gate);
+            // only an answer.write produces something to judge
             let verdict = self.kernel.call_tool(
                 "operator",
                 "checker.run",
