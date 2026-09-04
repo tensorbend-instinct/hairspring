@@ -86,10 +86,13 @@ fn main() {
          The checker will apply your patch and run: {tests}\n\
          It also runs a set of PASS_TO_PASS regression tests; do not break existing behavior.\n\n\
          Repo files (partial listing):\n{layout}\n\
-         HOW TO RESPOND: reply with exactly one JSON object and nothing else:\n\
-         {{\"tool\":\"answer.write\",\"args\":{{\"path\":\"<ANSWER_PATH>\",\"content\":\"```diff\\n<one unified diff, paths a/... b/... relative to repo root>\\n```\"}}}}\n\
+         TOOLS (one tool call per reply, exactly one JSON object, no prose):\n\
+         1. {{\"tool\":\"repo.search\",\"args\":{{\"pattern\":\"<literal substring>\"}}}} - find code by substring; returns path:line hits (max 100).\n\
+         2. {{\"tool\":\"repo.read\",\"args\":{{\"path\":\"<repo-relative path>\"}}}} - read a file (max 40KB, truncated flag if capped).\n\
+         3. {{\"tool\":\"answer.write\",\"args\":{{\"path\":\"<ANSWER_PATH>\",\"content\":\"```diff\\n<one unified diff, paths a/... b/... relative to repo root>\\n```\"}}}} - submit your patch. Ground every hunk in code you actually read: correct file, correct current line numbers, exact context lines. The checker runs automatically after each answer.write and its verdict comes back as FEEDBACK.\n\
+         WORKFLOW: search and read to locate the real code FIRST, then write a patch that applies cleanly. \
          The exact ANSWER_PATH value is given to you on the ANSWER_PATH line each attempt. \
-         Do not include prose outside the JSON. If you get FEEDBACK, repair the patch and answer again.",
+         Do not include prose outside the JSON. If you get FEEDBACK, repair and continue.",
         ws = ws.display(),
         stmt = inst.problem_statement.trim(),
         tests = f2p.join(" ; "),
@@ -112,6 +115,16 @@ name = "checker.run"
 command = ["{checker}"]
 subjects = ["*"]
 
+[[tools]]
+name = "repo.read"
+command = ["{fileread}"]
+subjects = ["*"]
+
+[[tools]]
+name = "repo.search"
+command = ["{reposearch}"]
+subjects = ["*"]
+
 [[models]]
 name = "{model}"
 command = ["{model_bin}"]
@@ -119,6 +132,8 @@ default = true
 "#,
             answer = bin("hs-plugin-answer"),
             checker = bin("hs-plugin-swecheck"),
+            fileread = bin("hs-plugin-fileread"),
+            reposearch = bin("hs-plugin-reposearch"),
             model = model,
             model_bin = bin(&format!("hs-plugin-{model}")),
         ),

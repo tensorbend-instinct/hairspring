@@ -7,6 +7,7 @@
 //! the window, and why). Feedback never costs a model round trip.
 
 pub mod realmodel;
+pub mod repotools;
 
 use hs_core::{EventBuilder, EventKind, Payload};
 use hs_kernel::{Kernel, KernelError};
