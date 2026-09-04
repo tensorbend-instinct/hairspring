@@ -266,7 +266,6 @@ version = "0.1.0"
 dependencies = [
  "hs-core",
  "hs-log",
- "hs-loop",
  "serde",
  "serde_json",
  "tempfile",
@@ -335,6 +334,7 @@ dependencies = [
 name = "hs-loop"
 version = "0.1.0"
 dependencies = [
+ "hs-bench",
  "hs-core",
  "hs-kernel",
  "hs-log",

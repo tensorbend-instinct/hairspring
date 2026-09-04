@@ -131,6 +131,18 @@ impl InnerLoop {
 
     /// Run one mission to a checker verdict, the step cap, or the budget cap.
     pub fn run_mission(&mut self, mission: &str) -> Result<MissionResult, LoopError> {
+        self.run_mission_full(mission, mission)
+    }
+
+    /// Gate 8: a mission whose PROMPT differs from its id. The id names the
+    /// work dir (must be path-safe); the prompt is the full mission text the
+    /// model sees (e.g. a SWE-bench problem statement + response contract).
+    pub fn run_mission_full(
+        &mut self,
+        mission_id: &str,
+        prompt: &str,
+    ) -> Result<MissionResult, LoopError> {
+        let mission = mission_id;
         let answer_path = self.log_root.join("work").join(mission).join("answer.txt");
         std::fs::create_dir_all(answer_path.parent().unwrap())?;
         let mut pending_feedback: Vec<String> = vec![];
@@ -145,7 +157,7 @@ impl InnerLoop {
 
             // assemble
             let mut ctx = format!(
-                "MISSION: {mission}\nATTEMPT: {step}\nANSWER_PATH: {}\nARTIFACT: {}\n",
+                "MISSION: {prompt}\nATTEMPT: {step}\nANSWER_PATH: {}\nARTIFACT: {}\n",
                 answer_path.display(),
                 if artifact.is_empty() {
                     "<none>"
