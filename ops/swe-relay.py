@@ -9,6 +9,9 @@ import http.server, socketserver, http.client, ssl, socket, os, json, time
 TARGET_HOST = os.environ.get("RELAY_TARGET_HOST", "api.z.ai")
 TARGET_PREFIX = os.environ.get("RELAY_TARGET_PREFIX", "/api/coding/paas/v4")
 PORT = int(os.environ.get("RELAY_PORT", "8787"))
+# test-only knobs: point the relay at a fake upstream (defaults = production TLS:443)
+UPSTREAM_SCHEME = os.environ.get("RELAY_UPSTREAM_SCHEME", "https")
+UPSTREAM_PORT = int(os.environ.get("RELAY_UPSTREAM_PORT", "443"))
 
 class KAHTTPSConnection(http.client.HTTPSConnection):
     def connect(self):
@@ -28,8 +31,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         n = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(n)
-        conn = KAHTTPSConnection(TARGET_HOST, 443, timeout=1500,
-                                 context=ssl.create_default_context())
+        if UPSTREAM_SCHEME == "https":
+            conn = KAHTTPSConnection(TARGET_HOST, UPSTREAM_PORT, timeout=1500,
+                                     context=ssl.create_default_context())
+        else:
+            conn = http.client.HTTPConnection(TARGET_HOST, UPSTREAM_PORT, timeout=1500)
         try:
             fwd = {k: v for k, v in self.headers.items()
                    if k.lower() not in ("host", "content-length", "connection", "accept-encoding")}

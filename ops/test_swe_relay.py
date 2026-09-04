@@ -43,7 +43,7 @@ def post(port, path="/x", body=b"{}", headers=None):
 def test_accept_encoding_stripped_upstream():
     """The two-layer bug: caller sends Accept-Encoding: gzip; if that header
     reached the upstream, upstream would gzip and the caller could not decode.
-    Relay must strip it. Also: if an upstream sends gzip anyway, the
+    Relay must strip it (http.client may add an explicit "identity", which is safe). Also: if an upstream sends gzip anyway, the
     Content-Encoding header must survive the relay so the caller knows."""
     seen = {}
     class Up(Quiet):
@@ -70,7 +70,8 @@ def test_accept_encoding_stripped_upstream():
                                 "RELAY_TARGET_PREFIX": ""})
     try:
         status, hdrs, body = post(rport, headers={"Accept-Encoding": "gzip", "Content-Type": "application/json"})
-        assert seen.get("ae") is None, f"Accept-Encoding leaked upstream: {seen['ae']!r}"
+        ae = seen.get("ae")
+        assert ae is None or "gzip" not in ae, f"gzip Accept-Encoding leaked upstream: {ae!r}"
         assert status == 200
         assert hdrs.get("Content-Encoding") == "gzip", "Content-Encoding not forwarded"
         assert gzip.decompress(body) == b'{"ok":true}'

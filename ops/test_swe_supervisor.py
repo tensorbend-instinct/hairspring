@@ -11,6 +11,9 @@ SUP = os.path.join(REPO, "swe-supervisor.sh")
 
 def test_stall_triggers_relaunch(tmp_path):
     run = tmp_path / "run"; (run / "log").mkdir(parents=True)
+    # backdate stream log so the run is already stalled
+    stale = run / "log" / "stream.old"; stale.write_text("x")
+    os.utime(stale, (time.time() - 100, time.time() - 100))
     marker = tmp_path / "launched"
     launcher = tmp_path / "launch.sh"
     launcher.write_text(f"#!/bin/bash\necho fired >> {marker}\n")
@@ -23,7 +26,7 @@ def test_stall_triggers_relaunch(tmp_path):
                SWE_STOP_FILE=str(stop), SWE_LAUNCHER=str(launcher),
                SWE_PROC_PATTERN="hs-swe-run-test", SWE_LOOP_S="1",
                SWE_STALL_AGE_S="1", SWE_RESTORE_GRACE_S="1",
-               SWE_RESTORE_WATCH_S="1")
+               SWE_RESTORE_WATCH_S="1", SWE_STALL_RECHECK_S="1")
     sup = subprocess.Popen(["bash", SUP], env=env)
     try:
         deadline = time.time() + 30
@@ -43,6 +46,6 @@ def test_done_result_exits_cleanly(tmp_path):
                SWE_STOP_FILE=str(stop), SWE_LAUNCHER="/bin/true",
                SWE_PROC_PATTERN="hs-swe-run-test", SWE_LOOP_S="1",
                SWE_STALL_AGE_S="1", SWE_RESTORE_GRACE_S="1",
-               SWE_RESTORE_WATCH_S="1")
+               SWE_RESTORE_WATCH_S="1", SWE_STALL_RECHECK_S="1")
     r = subprocess.run(["bash", SUP], env=env, timeout=20)
     assert r.returncode == 0
