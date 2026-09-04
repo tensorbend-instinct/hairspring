@@ -540,7 +540,9 @@ pub mod testing {
         blob_path_inner(root, hash)
     }
 
-    /// Flip one byte inside the encoded body of the event with `seq`.
+    /// TEST-SUPPORT tamper utility (integrity proofs only): flip one byte
+    /// inside the encoded body of the event with `seq`. Panics when no
+    /// event carries `seq` - a test authoring error, not a runtime path.
     pub fn corrupt_event_byte(root: &Path, stream: Uuid, seq: u64, body_offset: usize) {
         for path in segment_files(root, stream).unwrap() {
             let mut f = OpenOptions::new()
@@ -577,8 +579,9 @@ pub mod testing {
         panic!("no event with seq {seq}");
     }
 
-    /// Rewrite the segment files without the event at `seq` (simulates a
-    /// silently deleted record).
+    /// TEST-SUPPORT tamper utility (integrity proofs only): rewrite the
+    /// segment files without the event at `seq` (simulates a silently
+    /// deleted record).
     pub fn remove_event_from_segment(root: &Path, stream: Uuid, seq: u64) {
         let files = segment_files(root, stream).unwrap();
         let mut kept: Vec<Vec<u8>> = vec![];
