@@ -8,7 +8,7 @@
 
 use hs_goal::*;
 
-const ANSWER: &str = env!("CARGO_BIN_EXE_hs-plugin-answer");
+const ANSWER: &str = env!("CARGO_BIN_EXE_hs-plugin-goalanswer");
 const GOALCHECKER: &str = env!("CARGO_BIN_EXE_hs-plugin-goalchecker");
 const GOALMODEL: &str = env!("CARGO_BIN_EXE_hs-plugin-goalmodel");
 const PLANTS: usize = 8;
