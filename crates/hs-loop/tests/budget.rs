@@ -36,14 +36,19 @@ default = true
     )
     .unwrap();
     let kernel = hs_kernel::Kernel::load(&config).unwrap();
-    let mut l = InnerLoop::new(kernel, log.path(), true, 50).unwrap();
-    // benchmodel reports 900 micro-USD per call; a 5000-micro cap must kill
-    // the mission after 5 calls, long before the 50-step cap
+    // feedback OFF: benchmodel never repairs, so the mission burns calls to
+    // the cap. benchmodel reports 900 micro-USD per call; a 5000-micro cap
+    // must kill the mission after ~5 calls, long before the 50-step cap
+    let mut l = InnerLoop::new(kernel, log.path(), false, 50).unwrap();
     l.set_budget_micros(5_000);
     let r = l.run_mission("task-0").unwrap();
     assert!(!r.passed, "budget-killed mission is a failure");
     assert!(r.budget_killed, "result must flag the budget kill");
-    assert!(r.model_calls <= 6, "killed near the cap, got {}", r.model_calls);
+    assert!(
+        r.model_calls <= 6,
+        "killed near the cap, got {}",
+        r.model_calls
+    );
     assert!(l.total_cost_micros() <= 5_900);
 }
 

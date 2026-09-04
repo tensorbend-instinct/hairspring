@@ -63,9 +63,17 @@ fn budget_burn_is_killed_and_scored_unresolved() {
     let r = runner
         .run_fixture(&instances[0], PatchSource::BudgetBurn, Arm::System)
         .unwrap();
-    assert_eq!(r.outcome, Outcome::BudgetKilled, "over-cap mission must be killed");
+    assert_eq!(
+        r.outcome,
+        Outcome::BudgetKilled,
+        "over-cap mission must be killed"
+    );
     let report = BenchReport::new(vec![r]);
-    assert_eq!(report.resolved_count(Arm::System), 0, "budget kill scores as fail");
+    assert_eq!(
+        report.resolved_count(Arm::System),
+        0,
+        "budget kill scores as fail"
+    );
 }
 
 #[test]
@@ -75,7 +83,11 @@ fn report_is_swebench_shaped() {
     let runner = BenchRunner::new(tmp.path(), 1_000_000);
     let mut results = vec![];
     for inst in &instances {
-        results.push(runner.run_fixture(inst, PatchSource::Gold, Arm::System).unwrap());
+        results.push(
+            runner
+                .run_fixture(inst, PatchSource::Gold, Arm::System)
+                .unwrap(),
+        );
     }
     results.push(
         runner
@@ -88,7 +100,11 @@ fn report_is_swebench_shaped() {
     let json = report.to_swebench_json("hairspring-gate8");
     // official SWE-bench report shape: per-instance resolved flags + lists
     assert!(json.get("resolved").is_some(), "missing resolved list");
-    assert!(json.get("no_apply").is_some() || json.get("error").is_some() || json.get("unresolved").is_some());
+    assert!(
+        json.get("no_apply").is_some()
+            || json.get("error").is_some()
+            || json.get("unresolved").is_some()
+    );
     let resolved = json["resolved"].as_array().unwrap();
     assert_eq!(resolved.len(), 3);
     assert!(resolved.iter().any(|v| v == "fixture__alpha-1"));

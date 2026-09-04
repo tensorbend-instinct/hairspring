@@ -54,6 +54,9 @@ pub struct MissionResult {
     pub model_calls: u32,
     pub stream_id: uuid::Uuid,
     pub answer_path: PathBuf,
+    /// True when the run was killed for exceeding its USD budget (gate 8:
+    /// budget-killed missions score as failures, never as passes).
+    pub budget_killed: bool,
 }
 
 pub struct InnerLoop {
@@ -64,6 +67,7 @@ pub struct InnerLoop {
     feedback_injection: bool,
     max_steps: u32,
     cost_total_micros: u64,
+    budget_micros: Option<u64>,
 }
 
 impl InnerLoop {
@@ -83,6 +87,7 @@ impl InnerLoop {
             feedback_injection,
             max_steps,
             cost_total_micros: 0,
+            budget_micros: None,
         })
     }
 
@@ -104,6 +109,7 @@ impl InnerLoop {
             feedback_injection,
             max_steps,
             cost_total_micros: 0,
+            budget_micros: None,
         })
     }
 
@@ -117,7 +123,13 @@ impl InnerLoop {
         self.cost_total_micros
     }
 
-    /// Run one mission to a checker verdict or the step cap.
+    /// Hard per-mission USD budget (micro-USD). When cumulative provider-reported
+    /// cost would exceed the cap, the mission is killed and scored as failed.
+    pub fn set_budget_micros(&mut self, micros: u64) {
+        self.budget_micros = Some(micros);
+    }
+
+    /// Run one mission to a checker verdict, the step cap, or the budget cap.
     pub fn run_mission(&mut self, mission: &str) -> Result<MissionResult, LoopError> {
         let answer_path = self.log_root.join("work").join(mission).join("answer.txt");
         std::fs::create_dir_all(answer_path.parent().unwrap())?;
@@ -154,6 +166,27 @@ impl InnerLoop {
             let out = self.kernel.call_model("operator", None, &ctx)?;
             model_calls += 1;
             self.cost_total_micros += out.cost_usd_micros.max(0) as u64;
+            if let Some(cap) = self.budget_micros {
+                if self.cost_total_micros > cap {
+                    self.writer.append(
+                        EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                            serde_json::to_vec(&serde_json::json!({
+                                "budget_killed": true, "cap_micros": cap,
+                                "cost_micros": self.cost_total_micros,
+                            }))
+                            .unwrap(),
+                        )),
+                    )?;
+                    return Ok(MissionResult {
+                        passed: false,
+                        steps,
+                        model_calls,
+                        stream_id: self.stream_id,
+                        answer_path,
+                        budget_killed: true,
+                    });
+                }
+            }
             self.writer.append(
                 EventBuilder::new(EventKind::ModelCall)
                     .payload(Payload::Inline(
@@ -253,6 +286,7 @@ impl InnerLoop {
                     model_calls,
                     stream_id: self.stream_id,
                     answer_path,
+                    budget_killed: false,
                 });
             }
             pending_feedback.push(error);
@@ -263,6 +297,7 @@ impl InnerLoop {
             model_calls,
             stream_id: self.stream_id,
             answer_path,
+            budget_killed: false,
         })
     }
 }
