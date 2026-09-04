@@ -7,6 +7,15 @@ closed-loop-signal-lab Drive folder). The build order's 8 proof gates are the
 plan; each gate is a commit + tag (`gate-1`, `gate-2`, ...). Nothing is built
 ahead of its gate - the spec's cut list applies to this repo.
 
+## Ops infra (ops/)
+
+The SWE-bench ops seams live here as tested artifacts (not runbook):
+`swe-relay.py` (local egress relay with post-freeze fast-fail) and
+`swe-supervisor.sh` (restore/stall watchdog) plus pytest seam tests for
+the two production bites (gzip Accept-Encoding leak, stall-kill mismatch).
+Run: `ops/run-ops-tests.sh` (4 tests, ~12s). Production scripts under
+`/home/sandbox/.swe-*` are synced from these copies between runs.
+
 ## Gate 1 (this tag): canonical append-only event log
 
 - `crates/hs-core` - event schema (spec section 3), canonical deterministic
