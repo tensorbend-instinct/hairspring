@@ -213,8 +213,10 @@ fn attempt(
 /// the mission a step instead of hanging the harness forever.
 pub const WATCHDOG_SENTINEL: &str = "__provider_watchdog_timeout__";
 
-/// Watchdog per attempt (seconds), env-overridable. Grounded 2026-09-03:
-/// max-effort calls complete in ~30-90s typical; 420s is 5x headroom.
+/// Watchdog per attempt (seconds), env-overridable. Re-grounded 2026-09-03:
+/// measured max-effort thinking calls run 80s (convergent context) to 270s+
+/// (non-convergent, 13.7k reasoning tokens); low-effort ~18s. 420s default;
+/// the realbench run used 900s via HS_REALMODEL_CALL_TIMEOUT_SECS.
 /// ureq's timeout_global (600s) demonstrably does NOT fire on a stalled
 /// response-body read (observed: calls stuck 31+ min, zero harness events),
 /// so the watchdog wraps the entire attempt in a thread with a recv_timeout.
@@ -257,7 +259,13 @@ pub fn call(p: &'static Provider, prompt: &str) -> Result<serde_json::Value, Str
             std::thread::sleep(Duration::from_secs(5 * attempt_no as u64));
         }
         let (tx, rx) = std::sync::mpsc::channel();
-        let (a, u, k, b, m) = (agent.clone(), url.clone(), key.clone(), body.clone(), model.clone());
+        let (a, u, k, b, m) = (
+            agent.clone(),
+            url.clone(),
+            key.clone(),
+            body.clone(),
+            model.clone(),
+        );
         std::thread::spawn(move || {
             let r = attempt(p, &a, &u, &k, &b, &m);
             let _ = tx.send(r);

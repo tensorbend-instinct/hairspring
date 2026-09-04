@@ -1,5 +1,6 @@
 //! REAL-MODEL ablation re-run of gate 3 (parent-approved spend, hard cap
-//! $2 total across both models, enforced via a shared ledger file). These
+//! $6 total across both models - Eric 2026-09-03 00:03; enforced via a
+//! shared ledger file; actual final spend $1.5644). These
 //! tests are #[ignore]d: they run only on explicit request with real keys
 //! populated via vault (HS_GLM_API_KEY[_FILE], HS_DEEPSEEK_API_KEY[_FILE]).
 //!
@@ -108,7 +109,10 @@ fn progress_add(model: &str, feedback: bool, task: usize, passed: bool, steps: u
         .unwrap();
     // one write syscall: O_APPEND + a single write_all keeps lines atomic
     // across concurrent shard processes
-    let line = format!("{model}:{feedback}:task-{task}:{}:{steps}:{cost}\n", passed as u8);
+    let line = format!(
+        "{model}:{feedback}:task-{task}:{}:{steps}:{cost}\n",
+        passed as u8
+    );
     f.write_all(line.as_bytes()).unwrap();
 }
 
@@ -130,7 +134,13 @@ struct Arm {
     stopped_early: bool,
 }
 
-fn run_arm(root: &std::path::Path, feedback: bool, model_name: &str, model_bin: &str, tasks: &[usize]) -> Arm {
+fn run_arm(
+    root: &std::path::Path,
+    feedback: bool,
+    model_name: &str,
+    model_bin: &str,
+    tasks: &[usize],
+) -> Arm {
     let mut arm = Arm {
         passed: 0,
         steps_total: 0,
