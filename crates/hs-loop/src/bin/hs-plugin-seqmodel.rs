@@ -19,6 +19,8 @@ fn main() {
                 .unwrap_or(1);
             let completion = if attempt == 1 {
                 serde_json::json!({"tool":"probe.read","args":{"path":"x"}})
+            } else if attempt == 2 {
+                serde_json::json!({"tool":"probe.read","args":{"path":"y"}})
             } else if prompt.contains("MARKER-777") {
                 serde_json::json!({"tool":"answer.write","args":{"path":path,"content":"TOKEN-0-SECRET"}})
             } else {

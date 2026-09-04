@@ -54,7 +54,10 @@ fn tool_results_reach_the_next_step_and_checker_runs_only_after_write() {
         r.passed,
         "seqmodel writes the token only if step 1's probe result reached step 2"
     );
-    assert_eq!(r.steps, 2, "probe, then write, then auto-checker");
+    assert_eq!(
+        r.steps, 3,
+        "probe.x, probe.y (marker no longer in fresh feedback), then write -          passing proves step 1's result survived in the rolling transcript"
+    );
 
     let sid = {
         let mut v: Vec<_> = std::fs::read_dir(log.path().join("streams"))
@@ -80,5 +83,5 @@ fn tool_results_reach_the_next_step_and_checker_runs_only_after_write() {
         .iter()
         .filter(|e| e.kind == hs_core::EventKind::ToolCall)
         .count();
-    assert_eq!(probe_calls, 2, "probe.read + answer.write");
+    assert_eq!(probe_calls, 3, "probe.read x2 + answer.write");
 }
