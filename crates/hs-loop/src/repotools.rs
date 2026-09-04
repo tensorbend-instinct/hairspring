@@ -52,20 +52,54 @@ fn resolve_inside(ws: &Path, rel: &str) -> Result<PathBuf, String> {
 }
 
 pub fn read_repo_file(ws: &Path, rel: &str) -> Result<serde_json::Value, String> {
+    read_repo_window(ws, rel, None, None)
+}
+
+/// Ranged read: 1-indexed `start_line`, `max_lines` window (default: from
+/// line 1, up to WINDOW_LINES). A byte backstop (READ_CAP) still applies so
+/// one giant minified line cannot blow the context. `truncated` means more
+/// content exists beyond `end_line` - page forward with start_line=end+1.
+pub const WINDOW_LINES: u64 = 400;
+
+pub fn read_repo_window(
+    ws: &Path,
+    rel: &str,
+    start_line: Option<u64>,
+    max_lines: Option<u64>,
+) -> Result<serde_json::Value, String> {
     let canon = resolve_inside(ws, rel)?;
     let meta = std::fs::metadata(&canon).map_err(|_| format!("not found: {rel}"))?;
     if meta.is_dir() {
         return Err(format!("is a directory: {rel}"));
     }
-    let bytes = std::fs::read(&canon).map_err(|e| format!("not found: {rel} ({e})"))?;
-    let total = bytes.len() as u64;
-    let truncated = bytes.len() > READ_CAP;
-    let slice = if truncated { &bytes[..READ_CAP] } else { &bytes[..] };
+    let text = std::fs::read_to_string(&canon)
+        .map_err(|e| format!("not found or not utf-8: {rel} ({e})"))?;
+    let total_bytes = text.len() as u64;
+    let lines: Vec<&str> = text.lines().collect();
+    let total_lines = lines.len() as u64;
+    let start = start_line.unwrap_or(1).max(1);
+    let want = max_lines.unwrap_or(WINDOW_LINES).min(WINDOW_LINES);
+    let lo = ((start - 1).min(total_lines)) as usize;
+    let mut end = lo;
+    let mut bytes = 0usize;
+    while end < lines.len() && (end - lo) < want as usize {
+        let l = lines[end].len() + 1;
+        if bytes + l > READ_CAP {
+            break;
+        }
+        bytes += l;
+        end += 1;
+    }
+    let content = lines[lo..end].join("\n");
+    let content = if end > lo { content + "\n" } else { content };
     Ok(json!({
         "path": rel,
-        "content": String::from_utf8_lossy(slice),
-        "truncated": truncated,
-        "total_bytes": total,
+        "content": content,
+        "start_line": lo as u64 + 1,
+        "end_line": end as u64,
+        "total_lines": total_lines,
+        "total_bytes": total_bytes,
+        "truncated": (end as u64) < total_lines,
     }))
 }
 

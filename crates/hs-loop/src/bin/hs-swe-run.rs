@@ -88,7 +88,7 @@ fn main() {
          Repo files (partial listing):\n{layout}\n\
          TOOLS (one tool call per reply, exactly one JSON object, no prose):\n\
          1. {{\"tool\":\"repo.search\",\"args\":{{\"pattern\":\"<literal substring>\"}}}} - find code by substring; returns path:line hits (max 100).\n\
-         2. {{\"tool\":\"repo.read\",\"args\":{{\"path\":\"<repo-relative path>\"}}}} - read a file (max 40KB, truncated flag if capped).\n\
+         2. {{\"tool\":\"repo.read\",\"args\":{{\"path\":\"<repo-relative path>\",\"start_line\":<1-indexed, optional>,\"max_lines\":<optional, default 400>}}}} - read a file window. The reply tells you total_lines and a truncated flag; if truncated, page forward with start_line=end_line+1. NEVER re-read the same window: earlier tool results are kept in your TRANSCRIPT - search to locate the line you need, then read that window.\n\
          3. {{\"tool\":\"answer.write\",\"args\":{{\"path\":\"<ANSWER_PATH>\",\"content\":\"```diff\\n<one unified diff, paths a/... b/... relative to repo root>\\n```\"}}}} - submit your patch. Ground every hunk in code you actually read: correct file, correct current line numbers, exact context lines. The checker runs automatically after each answer.write and its verdict comes back as FEEDBACK.\n\
          WORKFLOW: search and read to locate the real code FIRST, then write a patch that applies cleanly. \
          The exact ANSWER_PATH value is given to you on the ANSWER_PATH line each attempt. \
