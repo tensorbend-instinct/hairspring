@@ -159,9 +159,13 @@ impl InnerLoop {
             let artifact = std::fs::read_to_string(&answer_path).unwrap_or_default();
             let drained = std::mem::take(&mut pending_feedback);
 
-            // assemble
-            let mut ctx = format!(
-                "MISSION: {prompt}\nATTEMPT: {step}\nANSWER_PATH: {}\nARTIFACT: {}\n",
+            // assemble. KV-cache discipline (spec v4): the stable, append-only
+            // sections lead - MISSION then TRANSCRIPT - so the cached prefix
+            // grows monotonically; volatile lines (ATTEMPT/ARTIFACT/FEEDBACK)
+            // go last, after the transcript tail.
+            let mut ctx = format!("MISSION: {prompt}\n");
+            let mut volatile = format!(
+                "ATTEMPT: {step}\nANSWER_PATH: {}\nARTIFACT: {}\n",
                 answer_path.display(),
                 if artifact.is_empty() {
                     "<none>"
@@ -171,9 +175,9 @@ impl InnerLoop {
             );
             let mut injected = false;
             if self.feedback_injection && !drained.is_empty() {
-                ctx.push_str("FEEDBACK:\n");
+                volatile.push_str("FEEDBACK:\n");
                 for f in &drained {
-                    ctx.push_str(&format!("- {f}\n"));
+                    volatile.push_str(&format!("- {f}\n"));
                 }
                 injected = true;
             }
@@ -223,6 +227,8 @@ impl InnerLoop {
                     }
                 }
             }
+
+            ctx.push_str(&volatile);
 
             // the only model round trip in the step
             let out = self.kernel.call_model("operator", None, &ctx)?;
