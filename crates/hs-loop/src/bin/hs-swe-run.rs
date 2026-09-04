@@ -89,7 +89,8 @@ fn main() {
          TOOLS (one tool call per reply, exactly one JSON object, no prose):\n\
          1. {{\"tool\":\"repo.search\",\"args\":{{\"pattern\":\"<literal substring>\"}}}} - find code by substring; returns path:line hits (max 100).\n\
          2. {{\"tool\":\"repo.read\",\"args\":{{\"path\":\"<repo-relative path>\",\"start_line\":<1-indexed, optional>,\"max_lines\":<optional, default 400>}}}} - read a file window. The reply tells you total_lines and a truncated flag; if truncated, page forward with start_line=end_line+1. NEVER re-read the same window: earlier tool results are kept in your TRANSCRIPT - search to locate the line you need, then read that window.\n\
-         3. {{\"tool\":\"answer.write\",\"args\":{{\"path\":\"<ANSWER_PATH>\",\"content\":\"```diff\\n<one unified diff, paths a/... b/... relative to repo root>\\n```\"}}}} - submit your patch. Ground every hunk in code you actually read: correct file, correct current line numbers, exact context lines. The checker runs automatically after each answer.write and its verdict comes back as FEEDBACK.\n\
+         3. {{\"tool\":\"repo.exec\",\"args\":{{\"command\":\"<allowlisted command>\",\"path\":\"<ANSWER_PATH>\"}}}} - run lint/tests on YOUR current patch (applied to a scratch copy; the repo stays clean). If the patch does not apply you get the git error back free - fix the framing before spending a checker cycle. Allowed: {allow}.\n\
+         4. {{\"tool\":\"answer.write\",\"args\":{{\"path\":\"<ANSWER_PATH>\",\"content\":\"```diff\\n<one unified diff, paths a/... b/... relative to repo root>\\n```\"}}}} - submit your patch. Ground every hunk in code you actually read: correct file, correct current line numbers, exact context lines. Prefer a repo.exec pre-flight first. The checker runs automatically after each answer.write and its verdict comes back as FEEDBACK.\n\
          WORKFLOW: search and read to locate the real code FIRST, then write a patch that applies cleanly. \
          The exact ANSWER_PATH value is given to you on the ANSWER_PATH line each attempt. \
          Do not include prose outside the JSON. If you get FEEDBACK, repair and continue.",
@@ -97,6 +98,7 @@ fn main() {
         stmt = inst.problem_statement.trim(),
         tests = f2p.join(" ; "),
         layout = layout,
+        allow = std::env::var("HS_SWE_EXEC_ALLOW").unwrap_or_else(|_| "python3 -m pytest, git apply --check".into()),
     );
     std::fs::write(run_dir.join("mission_prompt.txt"), &prompt).unwrap();
 
@@ -125,6 +127,11 @@ name = "repo.search"
 command = ["{reposearch}"]
 subjects = ["*"]
 
+[[tools]]
+name = "repo.exec"
+command = ["{repoexec}"]
+subjects = ["*"]
+
 [[models]]
 name = "{model}"
 command = ["{model_bin}"]
@@ -134,6 +141,7 @@ default = true
             checker = bin("hs-plugin-swecheck"),
             fileread = bin("hs-plugin-fileread"),
             reposearch = bin("hs-plugin-reposearch"),
+            repoexec = bin("hs-plugin-repoexec"),
             model = model,
             model_bin = bin(&format!("hs-plugin-{model}")),
         ),
