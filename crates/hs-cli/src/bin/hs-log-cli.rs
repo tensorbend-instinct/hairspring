@@ -47,10 +47,11 @@ fn main() {
                 let r = StreamReader::open(&dir, *s).unwrap();
                 for e in r.events().unwrap() {
                     println!(
-                        "{} seq={} {:?} prev={}.. hash={}..",
+                        "{} seq={} {:?} lat={}ms prev={}.. hash={}..",
                         e.event_id,
                         e.seq,
                         e.kind,
+                        e.latency_ms,
                         &hex(&e.prev_hash)[..8],
                         &hex(&e.hash)[..8]
                     );
