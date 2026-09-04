@@ -93,12 +93,13 @@ fn main() {
          4. {{\"tool\":\"answer.write\",\"args\":{{\"path\":\"<ANSWER_PATH>\",\"content\":\"```diff\\n<one unified diff, paths a/... b/... relative to repo root>\\n```\"}}}} - submit your patch. Ground every hunk in code you actually read: correct file, correct current line numbers, exact context lines. Prefer a repo.exec pre-flight first. The checker runs automatically after each answer.write and its verdict comes back as FEEDBACK.\n\
          WORKFLOW: search and read to locate the real code FIRST, then write a patch that applies cleanly. \
          The exact ANSWER_PATH value is given to you on the ANSWER_PATH line each attempt. \
-         Do not include prose outside the JSON. If you get FEEDBACK, repair and continue.",
+         Do not include prose outside the JSON. If you get FEEDBACK, repair and continue.{nudge}",
         ws = ws.display(),
         stmt = inst.problem_statement.trim(),
         tests = f2p.join(" ; "),
         layout = layout,
         allow = std::env::var("HS_SWE_EXEC_ALLOW").unwrap_or_else(|_| "python3 -m pytest, git apply --check".into()),
+        nudge = std::env::var("HS_SWE_PROMPT_NUDGE").unwrap_or_default(),
     );
     std::fs::write(run_dir.join("mission_prompt.txt"), &prompt).unwrap();
 
