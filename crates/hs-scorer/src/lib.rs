@@ -12,6 +12,9 @@
 //! - the best-of-N envelope is endpoint-wise with identical decision
 //!   opportunities, and the comparison is published win or lose.
 
+pub mod evidence;
+
+use evidence::{ClaimKind, EvidenceClaim};
 use hs_core::{Event, EventBuilder, EventKind, Payload};
 use hs_log::{StreamReader, StreamWriter};
 use std::cell::RefCell;
@@ -438,14 +441,50 @@ impl Scorer {
         })
     }
 
-    fn emit(&mut self, kind: EventKind, body: &str) {
+    fn emit(&mut self, kind: EventKind, body: &str) -> Event {
         let hash = hs_log::write_blob(&self.log_root, body.as_bytes()).unwrap();
         self.writer
             .append(EventBuilder::new(kind).payload(Payload::BlobRef {
                 hash,
                 len: body.len() as u64,
             }))
-            .unwrap();
+            .unwrap()
+    }
+
+    /// GATE 9c (spec v5): evidence state, projected from the canonical log.
+    /// "An artifact says what exists; evidence says what is known about it."
+    /// The proposer in the evolutionary loop consumes THIS, not raw
+    /// artifacts: what is verified, what is failing, what regressed.
+    pub fn evidence_state(&self) -> Vec<EvidenceClaim> {
+        let events = self.log_events();
+        let reader = StreamReader::open(&self.log_root, self.stream).unwrap();
+        evidence::project(&events, &|e| {
+            reader
+                .resolve_payload(e)
+                .ok()
+                .map(|b| String::from_utf8_lossy(&b).into_owned())
+        })
+    }
+
+    pub fn open_failures(&self) -> Vec<EvidenceClaim> {
+        self.evidence_state()
+            .into_iter()
+            .filter(|c| c.kind == ClaimKind::OpenFailure && c.status == evidence::ClaimStatus::Open)
+            .collect()
+    }
+
+    pub fn regressions(&self) -> Vec<EvidenceClaim> {
+        self.evidence_state()
+            .into_iter()
+            .filter(|c| c.kind == ClaimKind::Regression && c.status == evidence::ClaimStatus::Open)
+            .collect()
+    }
+
+    pub fn verified_claims(&self) -> Vec<EvidenceClaim> {
+        self.evidence_state()
+            .into_iter()
+            .filter(|c| c.kind == ClaimKind::VerifiedClaim && c.status == evidence::ClaimStatus::Open)
+            .collect()
     }
 
     /// Pin scorer version + assay conditions BEFORE any mutation; recorded
@@ -489,7 +528,14 @@ impl Scorer {
             tasks_correct: correct,
             tasks_total: suite.tasks().len() as u32,
         };
-        self.emit(
+        // regression bookkeeping (spec v5): snapshot the prior claim BEFORE
+        // this score lands, so a verified subject failing is tracked, never
+        // overwritten
+        let prior = self
+            .evidence_state()
+            .into_iter()
+            .find(|c| c.subject == cand.name() && c.status == evidence::ClaimStatus::Open);
+        let score_ev = self.emit(
             EventKind::Score,
             &format!(
                 "tier01 candidate={} suite={} passed={} {}/{}",
@@ -500,6 +546,21 @@ impl Scorer {
                 r.tasks_total
             ),
         );
+        if !r.passed {
+            if let Some(p) = prior {
+                if p.kind == ClaimKind::VerifiedClaim {
+                    self.emit(
+                        EventKind::Regression,
+                        &format!(
+                            "regression subject={} verified_at={} regressed_at={}",
+                            cand.name(),
+                            p.verified_at.map(|u| u.to_string()).unwrap_or_default(),
+                            score_ev.event_id
+                        ),
+                    );
+                }
+            }
+        }
         Ok(r)
     }
 
