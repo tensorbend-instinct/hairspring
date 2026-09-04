@@ -364,22 +364,22 @@ pub fn extract_patch(completion: &str) -> Option<String> {
         let lang = after_tick[..after_tick.find('\n').unwrap()].trim();
         let body = &body_and_on[..end];
         if lang == "diff" {
-            return Some(body.trim().to_string());
+            return Some(format!("{}\n", body.trim()));
         }
         fences.push(body);
         rest = &body_and_on[end + 3..];
     }
     for body in fences {
         if body.trim_start().starts_with("--- a/") || body.trim_start().starts_with("diff --git") {
-            return Some(body.trim().to_string());
+            return Some(format!("{}\n", body.trim()));
         }
     }
     // 2. bare diff anywhere in the text: from the first "--- a/" line to the end
     if let Some(pos) = completion.find("\n--- a/") {
-        return Some(completion[pos + 1..].trim().to_string());
+        return Some(format!("{}\n", completion[pos + 1..].trim()));
     }
     if completion.trim_start().starts_with("--- a/") {
-        return Some(completion.trim().to_string());
+        return Some(format!("{}\n", completion.trim()));
     }
     None
 }
@@ -434,4 +434,49 @@ pub fn run_set<E: MissionExec>(
         }
     }
     BenchReport::new(results)
+}
+
+// ------------------------------------------------------- mission prompt ---
+
+/// Build the mission prompt for one instance: problem statement, workspace
+/// layout (tracked files, two levels), and the response contract - exactly
+/// one fenced ```diff block that `git apply` accepts. The contract is what
+/// `extract_patch` parses back, proven round-trip in the tests.
+pub fn mission_prompt(inst: &BenchInstance, workspace: &Path) -> String {
+    let mut files: Vec<String> = vec![];
+    let mut stack = vec![workspace.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        if let Ok(entries) = std::fs::read_dir(&dir) {
+            for e in entries.flatten() {
+                let p = e.path();
+                let rel = p
+                    .strip_prefix(workspace)
+                    .unwrap_or(&p)
+                    .to_string_lossy()
+                    .to_string();
+                if rel.starts_with(".git") || rel == "problem_statement.md" {
+                    continue;
+                }
+                if p.is_dir() {
+                    stack.push(p);
+                } else {
+                    files.push(rel);
+                }
+            }
+        }
+    }
+    files.sort();
+    format!(
+        "MISSION: {id}\n\n\
+         You are modifying a checked-out repository. Fix the issue below with \
+         a minimal change.\n\n\
+         PROBLEM STATEMENT:\n{statement}\n\n\
+         WORKSPACE FILES:\n{layout}\n\n\
+         RESPONSE CONTRACT: reply with exactly one ```diff fenced block \
+         containing a unified diff (paths a/... b/...) that `git apply` \
+         accepts. No other fences. No commits. No new dependencies.\n",
+        id = inst.instance_id,
+        statement = inst.problem_statement.trim(),
+        layout = files.join("\n")
+    )
 }

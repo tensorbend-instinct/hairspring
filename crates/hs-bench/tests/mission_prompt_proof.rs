@@ -23,7 +23,10 @@ fn prompt_carries_statement_layout_and_contract() {
     assert!(prompt.contains("code.txt must contain the word fixed"));
     assert!(prompt.contains("code.txt"), "layout must list files");
     assert!(prompt.contains("src/lib.rs"));
-    assert!(prompt.contains("```diff"), "contract must demand a fenced diff");
+    assert!(
+        prompt.contains("```diff"),
+        "contract must demand a fenced diff"
+    );
     assert!(prompt.contains(&instances[0].instance_id));
 }
 
@@ -33,12 +36,28 @@ fn contract_round_trips_through_extractor() {
     let ws = tmp.path().join("ws");
     std::fs::create_dir_all(&ws).unwrap();
     std::fs::write(ws.join("code.txt"), "broken\n").unwrap();
+    // production workspaces are git clones; git apply needs the repo
+    let st = std::process::Command::new("git")
+        .args(["init", "-q"])
+        .current_dir(&ws)
+        .status()
+        .unwrap();
+    assert!(st.success());
     let instances = load_jsonl(Path::new(FIXTURE)).unwrap();
     let _prompt = mission_prompt(&instances[0], &ws);
     // a model that follows the contract answers with a fenced diff
-    let completion = format!("Analysis: the file needs the fixed token.\n```diff\n{}\n```", instances[0].patch.trim());
+    let completion = format!(
+        "Analysis: the file needs the fixed token.\n```diff\n{}\n```",
+        instances[0].patch.trim()
+    );
     let patch = extract_patch(&completion).expect("contract-following completion must extract");
     let applied = apply_model_patch(&ws, &patch).unwrap();
-    assert!(matches!(applied, ApplyResult::Applied));
-    assert_eq!(std::fs::read_to_string(ws.join("code.txt")).unwrap(), "fixed\n");
+    match &applied {
+        ApplyResult::Applied => {}
+        ApplyResult::NoApply(m) => panic!("NoApply: {m}"),
+    }
+    assert_eq!(
+        std::fs::read_to_string(ws.join("code.txt")).unwrap(),
+        "fixed\n"
+    );
 }
