@@ -42,7 +42,10 @@ fn make_fixture_repo(dir: &Path) -> (PathBuf2, String) {
         .current_dir(&repo)
         .output()
         .unwrap();
-    (PathBuf2(repo), String::from_utf8(out.stdout).unwrap().trim().to_string())
+    (
+        PathBuf2(repo),
+        String::from_utf8(out.stdout).unwrap().trim().to_string(),
+    )
 }
 
 struct PathBuf2(std::path::PathBuf);
@@ -93,10 +96,16 @@ fn gold_patch_applies_and_flips_fail_to_pass() {
     assert!(!pre.all_passing(), "test must fail at base commit");
 
     let applied = apply_model_patch(&ws, &inst.patch).unwrap();
-    assert!(matches!(applied, ApplyResult::Applied), "gold patch must apply");
+    assert!(
+        matches!(applied, ApplyResult::Applied),
+        "gold patch must apply"
+    );
 
     let post = run_tests(&ws, &inst.fail_to_pass, &inst.pass_to_pass).unwrap();
-    assert!(post.all_passing(), "FAIL_TO_PASS must pass after gold patch");
+    assert!(
+        post.all_passing(),
+        "FAIL_TO_PASS must pass after gold patch"
+    );
 }
 
 #[test]
@@ -119,8 +128,10 @@ fn empty_patch_leaves_tests_failing() {
     let inst = instance(&repo.0, &base);
     let ws = prep_workspace(&inst, &tmp.path().join("cache")).unwrap();
     let r = apply_model_patch(&ws, "").unwrap();
-    assert!(matches!(r, ApplyResult::NoApply(_)) || {
-        let post = run_tests(&ws, &inst.fail_to_pass, &inst.pass_to_pass).unwrap();
-        !post.all_passing()
-    });
+    assert!(
+        matches!(r, ApplyResult::NoApply(_)) || {
+            let post = run_tests(&ws, &inst.fail_to_pass, &inst.pass_to_pass).unwrap();
+            !post.all_passing()
+        }
+    );
 }

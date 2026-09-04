@@ -238,3 +238,93 @@ impl BenchReport {
         })
     }
 }
+
+// ------------------------------------------------------- mission adapter ---
+
+/// Prepare a mission workspace: clone the instance's repo at its base
+/// commit into cache_dir/<instance_id> and drop the problem statement in as
+/// problem_statement.md. Local paths and file:// URLs both work (the
+/// offline proof uses local fixture repos; the real run uses cached GitHub
+/// mirrors).
+pub fn prep_workspace(inst: &BenchInstance, cache_dir: &Path) -> Result<PathBuf, BenchError> {
+    std::fs::create_dir_all(cache_dir)?;
+    let ws = cache_dir.join(inst.instance_id.replace(['/', '\\'], "_"));
+    if ws.exists() {
+        std::fs::remove_dir_all(&ws)?;
+    }
+    let st = Command::new("git")
+        .args(["clone", "-q", &inst.repo])
+        .arg(&ws)
+        .status()?;
+    if !st.success() {
+        return Err(BenchError::Missing(format!(
+            "git clone {} failed",
+            inst.repo
+        )));
+    }
+    let st = Command::new("git")
+        .args(["checkout", "-q", &inst.base_commit])
+        .current_dir(&ws)
+        .status()?;
+    if !st.success() {
+        return Err(BenchError::Missing(format!(
+            "git checkout {} failed",
+            inst.base_commit
+        )));
+    }
+    std::fs::write(ws.join("problem_statement.md"), &inst.problem_statement)?;
+    Ok(ws)
+}
+
+/// Patch-application taxonomy: a patch that git cannot apply is NoApply -
+/// reported separately from test failures, exactly like SWE-bench.
+#[derive(Debug)]
+pub enum ApplyResult {
+    Applied,
+    NoApply(String),
+}
+
+pub fn apply_model_patch(workspace: &Path, patch: &str) -> Result<ApplyResult, BenchError> {
+    if patch.trim().is_empty() {
+        return Ok(ApplyResult::NoApply("empty patch".into()));
+    }
+    let patch_path = workspace.join(".bench-model.patch");
+    std::fs::write(&patch_path, patch)?;
+    let out = Command::new("git")
+        .args(["apply", "--whitespace=nowarn"])
+        .arg(&patch_path)
+        .current_dir(workspace)
+        .output()?;
+    if out.status.success() {
+        Ok(ApplyResult::Applied)
+    } else {
+        Ok(ApplyResult::NoApply(
+            String::from_utf8_lossy(&out.stderr).trim().to_string(),
+        ))
+    }
+}
+
+/// Per-test results for FAIL_TO_PASS + PASS_TO_PASS.
+#[derive(Debug)]
+pub struct TestOutcome {
+    pub results: Vec<(String, bool)>,
+}
+impl TestOutcome {
+    pub fn all_passing(&self) -> bool {
+        !self.results.is_empty() && self.results.iter().all(|(_, ok)| *ok)
+    }
+}
+
+/// Run each test script with the workspace as cwd; exit 0 = pass.
+pub fn run_tests(
+    workspace: &Path,
+    fail_to_pass: &[String],
+    pass_to_pass: &[String],
+) -> Result<TestOutcome, BenchError> {
+    let mut results = vec![];
+    for t in fail_to_pass.iter().chain(pass_to_pass.iter()) {
+        let st = Command::new("sh").arg(t).current_dir(workspace).status()?;
+        results.push((t.clone(), st.success()));
+    }
+    Ok(TestOutcome { results })
+}
