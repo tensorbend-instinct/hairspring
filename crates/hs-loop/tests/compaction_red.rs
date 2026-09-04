@@ -16,6 +16,10 @@
 use hs_core::{EventKind, Payload};
 use hs_loop::*;
 
+// REC_DUMP/REC_MODE are process-global env vars consumed by the recmodel
+// plugin child process: the two scenarios must not run concurrently.
+static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 const ANSWER: &str = env!("CARGO_BIN_EXE_hs-plugin-answer");
 const CHECKER: &str = env!("CARGO_BIN_EXE_hs-plugin-checker");
 const PROBE: &str = env!("CARGO_BIN_EXE_hs-plugin-probe");
@@ -76,6 +80,7 @@ fn context_injects(log: &std::path::Path, stream: uuid::Uuid) -> Vec<String> {
 
 #[test]
 fn pressure_compacts_oldest_with_audit_refs_and_records_context_inject() {
+    let _guard = ENV_LOCK.lock().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let dump = dir.path().join("prompts.txt");
@@ -108,6 +113,7 @@ fn pressure_compacts_oldest_with_audit_refs_and_records_context_inject() {
 
 #[test]
 fn no_pressure_no_compaction() {
+    let _guard = ENV_LOCK.lock().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let dump = dir.path().join("prompts.txt");

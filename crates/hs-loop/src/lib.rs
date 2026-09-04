@@ -190,14 +190,22 @@ impl InnerLoop {
             if self.feedback_injection {
                 if let Ok(reader) = hs_log::StreamReader::open(&self.log_root, self.stream_id) {
                     if let Ok(events) = reader.events() {
-                        let mut entries: Vec<String> = vec![];
-                        let mut budget = 60_000usize;
+                        // Collect ALL transcript lines newest-first, tagged
+                        // with their source event for audit refs.
+                        const WINDOW_CAP: usize = 60_000;
+                        const HIGH_WATER: usize = WINDOW_CAP * 85 / 100;
+                        const TAIL_BUDGET: usize = WINDOW_CAP * 60 / 100;
+                        let mut lines: Vec<(u64, uuid::Uuid, String)> = vec![];
                         for e in events.iter().rev() {
                             if e.kind != hs_core::EventKind::ToolCall {
                                 continue;
                             }
-                            if let hs_core::Payload::Inline(bytes) = &e.payload {
-                                if let Ok(v) = serde_json::from_slice::<serde_json::Value>(bytes)
+                            // resolve Inline AND BlobRef payloads: hs-log
+                            // promotes large results to blob refs on append,
+                            // and skipping them dropped big tool outputs
+                            // from mission memory entirely
+                            if let Ok(bytes) = reader.resolve_payload(e) {
+                                if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes)
                                 {
                                     let mut line = format!(
                                         "{}({}) => {}",
@@ -209,16 +217,85 @@ impl InnerLoop {
                                         line.truncate(20_000);
                                         line.push_str("...[truncated]");
                                     }
-                                    if line.len() + 8 > budget {
-                                        break;
-                                    }
-                                    budget -= line.len() + 8;
-                                    entries.push(line);
+                                    lines.push((e.seq, e.event_id, line));
                                 }
                             }
                         }
-                        if !entries.is_empty() {
+                        let total: usize = lines.iter().map(|(_, _, l)| l.len() + 8).sum();
+                        let mut entries: Vec<String> = vec![];
+                        if total > HIGH_WATER {
+                            // GATE 9f (spec v5): compact on window PRESSURE,
+                            // not on a fixed schedule. The recent tail stays
+                            // verbatim; older segments distill into a summary
+                            // that links back to the source event range, so
+                            // distillation never destroys auditability.
+                            let mut budget = TAIL_BUDGET;
+                            let mut kept: Vec<String> = vec![];
+                            let mut compacted: Vec<(u64, uuid::Uuid, String)> = vec![];
+                            for (seq, id, line) in lines {
+                                if compacted.is_empty() && line.len() + 8 <= budget {
+                                    budget -= line.len() + 8;
+                                    kept.push(line);
+                                } else {
+                                    compacted.push((seq, id, line));
+                                }
+                            }
+                            if !compacted.is_empty() {
+                                let lo = compacted.last().unwrap();
+                                let hi = compacted.first().unwrap();
+                                let mut counts: std::collections::BTreeMap<String, usize> =
+                                    Default::default();
+                                for (_, _, l) in &compacted {
+                                    let plugin =
+                                        l.split('(').next().unwrap_or("?").to_string();
+                                    *counts.entry(plugin).or_insert(0) += 1;
+                                }
+                                let tally = counts
+                                    .iter()
+                                    .map(|(p, n)| format!("{p}x{n}"))
+                                    .collect::<Vec<_>>()
+                                    .join(", ");
+                                let summary = format!(
+                                    "COMPACTED {} earlier tool calls (events seq {}..{}, refs {}..{}): {}",
+                                    compacted.len(),
+                                    lo.0,
+                                    hi.0,
+                                    lo.1,
+                                    hi.1,
+                                    tally
+                                );
+                                // record(context_inject, why=pressure)
+                                let body = format!(
+                                    "context_inject why=pressure compacted={} range=seq{}..seq{}",
+                                    compacted.len(),
+                                    lo.0,
+                                    hi.0
+                                );
+                                let _ = self.writer.append(
+                                    EventBuilder::new(EventKind::ContextInject)
+                                        .payload(Payload::Inline(body.into_bytes())),
+                                );
+                                kept.reverse();
+                                entries.push(summary);
+                                entries.extend(kept);
+                            } else {
+                                kept.reverse();
+                                entries = kept;
+                            }
+                        } else {
+                            // under the watermark: everything verbatim,
+                            // newest-first fill (never breaks when it fits)
+                            let mut budget = WINDOW_CAP;
+                            for (_, _, line) in lines {
+                                if line.len() + 8 > budget {
+                                    break;
+                                }
+                                budget -= line.len() + 8;
+                                entries.push(line);
+                            }
                             entries.reverse();
+                        }
+                        if !entries.is_empty() {
                             ctx.push_str("TRANSCRIPT (earlier tool calls):\n");
                             for e in &entries {
                                 ctx.push_str(&format!("- {e}\n"));
