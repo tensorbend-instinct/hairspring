@@ -29,11 +29,75 @@ fn fail(msg: String) -> ! {
     std::process::exit(2)
 }
 
+include!("shared/sdk.rs");
+
+/// Plugin mode: the kernel spawns one process per discovered tool
+/// (--plugin --name mcp.<server>.<tool> --server <s> --tool <t> --config
+/// <toml>); each tool.call spawns the MCP server, calls, returns, exits.
+fn plugin_main(cfg_path: &str, server_name: &str, tool: &str, full_name: &str) {
+    let leaked: &'static str = Box::leak(full_name.to_string().into_boxed_str());
+    let cfg_path = cfg_path.to_string();
+    let server_name = server_name.to_string();
+    let tool = tool.to_string();
+    serve(leaked, "tool", &mut move |method, params| {
+        if method != "tool.call" {
+            return serde_json::json!({"$error": "unknown method"});
+        }
+        let args = params["args"].clone();
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        match rt.block_on(mcp_call(&cfg_path, &server_name, &tool, args)) {
+            Ok(v) => v,
+            Err(e) => serde_json::json!({"$error": e}),
+        }
+    });
+}
+
+async fn mcp_call(
+    cfg_path: &str,
+    server_name: &str,
+    tool: &str,
+    args: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let servers = load_mcp_servers(std::path::Path::new(cfg_path))?;
+    let cfg = servers
+        .iter()
+        .find(|s| s.name == server_name)
+        .ok_or_else(|| format!("unknown server '{server_name}'"))?
+        .clone();
+    let mut cmd = tokio::process::Command::new(&cfg.command[0]);
+    cmd.args(&cfg.command[1..]);
+    let service = ()
+        .serve(TokioChildProcess::new(cmd).map_err(|e| format!("spawn: {e}"))?)
+        .await
+        .map_err(|e| format!("mcp handshake: {e}"))?;
+    let obj = args.as_object().cloned().unwrap_or_default();
+    let result = service
+        .call_tool(CallToolRequestParam {
+            name: tool.to_string().into(),
+            arguments: Some(obj),
+        })
+        .await
+        .map_err(|e| format!("call_tool {tool}: {e}"))?;
+    Ok(serde_json::json!({
+        "content": result.content,
+        "is_error": result.is_error.unwrap_or(false),
+    }))
+}
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     let argv: Vec<String> = std::env::args().collect();
     let cfg_path = arg(&argv, "--config").unwrap_or_else(|| fail("--config required".into()));
     let server_name = arg(&argv, "--server").unwrap_or_else(|| fail("--server required".into()));
+    if has_flag(&argv, "--plugin") {
+        let full = arg(&argv, "--name").unwrap_or_else(|| fail("--name required".into()));
+        let tool = arg(&argv, "--tool").unwrap_or_else(|| fail("--tool required".into()));
+        plugin_main(cfg_path, server_name, tool, full);
+        return;
+    }
     let servers = load_mcp_servers(std::path::Path::new(cfg_path)).unwrap_or_else(|e| fail(e));
     let cfg = servers
         .iter()

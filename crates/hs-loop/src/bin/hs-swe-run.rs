@@ -103,6 +103,50 @@ fn main() {
     );
     std::fs::write(run_dir.join("mission_prompt.txt"), &prompt).unwrap();
 
+    // MCP tool surface (docs/mcp-adapter-gate.md): discover each server's
+    // tools through the bridge and register them namespaced. Discovery
+    // failure is a hard error - a half-registered surface is worse than none.
+    let mut mcp_tools = String::new();
+    if let Ok(servers_toml) = std::env::var("HS_MCP_SERVERS") {
+        let servers = hs_loop::mcpbridge::load_mcp_servers(std::path::Path::new(&servers_toml))
+            .unwrap_or_else(|e| {
+                eprintln!("hs-swe-run: {e}");
+                std::process::exit(2);
+            });
+        for s in &servers {
+            let out = std::process::Command::new(bin("hs-plugin-mcpcall"))
+                .args(["--config", &servers_toml, "--server", &s.name, "--list"])
+                .output()
+                .unwrap_or_else(|e| {
+                    eprintln!("hs-swe-run: mcp discovery spawn: {e}");
+                    std::process::exit(2);
+                });
+            if !out.status.success() {
+                eprintln!("hs-swe-run: mcp discovery: {}", String::from_utf8_lossy(&out.stderr));
+                std::process::exit(2);
+            }
+            let names: Vec<String> = serde_json::from_slice(&out.stdout)
+                .unwrap_or_else(|e| {
+                    eprintln!("hs-swe-run: mcp discovery parse: {e}");
+                    std::process::exit(2);
+                });
+            for full in names {
+                let tool = full
+                    .strip_prefix(&format!("mcp.{}.", s.name))
+                    .unwrap_or_else(|| {
+                        eprintln!("hs-swe-run: unexpected tool name {full}");
+                        std::process::exit(2);
+                    })
+                    .to_string();
+                mcp_tools.push_str(&format!(
+                    "\n[[tools]]\nname = \"{full}\"\ncommand = [\"{}\", \"--plugin\", \"--config\", \"{servers_toml}\", \"--server\", \"{}\", \"--tool\", \"{tool}\", \"--name\", \"{full}\"]\nsubjects = [\"*\"]\n",
+                    bin("hs-plugin-mcpcall"),
+                    s.name,
+                ));
+            }
+        }
+    }
+
     let config = run_dir.join("hairspring.toml");
     std::fs::write(
         &config,
@@ -142,6 +186,7 @@ subjects = ["*"]
 name = "{model}"
 command = ["{model_bin}"]
 default = true
+{mcp_tools}
 "#,
             answer = bin("hs-plugin-answer"),
             checker = bin("hs-plugin-swecheck"),
@@ -151,6 +196,7 @@ default = true
             policy = bin("hs-plugin-policy"),
             model = model,
             model_bin = bin(&format!("hs-plugin-{model}")),
+            mcp_tools = mcp_tools,
         ),
     )
     .unwrap();

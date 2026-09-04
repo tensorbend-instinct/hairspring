@@ -336,11 +336,14 @@ fn driver_mission_calls_mcp_tool() {
 
     // the stream proves the real path: an mcp.fixture.echo ToolCall whose
     // result carries the echo payload
-    let dump = Command::new(env!("CARGO_BIN_EXE_hs-log-cli"))
-        .args(["dump", "--dir", &run_dir.join("log").display().to_string(), "--payloads"])
-        .output()
-        .unwrap();
-    let text = String::from_utf8_lossy(&dump.stdout);
-    assert!(text.contains("mcp.fixture.echo"), "ToolCall on stream: {text}");
-    assert!(text.contains("hello-via-mcp"), "echo payload on stream: {text}");
+    let streams_dir = run_dir.join("log").join("streams");
+    let sid = std::fs::read_dir(&streams_dir).unwrap().next().unwrap().unwrap();
+    let sid = uuid::Uuid::parse_str(sid.file_name().to_str().unwrap()).unwrap();
+    let reader = hs_log::StreamReader::open(&run_dir.join("log"), sid).unwrap();
+    let events = reader.events().unwrap();
+    let mcp_call = events.iter().find_map(|e| {
+        let p = String::from_utf8_lossy(&reader.resolve_payload(e).unwrap()).to_string();
+        (p.contains("\"plugin\":\"mcp.fixture.echo\"")).then_some(p)
+    }).expect("an mcp.fixture.echo ToolCall event must be on the stream");
+    assert!(mcp_call.contains("hello-via-mcp"), "echo payload on stream: {mcp_call}");
 }
