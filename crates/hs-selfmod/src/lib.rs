@@ -12,6 +12,8 @@
 //! the world service until the fork's lineage is promoted. Proof tests in
 //! tests/gate8_selfmod_proof.rs pin every one of these properties.
 
+pub mod migration;
+
 use hs_core::{Event, EventBuilder, EventKind, Payload};
 use hs_log::{StreamReader, StreamWriter};
 use hs_scorer::{
