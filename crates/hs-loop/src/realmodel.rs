@@ -175,11 +175,17 @@ fn attempt(
         .body_mut()
         .read_json()
         .map_err(|e| format!("{}: unparsable provider response: {e}", p.name))?;
+    let fr = v["choices"][0]["finish_reason"]
+        .as_str()
+        .unwrap_or("<none>")
+        .to_string();
     let raw = v["choices"][0]["message"]["content"]
         .as_str()
-        .ok_or_else(|| format!("{}: no choices[0].message.content", p.name))?;
+        .ok_or_else(|| format!("{}: no choices[0].message.content (finish_reason={})", p.name, fr))?;
     let completion = extract_json_object(raw)
-        .ok_or_else(|| format!("{}: no JSON object in model output", p.name))?
+        .ok_or_else(|| format!(
+            "{}: no JSON object in model output (finish_reason={}, content_len={}, head={:.80})",
+            p.name, fr, raw.len(), raw))?
         .to_string();
     let usage = &v["usage"];
     let input_tokens = usage["prompt_tokens"].as_u64().unwrap_or(0);
@@ -234,6 +240,7 @@ pub fn call(p: &'static Provider, prompt: &str) -> Result<serde_json::Value, Str
     let mut body = json!({
         "model": model,
         "temperature": 0,
+        "max_tokens": 32768,
         "messages": [
             {"role": "system", "content": SYSTEM},
             {"role": "user", "content": prompt},
@@ -272,7 +279,10 @@ pub fn call(p: &'static Provider, prompt: &str) -> Result<serde_json::Value, Str
         });
         match rx.recv_timeout(Duration::from_secs(watchdog)) {
             Ok(Ok(v)) => return Ok(v),
-            Ok(Err(e)) => last_err = e,
+            Ok(Err(e)) => {
+                eprintln!("realmodel {} attempt {} failed: {}", p.name, attempt_no + 1, e);
+                last_err = e;
+            }
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
                 // Hung provider: do NOT retry (a hung endpoint hangs retries
                 // too). Sentinel = feedback, not a harness error.
