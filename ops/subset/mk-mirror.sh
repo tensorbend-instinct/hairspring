@@ -8,6 +8,9 @@ echo "======================================================================"
 echo "=== ledger (per-task results) ==="
 cat "$S50/ledger.csv" 2>/dev/null || echo "(not started)"
 echo
+echo "=== status.json ==="
+cat "$S50/status.json" 2>/dev/null || echo "(none)"
+echo
 CUR=$(pgrep -af hs-swe-run | grep -o 'subset50/runs/[^ ]*' | head -1 | sed 's|.*subset50/runs/||')
 echo "=== current task: ${CUR:-none} ==="
 if [ -n "$CUR" ] && [ -d "$S50/runs/$CUR/log" ]; then

@@ -21,13 +21,13 @@ TB=/home/sandbox/swbench/tarballs/$(echo $GHREPO | tr / _)_$COMMIT.tar.gz
 tar xzf "$TB" -C "$PR/ws" --strip-components=1
 cd "$PR/ws" && git init -q && git add -A && git -c user.email=b@b -c user.name=b commit -qm base && git tag v9.9.9
 git apply "$PR/test_patch.diff" && git add -A && git -c user.email=b@b -c user.name=b commit -qm testpatch
-/home/sandbox/swbench/venvs/$SLUG/bin/pip install -q -e . 2>&1 | tail -1
+/home/sandbox/swbench/venvs/$IID/bin/pip install -q -e . 2>&1 | tail -1
 python3 - "$S50" "$IID" "$SLUG" "$PR" <<'PY'
 import json, shlex, subprocess, sys
-s50, iid, slug, pr = sys.argv[1:4]
+s50, iid, slug, pr = sys.argv[1:5]
 m = json.load(open(s50 + '/manifest.json'))
 r = next(x for x in m if x['instance_id'] == iid)
-vp = f'/home/sandbox/swbench/venvs/{slug}/bin/python'
+vp = f'/home/sandbox/swbench/venvs/{iid}/bin/python'
 nodes, frags = [], []
 for e in r['fail_to_pass']:
     e = e.strip()
