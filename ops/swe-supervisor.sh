@@ -46,18 +46,18 @@ while true; do
     if done_run; then echo "$(date '+%F %T') done" >> "$LOG"; exit 0; fi
     relaunch "process died without result.json"; sleep 30; reinit; continue
   fi
-  # stall: no stream-log write for >=1200s (900s watchdog + slack)
+  # stall: no stream-log write for >=3300s (900s watchdog + slack)
   NOW=$(date +%s)
   MTIME=$(find "$RUN/log" -type f -printf '%T@\n' 2>/dev/null | sort -n | tail -1 | cut -d. -f1)
   MTIME=${MTIME:-$NOW}
   AGE=$((NOW-MTIME))
-  if [ "$AGE" -ge 1200 ]; then
+  if [ "$AGE" -ge 3300 ]; then
     sleep 60
     [ -f /tmp/swe-supervisor.stop ] && exit 0
     if restore_sig; then relaunch "$SIG_REASON (post-grace)"; sleep 30; reinit; continue; fi
     NOW=$(date +%s)
     MTIME=$(find "$RUN/log" -type f -printf '%T@\n' 2>/dev/null | sort -n | tail -1 | cut -d. -f1)
     MTIME=${MTIME:-$NOW}; AGE=$((NOW-MTIME))
-    if [ "$AGE" -ge 1200 ]; then relaunch "stall age=${AGE}s"; sleep 30; reinit; continue; fi
+    if [ "$AGE" -ge 3300 ]; then relaunch "stall age=${AGE}s"; sleep 30; reinit; continue; fi
   fi
 done
