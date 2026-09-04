@@ -1,0 +1,98 @@
+//! Per-call MCP bridge (client side, docs/mcp-adapter-gate.md): spawns the
+//! named MCP server as a child process, handshakes via rmcp, lists or calls
+//! one tool, exits (child dies with us). The kernel invokes this bin per
+//! tool call, so ToolCall audit events hold automatically.
+//!
+//! CLI:
+//!   hs-plugin-mcpcall --config <toml> --server <name> --list
+//!   hs-plugin-mcpcall --config <toml> --server <name> --call <tool> \
+//!       --args '<json>' [--path-args a,b]
+//! --path-args: argument names whose string values must pass the server's
+//! allowed_roots check before the server is even spawned (deny by default).
+
+use hs_loop::mcpbridge::*;
+use rmcp::{ServiceExt, model::CallToolRequestParam, transport::TokioChildProcess};
+
+fn has_flag(args: &[String], flag: &str) -> bool {
+    args.iter().any(|a| a == flag)
+}
+
+fn arg<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
+    args.iter()
+        .position(|a| a == flag)
+        .and_then(|i| args.get(i + 1))
+        .map(String::as_str)
+}
+
+fn fail(msg: String) -> ! {
+    eprintln!("hs-plugin-mcpcall: {msg}");
+    std::process::exit(2)
+}
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let argv: Vec<String> = std::env::args().collect();
+    let cfg_path = arg(&argv, "--config").unwrap_or_else(|| fail("--config required".into()));
+    let server_name = arg(&argv, "--server").unwrap_or_else(|| fail("--server required".into()));
+    let servers = load_mcp_servers(std::path::Path::new(cfg_path)).unwrap_or_else(|e| fail(e));
+    let cfg = servers
+        .iter()
+        .find(|s| s.name == server_name)
+        .unwrap_or_else(|| fail(format!("unknown server '{server_name}' (not in {cfg_path})")))
+        .clone();
+
+    // path-arg enforcement BEFORE spawning the server (defense in depth)
+    if let Some(call_tool) = arg(&argv, "--call") {
+        let _ = call_tool;
+        let raw = arg(&argv, "--args").unwrap_or("{}");
+        let parsed: serde_json::Value =
+            serde_json::from_str(raw).unwrap_or_else(|e| fail(format!("bad --args json: {e}")));
+        if let Some(list) = arg(&argv, "--path-args") {
+            for key in list.split(',').map(|k| k.trim()).filter(|k| !k.is_empty()) {
+                if let Some(v) = parsed.get(key).and_then(|v| v.as_str()) {
+                    check_path_allowed(&cfg, v).unwrap_or_else(|e| fail(e));
+                }
+            }
+        }
+    }
+
+    let mut cmd = tokio::process::Command::new(&cfg.command[0]);
+    cmd.args(&cfg.command[1..]);
+    let service = ()
+        .serve(TokioChildProcess::new(cmd).unwrap_or_else(|e| fail(format!("spawn: {e}"))))
+        .await
+        .unwrap_or_else(|e| fail(format!("mcp handshake: {e}")));
+
+    if has_flag(&argv, "--list") {
+        let tools = service
+            .list_all_tools()
+            .await
+            .unwrap_or_else(|e| fail(format!("list_tools: {e}")));
+        let names: Vec<String> = tools
+            .iter()
+            .map(|t| namespaced_tool(&cfg.name, &t.name))
+            .collect();
+        println!("{}", serde_json::to_string(&names).unwrap());
+        return;
+    }
+    let tool = arg(&argv, "--call").unwrap_or_else(|| fail("--list or --call required".into()));
+    let raw = arg(&argv, "--args").unwrap_or("{}");
+    let parsed: serde_json::Value =
+        serde_json::from_str(raw).unwrap_or_else(|e| fail(format!("bad --args json: {e}")));
+    let obj = parsed.as_object().cloned().unwrap_or_default();
+    let result = service
+        .call_tool(CallToolRequestParam {
+            name: tool.to_string().into(),
+            arguments: Some(obj),
+        })
+        .await
+        .unwrap_or_else(|e| fail(format!("call_tool {tool}: {e}")));
+    println!(
+        "{}",
+        serde_json::to_string(&serde_json::json!({
+            "content": result.content,
+            "is_error": result.is_error.unwrap_or(false),
+        }))
+        .unwrap()
+    );
+}

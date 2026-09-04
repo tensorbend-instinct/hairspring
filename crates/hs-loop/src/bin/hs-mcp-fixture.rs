@@ -4,7 +4,7 @@ use rmcp::{
     ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{ServerCapabilities, ServerInfo},
-    schemars, tool, tool_router,
+    schemars, tool, tool_handler, tool_router,
 };
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -26,6 +26,7 @@ impl Fixture {
     }
 }
 
+#[tool_handler]
 impl ServerHandler for Fixture {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
