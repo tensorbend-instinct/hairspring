@@ -1,14 +1,13 @@
-//! repo.exec backend (Eric's 2026-09-04 directive): the model may run
-//! allowlisted lint/test commands against its CURRENT answer patch before
-//! answer.write, like a real SWE agent. The patch is applied to a scratch
-//! git worktree - the live workspace is never mutated, so checker semantics
-//! are unchanged. A patch that fails to apply comes back as clean
-//! applied=false feedback (the A/B/C showed all three arms' first answer
-//! was unappliable; this makes that feedback free instead of costing a
-//! checker cycle).
+//! repo.exec backend (Eric's 2026-09-04 directives): the model may run ANY
+//! command against its current answer patch before answer.write - open shell,
+//! zero allowlist, safety from ISOLATION ONLY. The patch is applied to a
+//! scratch git worktree (live ws never mutated; checker semantics unchanged)
+//! and the command runs inside bwrap: private mount/net/pid/ipc namespaces,
+//! host home and mission env never enter the sandbox, network off by
+//! construction, rlimits + hard timeout cap resources.
 
 use serde_json::{json, Value};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 const OUT_TAIL: usize = 8192;
@@ -22,28 +21,52 @@ fn tail(bytes: &[u8]) -> String {
     }
 }
 
-pub fn run(
-    ws: &Path,
-    answer_path: &Path,
-    command: &str,
-    allowlist: &[String],
-    timeout_secs: u64,
-) -> Value {
-    let cmd = command.trim();
-    if !allowlist.iter().any(|p| !p.trim().is_empty() && cmd.starts_with(p.trim())) {
-        return json!({"$error": format!("command not in allowlist: {cmd:?}. Allowed prefixes: {allowlist:?}")});
+/// The sandbox command line, as an argv vector (pure, unit-testable).
+/// Toolchain bind-mounted read-only; scratch rw at /ws; tmpfs /tmp; no /home,
+/// no mission env, no network namespace routes.
+pub fn sandbox_argv(scratch: &Path, _out_f: &Path, _err_f: &Path, cmd: &str) -> Vec<String> {
+    // out/err paths inside the sandbox: the scratch is mounted at /ws
+    let script = format!("{cmd} >/ws/.repexec-out 2>/ws/.repexec-err");
+    let mut v: Vec<String> = [
+        "prlimit", "--as=4294967296", "--nproc=256", "--fsize=268435456", "--nofile=1024",
+        "--", "bwrap", "--unshare-all", "--die-with-parent", "--clearenv",
+        "--ro-bind", "/usr", "/usr", "--ro-bind", "/bin", "/bin",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+    for d in ["/lib", "/lib64", "/etc"] {
+        if Path::new(d).exists() {
+            v.push("--ro-bind".into());
+            v.push(d.into());
+            v.push(d.into());
+        }
     }
+    v.extend([
+        "--bind".into(), scratch.display().to_string(), "/ws".into(),
+        "--tmpfs".into(), "/tmp".into(),
+        "--chdir".into(), "/ws".into(),
+        "--setenv".into(), "PATH".into(), "/usr/local/bin:/usr/bin:/bin".into(),
+        "--setenv".into(), "HOME".into(), "/tmp".into(),
+        "--setenv".into(), "LANG".into(), "C.UTF-8".into(),
+        "--".into(), "sh".into(), "-c".into(), script,
+    ]);
+    v
+}
+
+/// Shared prep: read the answer, extract the diff, make a scratch worktree,
+/// apply the patch there. Ok(None) = clean feedback result (no patch / no
+/// diff / does not apply); Err = machinery failure result.
+fn prep(ws: &Path, answer_path: &Path) -> Result<Option<PathBuf>, Value> {
     let raw = match std::fs::read_to_string(answer_path) {
         Ok(s) => s,
         Err(_) => {
-            return json!({"applied": false, "note": "no patch to test yet - write your answer first (answer.write), then exec"});
+            return Err(json!({"applied": false, "note": "no patch to test yet - write your answer first (answer.write), then exec"}));
         }
     };
     let Some(patch) = hs_bench::extract_patch(&raw) else {
-        return json!({"applied": false, "note": "no diff found in the current answer - wrap one unified diff in a ```diff fence"});
+        return Err(json!({"applied": false, "note": "no diff found in the current answer - wrap one unified diff in a ```diff fence"}));
     };
-
-    // scratch worktree off HEAD; live ws untouched
     let uniq = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos())
@@ -54,65 +77,65 @@ pub fn run(
         .arg(&scratch)
         .current_dir(ws)
         .output();
-    let add = Command::new("git")
+    match Command::new("git")
         .args(["worktree", "add", "--detach"])
         .arg(&scratch)
         .arg("HEAD")
         .current_dir(ws)
-        .output();
-    match add {
+        .output()
+    {
         Ok(o) if o.status.success() => {}
         Ok(o) => {
-            return json!({"$error": format!("scratch worktree: {}", String::from_utf8_lossy(&o.stderr))})
+            return Err(json!({"$error": format!("scratch worktree: {}", String::from_utf8_lossy(&o.stderr))}));
         }
-        Err(e) => return json!({"$error": format!("scratch worktree: {e}")}),
+        Err(e) => return Err(json!({"$error": format!("scratch worktree: {e}")})),
     }
-    let cleanup = |ws: &Path, scratch: &Path| {
-        let _ = Command::new("git")
-            .args(["worktree", "remove", "--force"])
-            .arg(scratch)
-            .current_dir(ws)
-            .output();
-        let _ = Command::new("git")
-            .args(["worktree", "prune"])
-            .current_dir(ws)
-            .output();
-    };
-
     match hs_bench::apply_model_patch(&scratch, &patch) {
-        Ok(hs_bench::ApplyResult::Applied) => {}
+        Ok(hs_bench::ApplyResult::Applied) => Ok(Some(scratch)),
         Ok(hs_bench::ApplyResult::NoApply(msg)) => {
             cleanup(ws, &scratch);
-            return json!({"applied": false, "apply_error": msg});
+            Err(json!({"applied": false, "apply_error": msg}))
         }
         Err(e) => {
             cleanup(ws, &scratch);
-            return json!({"$error": format!("apply machinery: {e:?}")});
+            Err(json!({"$error": format!("apply machinery: {e:?}")}))
         }
     }
+}
 
+fn cleanup(ws: &Path, scratch: &Path) {
+    let _ = Command::new("git")
+        .args(["worktree", "remove", "--force"])
+        .arg(scratch)
+        .current_dir(ws)
+        .output();
+    let _ = Command::new("git")
+        .args(["worktree", "prune"])
+        .current_dir(ws)
+        .output();
+}
+
+/// Open-shell exec in the sandbox. `command` is arbitrary by design.
+pub fn run_sandboxed(ws: &Path, answer_path: &Path, command: &str, timeout_secs: u64) -> Value {
+    let scratch = match prep(ws, answer_path) {
+        Ok(Some(s)) => s,
+        Ok(None) => unreachable!(),
+        Err(early) => return early,
+    };
     let out_f = scratch.join(".repexec-out");
     let err_f = scratch.join(".repexec-err");
-    let (of, ef) = match (std::fs::File::create(&out_f), std::fs::File::create(&err_f)) {
-        (Ok(a), Ok(b)) => (a, b),
-        _ => {
-            cleanup(ws, &scratch);
-            return json!({"$error": "scratch output files"});
-        }
-    };
-    let child = Command::new("sh")
-        .arg("-c")
-        .arg(cmd)
-        .current_dir(&scratch)
+    let argv = sandbox_argv(&scratch, &out_f, &err_f, command.trim());
+    let child = Command::new(&argv[0])
+        .args(&argv[1..])
         .stdin(Stdio::null())
-        .stdout(Stdio::from(of))
-        .stderr(Stdio::from(ef))
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
         .spawn();
     let mut child = match child {
         Ok(c) => c,
         Err(e) => {
             cleanup(ws, &scratch);
-            return json!({"$error": format!("spawn: {e}")});
+            return json!({"$error": format!("spawn sandbox: {e}")});
         }
     };
     let t0 = std::time::Instant::now();
