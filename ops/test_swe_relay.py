@@ -94,3 +94,33 @@ def test_dead_upstream_fast_502():
         assert json.loads(body)["error"]["code"] == "relay_upstream_dead"
     finally:
         relay.kill()
+
+def test_client_receives_502_when_upstream_drops_mid_call():
+    """Regression for the 12:58 anomaly: upstream accepted the request then
+    dropped the connection without responding (RemoteDisconnected). The
+    relay must still deliver a well-framed 502 the client can consume -
+    not leave the caller parked on an established-but-silent socket."""
+    import http.client as hc
+    class Drop(Quiet):
+        def do_POST(self):
+            n = int(self.headers.get("Content-Length", 0))
+            self.rfile.read(n)
+            self.connection.shutdown(socket.SHUT_RDWR)
+            self.connection.close()
+    class S(socketserver.ThreadingMixIn, http.server.HTTPServer): daemon_threads = True
+    uport = free_port()
+    srv = S(("127.0.0.1", uport), Drop)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    rport = free_port()
+    relay = start_relay(rport, {"RELAY_UPSTREAM_PORT": str(uport),
+                                "RELAY_UPSTREAM_SCHEME": "http",
+                                "RELAY_TARGET_HOST": "127.0.0.1",
+                                "RELAY_TARGET_PREFIX": ""})
+    try:
+        status, hdrs, body = post(rport)
+        assert status == 502, f"caller saw {status}, not the fast-fail 502"
+        assert json.loads(body)["error"]["code"] == "relay_upstream_dead"
+        # framing must be complete: exact Content-Length bytes arrived
+        assert hdrs.get("Content-Length") == str(len(body))
+    finally:
+        relay.kill(); srv.shutdown()
