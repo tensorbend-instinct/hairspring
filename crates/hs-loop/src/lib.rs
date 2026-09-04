@@ -7,6 +7,7 @@
 //! the window, and why). Feedback never costs a model round trip.
 
 pub mod realmodel;
+pub mod mcpbridge;
 pub mod repexec;
 pub mod sweprompt;
 pub mod repotools;
