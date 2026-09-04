@@ -61,7 +61,7 @@ fn per_cycle_balance_rule_is_enforced_before_the_fork_exists() {
         adds_capability: None,
         mutation: Mutation::new(vec![]),
     });
-    assert!(matches!(r, Err(SelfModError::UnbalancedCycle(_))), "repair-only: {r:?}");
+    assert!(matches!(r, Err(SelfModError::UnbalancedCycle(_))), "repair-only");
 
     // capability-only: refused while a failure stands open
     let r = sm.fork_cycle(&CycleProposal {
@@ -69,7 +69,7 @@ fn per_cycle_balance_rule_is_enforced_before_the_fork_exists() {
         adds_capability: Some("bounded: add repo lint prompt".into()),
         mutation: Mutation::new(vec![]),
     });
-    assert!(matches!(r, Err(SelfModError::UnbalancedCycle(_))), "capability-only: {r:?}");
+    assert!(matches!(r, Err(SelfModError::UnbalancedCycle(_))), "capability-only");
 
     // dangling failure ref: refused
     let r = sm.fork_cycle(&CycleProposal {
@@ -77,7 +77,7 @@ fn per_cycle_balance_rule_is_enforced_before_the_fork_exists() {
         adds_capability: Some("bounded: add repo lint prompt".into()),
         mutation: Mutation::new(vec![]),
     });
-    assert!(matches!(r, Err(SelfModError::EvidenceMismatch(_))), "dangling ref: {r:?}");
+    assert!(matches!(r, Err(SelfModError::EvidenceMismatch(_))), "dangling ref");
 
     // unbounded capability text: refused (one BOUNDED capability)
     let r = sm.fork_cycle(&CycleProposal {
@@ -85,7 +85,7 @@ fn per_cycle_balance_rule_is_enforced_before_the_fork_exists() {
         adds_capability: Some("x".repeat(400)),
         mutation: Mutation::new(vec![]),
     });
-    assert!(matches!(r, Err(SelfModError::UnbalancedCycle(_))), "unbounded: {r:?}");
+    assert!(matches!(r, Err(SelfModError::UnbalancedCycle(_))), "unbounded");
 
     // balanced: accepted, fork exists
     let r = sm.fork_cycle(&CycleProposal {
@@ -93,7 +93,7 @@ fn per_cycle_balance_rule_is_enforced_before_the_fork_exists() {
         adds_capability: Some("bounded: add repo lint prompt".into()),
         mutation: Mutation::new(vec![]),
     });
-    assert!(r.is_ok(), "balanced cycle must fork: {r:?}");
+    assert!(r.is_ok(), "balanced cycle must fork");
 }
 
 #[test]
@@ -115,6 +115,6 @@ fn promote_rejects_a_verdict_that_is_not_the_frozen_candidate() {
     let r = sm.promote(&fork, &verdict, &pin);
     assert!(
         matches!(r, Err(SelfModError::FrozenMismatch(_))),
-        "verdict for another candidate must not promote this fork: {r:?}"
+        "verdict for another candidate must not promote this fork"
     );
 }

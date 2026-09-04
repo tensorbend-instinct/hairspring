@@ -20,6 +20,8 @@ use hs_scorer::{
     Artifact, AssayVerdict, Candidate, Lineage, PromotionError, Scorer, ScorerPin, Task, TaskSuite,
     Tier01, Tier02,
 };
+pub mod cycle;
+
 pub use hs_world::Effect;
 use hs_world::{World, WorldError};
 use serde::{Deserialize, Serialize};
@@ -129,6 +131,13 @@ pub enum SelfModError {
     /// Promotion attempted with no assay on record for this fork.
     NoAssay,
     Promotion(String),
+    /// v5 per-cycle balance rule violated (refused before the fork exists).
+    UnbalancedCycle(String),
+    /// closes_failure names no open failure/regression in evidence state.
+    EvidenceMismatch(String),
+    /// v5 frozen-candidate rule: the verdict does not name this fork's
+    /// candidate - "the producer's account" never promotes.
+    FrozenMismatch(String),
     World(WorldError),
     Log(hs_log::LogError),
     Io(std::io::Error),
@@ -206,6 +215,24 @@ impl SelfModLoop {
             .unwrap();
     }
 
+    /// Evidence state read-through for the proposer (spec v5: the
+    /// proposer consumes evidence state, not raw artifact state).
+    pub fn evidence_state(&self) -> Vec<hs_scorer::evidence::EvidenceClaim> {
+        self.scorer.evidence_state()
+    }
+
+    pub fn scorer_mut(&mut self) -> &mut Scorer {
+        &mut self.scorer
+    }
+
+    /// v5 per-cycle balance: fork only a balanced cycle - one open failure
+    /// closed AND one bounded capability added, both validated against the
+    /// current evidence state before any fork exists.
+    pub fn fork_cycle(&mut self, proposal: &cycle::CycleProposal) -> Result<Fork, SelfModError> {
+        cycle::check_balance(proposal, &self.scorer.evidence_state())?;
+        Ok(self.fork())
+    }
+
     /// Fork the live policy layer into a quarantined assay fork.
     pub fn fork(&mut self) -> Fork {
         let stream = Uuid::new_v4();
@@ -274,6 +301,16 @@ impl SelfModLoop {
         verdict: &AssayVerdict,
         pin: &ScorerPin,
     ) -> Result<(), SelfModError> {
+        // independent acceptance on the FROZEN candidate (spec v5): the
+        // verdict must be about the candidate exactly as produced - this
+        // fork's own - never the producer's account of another candidate
+        if verdict.candidate != fork.candidate_name() {
+            return Err(SelfModError::FrozenMismatch(format!(
+                "verdict names '{}', fork candidate is '{}'",
+                verdict.candidate,
+                fork.candidate_name()
+            )));
+        }
         let at = self.assays.get(&fork.stream).ok_or(SelfModError::NoAssay)?;
         let elapsed = at.elapsed();
         if elapsed < self.soak {
