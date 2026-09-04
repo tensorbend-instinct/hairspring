@@ -5,7 +5,7 @@
 set -eu
 mkdir -p /tmp/restore && cd /tmp/restore
 while read -r n id; do
-  [ -n "$id" ] && tools google-drive download --file-id "$id" --file-path "/tmp/restore/$n" >/dev/null 2>&1
+  [ -n "$id" ] && tools google-drive download --file-id "$id" --json 2>/dev/null | jq -r '.file_path' | xargs -I{} mv {} "/tmp/restore/$n"
 done < /tmp/prebake-ids.txt
 cat target.part* > target.tar.gz; cat venvs.part* > venvs.tar.gz
 mkdir -p /home/sandbox/hairspring /home/sandbox/swbench
