@@ -249,7 +249,7 @@ pub fn call(p: &'static Provider, prompt: &str) -> Result<serde_json::Value, Str
         }
     }
     let agent: ureq::Agent = ureq::Agent::config_builder()
-        .timeout_global(Some(Duration::from_secs(600)))
+        .timeout_global(Some(Duration::from_secs(1500)))
         .build()
         .into();
     let watchdog = watchdog_secs();
