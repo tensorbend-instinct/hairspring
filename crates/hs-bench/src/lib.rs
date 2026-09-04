@@ -328,3 +328,44 @@ pub fn run_tests(
     }
     Ok(TestOutcome { results })
 }
+
+// ------------------------------------------------------ patch extraction ---
+
+/// Extract a unified diff from a model completion. Models wrap diffs in
+/// prose and markdown fences; we accept a ```diff fence, any fence whose
+/// body starts with a diff header, or a bare diff in the text. Prose-only
+/// completions yield None (the runner treats that as NoApply - we never
+/// invent a patch).
+pub fn extract_patch(completion: &str) -> Option<String> {
+    // 1. fenced blocks, preferring ```diff
+    let mut fences: Vec<&str> = vec![];
+    let mut rest = completion;
+    while let Some(start) = rest.find("```") {
+        let after_tick = &rest[start + 3..];
+        let body_and_on = match after_tick.find('\n') {
+            Some(nl) => &after_tick[nl + 1..],
+            None => break,
+        };
+        let Some(end) = body_and_on.find("```") else { break };
+        let lang = after_tick[..after_tick.find('\n').unwrap()].trim();
+        let body = &body_and_on[..end];
+        if lang == "diff" {
+            return Some(body.trim().to_string());
+        }
+        fences.push(body);
+        rest = &body_and_on[end + 3..];
+    }
+    for body in fences {
+        if body.trim_start().starts_with("--- a/") || body.trim_start().starts_with("diff --git") {
+            return Some(body.trim().to_string());
+        }
+    }
+    // 2. bare diff anywhere in the text: from the first "--- a/" line to the end
+    if let Some(pos) = completion.find("\n--- a/") {
+        return Some(completion[pos + 1..].trim().to_string());
+    }
+    if completion.trim_start().starts_with("--- a/") {
+        return Some(completion.trim().to_string());
+    }
+    None
+}
