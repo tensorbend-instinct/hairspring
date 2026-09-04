@@ -8,6 +8,7 @@
 
 pub mod realmodel;
 pub mod repexec;
+pub mod sweprompt;
 pub mod repotools;
 
 use hs_core::{EventBuilder, EventKind, Payload};

@@ -80,26 +80,26 @@ fn main() {
         layout.push('\n');
     }
 
-    let prompt = format!(
-        "You are fixing a real bug in the repository checked out at {ws} (base commit, failing tests already added).\n\
-         PROBLEM STATEMENT (from the issue tracker):\n{stmt}\n\n\
-         The checker will apply your patch and run: {tests}\n\
-         It also runs a set of PASS_TO_PASS regression tests; do not break existing behavior.\n\n\
-         Repo files (partial listing):\n{layout}\n\
-         TOOLS (one tool call per reply, exactly one JSON object, no prose):\n\
-         1. {{\"tool\":\"repo.search\",\"args\":{{\"pattern\":\"<literal substring>\"}}}} - find code by substring; returns path:line hits (max 100).\n\
-         2. {{\"tool\":\"repo.read\",\"args\":{{\"path\":\"<repo-relative path>\",\"start_line\":<1-indexed, optional>,\"max_lines\":<optional, default 400>}}}} - read a file window. The reply tells you total_lines and a truncated flag; if truncated, page forward with start_line=end_line+1. NEVER re-read the same window: earlier tool results are kept in your TRANSCRIPT - search to locate the line you need, then read that window.\n\
-         3. {{\"tool\":\"repo.exec\",\"args\":{{\"command\":\"<allowlisted command>\",\"path\":\"<ANSWER_PATH>\"}}}} - run lint/tests on YOUR current patch (applied to a scratch copy; the repo stays clean). If the patch does not apply you get the git error back free - fix the framing before spending a checker cycle. Allowed: {allow}.\n\
-         4. {{\"tool\":\"answer.write\",\"args\":{{\"path\":\"<ANSWER_PATH>\",\"content\":\"```diff\\n<one unified diff, paths a/... b/... relative to repo root>\\n```\"}}}} - submit your patch. Ground every hunk in code you actually read: correct file, correct current line numbers, exact context lines. Prefer a repo.exec pre-flight first. The checker runs automatically after each answer.write and its verdict comes back as FEEDBACK.\n\
-         WORKFLOW: search and read to locate the real code FIRST, then write a patch that applies cleanly. \
-         The exact ANSWER_PATH value is given to you on the ANSWER_PATH line each attempt. \
-         Do not include prose outside the JSON. If you get FEEDBACK, repair and continue.{nudge}",
-        ws = ws.display(),
-        stmt = inst.problem_statement.trim(),
-        tests = f2p.join(" ; "),
-        layout = layout,
-        allow = std::env::var("HS_SWE_EXEC_ALLOW").unwrap_or_else(|_| "python3 -m pytest, git apply --check".into()),
-        nudge = std::env::var("HS_SWE_PROMPT_NUDGE").unwrap_or_default(),
+    let policy = match std::env::var("HS_POLICY_TOML") {
+        Ok(p) => Some(
+            hs_loop::sweprompt::load_policy_overlay(std::path::Path::new(&p))
+                .unwrap_or_else(|e| {
+                    eprintln!("hs-swe-run: {e}");
+                    std::process::exit(2);
+                }),
+        ),
+        Err(_) => None,
+    };
+    let prompt = hs_loop::sweprompt::build_mission_prompt(
+        policy.as_ref(),
+        &hs_loop::sweprompt::PromptArgs {
+            ws: ws.display().to_string(),
+            problem_statement: inst.problem_statement.clone(),
+            fail_to_pass: f2p.clone(),
+            repo_layout: layout.clone(),
+            nudge: std::env::var("HS_SWE_PROMPT_NUDGE").unwrap_or_default(),
+            answer_path: answer_path.display().to_string(),
+        },
     );
     std::fs::write(run_dir.join("mission_prompt.txt"), &prompt).unwrap();
 
@@ -133,6 +133,11 @@ name = "repo.exec"
 command = ["{repoexec}"]
 subjects = ["*"]
 
+[[tools]]
+name = "policy.propose_prompt"
+command = ["{policy}"]
+subjects = ["*"]
+
 [[models]]
 name = "{model}"
 command = ["{model_bin}"]
@@ -143,6 +148,7 @@ default = true
             fileread = bin("hs-plugin-fileread"),
             reposearch = bin("hs-plugin-reposearch"),
             repoexec = bin("hs-plugin-repoexec"),
+            policy = bin("hs-plugin-policy"),
             model = model,
             model_bin = bin(&format!("hs-plugin-{model}")),
         ),
