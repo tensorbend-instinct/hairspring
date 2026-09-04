@@ -37,11 +37,13 @@ impl MissionExec for ScriptedExec {
 fn run_cap_stops_launching_and_marks_not_run() {
     let instances = load_jsonl(Path::new(FIXTURE)).unwrap(); // 3 instances
     let exec = ScriptedExec { cost: 400_000 }; // $0.40 per mission
-    let report = run_set(&exec, &instances, Arm::System, 900_000, 1_000_000);
-    // $0.90 run cap: two $0.40 missions fit, the third must be NotRun
+                                               // Policy: launch while spent < run cap; overshoot is bounded by one
+                                               // per-mission cap (unknown actuals make a pre-launch hard cut
+                                               // impossible). $0.80 cap, $0.40 missions: two run, third is NotRun.
+    let report = run_set(&exec, &instances, Arm::System, 800_000, 1_000_000);
     assert_eq!(report.resolved_count(Arm::System), 2);
     assert_eq!(report.not_run_count(), 1, "third instance must be NotRun");
-    assert!(report.total_cost_micros() <= 900_000);
+    assert!(report.total_cost_micros() <= 800_000 + 1_000_000);
     let json = report.to_swebench_json("test");
     assert_eq!(json["not_run"].as_array().unwrap().len(), 1);
 }

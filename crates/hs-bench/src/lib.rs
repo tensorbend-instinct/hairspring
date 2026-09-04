@@ -70,6 +70,8 @@ pub enum Outcome {
     Unresolved,
     /// Killed at the per-mission USD cap; scores as failure.
     BudgetKilled,
+    /// Never launched: the run-level cap was spent first. Reported, not dropped.
+    NotRun,
 }
 
 /// Scripted patch source for the offline plumbing proof.
@@ -207,6 +209,15 @@ impl BenchReport {
     pub fn new(results: Vec<InstanceResult>) -> Self {
         BenchReport { results }
     }
+    pub fn not_run_count(&self) -> usize {
+        self.results
+            .iter()
+            .filter(|r| r.outcome == Outcome::NotRun)
+            .count()
+    }
+    pub fn total_cost_micros(&self) -> u64 {
+        self.results.iter().map(|r| r.cost_micros).sum()
+    }
     pub fn resolved_count(&self, arm: Arm) -> usize {
         self.results
             .iter()
@@ -230,6 +241,7 @@ impl BenchReport {
             "unresolved": ids(Arm::System, Outcome::Unresolved),
             "no_apply": [],
             "budget_killed": ids(Arm::System, Outcome::BudgetKilled),
+            "not_run": ids(Arm::System, Outcome::NotRun),
             "baseline": {
                 "resolved": ids(Arm::Baseline, Outcome::Resolved),
                 "unresolved": ids(Arm::Baseline, Outcome::Unresolved),
@@ -346,7 +358,9 @@ pub fn extract_patch(completion: &str) -> Option<String> {
             Some(nl) => &after_tick[nl + 1..],
             None => break,
         };
-        let Some(end) = body_and_on.find("```") else { break };
+        let Some(end) = body_and_on.find("```") else {
+            break;
+        };
         let lang = after_tick[..after_tick.find('\n').unwrap()].trim();
         let body = &body_and_on[..end];
         if lang == "diff" {
@@ -368,4 +382,56 @@ pub fn extract_patch(completion: &str) -> Option<String> {
         return Some(completion.trim().to_string());
     }
     None
+}
+
+// --------------------------------------------------------- orchestration ---
+
+/// A mission executor: the real one drives hs-loop missions against paid
+/// models (parked until budget approval); tests use scripted executors.
+pub trait MissionExec {
+    fn run_mission(
+        &self,
+        inst: &BenchInstance,
+        arm: Arm,
+        mission_cap_micros: u64,
+    ) -> Result<InstanceResult, BenchError>;
+}
+
+/// Run a set of instances on one arm under TWO budgets: the per-mission cap
+/// (enforced by the executor / hs-loop) and the run-level cap, which stops
+/// launching new missions once spent. Remaining instances are marked NotRun
+/// in the report - visible, never silently dropped.
+pub fn run_set<E: MissionExec>(
+    exec: &E,
+    instances: &[BenchInstance],
+    arm: Arm,
+    run_cap_micros: u64,
+    mission_cap_micros: u64,
+) -> BenchReport {
+    let mut results = vec![];
+    let mut spent = 0u64;
+    for inst in instances {
+        if spent >= run_cap_micros {
+            results.push(InstanceResult {
+                instance_id: inst.instance_id.clone(),
+                arm,
+                outcome: Outcome::NotRun,
+                cost_micros: 0,
+            });
+            continue;
+        }
+        match exec.run_mission(inst, arm, mission_cap_micros) {
+            Ok(r) => {
+                spent += r.cost_micros;
+                results.push(r);
+            }
+            Err(_) => results.push(InstanceResult {
+                instance_id: inst.instance_id.clone(),
+                arm,
+                outcome: Outcome::Unresolved,
+                cost_micros: 0,
+            }),
+        }
+    }
+    BenchReport::new(results)
 }
