@@ -36,9 +36,14 @@ pub enum EventKind {
     CanaryResult = 16,
     Prefetch = 17,
     // 18..=63 unassigned spec space.
-    CapabilityDelta = 64, // reserved: gates 7-8
-    FitnessDelta = 65,    // reserved: gates 7-8
+    CapabilityDelta = 64, // gates 7-8: scorer-read delta on policy promotions
+    FitnessDelta = 65,    // gates 7-8: scorer-read fitness slope delta
     Regression = 66,      // reserved: gates 7-8
+    /// spec v5: model/harness/executor swap transaction (old and new
+    /// binding refs + protocol step). Distinct from CapabilityDelta: a swap
+    /// is a substrate binding change, never evidence of evolved improvement
+    /// ("a vendor upgrade can never masquerade as evolved improvement").
+    CapabilityChange = 67,
 }
 
 impl EventKind {
@@ -66,6 +71,7 @@ impl EventKind {
             16 => Self::CanaryResult,
             17 => Self::Prefetch,
             64 => Self::CapabilityDelta,
+            67 => Self::CapabilityChange,
             65 => Self::FitnessDelta,
             66 => Self::Regression,
             other => return Err(DecodeError::UnknownKindTag(other)),
