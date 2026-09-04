@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/hs-core", "crates/hs-log", "crates/hs-cli", "crates/hs-kernel", "crates/hs-loop", "crates/hs-swarm", "crates/hs-world", "crates/hs-goal", "crates/hs-scorer"]
+members = ["crates/hs-core", "crates/hs-log", "crates/hs-cli", "crates/hs-kernel", "crates/hs-loop", "crates/hs-swarm", "crates/hs-world", "crates/hs-goal", "crates/hs-scorer", "crates/hs-selfmod"]
 
 # Planned members for later gates (do NOT create before their gate):
 #   crates/hs-substrate-daemon  (gate 1 productization: daemon owning the log + secrets + sandbox manager)

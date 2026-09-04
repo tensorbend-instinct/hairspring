@@ -346,6 +346,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "hs-selfmod"
+version = "0.1.0"
+dependencies = [
+ "hs-core",
+ "hs-log",
+ "hs-scorer",
+ "hs-world",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "uuid",
+]
+
+[[package]]
 name = "hs-swarm"
 version = "0.1.0"
 dependencies = [
