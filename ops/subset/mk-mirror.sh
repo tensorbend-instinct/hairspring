@@ -19,4 +19,7 @@ fi
 echo
 echo "=== runner stdout (current task) ==="
 tail -10 "$S50/runs/$CUR/stdout.log" 2>/dev/null || echo "(none)"
+echo
+echo "=== prebake chunk ids (for restore.sh) ==="
+cat /tmp/prebake-ids.txt 2>/dev/null || echo "(none yet)"
 } > /tmp/mirror.txt 2>&1
