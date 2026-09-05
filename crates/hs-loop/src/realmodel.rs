@@ -420,30 +420,36 @@ fn attempt(
     key: &str,
     body: &serde_json::Value,
     native: bool,
-) -> Result<ParsedCall, String> {
+) -> Result<ParsedCall, AttemptError> {
     let mut resp = agent
         .post(url)
         .header("Authorization", &format!("Bearer {key}"))
         .header("Content-Type", "application/json")
         .send_json(body)
-        .map_err(|e| format!("{}: request failed: {e}", p.name))?;
+        .map_err(|e| AttemptError::Other(format!("{}: request failed: {e}", p.name)))?;
     let status = resp.status();
     if !status.is_success() {
-        return Err(format!(
-            "{}: HTTP {} from provider",
-            p.name,
-            status.as_u16()
-        ));
+        let retry_after_secs = resp
+            .headers()
+            .get("retry-after")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.trim().parse::<u64>().ok());
+        return Err(AttemptError::Status {
+            code: status.as_u16(),
+            retry_after_secs,
+            msg: format!("{}: HTTP {} from provider", p.name, status.as_u16()),
+        });
     }
     let v: serde_json::Value = resp
         .body_mut()
         .read_json()
-        .map_err(|e| format!("{}: unparsable provider response: {e}", p.name))?;
-    if native {
+        .map_err(|e| AttemptError::Other(format!("{}: unparsable provider response: {e}", p.name)))?;
+    let r = if native {
         parse_response(p, &v)
     } else {
         parse_response_legacy(p, &v)
-    }
+    };
+    r.map_err(AttemptError::Other)
 }
 
 /// Sentinel completion returned when the provider holds a call past the
@@ -464,6 +470,67 @@ pub fn watchdog_secs() -> u64 {
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(420)
+}
+
+/// Attempt budget for retryable provider failures (429/5xx/transport),
+/// env-overridable. Default 12: with capped backoff a rate-limit window of
+/// many minutes is survived instead of killing the mission (user order
+/// 2026-09-05: a 429 should nearly never kill a mission).
+pub fn max_attempts() -> u64 {
+    std::env::var("HS_REALMODEL_MAX_ATTEMPTS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(12)
+}
+
+/// Backoff base seconds when the provider sent no Retry-After (env for tests).
+pub fn backoff_base_secs() -> u64 {
+    std::env::var("HS_REALMODEL_BACKOFF_BASE_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(5)
+}
+
+/// One failed provider attempt, classified for the retry policy.
+pub enum AttemptError {
+    /// Non-2xx from the provider; Retry-After seconds when the header came along.
+    Status {
+        code: u16,
+        retry_after_secs: Option<u64>,
+        msg: String,
+    },
+    /// Transport/parse failure with no HTTP status.
+    Other(String),
+}
+
+impl AttemptError {
+    pub fn msg(&self) -> String {
+        match self {
+            AttemptError::Status { msg, .. } => msg.clone(),
+            AttemptError::Other(m) => m.clone(),
+        }
+    }
+    /// 429 and 5xx are retryable; other 4xx is a contract bug - fail fast
+    /// rather than burning the attempt budget on a request that never changes.
+    fn retryable(&self) -> bool {
+        match self {
+            AttemptError::Status { code, .. } => *code == 429 || (500..=599).contains(code),
+            AttemptError::Other(_) => true,
+        }
+    }
+    /// Sleep before the next attempt: the provider's Retry-After wins
+    /// (capped 300s); otherwise exponential base*2^(n-1) capped 120s.
+    fn sleep_for(&self, attempt_no: u64, base: u64) -> Duration {
+        if let AttemptError::Status {
+            retry_after_secs: Some(s),
+            ..
+        } = self
+        {
+            return Duration::from_secs((*s).min(300));
+        }
+        let shift = (attempt_no.saturating_sub(1)).min(5) as u32;
+        Duration::from_secs(base.saturating_mul(1u64 << shift).min(120))
+    }
 }
 
 fn wire(p: &Provider) -> Result<(String, String, String), String> {
@@ -498,14 +565,24 @@ fn call_with_body(
     let (key, url, _) = wire(p)?;
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .timeout_global(Some(Duration::from_secs(1500)))
+        // Error statuses must arrive as responses: the retry policy needs
+        // the status code and the Retry-After header, which ureq's error
+        // path discards.
+        .http_status_as_error(false)
         .build()
         .into();
     let watchdog = watchdog_secs();
+    let attempts = max_attempts();
+    let base = backoff_base_secs();
     let mut last_err = String::new();
-    for attempt_no in 0..3 {
-        if attempt_no > 0 {
-            std::thread::sleep(Duration::from_secs(5 * attempt_no as u64));
+    let mut pending_sleep = Duration::from_secs(0);
+    let mut attempt_no = 0u64;
+    while attempt_no < attempts {
+        if !pending_sleep.is_zero() {
+            std::thread::sleep(pending_sleep);
+            pending_sleep = Duration::from_secs(0);
         }
+        attempt_no += 1;
         let (tx, rx) = std::sync::mpsc::channel();
         let (a, u, k, b) = (agent.clone(), url.clone(), key.clone(), body.clone());
         let pt = p.clone();
@@ -527,8 +604,12 @@ fn call_with_body(
                 }))
             }
             Ok(Err(e)) => {
-                eprintln!("realmodel {} attempt {} failed: {}", p.name, attempt_no + 1, e);
-                last_err = e;
+                eprintln!("realmodel {} attempt {} failed: {}", p.name, attempt_no, e.msg());
+                if !e.retryable() {
+                    return Err(e.msg());
+                }
+                pending_sleep = e.sleep_for(attempt_no, base);
+                last_err = e.msg();
             }
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
                 // Hung provider: do NOT retry (a hung endpoint hangs retries
@@ -546,6 +627,7 @@ fn call_with_body(
             }
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
                 last_err = format!("{}: worker thread died", p.name);
+                pending_sleep = Duration::from_secs(base);
             }
         }
     }
