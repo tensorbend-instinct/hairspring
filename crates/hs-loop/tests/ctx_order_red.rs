@@ -89,8 +89,11 @@ default = true
         .map(|e| {
             let p = String::from_utf8_lossy(&reader.resolve_payload(e).unwrap()).to_string();
             let v: serde_json::Value = serde_json::from_str(&p).unwrap();
-            v["prompt"].as_str().unwrap().to_string()
+            v
         })
+        // item 3: verifier calls are a separate role, not mission steps
+        .filter(|v| v["role"].as_str() != Some("verifier"))
+        .map(|v| v["prompt"].as_str().unwrap().to_string())
         .collect();
     let step2 = prompts.last().expect("a second-step prompt must exist");
     assert!(

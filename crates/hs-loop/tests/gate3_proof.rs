@@ -58,9 +58,12 @@ default = true
         let log = dir.join("log");
         let mut l = InnerLoop::new(kernel, &log, feedback, MAX_STEPS).unwrap();
         let r = l.run_mission(&format!("task-{t}")).unwrap();
+        // item 3: a pass costs exactly one extra round trip - the
+        // adversarial verifier call. Feedback itself costs zero.
         assert_eq!(
-            r.model_calls, r.steps,
-            "feedback must cost zero extra round trips"
+            r.model_calls,
+            r.steps + if r.passed { 1 } else { 0 },
+            "feedback zero extra round trips; pass adds one verifier call"
         );
         hs_log::verify_stream(&log, r.stream_id).unwrap();
         if r.passed {

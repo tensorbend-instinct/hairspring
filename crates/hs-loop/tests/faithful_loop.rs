@@ -74,6 +74,10 @@ fn tool_results_reach_the_next_step_and_checker_runs_only_after_write() {
     let checker_runs = evs
         .iter()
         .filter(|e| e.kind == hs_core::EventKind::Feedback)
+        .filter(|e| {
+            String::from_utf8_lossy(&hs_log::StreamReader::open(log.path(), sid).unwrap().resolve_payload(e).unwrap())
+                .contains("\"checker\"")
+        })
         .count();
     assert_eq!(
         checker_runs, 1,

@@ -91,6 +91,10 @@ pub struct InnerLoop {
     /// item 4: per-plugin count at which the doom-loop nudge last fired;
     /// refires only when the repeat count grows by +2 (anti-spam)
     doom_nudges: std::collections::HashMap<String, usize>,
+    /// item 3: adversarial verifier state - rounds spent and the findings
+    /// the last refuted round handed back (the next round's PRIOR_GAPS)
+    verifier_rounds: u32,
+    prior_gaps: Vec<String>,
     /// Fix 4: mission wall budget (secs) + start instant, for the per-step
     /// "T-minus" header. None = wall not tracked (old behavior).
     wall_secs: Option<u64>,
@@ -136,6 +140,8 @@ impl InnerLoop {
             goal: None,
             dead_tools: Default::default(),
             doom_nudges: Default::default(),
+            verifier_rounds: 0,
+            prior_gaps: vec![],
             wall_secs: None,
             mission_started: None,
         })
@@ -167,6 +173,8 @@ impl InnerLoop {
             goal: None,
             dead_tools: Default::default(),
             doom_nudges: Default::default(),
+            verifier_rounds: 0,
+            prior_gaps: vec![],
             wall_secs: None,
             mission_started: None,
         })
@@ -748,6 +756,119 @@ impl InnerLoop {
                 )),
             )?;
             if stop_green {
+                // Item 3: adversarial verifier veto (docs/verifier-design.md).
+                // The checker is the ground-truth floor; the verifier runs
+                // after green and can only send the work back - never pass
+                // on its own authority. Capped rounds; malfunction never blocks.
+                const VERIFIER_MAX_ROUNDS: u32 = 3;
+                if self.verifier_rounds < VERIFIER_MAX_ROUNDS {
+                    self.verifier_rounds += 1;
+                    let round = self.verifier_rounds;
+                    let answer_text = std::fs::read_to_string(&answer_path).unwrap_or_default();
+                    let vprompt = build_verifier_prompt(mission, &answer_text, &self.ledger, &self.prior_gaps);
+                    match self.kernel.call_model("operator", None, &vprompt) {
+                        Ok(vout) => {
+                            model_calls += 1;
+                            self.cost_total_micros += vout.cost_usd_micros.max(0) as u64;
+                            self.writer.append(
+                                EventBuilder::new(EventKind::ModelCall).payload(Payload::Inline(
+                                    serde_json::to_vec(&serde_json::json!({
+                                        "role": "verifier", "round": round,
+                                        "prompt": vprompt, "completion": vout.completion,
+                                    }))
+                                    .unwrap(),
+                                )),
+                            )?;
+                            let parsed: Result<serde_json::Value, _> =
+                                serde_json::from_str(vout.completion.trim());
+                            match parsed {
+                                Ok(v) => match v["refuted"].as_bool() {
+                                    Some(false) => {
+                                        self.prior_gaps.clear();
+                                        self.writer.append(
+                                            EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                                                serde_json::to_vec(&serde_json::json!({
+                                                    "why": "verifier", "round": round, "verdict": "not_refuted",
+                                                }))
+                                                .unwrap(),
+                                            )),
+                                        )?;
+                                    }
+                                    Some(true) => {
+                                        let findings: Vec<String> = v["findings"]
+                                            .as_array()
+                                            .map(|a| {
+                                                a.iter()
+                                                    .filter_map(|f| f["detail"].as_str().map(String::from))
+                                                    .collect()
+                                            })
+                                            .unwrap_or_default();
+                                        let blocking = v["blocking"].as_str().unwrap_or("none").to_string();
+                                        self.prior_gaps = findings.clone();
+                                        self.writer.append(
+                                            EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                                                serde_json::to_vec(&serde_json::json!({
+                                                    "why": "verifier", "round": round, "verdict": "refuted",
+                                                    "findings": findings, "blocking": blocking,
+                                                }))
+                                                .unwrap(),
+                                            )),
+                                        )?;
+                                        pending_feedback.push(format!(
+                                            "VERIFIER REFUTED (round {round}/{VERIFIER_MAX_ROUNDS}, blocking={blocking}): {}",
+                                            findings.join("; ")
+                                        ));
+                                        self.checkpoint(steps, model_calls);
+                                        continue;
+                                    }
+                                    None => {
+                                        self.writer.append(
+                                            EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                                                serde_json::to_vec(&serde_json::json!({
+                                                    "why": "verifier_error", "round": round,
+                                                    "detail": "verdict JSON missing the refuted field",
+                                                }))
+                                                .unwrap(),
+                                            )),
+                                        )?;
+                                    }
+                                },
+                                Err(_) => {
+                                    self.writer.append(
+                                        EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                                            serde_json::to_vec(&serde_json::json!({
+                                                "why": "verifier_error", "round": round,
+                                                "detail": "verdict was not parseable JSON",
+                                            }))
+                                            .unwrap(),
+                                        )),
+                                    )?;
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            self.writer.append(
+                                EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                                    serde_json::to_vec(&serde_json::json!({
+                                        "why": "verifier_error", "round": round,
+                                        "detail": format!("verifier call failed: {e}"),
+                                    }))
+                                    .unwrap(),
+                                )),
+                            )?;
+                        }
+                    }
+                } else {
+                    self.writer.append(
+                        EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                            serde_json::to_vec(&serde_json::json!({
+                                "why": "verifier_ratchet", "rounds": VERIFIER_MAX_ROUNDS,
+                                "detail": "verifier failed to converge in 3 rounds - the checker verdict stands",
+                            }))
+                            .unwrap(),
+                        )),
+                    )?;
+                }
                 self.writer.append(
                     EventBuilder::new(EventKind::GoalUpdate).payload(Payload::Inline(
                         serde_json::to_vec(&serde_json::json!({"mission": mission, "done": true}))
@@ -812,4 +933,33 @@ pub fn book_wall_kill(
         "budget_killed": false,
         "outcome": "wall_killed",
     })
+}
+
+/// Item 3: the verifier's prompt. Audit-recorded-evidence only;
+/// default-refuted on uncertainty; anti-ratchet on re-rounds
+/// (docs/verifier-design.md; Grok goal_verifier_prompt.md adapted).
+fn build_verifier_prompt(
+    mission: &str,
+    answer: &str,
+    ledger: &crate::ledger::Ledger,
+    prior_gaps: &[String],
+) -> String {
+    let gaps = if prior_gaps.is_empty() {
+        "none".to_string()
+    } else {
+        prior_gaps
+            .iter()
+            .map(|g| format!("- {g}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let mut p = String::new();
+    p.push_str("ADVERSARIAL VERIFIER\n");
+    p.push_str("You are not the agent that did this work. Default to refuted when uncertain a required criterion holds; never invent requirements. Audit the RECORDED evidence only - a prose claim of test output with no recorded run is fabricated: refute. On a re-verification round (PRIOR_GAPS non-empty), check that each prior gap is genuinely fixed plus demonstrable defects; a fresh stylistic objection a prior round implicitly accepted is out of scope - when every prior gap is fixed and the objective holds, return refuted false.\n");
+    p.push_str(&format!("OBJECTIVE: {mission}\n"));
+    p.push_str(&format!("ANSWER:\n{answer}\n"));
+    p.push_str(&format!("LEDGER (recorded evidence):\n{}\n", ledger.summary()));
+    p.push_str(&format!("PRIOR_GAPS:\n{gaps}\n"));
+    p.push_str("Respond with exactly one JSON object: {\"refuted\": bool, \"findings\": [{\"kind\": \"bug|gap|todo\", \"location\": \"...\", \"detail\": \"one line\"}], \"blocking\": \"none|contradiction|unverifiable\"}");
+    p
 }

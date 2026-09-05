@@ -42,9 +42,12 @@ fn feedback_on_repairs_repairable_task_in_two_steps() {
     let r = l.run_mission("task-0").unwrap();
     assert!(r.passed, "repairable task must pass with feedback on");
     assert_eq!(r.steps, 2, "blind attempt, then feedback-guided repair");
+    // item 3: the pass itself costs one extra call - the adversarial
+    // verifier; the feedback channel stays zero-cost
     assert_eq!(
-        r.model_calls, r.steps,
-        "feedback adds zero extra model round trips"
+        r.model_calls,
+        r.steps + 1,
+        "feedback adds zero extra model round trips; pass adds one verifier call"
     );
 }
 
