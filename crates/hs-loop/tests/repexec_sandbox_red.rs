@@ -62,17 +62,51 @@ fn sandbox_hides_host_filesystem_secrets_and_live_ws() {
     assert!(!out2.contains("TOPSECRET"), "host path must not resolve: {out2}");
 }
 
+/// Fix 1 (Eric, 2026-09-05): the mission sandbox is a full machine floor -
+/// real shell, root, writable system roots, package managers, network ON.
+/// The old toy sandbox (unshare-all, ro toolchain, no network) was the
+/// harness lying to the model about what a mission can do.
 #[test]
-fn sandbox_network_is_off_even_for_localhost() {
+fn sandbox_network_is_on_for_missions() {
     let d = ws_with_answer();
-    // 127.0.0.1:8787 is the live relay on this box during missions; if the
-    // child can reach it the net namespace is not empty
+    // serve a file INSIDE the sandbox and curl it from the same child:
+    // loopback only works when the net namespace is real
     let r = hs_loop::repexec::run_sandboxed(d.path(), &d.path().join("answer.txt"),
-        "python3 -c \"import socket; socket.create_connection(('127.0.0.1',8787),timeout=3)\" 2>&1; echo EXIT=$?",
+        "cd /ws && (python3 -m http.server 8873 --bind 127.0.0.1 >/dev/null 2>&1 &) && sleep 1 && curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8873/",
         30);
     let out = format!("{}{}", r["stdout"].as_str().unwrap(), r["stderr"].as_str().unwrap());
-    assert!(out.contains("EXIT=1") || out.contains("Network is unreachable") || out.contains("Errno 101"),
-        "network must be off by construction: {out}");
+    assert!(out.contains("200"), "loopback http must work with network on: {out}");
+}
+
+#[test]
+fn sandbox_is_a_full_machine_floor() {
+    let d = ws_with_answer();
+    let r = hs_loop::repexec::run_sandboxed(d.path(), &d.path().join("answer.txt"),
+        "echo UID=$(id -u); touch /usr/local/.hs-floor-probe && rm /usr/local/.hs-floor-probe && echo USRLOCAL-RW; for t in python3 apt-get; do command -v $t >/dev/null 2>&1 && echo HAVE-$t; done; echo HOME=$HOME; echo PATH=$PATH",
+        30);
+    let out = format!("{}{}", r["stdout"].as_str().unwrap(), r["stderr"].as_str().unwrap());
+    assert_eq!(r["exit_code"], 0, "{out}");
+    assert!(out.contains("UID=0"), "missions run as root on the machine floor: {out}");
+    assert!(out.contains("USRLOCAL-RW"), "system roots are writable: {out}");
+    assert!(out.contains("HAVE-python3"), "python3 on the floor: {out}");
+    assert!(out.contains("HAVE-apt-get"), "apt-get on the floor: {out}");
+    assert!(out.contains("HOME=/root"), "root's home: {out}");
+    assert!(out.contains("/root/.cargo/bin"), "cargo on PATH: {out}");
+}
+
+#[test]
+fn sandbox_still_hides_host_secrets() {
+    let d = ws_with_answer();
+    // the floor is the whole machine EXCEPT host secret material: /home
+    // (glm.key), /mnt (ledger/bundle), /root/.ssh, /root/.git-credentials
+    let r = hs_loop::repexec::run_sandboxed(d.path(), &d.path().join("answer.txt"),
+        "ls /home 2>&1; ls /mnt 2>&1; ls -a /root/.ssh 2>&1; wc -c /root/.git-credentials 2>&1",
+        30);
+    let out = format!("{}{}", r["stdout"].as_str().unwrap(), r["stderr"].as_str().unwrap());
+    assert!(out.contains("No such file or directory"), "/home must not exist inside: {out}");
+    assert!(!out.contains("instinct-nvme"), "/mnt must not exist inside: {out}");
+    assert!(!out.contains("authorized_keys"), "ssh keys must not be readable: {out}");
+    assert!(out.contains("/root/.git-credentials: 0"), "git-credentials masked to zero bytes: {out}");
 }
 
 #[test]
