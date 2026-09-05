@@ -15,6 +15,7 @@ use std::path::{Path, PathBuf};
 /// {fail_to_pass} {repo_layout} {answer_path} {nudge}. Unknown placeholders
 /// are left intact so policy authors can extend the arg set additively.
 pub const SWE_MISSION_TEMPLATE: &str = "You are fixing a real bug in the repository checked out at {ws} (base commit, failing tests already added).\n\
+MACHINE: you are on a real Linux box as root, not a toy sandbox. Network: ON (outbound and loopback; package installs fine). System roots are writable - apt-get/pip/cargo/npm all work. Host-only paths stay hidden (/home, /mnt). Detected tooling: {orientation}\n\
 PROBLEM STATEMENT (from the issue tracker):\n{problem_statement}\n\n\
 The checker will apply your patch and run: {fail_to_pass}\n\
 It also runs a set of PASS_TO_PASS regression tests; do not break existing behavior.\n\n\
@@ -22,7 +23,7 @@ Repo files (partial listing):\n{repo_layout}\n\
 TOOLS (one tool call per reply, exactly one JSON object, no prose):\n\
 1. {{\"tool\":\"repo.search\",\"args\":{{\"pattern\":\"<literal substring>\"}}}} - find code by substring; returns path:line hits (max 100).\n\
 2. {{\"tool\":\"repo.read\",\"args\":{{\"path\":\"<repo-relative path>\",\"start_line\":<1-indexed, optional>,\"max_lines\":<optional, default 400>}}}} - read a file window. The reply tells you total_lines and a truncated flag; if truncated, page forward with start_line=end_line+1. NEVER re-read the same window: recent results stay verbatim in your TRANSCRIPT, older work is distilled into the LEDGER block (always shown above), and exact duplicate reads are flagged with their earlier seq. Put durable facts (hypotheses, line numbers, failing tests) in notes.scratch.\n\
-3. {{\"tool\":\"repo.exec\",\"args\":{{\"command\":\"<any command>\",\"diff\":\"<unified diff, optional>\",\"path\":\"<ANSWER_PATH, optional>\"}}}} - run lint/tests on a candidate patch inside a sandbox (applied to a scratch copy; the repo stays clean; no network, no host fs). Pass diff INLINE to test a candidate BEFORE writing any answer; pass path (or nothing) to test the current answer file. If the patch does not apply you get the git error back free - fix the framing before spending a checker cycle. Run the FAIL_TO_PASS command before every answer.write.\n\
+3. {{\"tool\":\"repo.exec\",\"args\":{{\"command\":\"<any command>\",\"diff\":\"<unified diff, optional>\",\"path\":\"<ANSWER_PATH, optional>\"}}}} - run lint/tests on a candidate patch inside a sandbox (applied to a scratch copy; the repo stays clean; full machine floor: network on, system roots writable, you are root). Pass diff INLINE to test a candidate BEFORE writing any answer; pass path (or nothing) to test the current answer file. If the patch does not apply you get the git error back free - fix the framing before spending a checker cycle. Run the FAIL_TO_PASS command before every answer.write.\n\
 6. {{\"tool\":\"edit.apply\",\"args\":{{\"diff\":\"<unified diff>\"}}}} - apply one incremental edit to your persistent candidate workspace (the live repo is never touched). Returns the CUMULATIVE diff of everything you have applied so far: use edit.apply as you work, test with repo.exec, and submit the cumulative result. ops: {{\"op\":\"diff\"}} re-reads the cumulative diff, {{\"op\":\"reset\"}} discards the candidate.\n\
 7. {{\"tool\":\"notes.scratch\",\"args\":{{\"op\":\"write|append|read\",\"content\":\"<text>\"}}}} - persistent notes that survive context truncation. Record hypotheses, failing test names, and line numbers you will need later; read them back instead of re-discovering.\n\'
 
@@ -39,6 +40,32 @@ pub struct PromptArgs {
     pub repo_layout: String,
     pub nudge: String,
     pub answer_path: String,
+    /// Detected tooling for the MACHINE orientation line (fix 2); callers
+    /// fill it with probe_orientation().
+    pub orientation: String,
+}
+
+/// Probe the machine floor for the orientation brief (fix 2): the repo.exec
+/// sandbox binds the real system roots, so host detection IS sandbox
+/// detection.
+pub fn probe_orientation() -> String {
+    let tools = ["python3", "pip3", "cargo", "npm", "node", "apt-get", "git", "curl"];
+    let mut have: Vec<&str> = vec![];
+    for t in tools {
+        let ok = std::process::Command::new("sh")
+            .args(["-c", &format!("command -v {t} >/dev/null 2>&1")])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if ok {
+            have.push(t);
+        }
+    }
+    if have.is_empty() {
+        "(none detected)".to_string()
+    } else {
+        have.join(", ")
+    }
 }
 
 /// Policy overlay: [prompts] name = template. Loaded from TOML; malformed
@@ -64,6 +91,7 @@ fn substitute(template: &str, args: &PromptArgs) -> String {
         ("{repo_layout}", args.repo_layout.as_str()),
         ("{answer_path}", args.answer_path.as_str()),
         ("{nudge}", args.nudge.as_str()),
+        ("{orientation}", args.orientation.as_str()),
     ];
     let mut out = template.to_string();
     for (k, v) in pairs {

@@ -15,6 +15,7 @@ fn args() -> PromptArgs {
         repo_layout: "src/main.rs\n".into(),
         nudge: String::new(),
         answer_path: "/tmp/answer.txt".into(),
+        orientation: String::new(),
     }
 }
 

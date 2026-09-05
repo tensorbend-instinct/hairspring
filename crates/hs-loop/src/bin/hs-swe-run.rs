@@ -103,6 +103,7 @@ fn main() {
             repo_layout: layout.clone(),
             nudge: std::env::var("HS_SWE_PROMPT_NUDGE").unwrap_or_default(),
             answer_path: answer_path.display().to_string(),
+            orientation: hs_loop::sweprompt::probe_orientation(),
         },
     );
     std::fs::write(run_dir.join("mission_prompt.txt"), &prompt).unwrap();

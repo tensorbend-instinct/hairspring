@@ -102,11 +102,13 @@ fn mission_prompt_opens_with_machine_orientation() {
         repo_layout: "src/main.rs\n".into(),
         nudge: String::new(),
         answer_path: "/tmp/answer.txt".into(),
+        orientation: hs_loop::sweprompt::probe_orientation(),
     };
     let prompt = hs_loop::sweprompt::build_mission_prompt(None, &args);
     assert!(prompt.contains("MACHINE:"), "orientation block present: {}", &prompt[..prompt.len().min(600)]);
     assert!(prompt.contains("Network: ON"), "network state stated: {prompt}");
     assert!(prompt.contains("root"), "identity stated: {prompt}");
     assert!(prompt.contains("Detected tooling:"), "probed tooling line: {prompt}");
+    assert!(prompt.contains("python3"), "python3 detected on this box: {prompt}");
     assert!(!prompt.contains("no network, no host fs"), "stale jail description removed: {prompt}");
 }
