@@ -324,3 +324,68 @@ fn wall_kill_books_partial_from_checkpoint() {
     assert_eq!(result["instance_id"], "conan-io__conan-17102");
     assert_eq!(result["cost_micros"], 12345);
 }
+
+/// Fix 4 (Eric 2026-09-05, ab2 forensics): the volatile header must carry
+/// the budgets every step - "step N of MAX, T-minus Xs, $Y of $Z spent" -
+/// so the model can pace itself. ab2 proved the old bare "ATTEMPT: N" left
+/// the model blind: it read its way into the wall.
+#[test]
+fn step_header_carries_step_wall_and_cost_budgets() {
+    let _g = SEQMODEL_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let dir = tempfile::tempdir().unwrap();
+    let log = tempfile::tempdir().unwrap();
+    let answer = log.path().join("work").join("task-b").join("answer.txt");
+    let script = write(
+        dir.path(),
+        "script.jsonl",
+        &format!(
+            "{{\"tool\":\"bogus.noop\",\"args\":{{}}}}\n{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"TOKEN-b-SECRET\"}}}}",
+            answer.display()
+        ),
+    );
+    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    let config = write(
+        dir.path(),
+        "hairspring.toml",
+        &format!(
+            r#"
+[[tools]]
+name = "answer.write"
+command = ["{FIXTURE}", "answer.write"]
+subjects = ["*"]
+
+[[tools]]
+name = "checker.run"
+command = ["{CHECKER}"]
+subjects = ["*"]
+
+[[models]]
+name = "scripted"
+command = ["{SEQMODEL}"]
+default = true
+"#
+        ),
+    );
+    let kernel = hs_kernel::Kernel::load(&config).unwrap();
+    let mut l = InnerLoop::new(kernel, log.path(), true, 3).unwrap();
+    l.set_wall_secs(3600);
+    l.set_budget_micros(10_000_000);
+    let r = l.run_mission("task-b").unwrap();
+    let reader = hs_log::StreamReader::open(log.path(), r.stream_id).unwrap();
+    let prompts: Vec<String> = reader
+        .events()
+        .unwrap()
+        .iter()
+        .filter(|e| e.kind == hs_core::EventKind::ModelCall)
+        .map(|e| {
+            let b = reader.resolve_payload(e).unwrap();
+            let v: serde_json::Value = serde_json::from_slice(&b).unwrap();
+            v["prompt"].as_str().unwrap_or("").to_string()
+        })
+        .collect();
+    assert_eq!(prompts.len(), 2, "scripted mission ran 2 steps: {r:?}");
+    let p2 = &prompts[1];
+    assert!(p2.contains("step 2 of 3"), "step N of MAX: {}", &p2[..p2.len().min(400)]);
+    assert!(p2.contains("T-minus"), "wall remaining: {}", &p2[..p2.len().min(400)]);
+    assert!(p2.contains("of $10.00 spent"), "cost vs budget: {}", &p2[..p2.len().min(400)]);
+}
