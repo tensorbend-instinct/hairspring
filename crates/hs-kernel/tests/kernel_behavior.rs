@@ -4,6 +4,13 @@ use hs_kernel::*;
 
 const FIXTURE: &str = env!("CARGO_BIN_EXE_hs-fixture-plugin");
 
+/// Kernel spawns inherit this test process's env, and several fixtures read
+/// process-global env (RAIL_LOG_FILE) or shared temp files. Tests in this
+/// file therefore run serialized: parallel env mutation across tests raced
+/// (observed 2026-09-05: interleaved rail-log lines, order assert flake).
+static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+
 fn write_config(dir: &std::path::Path, body: &str) -> std::path::PathBuf {
     let p = dir.join("hairspring.toml");
     std::fs::write(&p, body).unwrap();
@@ -51,6 +58,7 @@ priority = 5
 
 #[test]
 fn config_loads_and_describes_plugins() {
+    let _guard = TEST_LOCK.lock().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let path = write_config(dir.path(), &base_config());
     let k = Kernel::load(&path).unwrap();
@@ -67,6 +75,7 @@ fn config_loads_and_describes_plugins() {
 
 #[test]
 fn describe_mismatch_is_rejected() {
+    let _guard = TEST_LOCK.lock().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let path = write_config(
         dir.path(),
@@ -85,6 +94,7 @@ subjects = ["*"]
 
 #[test]
 fn visibility_gating_filters_by_subject() {
+    let _guard = TEST_LOCK.lock().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let path = write_config(dir.path(), &base_config());
     let k = Kernel::load(&path).unwrap();
@@ -101,6 +111,7 @@ fn visibility_gating_filters_by_subject() {
 
 #[test]
 fn tool_call_executes_and_returns_output() {
+    let _guard = TEST_LOCK.lock().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let path = write_config(dir.path(), &base_config());
     let k = Kernel::load(&path).unwrap();
@@ -113,6 +124,7 @@ fn tool_call_executes_and_returns_output() {
 
 #[test]
 fn model_call_returns_completion_counts_and_cost() {
+    let _guard = TEST_LOCK.lock().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let path = write_config(dir.path(), &base_config());
     let k = Kernel::load(&path).unwrap();
@@ -125,6 +137,7 @@ fn model_call_returns_completion_counts_and_cost() {
 
 #[test]
 fn rails_fire_in_priority_order_with_name_tiebreak() {
+    let _guard = TEST_LOCK.lock().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let rail_log = dir.path().join("rail.log");
     std::env::set_var("RAIL_LOG_FILE", &rail_log);
@@ -148,6 +161,7 @@ fn rails_fire_in_priority_order_with_name_tiebreak() {
 
 #[test]
 fn rail_failure_is_contained_and_logged() {
+    let _guard = TEST_LOCK.lock().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let cfg = base_config()
         + &format!(
@@ -180,6 +194,7 @@ priority = 99
 
 #[test]
 fn crashed_plugin_process_is_restarted() {
+    let _guard = TEST_LOCK.lock().unwrap();
     let _ = std::fs::remove_file(std::env::temp_dir().join("hs-fixture-flaky-once"));
     let dir = tempfile::tempdir().unwrap();
     let path = write_config(
@@ -205,6 +220,7 @@ subjects = ["*"]
 
 #[test]
 fn hot_reload_adds_capability_without_restart() {
+    let _guard = TEST_LOCK.lock().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let path = write_config(
         dir.path(),
@@ -258,6 +274,7 @@ default = true
 
 #[test]
 fn calls_are_recorded_in_the_event_log() {
+    let _guard = TEST_LOCK.lock().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let logdir = tempfile::tempdir().unwrap();
     let path = write_config(dir.path(), &base_config());
