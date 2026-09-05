@@ -13,7 +13,7 @@ fn main() {
         .collect();
     assert!(!script.is_empty(), "empty seqmodel script");
     let mut n = 0usize;
-    serve("seqmodel", "model", &mut move |method, params| match method {
+    serve("scripted", "model", &mut move |method, params| match method {
         "model.call" => {
             let prompt = params["prompt"].as_str().unwrap_or("");
             let completion = script[n.min(script.len() - 1)].clone();

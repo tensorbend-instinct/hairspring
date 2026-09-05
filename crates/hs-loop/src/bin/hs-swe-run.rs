@@ -182,6 +182,16 @@ name = "policy.propose_prompt"
 command = ["{policy}"]
 subjects = ["*"]
 
+[[tools]]
+name = "edit.apply"
+command = ["{editapply}"]
+subjects = ["*"]
+
+[[tools]]
+name = "notes.scratch"
+command = ["{notescratch}"]
+subjects = ["*"]
+
 [[models]]
 name = "{model}"
 command = ["{model_bin}"]
@@ -194,12 +204,19 @@ default = true
             reposearch = bin("hs-plugin-reposearch"),
             repoexec = bin("hs-plugin-repoexec"),
             policy = bin("hs-plugin-policy"),
+            editapply = bin("hs-plugin-editapply"),
+            notescratch = bin("hs-plugin-notescratch"),
             model = model,
             model_bin = bin(&format!("hs-plugin-{model}")),
             mcp_tools = mcp_tools,
         ),
     )
     .unwrap();
+
+    let work_dir = log_root.join("work").join(&inst.instance_id);
+    std::fs::create_dir_all(&work_dir).expect("work dir");
+    // notes.scratch storage: per-mission, inherited by tool processes
+    unsafe { std::env::set_var("HS_SCRATCH_FILE", work_dir.join("notes.md")) };
 
     let kernel = hs_kernel::Kernel::load(&config).expect("kernel load");
     let mut l = hs_loop::InnerLoop::new(kernel, &log_root, feedback, max_steps).expect("loop");

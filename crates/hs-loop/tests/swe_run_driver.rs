@@ -392,7 +392,7 @@ fn driver_mission_uses_d5_tools() {
     let out = Command::new(DRIVER)
         .args([
             "--instance", &dir.path().join("instance.json").display().to_string(),
-            "--model", "seqmodel",
+            "--model", "scripted",
             "--feedback", "on",
             "--budget-micros", "100000",
             "--max-steps", "8",

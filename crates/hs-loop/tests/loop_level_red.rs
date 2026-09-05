@@ -9,7 +9,7 @@ use hs_loop::*;
 const ANSWER: &str = env!("CARGO_BIN_EXE_hs-plugin-answer");
 const CHECKER: &str = env!("CARGO_BIN_EXE_hs-plugin-checker");
 const BENCHMODEL: &str = env!("CARGO_BIN_EXE_hs-plugin-benchmodel");
-const SEQMODEL: &str = env!("CARGO_BIN_EXE_hs-seqmodel");
+const SEQMODEL: &str = env!("CARGO_BIN_EXE_hs-plugin-scripted");
 const FIXTURE: &str = env!("CARGO_BIN_EXE_hs-loopfix");
 
 fn write(dir: &std::path::Path, name: &str, body: &str) -> std::path::PathBuf {
@@ -52,7 +52,7 @@ command = ["{FIXTURE}"]
 subjects = ["*"]
 
 [[models]]
-name = "seqmodel"
+name = "scripted"
 command = ["{SEQMODEL}"]
 default = true
 "#
