@@ -6,7 +6,8 @@ fn main() {
     serve("bigread.read", "tool", &mut |method, params| match method {
         "tool.call" => {
             let page = params["args"]["page"].as_u64().unwrap_or(0);
-            serde_json::json!({"content": format!("PAGE-{} {}", page, "x".repeat(30_000))})
+            let size = params["args"]["size"].as_u64().unwrap_or(30_000) as usize;
+            serde_json::json!({"content": format!("PAGE-{} {}", page, "x".repeat(size))})
         }
         _ => serde_json::json!({"$error": "unknown method"}),
     });
