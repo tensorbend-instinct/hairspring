@@ -61,6 +61,11 @@ pub struct MissionResult {
     /// True when the run was killed for exceeding its USD budget (gate 8:
     /// budget-killed missions score as failures, never as passes).
     pub budget_killed: bool,
+    /// Some(msg) when the mission aborted on a harness failure (phase 1:
+    /// a plugin declared PluginDead by the supervisor). The message names
+    /// the plugin and the real cause. Harness-aborted missions book their
+    /// steps-so-far; they are infrastructure failures, not model failures.
+    pub harness_error: Option<String>,
 }
 
 pub struct InnerLoop {
@@ -72,6 +77,7 @@ pub struct InnerLoop {
     max_steps: u32,
     cost_total_micros: u64,
     budget_micros: Option<u64>,
+    progress_path: Option<PathBuf>,
 }
 
 impl InnerLoop {
@@ -92,6 +98,7 @@ impl InnerLoop {
             max_steps,
             cost_total_micros: 0,
             budget_micros: None,
+            progress_path: None,
         })
     }
 
@@ -114,6 +121,7 @@ impl InnerLoop {
             max_steps,
             cost_total_micros: 0,
             budget_micros: None,
+            progress_path: None,
         })
     }
 
@@ -131,6 +139,58 @@ impl InnerLoop {
     /// cost would exceed the cap, the mission is killed and scored as failed.
     pub fn set_budget_micros(&mut self, micros: u64) {
         self.budget_micros = Some(micros);
+    }
+
+    /// Wall-kill resilience (phase 1, design D6): when set, the loop writes
+    /// a JSON checkpoint of {steps, model_calls, cost_micros} after EVERY
+    /// step. An external wall-clock kill (timeout, OOM, SIGKILL) then books
+    /// from the checkpoint via `book_wall_kill` instead of writing a
+    /// 0-step result for a run that did real work.
+    pub fn set_progress_path(&mut self, path: &Path) {
+        self.progress_path = Some(path.to_path_buf());
+    }
+
+    fn checkpoint(&self, steps: u32, model_calls: u32) {
+        if let Some(p) = &self.progress_path {
+            let body = serde_json::json!({
+                "steps": steps,
+                "model_calls": model_calls,
+                "cost_micros": self.cost_total_micros,
+            });
+            let _ = std::fs::write(p, serde_json::to_string(&body).unwrap());
+        }
+    }
+
+    /// Abort the mission on a supervisor-declared dead plugin: book the
+    /// harness_error as a Feedback event (trace-visible) and return the
+    /// partial result. This replaces the old behavior of feeding the error
+    /// back and burning the remaining steps against a dead plugin (run
+    /// 17117 lost ~24 calls that way).
+    fn abort_harness(
+        &mut self,
+        mission: &str,
+        answer_path: &Path,
+        steps: u32,
+        model_calls: u32,
+        msg: String,
+    ) -> Result<MissionResult, LoopError> {
+        self.writer.append(
+            EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                serde_json::to_vec(&serde_json::json!({
+                    "harness_error": msg, "mission": mission, "steps": steps,
+                }))
+                .unwrap(),
+            )),
+        )?;
+        Ok(MissionResult {
+            passed: false,
+            steps,
+            model_calls,
+            stream_id: self.stream_id,
+            answer_path: answer_path.to_path_buf(),
+            budget_killed: false,
+            harness_error: Some(msg),
+        })
     }
 
     /// Run one mission to a checker verdict, the step cap, or the budget cap.
@@ -308,7 +368,20 @@ impl InnerLoop {
             ctx.push_str(&volatile);
 
             // the only model round trip in the step
-            let out = self.kernel.call_model("operator", None, &ctx)?;
+            let out = match self.kernel.call_model("operator", None, &ctx) {
+                Ok(o) => o,
+                Err(e @ KernelError::PluginDead { .. }) => {
+                    self.checkpoint(steps, model_calls);
+                    return self.abort_harness(
+                        mission,
+                        &answer_path,
+                        steps,
+                        model_calls,
+                        e.to_string(),
+                    );
+                }
+                Err(e) => return Err(e.into()),
+            };
             model_calls += 1;
             self.cost_total_micros += out.cost_usd_micros.max(0) as u64;
             if let Some(cap) = self.budget_micros {
@@ -322,6 +395,7 @@ impl InnerLoop {
                             .unwrap(),
                         )),
                     )?;
+                    self.checkpoint(steps, model_calls);
                     return Ok(MissionResult {
                         passed: false,
                         steps,
@@ -329,6 +403,7 @@ impl InnerLoop {
                         stream_id: self.stream_id,
                         answer_path,
                         budget_killed: true,
+                        harness_error: None,
                     });
                 }
             }
@@ -388,6 +463,16 @@ impl InnerLoop {
                         // stream's own ToolCall events), not a side channel
                         None
                     }
+                    Err(e @ KernelError::PluginDead { .. }) => {
+                        self.checkpoint(steps, model_calls);
+                        return self.abort_harness(
+                            mission,
+                            &answer_path,
+                            steps,
+                            model_calls,
+                            e.to_string(),
+                        );
+                    }
                     Err(e) => {
                         let msg = format!("tool {tool} failed: {e}");
                         self.writer.append(
@@ -436,6 +521,7 @@ impl InnerLoop {
                             .unwrap(),
                     )),
                 )?;
+                self.checkpoint(steps, model_calls);
                 return Ok(MissionResult {
                     passed: true,
                     steps,
@@ -443,9 +529,11 @@ impl InnerLoop {
                     stream_id: self.stream_id,
                     answer_path,
                     budget_killed: false,
+                    harness_error: None,
                 });
             }
             pending_feedback.push(error);
+            self.checkpoint(steps, model_calls);
         }
         Ok(MissionResult {
             passed: false,
@@ -454,6 +542,35 @@ impl InnerLoop {
             stream_id: self.stream_id,
             answer_path,
             budget_killed: false,
+            harness_error: None,
         })
     }
+}
+
+
+/// Book a wall-clock kill from a loop checkpoint (phase 1, T5): the run
+/// did real work up to `steps`, so the result row must carry it - the old
+/// runner wrote steps:0 on timeout, which both hid progress and poisoned
+/// per-step cost accounting.
+pub fn book_wall_kill(
+    progress_path: &Path,
+    instance_id: &str,
+    model: &str,
+    feedback: bool,
+) -> serde_json::Value {
+    let v: serde_json::Value = std::fs::read_to_string(progress_path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_else(|| serde_json::json!({"steps": 0, "model_calls": 0, "cost_micros": 0}));
+    serde_json::json!({
+        "instance_id": instance_id,
+        "model": model,
+        "feedback": feedback,
+        "passed": false,
+        "steps": v["steps"].as_u64().unwrap_or(0),
+        "model_calls": v["model_calls"].as_u64().unwrap_or(0),
+        "cost_micros": v["cost_micros"].as_u64().unwrap_or(0),
+        "budget_killed": false,
+        "outcome": "wall_killed",
+    })
 }

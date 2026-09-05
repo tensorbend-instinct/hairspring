@@ -39,15 +39,20 @@ fn plugin_main(cfg_path: &str, server_name: &str, tool: &str, full_name: &str) {
     let cfg_path = cfg_path.to_string();
     let server_name = server_name.to_string();
     let tool = tool.to_string();
+    // One runtime for the whole plugin lifetime, built HERE (plugin_main is
+    // called before any runtime context exists). Building a fresh runtime
+    // per call inside #[tokio::main] panicked with "cannot start a runtime
+    // from within a runtime" - the MCP tool surface was silently dead until
+    // the supervisor surfaced the EOF (found 2026-09-05, phase 1).
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
     serve(leaked, "tool", &mut move |method, params| {
         if method != "tool.call" {
             return serde_json::json!({"$error": "unknown method"});
         }
         let args = params["args"].clone();
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap();
         match rt.block_on(mcp_call(&cfg_path, &server_name, &tool, args)) {
             Ok(v) => v,
             Err(e) => serde_json::json!({"$error": e}),
@@ -87,8 +92,13 @@ async fn mcp_call(
     }))
 }
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() {
+fn main() {
+    // Sync main: the CLI paths build their own runtime below, and
+    // plugin_main builds its own - no shared runtime context, no nesting.
+    real_main();
+}
+
+fn real_main() {
     let argv: Vec<String> = std::env::args().collect();
     let cfg_path = arg(&argv, "--config").unwrap_or_else(|| fail("--config required".into()));
     let server_name = arg(&argv, "--server").unwrap_or_else(|| fail("--server required".into()));
@@ -120,6 +130,14 @@ async fn main() {
         }
     }
 
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap_or_else(|e| fail(format!("runtime: {e}")));
+    rt.block_on(cli_main(argv, cfg));
+}
+
+async fn cli_main(argv: Vec<String>, cfg: McpServerConfig) {
     let mut cmd = tokio::process::Command::new(&cfg.command[0]);
     cmd.args(&cfg.command[1..]);
     let service = ()

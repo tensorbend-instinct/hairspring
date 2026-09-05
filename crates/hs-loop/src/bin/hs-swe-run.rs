@@ -204,6 +204,7 @@ default = true
     let kernel = hs_kernel::Kernel::load(&config).expect("kernel load");
     let mut l = hs_loop::InnerLoop::new(kernel, &log_root, feedback, max_steps).expect("loop");
     l.set_budget_micros(budget_micros);
+    l.set_progress_path(&run_dir.join("progress.json"));
     let started = std::time::Instant::now();
     let r = l
         .run_mission_full(&inst.instance_id, &prompt)
@@ -226,6 +227,7 @@ default = true
         "model_calls": r.model_calls,
         "cost_micros": cost,
         "budget_killed": r.budget_killed,
+        "harness_error": r.harness_error,
         "wall_secs": wall_secs,
     });
     std::fs::write(

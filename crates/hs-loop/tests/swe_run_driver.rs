@@ -343,7 +343,9 @@ fn driver_mission_calls_mcp_tool() {
     let events = reader.events().unwrap();
     let mcp_call = events.iter().find_map(|e| {
         let p = String::from_utf8_lossy(&reader.resolve_payload(e).unwrap()).to_string();
-        (p.contains("\"plugin\":\"mcp.fixture.echo\"")).then_some(p)
-    }).expect("an mcp.fixture.echo ToolCall event must be on the stream");
+        // must be the SUCCESS event: an error payload would also contain the
+        // args text, which previously let a dead MCP path pass this test
+        (p.contains("\"plugin\":\"mcp.fixture.echo\"") && p.contains("\"result\"") && !p.contains("\"error\"")).then_some(p)
+    }).expect("a successful mcp.fixture.echo ToolCall event must be on the stream");
     assert!(mcp_call.contains("hello-via-mcp"), "echo payload on stream: {mcp_call}");
 }

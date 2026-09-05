@@ -159,8 +159,15 @@ def run_task(wid, m):
                f"--run-dir {shlex.quote(run_dir)}", timeout=3700, env=env)
         open(os.path.join(run_dir, "stdout.log"), "w").write(r.stdout + "\n--- STDERR ---\n" + r.stderr)
         if r.returncode == 124 and not os.path.exists(rj):
-            res = {"instance_id": iid, "passed": False, "steps": 0, "model_calls": 0,
-                   "cost_micros": 0, "wall_secs": 1800, "error": "wall_timeout"}
+            prog = {}
+            try:
+                prog = json.load(open(os.path.join(run_dir, "progress.json")))
+            except Exception:
+                pass
+            res = {"instance_id": iid, "passed": False,
+                   "steps": prog.get("steps", 0), "model_calls": prog.get("model_calls", 0),
+                   "cost_micros": prog.get("cost_micros", 0), "outcome": "wall_killed",
+                   "wall_secs": 1800, "error": "wall_timeout"}
             note = "wall_timeout"
         elif os.path.exists(rj):
             res = json.load(open(rj))
