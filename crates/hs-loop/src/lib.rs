@@ -531,6 +531,29 @@ impl InnerLoop {
                     )?;
                     Some(msg)
                 }
+                // Hard rule (Eric, 2026-09-05): an untested answer.write is
+                // REJECTED with feedback whenever steps remain - submitting
+                // without running the mission's own checks must never spend a
+                // checker cycle. At the last step a hail-mary goes through:
+                // an unverified answer beats no answer.
+                Some((tool, args)) if tool == "answer.write"
+                    && !self.ledger.model_verified()
+                    && step < self.max_steps =>
+                {
+                    let msg = format!(
+                        "answer.write REJECTED: no verification run yet. Run the mission's own checks first (repo.exec with your candidate diff, or the mission's stated test command) - a submission with zero test evidence is not a submission. Steps remaining: {}",
+                        self.max_steps - step
+                    );
+                    self.writer.append(
+                        EventBuilder::new(EventKind::ToolCall).payload(Payload::Inline(
+                            serde_json::to_vec(&serde_json::json!({
+                                "plugin": tool, "args": args, "error": msg,
+                            }))
+                            .unwrap(),
+                        )),
+                    )?;
+                    Some(msg)
+                }
                 Some((tool, args)) => match self.kernel.call_tool("operator", &tool, args.clone()) {
                     Ok(tool_out) => {
                         let ev = self.writer.append(

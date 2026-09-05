@@ -11,6 +11,7 @@ const CHECKER: &str = env!("CARGO_BIN_EXE_hs-plugin-checker");
 const BENCHMODEL: &str = env!("CARGO_BIN_EXE_hs-plugin-benchmodel");
 const SEQMODEL: &str = env!("CARGO_BIN_EXE_hs-plugin-scripted");
 const FIXTURE: &str = env!("CARGO_BIN_EXE_hs-loopfix");
+const REPOEXEC: &str = env!("CARGO_BIN_EXE_hs-plugin-repoexec");
 
 static SEQMODEL_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
@@ -470,4 +471,133 @@ default = true
         "ledger flags missing verification once work exists: {}",
         &prompts[1][..prompts[1].len().min(900)]
     );
+}
+
+/// Hard-rule item (Eric, 2026-09-05): answer.write is REJECTED with feedback
+/// when the model has never run a verification and steps remain - an
+/// untested submission must never spend a checker cycle. At the LAST step a
+/// hail-mary submission is allowed (better than no answer).
+#[test]
+fn answer_write_rejected_until_the_model_has_verified() {
+    let _g = SEQMODEL_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let dir = tempfile::tempdir().unwrap();
+    let log = tempfile::tempdir().unwrap();
+    // real git workspace for repo.exec's scratch worktree
+    let ws = dir.path().join("ws");
+    std::fs::create_dir_all(&ws).unwrap();
+    std::fs::write(ws.join("code.txt"), "broken\n").unwrap();
+    let cmds: [&[&str]; 3] = [&["init", "-q"], &["add", "."], &["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"]];
+    for args in cmds {
+        let st = std::process::Command::new("git").args(args).current_dir(&ws).status().unwrap();
+        assert!(st.success());
+    }
+    std::env::set_var("HS_SWE_WORKSPACE", &ws);
+    let answer = log.path().join("work").join("task-21").join("answer.txt");
+    let diff = "```diff\n--- a/code.txt\n+++ b/code.txt\n@@ -1 +1 @@\n-broken\n+fixed\n```";
+    let script = write(
+        dir.path(),
+        "script.jsonl",
+        &format!(
+            "{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"TOKEN-21-SECRET\"}}}}\n{{\"tool\":\"repo.exec\",\"args\":{{\"command\":\"cat code.txt\",\"diff\":\"{}\"}}}}\n{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"TOKEN-21-SECRET\"}}}}",
+            answer.display(),
+            diff.replace('\n', "\\n"),
+            answer.display()
+        ),
+    );
+    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    let config = write(
+        dir.path(),
+        "hairspring.toml",
+        &format!(
+            r#"
+[[tools]]
+name = "answer.write"
+command = ["{ANSWER}"]
+subjects = ["*"]
+
+[[tools]]
+name = "checker.run"
+command = ["{CHECKER}"]
+subjects = ["*"]
+
+[[tools]]
+name = "repo.exec"
+command = ["{REPOEXEC}"]
+subjects = ["*"]
+
+[[models]]
+name = "scripted"
+command = ["{SEQMODEL}"]
+default = true
+"#,
+        ),
+    );
+    let kernel = hs_kernel::Kernel::load(&config).unwrap();
+    let mut l = InnerLoop::new(kernel, log.path(), true, 5).unwrap();
+    let r = l.run_mission("task-21").unwrap();
+    assert!(r.passed, "mission passes once the model verifies and resubmits: {r:?}");
+    assert_eq!(r.steps, 3, "reject at step 1, verify at 2, submit at 3: {r:?}");
+    let reader = hs_log::StreamReader::open(log.path(), r.stream_id).unwrap();
+    let events = reader.events().unwrap();
+    let rejected = events.iter().any(|e| {
+        if e.kind != hs_core::EventKind::ToolCall { return false; }
+        let p = String::from_utf8_lossy(&reader.resolve_payload(e).unwrap()).to_string();
+        p.contains("answer.write") && p.contains("REJECTED")
+    });
+    assert!(rejected, "the rejection is booked on the audit stream");
+    // the feedback reaches the very next prompt
+    let prompts: Vec<String> = events.iter()
+        .filter(|e| e.kind == hs_core::EventKind::ModelCall)
+        .map(|e| {
+            let b = reader.resolve_payload(e).unwrap();
+            let v: serde_json::Value = serde_json::from_slice(&b).unwrap();
+            v["prompt"].as_str().unwrap_or("").to_string()
+        })
+        .collect();
+    assert!(prompts.len() >= 2 && prompts[1].contains("REJECTED"),
+        "rejection feedback in the step-2 prompt: {}", prompts.get(1).map(|p| &p[..p.len().min(500)]).unwrap_or(""));
+    std::env::remove_var("HS_SWE_WORKSPACE");
+}
+
+#[test]
+fn answer_write_allowed_untested_on_the_last_step() {
+    let _g = SEQMODEL_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let dir = tempfile::tempdir().unwrap();
+    let log = tempfile::tempdir().unwrap();
+    let answer = log.path().join("work").join("task-22").join("answer.txt");
+    let script = write(
+        dir.path(),
+        "script.jsonl",
+        &format!(
+            "{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"TOKEN-22-SECRET\"}}}}",
+            answer.display()
+        ),
+    );
+    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    let config = write(
+        dir.path(),
+        "hairspring.toml",
+        &format!(
+            r#"
+[[tools]]
+name = "answer.write"
+command = ["{ANSWER}"]
+subjects = ["*"]
+
+[[tools]]
+name = "checker.run"
+command = ["{CHECKER}"]
+subjects = ["*"]
+
+[[models]]
+name = "scripted"
+command = ["{SEQMODEL}"]
+default = true
+"#,
+        ),
+    );
+    let kernel = hs_kernel::Kernel::load(&config).unwrap();
+    let mut l = InnerLoop::new(kernel, log.path(), true, 1).unwrap();
+    let r = l.run_mission("task-22").unwrap();
+    assert!(r.passed, "a one-step mission's only submission must go through: {r:?}");
 }
