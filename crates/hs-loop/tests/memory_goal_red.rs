@@ -5,7 +5,11 @@
 //!    into mission B's context with its source_seqs intact.
 //! T7 goal_evaluator_stops_green: a mission stops when acceptance is
 //!    verifiably green (patch applies + F2P passes in the sandbox); it
-//!    REFUSES to stop on red, even when the checker plugin says pass.
+//!    REFUSES to stop when BOTH the checker and the goal evaluator are red.
+//!    (Revised post-A7, FIXLIST 2026-09-05 item 1: a green checker.run
+//!    verdict now ENDS the mission even against a red goal evaluator - the
+//!    old lie-checker refusal was retired by user directive; the conflict
+//!    path is covered by tests/stop_on_pass_red.rs.)
 
 use hs_core::{EventKind, Payload};
 use hs_loop::*;
@@ -139,20 +143,22 @@ fn t7_goal_evaluator_stops_green_refuses_red() {
     let fix = "```diff\n--- a/code.txt\n+++ b/code.txt\n@@ -1 +1 @@\n-broken\n+fixed\n```";
     let wrong = "```diff\n--- a/code.txt\n+++ b/code.txt\n@@ -1 +1 @@\n-broken\n+still-broken\n```";
 
-    // RED half: the checker plugin LIES (always pass); the acceptance
-    // predicate (patch applies + F2P green in the sandbox) is red, so the
-    // mission must NOT stop green.
+    // RED half: BOTH gates red - the truthful scripted checker fails (the
+    // answer is not the expected token) AND the acceptance predicate is red
+    // (the wrong patch leaves check.sh failing), so the mission must NOT
+    // stop green. (The old lie-checker half retired post-A7: checker green
+    // now overrides goal red - see stop_on_pass_red.rs.)
     let log_r = tempfile::tempdir().unwrap();
     let answer_r = log_r.path().join("work").join("task-0").join("answer.txt");
     let script = write_script(dir.path(), &[serde_json::json!(
         {"tool":"answer.write","args":{"path":answer_r.display().to_string(),"content":wrong}})]);
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let dir_r = tempfile::tempdir().unwrap();
-    let mut lr = rig(dir_r.path(), log_r.path(), LIECHECKER, 3);
+    let mut lr = rig(dir_r.path(), log_r.path(), CHECKER, 3);
     lr.set_goal_evaluator(&ws, vec!["sh check.sh".to_string()]);
     let stream_r = lr.stream_id();
     let rr = lr.run_mission("task-0").unwrap();
-    assert!(!rr.passed, "refuses to stop on red even when the checker lies: {rr:?}");
+    assert!(!rr.passed, "refuses to stop when both gates are red: {rr:?}");
     assert_eq!(rr.steps, 3, "burns to the cap still working: {rr:?}");
     let reader = hs_log::StreamReader::open(log_r.path(), stream_r).unwrap();
     let goal_note = reader.events().unwrap().iter()

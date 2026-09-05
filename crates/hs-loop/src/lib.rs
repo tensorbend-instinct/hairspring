@@ -761,8 +761,15 @@ impl InnerLoop {
             )?;
             let passed = verdict.output["passed"].as_bool().unwrap_or(false);
             let error = verdict.output["error"].as_str().unwrap_or("").to_string();
-            // D6: when a goal evaluator is set, IT owns the stop decision -
-            // a checker verdict (or a lying checker) cannot stop a red mission
+            // D6 (revised post-A7, FIXLIST 2026-09-05 item 1): a green
+            // checker.run verdict ENDS the mission - the adversarial
+            // verifier veto below still runs after it. A red goal evaluator
+            // cannot hold a checker-passed mission to the budget/wall
+            // guards: A7's evaluator re-ran f2p through the exec sandbox
+            // (no pytest), went red environmentally, and vetoed the stop
+            // for 22 steps / $1.46 after checker_passed:true. A goal-red +
+            // checker-green conflict is recorded, never silently resolved.
+            // Checker red + goal green still stops (goal owns that case).
             let stop_green = match &self.goal {
                 Some(g) => {
                     let green = goal::verify(g, &answer_path);
@@ -775,7 +782,18 @@ impl InnerLoop {
                             .unwrap(),
                         )),
                     )?;
-                    green
+                    if passed && !green {
+                        self.writer.append(
+                            EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                                serde_json::to_vec(&serde_json::json!({
+                                    "conflict": "checker green overrides goal red",
+                                    "detail": "goal evaluator vetoed a checker-passed mission - the checker verdict stands (post-A7 rule)",
+                                }))
+                                .unwrap(),
+                            )),
+                        )?;
+                    }
+                    green || passed
                 }
                 None => passed,
             };
