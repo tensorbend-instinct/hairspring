@@ -143,20 +143,28 @@ fn prep_diff(ws: &Path, patch: &str) -> Result<Option<PathBuf>, Value> {
 }
 
 fn cleanup(ws: &Path, scratch: &Path) {
-    let _ = Command::new("git")
-        .args(["worktree", "remove", "--force"])
-        .arg(scratch)
-        .current_dir(ws)
-        .output();
-    let _ = Command::new("git")
-        .args(["worktree", "prune"])
-        .current_dir(ws)
-        .output();
+    cleanup_scratch(ws, scratch, true)
+}
+
+fn cleanup_scratch(ws: &Path, scratch: &Path, worktree: bool) {
+    if worktree {
+        let _ = Command::new("git")
+            .args(["worktree", "remove", "--force"])
+            .arg(scratch)
+            .current_dir(ws)
+            .output();
+        let _ = Command::new("git")
+            .args(["worktree", "prune"])
+            .current_dir(ws)
+            .output();
+    } else {
+        let _ = std::fs::remove_dir_all(scratch);
+    }
 }
 
 /// Open-shell exec in the sandbox. `command` is arbitrary by design.
 pub fn run_sandboxed(ws: &Path, answer_path: &Path, command: &str, timeout_secs: u64) -> Value {
-    run_with_prep(prep(ws, answer_path), ws, command, timeout_secs)
+    run_with_prep(prep(ws, answer_path), ws, command, timeout_secs, true)
 }
 
 /// Open-shell exec against an inline diff (T4: test-before-first-submit).
@@ -164,10 +172,44 @@ pub fn run_sandboxed_with_diff(ws: &Path, diff: &str, command: &str, timeout_sec
     let Some(patch) = extract_diff(diff) else {
         return json!({"applied": false, "note": "no unified diff in args.diff - pass one unified diff, raw or in a ```diff fence"});
     };
-    run_with_prep(prep_diff(ws, &patch), ws, command, timeout_secs)
+    run_with_prep(prep_diff(ws, &patch), ws, command, timeout_secs, true)
 }
 
-fn run_with_prep(prepped: Result<Option<PathBuf>, Value>, ws: &Path, command: &str, timeout_secs: u64) -> Value {
+/// Scratch-shell mode (Eric 2026-09-05, post-verify17092): the model uses
+/// repo.exec as a general shell (git log, grep, pwd) with NO candidate diff.
+/// Contract: run against a pristine self-contained clone of the workspace
+/// (a worktree's .git pointer would dangle inside the bwrap mount ns, so
+/// this is a hardlinked local clone, not a worktree - git works inside the
+/// sandbox). applied=false + scratch=true: this is exploration, never
+/// candidate verification - only the diff paths count toward the answer
+/// gate.
+pub fn run_sandboxed_no_patch(ws: &Path, command: &str, timeout_secs: u64) -> Value {
+    run_with_prep(scratch_clone(ws).map(Some), ws, command, timeout_secs, false)
+}
+
+/// Self-contained scratch copy for scratch-shell mode: `git clone --local`
+/// hardlinks objects, so even a large repo copies fast, and the result has
+/// a real .git directory that survives the sandbox bind at /ws.
+fn scratch_clone(ws: &Path) -> Result<PathBuf, Value> {
+    let uniq = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let scratch = std::env::temp_dir().join(format!("repsh-{}-{}", std::process::id(), uniq));
+    let _ = std::fs::remove_dir_all(&scratch);
+    match Command::new("git")
+        .args(["clone", "--quiet", "--local", "--no-hardlinks"])
+        .arg(ws)
+        .arg(&scratch)
+        .output()
+    {
+        Ok(o) if o.status.success() => Ok(scratch),
+        Ok(o) => Err(json!({"$error": format!("scratch clone: {}", String::from_utf8_lossy(&o.stderr))})),
+        Err(e) => Err(json!({"$error": format!("scratch clone: {e}")})),
+    }
+}
+
+fn run_with_prep(prepped: Result<Option<PathBuf>, Value>, ws: &Path, command: &str, timeout_secs: u64, patch_mode: bool) -> Value {
     let scratch = match prepped {
         Ok(Some(s)) => s,
         Ok(None) => unreachable!(),
@@ -208,12 +250,12 @@ fn run_with_prep(prepped: Result<Option<PathBuf>, Value>, ws: &Path, command: &s
     };
     let stdout = tail(&std::fs::read(&out_f).unwrap_or_default());
     let stderr = tail(&std::fs::read(&err_f).unwrap_or_default());
-    cleanup(ws, &scratch);
+    cleanup_scratch(ws, &scratch, patch_mode);
     if timed_out {
-        return json!({"applied": true, "timed_out": true, "timeout_secs": timeout_secs,
+        return json!({"applied": patch_mode, "scratch": !patch_mode, "timed_out": true, "timeout_secs": timeout_secs,
                       "stdout": stdout, "stderr": stderr});
     }
-    json!({"applied": true, "timed_out": false,
+    json!({"applied": patch_mode, "scratch": !patch_mode, "timed_out": false,
            "exit_code": status.and_then(|s| s.code()).unwrap_or(-1),
            "stdout": stdout, "stderr": stderr})
 }
