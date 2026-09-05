@@ -389,3 +389,85 @@ default = true
     assert!(p2.contains("T-minus"), "wall remaining: {}", &p2[..p2.len().min(400)]);
     assert!(p2.contains("of $10.00 spent"), "cost vs budget: {}", &p2[..p2.len().min(400)]);
 }
+
+/// Fix 5 (ab2: three wall-killed missions ran 19-25 steps with ZERO
+/// model-initiated verification - the model read its way into the wall).
+/// At 50% and 75% of the step budget, when the model has never run a test
+/// or check itself, the volatile header must carry a CONVERGENCE nudge and
+/// the resident LEDGER must flag "NO TEST RUN YET". The harness's own
+/// checker.run verdicts do NOT count: they are ground truth, not the model
+/// verifying its work.
+#[test]
+fn convergence_nudge_at_half_and_three_quarter_steps_when_no_test_ran() {
+    let _g = SEQMODEL_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let dir = tempfile::tempdir().unwrap();
+    let log = tempfile::tempdir().unwrap();
+    let answer = log.path().join("work").join("task-20").join("answer.txt");
+    // step 1 writes a WRONG answer (checker fails -> mission continues);
+    // steps 2-4 fumble with an unknown tool. The model never runs a test.
+    let script = write(
+        dir.path(),
+        "script.jsonl",
+        &format!(
+            "{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"WRONG\"}}}}\n{{\"tool\":\"bogus.noop\",\"args\":{{}}}}\n{{\"tool\":\"bogus.noop\",\"args\":{{}}}}\n{{\"tool\":\"bogus.noop\",\"args\":{{}}}}",
+            answer.display()
+        ),
+    );
+    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    let config = write(
+        dir.path(),
+        "hairspring.toml",
+        &format!(
+            r#"
+[[tools]]
+name = "answer.write"
+command = ["{ANSWER}"]
+subjects = ["*"]
+
+[[tools]]
+name = "checker.run"
+command = ["{CHECKER}"]
+subjects = ["*"]
+
+[[models]]
+name = "scripted"
+command = ["{SEQMODEL}"]
+default = true
+"#
+        ),
+    );
+    let kernel = hs_kernel::Kernel::load(&config).unwrap();
+    let mut l = InnerLoop::new(kernel, log.path(), true, 4).unwrap();
+    let r = l.run_mission("task-20").unwrap();
+    assert!(!r.passed, "a wrong answer the model never re-verifies cannot pass: {r:?}");
+    let reader = hs_log::StreamReader::open(log.path(), r.stream_id).unwrap();
+    let prompts: Vec<String> = reader
+        .events()
+        .unwrap()
+        .iter()
+        .filter(|e| e.kind == hs_core::EventKind::ModelCall)
+        .map(|e| {
+            let b = reader.resolve_payload(e).unwrap();
+            let v: serde_json::Value = serde_json::from_slice(&b).unwrap();
+            v["prompt"].as_str().unwrap_or("").to_string()
+        })
+        .collect();
+    assert_eq!(prompts.len(), 4, "mission ran to the 4-step cap: {r:?}");
+    assert!(
+        !prompts[0].contains("CONVERGENCE:"),
+        "no nudge before the halfway mark: {}",
+        &prompts[0][..prompts[0].len().min(400)]
+    );
+    for (i, label) in [(1usize, "halfway (step 2 of 4)"), (2usize, "three-quarter (step 3 of 4)")] {
+        assert!(
+            prompts[i].contains("CONVERGENCE:"),
+            "convergence nudge at {label}: {}",
+            &prompts[i][..prompts[i].len().min(500)]
+        );
+    }
+    assert!(
+        prompts[1].contains("NO TEST RUN YET"),
+        "ledger flags missing verification once work exists: {}",
+        &prompts[1][..prompts[1].len().min(900)]
+    );
+}
