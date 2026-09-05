@@ -419,3 +419,67 @@ fn build_body_messages_shape() {
     assert_eq!(body["tool_choice"], "required");
     assert_eq!(body["tools"][0]["function"]["name"], "repo__search", "wire-mapped names");
 }
+
+/// cached_tokens pass-through (cache-win observability): the provider's
+/// prompt-cache hit count must reach the operator ModelCall payload, so the
+/// A-vs-B comparison can quantify the KV-cache win from the logs.
+#[test]
+fn cached_tokens_reach_the_model_call_payload() {
+    let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let dir = tempfile::tempdir().unwrap();
+    let log = tempfile::tempdir().unwrap();
+    let answer = log.path().join("work").join("task-0").join("answer.txt");
+    let script = dir.path().join("script.jsonl");
+    std::fs::write(
+        &script,
+        format!(
+            "{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"TOKEN-0-SECRET\"}}}}",
+            answer.display()
+        ),
+    )
+    .unwrap();
+    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    let config = dir.path().join("hairspring.toml");
+    std::fs::write(
+        &config,
+        format!(
+            r#"
+[[tools]]
+name = "answer.write"
+command = ["{ANSWER}"]
+subjects = ["*"]
+
+[[tools]]
+name = "checker.run"
+command = ["{CHECKER}"]
+subjects = ["*"]
+
+[[models]]
+name = "scripted"
+command = ["{SCRIPTED}"]
+default = true
+"#
+        ),
+    )
+    .unwrap();
+    let kernel = hs_kernel::Kernel::load(&config).unwrap();
+    let mut l = InnerLoop::new(kernel, log.path(), true, 4).unwrap();
+    let r = l.run_mission("task-0").unwrap();
+    assert!(r.passed);
+    let ev = events_of(log.path(), r.stream_id);
+    let op = ev
+        .iter()
+        .filter(|(k, p)| *k == EventKind::ModelCall && p.contains("\"messages\""))
+        .map(|(_, p)| serde_json::from_str::<serde_json::Value>(p).unwrap())
+        .collect::<Vec<_>>();
+    assert!(!op.is_empty(), "operator calls recorded");
+    for v in &op {
+        assert!(
+            v["cached_tokens"].is_u64(),
+            "operator payload carries cached_tokens: {v}"
+        );
+    }
+    // the scripted fixture emits cached_tokens=42: the value is the
+    // plugin's, not a kernel-computed estimate
+    assert_eq!(op[0]["cached_tokens"], 42, "pass-through, not recomputed");
+}

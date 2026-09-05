@@ -36,6 +36,7 @@ fn main() {
             n += 1;
             serde_json::json!({
                 "completion": completion,
+                "cached_tokens": 42,
                 "input_tokens": prompt.len() / 4 + 1,
                 "output_tokens": 9,
                 "cost_usd_micros": 700

@@ -447,6 +447,7 @@ impl InnerLoop {
                                                     "input_tokens": out.input_tokens,
                                                     "output_tokens": out.output_tokens,
                                                     "reasoning_tokens": out.reasoning_tokens,
+                                                    "cached_tokens": out.cached_tokens,
                                                     "cost_usd_micros": out.cost_usd_micros,
                                                 }))
                                                 .unwrap(),
@@ -549,6 +550,7 @@ impl InnerLoop {
                             "model": out.model, "messages": messages, "completion": out.completion,
                             "input_tokens": out.input_tokens, "output_tokens": out.output_tokens,
                             "reasoning_tokens": out.reasoning_tokens,
+                            "cached_tokens": out.cached_tokens,
                             "assembly_ms": assembly_ms,
                         }))
                         .unwrap(),
@@ -809,6 +811,7 @@ impl InnerLoop {
                                         "prompt": vprompt, "tools": verdict_tools,
                                         "completion": vout.completion,
                                         "reasoning_tokens": vout.reasoning_tokens,
+                                        "cached_tokens": vout.cached_tokens,
                                     }))
                                     .unwrap(),
                                 )),

@@ -106,10 +106,13 @@ pub struct ToolCallOutcome {
 }
 #[derive(Debug)]
 pub struct ModelOutcome {
+    /// Provider-reported prompt-cache hits (0 when the provider/fixture
+    /// does not report any); observability for the KV-cache design.
     pub completion: String,
     pub input_tokens: u64,
     pub output_tokens: u64,
     pub reasoning_tokens: u64,
+    pub cached_tokens: u64,
     pub cost_usd_micros: i64,
     pub latency_ms: u32,
     pub model: String,
@@ -541,6 +544,7 @@ impl Kernel {
             input_tokens: r["input_tokens"].as_u64().unwrap_or(0),
             output_tokens: r["output_tokens"].as_u64().unwrap_or(0),
             reasoning_tokens: r["reasoning_tokens"].as_u64().unwrap_or(0),
+            cached_tokens: r["cached_tokens"].as_u64().unwrap_or(0),
             cost_usd_micros: r["cost_usd_micros"].as_i64().unwrap_or(0),
             latency_ms,
             model: name.clone(),
@@ -551,6 +555,7 @@ impl Kernel {
                 "model": name, "prompt": prompt, "completion": out.completion,
                 "input_tokens": out.input_tokens, "output_tokens": out.output_tokens,
                 "reasoning_tokens": out.reasoning_tokens,
+                "cached_tokens": out.cached_tokens,
             }),
             latency_ms,
             out.cost_usd_micros,
@@ -621,6 +626,7 @@ impl Kernel {
             input_tokens: r["input_tokens"].as_u64().unwrap_or(0),
             output_tokens: r["output_tokens"].as_u64().unwrap_or(0),
             reasoning_tokens: r["reasoning_tokens"].as_u64().unwrap_or(0),
+            cached_tokens: r["cached_tokens"].as_u64().unwrap_or(0),
             cost_usd_micros: r["cost_usd_micros"].as_i64().unwrap_or(0),
             latency_ms,
             model: name.clone(),
@@ -631,6 +637,7 @@ impl Kernel {
                 "model": name, "messages": messages, "completion": out.completion,
                 "input_tokens": out.input_tokens, "output_tokens": out.output_tokens,
                 "reasoning_tokens": out.reasoning_tokens,
+                "cached_tokens": out.cached_tokens,
             }),
             latency_ms,
             out.cost_usd_micros,
