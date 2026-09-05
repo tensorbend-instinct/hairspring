@@ -112,3 +112,27 @@ fn mission_prompt_opens_with_machine_orientation() {
     assert!(prompt.contains("python3"), "python3 detected on this box: {prompt}");
     assert!(!prompt.contains("no network, no host fs"), "stale jail description removed: {prompt}");
 }
+
+/// Verifier-policy item 1 (Eric, 2026-09-05): the mission template carries
+/// Grok Build's three work-policy disciplines - they attack the exact ab2
+/// failure (quiet stalling, unverified claims, offers instead of action).
+#[test]
+fn mission_prompt_carries_work_policy_discipline() {
+    let args = hs_loop::sweprompt::PromptArgs {
+        ws: "/tmp/ws".into(),
+        problem_statement: "bug".into(),
+        fail_to_pass: vec!["pytest t -x".into()],
+        repo_layout: "src/main.rs\n".into(),
+        nudge: String::new(),
+        answer_path: "/tmp/answer.txt".into(),
+        orientation: String::new(),
+    };
+    let prompt = hs_loop::sweprompt::build_mission_prompt(None, &args);
+    assert!(prompt.contains("WORK POLICY:"), "policy block present: {prompt}");
+    assert!(prompt.contains("only when tool output supports the claim"),
+        "claim discipline: {prompt}");
+    assert!(prompt.contains("say so plainly rather than quietly dropping it"),
+        "blocked discipline: {prompt}");
+    assert!(prompt.contains("current step instead of ending with an offer"),
+        "action-now discipline: {prompt}");
+}
