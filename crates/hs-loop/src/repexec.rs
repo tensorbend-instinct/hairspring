@@ -162,13 +162,116 @@ fn cleanup_scratch(ws: &Path, scratch: &Path, worktree: bool) {
     }
 }
 
+
+/// Edit-path guardrail (post-B7, 2026-09-05): repo.exec is build/test ONLY -
+/// every source edit goes through edit.apply. B7's model bypassed the splice
+/// path by hand-writing raw diffs and git-applying them through this shell,
+/// and the checker harvested "corrupt patch at line 172" - the
+/// model-written-diff failure class through the exec backdoor. Returns
+/// Some(reason) when the command invokes `git apply` (the whole class,
+/// --check included) or writes a raw .diff/.patch file (redirection, tee,
+/// cp/mv/install destination). Reads of diff files, `git diff` to stdout,
+/// and every other command stay allowed.
+pub fn edit_path_violation(command: &str) -> Option<String> {
+    let is_diff_target = |t: &str| {
+        let t = t.trim_matches(|c| c == '"' || c == '\'');
+        t.ends_with(".diff") || t.ends_with(".patch")
+    };
+    // Per simple-command segment (split on shell operators) so arguments of
+    // one command are never attributed to another.
+    for segment in command.split(|c| c == '|' || c == ';' || c == '&' || c == '(' || c == ')') {
+        let mut toks: Vec<String> = Vec::new();
+        for raw in segment.split_whitespace() {
+            // split attached redirections: ">f", "2>f", "2>>f", "2>f" style
+            if let Some(pos) = raw.find(['>', '<']) {
+                let (op, target) = raw.split_at(pos + 1);
+                let ok = op.chars().all(|c| c == '>' || c == '<' || c.is_ascii_digit())
+                    && (op.contains('>') || op.contains('<'));
+                if ok && !target.is_empty() {
+                    toks.push(op.to_string());
+                    toks.push(target.to_string());
+                    continue;
+                }
+            }
+            toks.push(raw.to_string());
+        }
+        // git apply: skip global options (-C dir, -c k=v, --git-dir=..., flags)
+        for (i, t) in toks.iter().enumerate() {
+            if t == "git" {
+                let mut j = i + 1;
+                while j < toks.len() {
+                    let g = toks[j].as_str();
+                    if matches!(g, "-C" | "-c" | "--git-dir" | "--work-tree" | "--namespace" | "--exec-path") {
+                        j += 2;
+                    } else if g.starts_with('-') {
+                        j += 1;
+                    } else {
+                        break;
+                    }
+                }
+                if toks.get(j).map(|s| s.as_str()) == Some("apply") {
+                    return Some("git apply invocation".to_string());
+                }
+            }
+        }
+        // redirection writes to .diff/.patch
+        for (i, t) in toks.iter().enumerate() {
+            if t.contains('>')
+                && t.chars().all(|c| c == '>' || c.is_ascii_digit())
+            {
+                if let Some(target) = toks.get(i + 1) {
+                    if is_diff_target(target) {
+                        return Some(format!("raw diff-file write ({t} {target})"));
+                    }
+                }
+            }
+        }
+        // tee writes (all operands are write targets)
+        if let Some(i) = toks.iter().position(|t| t == "tee") {
+            for a in &toks[i + 1..] {
+                if a.starts_with('-') {
+                    continue;
+                }
+                if is_diff_target(a) {
+                    return Some(format!("raw diff-file write (tee {a})"));
+                }
+            }
+        }
+        // cp / mv / install: destination is the last operand
+        if let Some(i) = toks.iter().position(|t| matches!(t.as_str(), "cp" | "mv" | "install")) {
+            if let Some(dst) = toks[i + 1..].iter().filter(|a| !a.starts_with('-')).last() {
+                if is_diff_target(dst) {
+                    return Some(format!("raw diff-file write ({} {dst})", toks[i]));
+                }
+            }
+        }
+    }
+    None
+}
+
+/// The gate result every repo.exec entry point returns on a violation:
+/// nothing executed, nothing applied, steering that names edit.apply.
+fn edit_gate(command: &str, patch_mode: bool) -> Option<Value> {
+    edit_path_violation(command).map(|reason| {
+        json!({"applied": false, "scratch": !patch_mode, "timed_out": false, "exit_code": -1,
+               "stdout": "", "stderr": "",
+               "error": format!("forbidden edit path ({reason}): repo.exec is build/test only. Make ALL edits with edit.apply (search/replace blocks; op='diff' shows the cumulative diff) - git apply and raw .diff/.patch file writes are rejected here.")})
+    })
+}
+
 /// Open-shell exec in the sandbox. `command` is arbitrary by design.
 pub fn run_sandboxed(ws: &Path, answer_path: &Path, command: &str, timeout_secs: u64) -> Value {
+    if let Some(v) = edit_gate(command, true) {
+        return v;
+    }
     run_with_prep(prep(ws, answer_path), ws, command, timeout_secs, true)
 }
 
 /// Open-shell exec against an inline diff (T4: test-before-first-submit).
 pub fn run_sandboxed_with_diff(ws: &Path, diff: &str, command: &str, timeout_secs: u64) -> Value {
+    if let Some(v) = edit_gate(command, true) {
+        return v;
+    }
     let Some(patch) = extract_diff(diff) else {
         return json!({"applied": false, "note": "no unified diff in args.diff - pass one unified diff, raw or in a ```diff fence"});
     };
@@ -184,6 +287,9 @@ pub fn run_sandboxed_with_diff(ws: &Path, diff: &str, command: &str, timeout_sec
 /// candidate verification - only the diff paths count toward the answer
 /// gate.
 pub fn run_sandboxed_no_patch(ws: &Path, command: &str, timeout_secs: u64) -> Value {
+    if let Some(v) = edit_gate(command, false) {
+        return v;
+    }
     run_with_prep(scratch_clone(ws).map(Some), ws, command, timeout_secs, false)
 }
 
