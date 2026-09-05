@@ -7,6 +7,7 @@
 //!   dies-always   tool: appends to state file (arg3) at startup, exits(1) on every tool.call
 //!   dies-unless-flag  tool: exits(1) on tool.call unless flag file (arg3) exists; then replies "revived"
 //!   hang-tool     tool "sleeper": sleeps 60s on tool.call (lease tests)
+//!   usage-error   tool "usageerr": well-formed {"error":...} on every tool.call (arg3: state file); process stays healthy - supervisor must NOT strike
 //!   bogus         describe lies (claims different name than configured)
 //! Protocol: newline-delimited JSON, see hs-kernel::protocol.
 
@@ -15,6 +16,17 @@ use std::io::{BufRead, BufReader, Write};
 fn main() {
     let mode = std::env::args().nth(1).expect("mode arg");
     let name_override = std::env::args().nth(2);
+    if mode == "usage-error" {
+        if let Some(state) = std::env::args().nth(2) {
+            use std::io::Write as _;
+            let mut f = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(state)
+                .unwrap();
+            writeln!(f, "spawn").unwrap();
+        }
+    }
     if mode == "dies-always" {
         if let Some(state) = std::env::args().nth(3) {
             use std::io::Write as _;
@@ -50,6 +62,9 @@ fn main() {
                 "hang-tool" => {
                     serde_json::json!({"id": id, "result": {"name": "sleeper", "kind": "tool", "version": "0.1.0"}})
                 }
+                "usage-error" => {
+                    serde_json::json!({"id": id, "result": {"name": "usageerr", "kind": "tool", "version": "0.1.0"}})
+                }
                 "fake-model" => {
                     serde_json::json!({"id": id, "result": {"name": name_override.clone().unwrap_or("fake-v1".into()), "kind": "model", "version": "0.1.0"}})
                 }
@@ -77,6 +92,19 @@ fn main() {
                     std::process::exit(1);
                 }
                 serde_json::json!({"id": id, "result": {"output": "revived"}})
+            }
+            ("usage-error", "tool.call") => {
+                // a LIVE process reporting an application-level error
+                if let Some(state) = std::env::args().nth(2) {
+                    use std::io::Write as _;
+                    let mut f = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(state)
+                        .unwrap();
+                    writeln!(f, "call").unwrap();
+                }
+                serde_json::json!({"id": id, "error": "usage: pass args.diff (inline unified diff) or args.path (the ANSWER_PATH)"})
             }
             ("hang-tool", "tool.call") => {
                 std::thread::sleep(std::time::Duration::from_secs(60));

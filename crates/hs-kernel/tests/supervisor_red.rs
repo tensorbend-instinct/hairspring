@@ -134,3 +134,53 @@ lease_secs = 1
     let msg = format!("{err:?}");
     assert!(msg.contains("PluginDead"), "want PluginDead after strikes: {msg}");
 }
+
+/// Exploration is never punished (Eric 2026-09-05, ab2/17123): a
+/// well-formed {"error": ...} response from a HEALTHY plugin process is an
+/// application-level answer, not a crash. It must return as PluginApp, cost
+/// zero strikes, and never kill the process - no matter how many times in a
+/// row it happens. Environment probes (pwd, which, echo, installs) hit
+/// exactly this path when a tool rejects the args.
+#[test]
+fn app_errors_never_strike_and_never_kill_the_process() {
+    let dir = tempfile::tempdir().unwrap();
+    let state = dir.path().join("usageerr.log");
+    let path = write_config(
+        dir.path(),
+        &format!(
+            r#"
+[[tools]]
+name = "usageerr"
+command = ["{FIXTURE}", "usage-error", "{}"]
+subjects = ["*"]
+"#,
+            state.display()
+        ),
+    );
+    let k = Kernel::load(&path).unwrap();
+    // 5 in a row: three would strike out a crash-class failure
+    for i in 1..=5 {
+        let err = k
+            .call_tool("anyone", "usageerr", serde_json::json!({}))
+            .expect_err("an app-level error must surface as an error value");
+        let msg = format!("{err:?}");
+        assert!(
+            msg.contains("PluginApp"),
+            "call {i}: want PluginApp (no strike), got: {msg}"
+        );
+        assert!(
+            !msg.contains("PluginDead"),
+            "call {i}: app errors must never strike out: {msg}"
+        );
+    }
+    // the process was never killed: exactly one spawn, five calls served
+    let lines: Vec<String> = std::fs::read_to_string(&state)
+        .unwrap()
+        .lines()
+        .map(|l| l.to_string())
+        .collect();
+    let spawns = lines.iter().filter(|l| *l == "spawn").count();
+    let calls = lines.iter().filter(|l| *l == "call").count();
+    assert_eq!(spawns, 1, "app errors must never kill the process; spawns: {lines:?}");
+    assert_eq!(calls, 5, "every call reached the live process: {lines:?}");
+}
