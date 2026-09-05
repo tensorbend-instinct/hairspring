@@ -29,6 +29,10 @@ TOOLS (one tool call per reply, exactly one JSON object, no prose):\n\
 
 4. {{\"tool\":\"policy.propose_prompt\",\"args\":{{\"name\":\"swe-mission\",\"text\":\"<your improved prompt template>\"}}}} - propose a better operating prompt for FUTURE missions. Recorded, versioned, and reviewed through the gated promotion path; it never changes this mission.\n\
 5. {{\"tool\":\"answer.write\",\"args\":{{\"path\":\"<ANSWER_PATH>\",\"content\":\"```diff\\n<one unified diff, paths a/... b/... relative to repo root>\\n```\"}}}} - submit your patch. Ground every hunk in code you actually read: correct file, correct current line numbers, exact context lines. Prefer a repo.exec pre-flight first. The checker runs automatically after each answer.write and its verdict comes back as FEEDBACK.\n\
+WORK POLICY:\n\
+- Claim that something is done, fixed, tested, or addressed only when tool output supports the claim. Otherwise state what you did not verify and why.\n\
+- If something is blocked, say so plainly rather than quietly dropping it.\n\
+- Do the work in the current step instead of ending with an offer to do it later.\n\
 WORKFLOW: search and read to locate the real code FIRST, then write a patch that applies cleanly. \
 The exact ANSWER_PATH value is given to you on the ANSWER_PATH line each attempt. \
 Do not include prose outside the JSON. If you get FEEDBACK, repair and continue.{nudge}";
