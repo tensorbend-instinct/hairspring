@@ -115,6 +115,9 @@ struct Exchange {
     args: serde_json::Value,
     content: String,
     line: String,
+    /// The owning ModelCall's reasoning_content (thinking-mode pass-back;
+    /// empty when unrecorded).
+    reasoning: String,
 }
 
 /// Build the history messages from the stream's ToolCall events.
@@ -126,6 +129,30 @@ pub fn assemble_messages(
 ) -> AssemblyMessages {
     const CONTENT_CAP: usize = 20_000;
     const PAIR_OVERHEAD: usize = 64; // role/id/type framing, chars
+    // Chronological pre-pass: pair each ToolCall with the reasoning of
+    // the ModelCall that produced it (nearest preceding ModelCall - the
+    // one-tool-call-per-reply protocol makes that exact).
+    let mut reasoning_by_tc: std::collections::HashMap<u64, String> =
+        std::collections::HashMap::new();
+    let mut last_reasoning = String::new();
+    for e in events.iter() {
+        match e.kind {
+            EventKind::ModelCall => {
+                if let Ok(bytes) = reader.resolve_payload(e) {
+                    if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+                        last_reasoning =
+                            v["reasoning_content"].as_str().unwrap_or("").to_string();
+                    }
+                }
+            }
+            EventKind::ToolCall => {
+                if !last_reasoning.is_empty() {
+                    reasoning_by_tc.insert(e.seq, last_reasoning.clone());
+                }
+            }
+            _ => {}
+        }
+    }
     let mut exch: Vec<Exchange> = vec![];
     for e in events.iter().rev() {
         if e.kind != EventKind::ToolCall {
@@ -151,11 +178,13 @@ pub fn assemble_messages(
                     content.push_str("...[truncated]");
                 }
                 let line = format!("{}({}) => {}", plugin, v["args"], content);
-                exch.push(Exchange { seq: e.seq, id: e.event_id, plugin, args, content, line });
+                let reasoning = reasoning_by_tc.get(&e.seq).cloned().unwrap_or_default();
+                exch.push(Exchange { seq: e.seq, id: e.event_id, plugin, args, content, line, reasoning });
             }
         }
     }
-    let cost = |x: &Exchange| x.args.to_string().len() + x.content.len() + PAIR_OVERHEAD;
+    let cost =
+        |x: &Exchange| x.args.to_string().len() + x.content.len() + x.reasoning.len() + PAIR_OVERHEAD;
     let total: usize = exch.iter().map(&cost).sum();
     let mut messages: Vec<serde_json::Value> = vec![];
     if total <= budget_chars {
@@ -171,7 +200,8 @@ pub fn assemble_messages(
         }
         kept.reverse();
         for x in kept {
-            let (a, t) = crate::msgfmt::exchange_pair(x.seq, &x.plugin, &x.args, &x.content);
+            let (a, t) =
+                crate::msgfmt::exchange_pair(x.seq, &x.plugin, &x.args, &x.content, &x.reasoning);
             messages.push(a);
             messages.push(t);
         }
@@ -212,7 +242,8 @@ pub fn assemble_messages(
     }
     kept.reverse();
     for x in kept {
-        let (a, t) = crate::msgfmt::exchange_pair(x.seq, &x.plugin, &x.args, &x.content);
+        let (a, t) =
+            crate::msgfmt::exchange_pair(x.seq, &x.plugin, &x.args, &x.content, &x.reasoning);
         messages.push(a);
         messages.push(t);
     }

@@ -11,7 +11,17 @@ use serde_json::Value;
 /// One history exchange as a native assistant(tool_calls) + tool pair.
 /// The tool_call id is deterministic from the owning event's seq, so the
 /// replayed prefix is byte-identical across steps (the KV-cache contract).
-pub fn exchange_pair(seq: u64, plugin: &str, args: &Value, content: &str) -> (Value, Value) {
+/// `reasoning` is the owning ModelCall's reasoning_content: thinking-mode
+/// providers with a `tools` parameter REQUIRE it passed back in later
+/// turns (DeepSeek V4: 400 otherwise). Empty reasoning omits the field,
+/// keeping legacy/scripted replays byte-identical.
+pub fn exchange_pair(
+    seq: u64,
+    plugin: &str,
+    args: &Value,
+    content: &str,
+    reasoning: &str,
+) -> (Value, Value) {
     let id = format!("call_{seq}");
     let args_str = if args.is_null() {
         "{}".to_string()
@@ -19,17 +29,32 @@ pub fn exchange_pair(seq: u64, plugin: &str, args: &Value, content: &str) -> (Va
         args.to_string()
     };
     (
-        serde_json::json!({
-            "role": "assistant",
-            "tool_calls": [{
-                "id": id,
-                "type": "function",
-                "function": {
-                    "name": crate::toolschema::wire_name(plugin),
-                    "arguments": args_str,
-                }
-            }]
-        }),
+        if reasoning.is_empty() {
+            serde_json::json!({
+                "role": "assistant",
+                "tool_calls": [{
+                    "id": id,
+                    "type": "function",
+                    "function": {
+                        "name": crate::toolschema::wire_name(plugin),
+                        "arguments": args_str,
+                    }
+                }]
+            })
+        } else {
+            serde_json::json!({
+                "role": "assistant",
+                "reasoning_content": reasoning,
+                "tool_calls": [{
+                    "id": id,
+                    "type": "function",
+                    "function": {
+                        "name": crate::toolschema::wire_name(plugin),
+                        "arguments": args_str,
+                    }
+                }]
+            })
+        },
         serde_json::json!({
             "role": "tool",
             "tool_call_id": id,

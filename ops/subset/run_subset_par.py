@@ -8,6 +8,10 @@ import fcntl, json, os, shlex, shutil, subprocess, sys, threading, time, urllib.
 
 S50 = os.environ.get("S50", "/home/sandbox/swbench/subset50")
 TASK_WALL_SECS = int(os.environ.get("HS_SUBSET_WALL_SECS", "3600"))
+# Model under test (2026-09-05): env-selectable, config-first - the provider's
+# own env vars (HS_<MODEL>_API_KEY_FILE, HS_<MODEL>_EXTRA_BODY_JSON, HS_<MODEL>_MODEL)
+# carry model id and hyperparameters; nothing model-specific is hardcoded here.
+MODEL = os.environ.get("HS_SUBSET_MODEL", "glm")
 HS = os.environ.get("HS_SWE_RUN_BIN", "/home/sandbox/hairspring/target/debug/hs-swe-run")
 TB_DIR = "/home/sandbox/swbench/tarballs"
 VENV = "/home/sandbox/swbench/venvs"
@@ -174,22 +178,24 @@ def run_task(wid, m):
         f2p_sh = os.path.join(run_dir, "f2p.sh")
         open(f2p_sh, "w").write(f"#!/bin/bash\nexec {shlex.quote(venv_py)} -m pytest {nodes} -x -q\n")
         env = dict(os.environ)
+        up = MODEL.upper()
         env.update({
-            "HS_GLM_API_KEY_FILE": "/home/sandbox/.keys/glm.key",
-            "HS_GLM_BASE_URL": "http://127.0.0.1:8787/chat/completions",
-            "HS_GLM_EXTRA_BODY_JSON": os.environ.get("HS_GLM_EXTRA_BODY_JSON", '{"reasoning_effort":"low"}'),
+            f"HS_{up}_API_KEY_FILE": f"/home/sandbox/.keys/{MODEL}.key",
+            f"HS_{up}_EXTRA_BODY_JSON": os.environ.get(f"HS_{up}_EXTRA_BODY_JSON", '{"reasoning_effort":"low"}'),
             "HS_SWE_PROMPT_NUDGE": "IMPORTANT: before every answer.write, run the FAIL_TO_PASS command on your patch via repo.exec and fix whatever it reports.",
             "HS_SWE_WORKSPACE": ws,
             "HS_SWE_F2P": f"bash {f2p_sh}",
             "HS_SWE_P2P": "",
             "HS_REALMODEL_CALL_TIMEOUT_SECS": "1500",
         })
+        if MODEL == "glm":
+            env["HS_GLM_BASE_URL"] = "http://127.0.0.1:8787/chat/completions"
         env["PATH"] = SHIMS + ":" + env.get("PATH", "")
         budget_flag = ""
         if os.environ.get("HS_CONTEXT_BUDGET_TOKENS"):
             budget_flag = f" --context-budget-tokens {os.environ['HS_CONTEXT_BUDGET_TOKENS']}"
         r = sh(f"timeout {TASK_WALL_SECS} {HS} --instance {shlex.quote(os.path.join(S50, 'instances', iid + '.json'))} "
-               f"--model glm --feedback on --budget-micros 10000000 --max-steps {MAX_STEPS}"
+               f"--model {MODEL} --feedback on --budget-micros 10000000 --max-steps {MAX_STEPS}"
                f"{budget_flag} "
                f"--run-dir {shlex.quote(run_dir)}", timeout=TASK_WALL_SECS + 100, env=env)
         open(os.path.join(run_dir, "stdout.log"), "w").write(r.stdout + "\n--- STDERR ---\n" + r.stderr)
