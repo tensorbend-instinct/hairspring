@@ -73,7 +73,7 @@ fn main() {
                         if let Some(b) = bytes {
                             let mut t = String::from_utf8_lossy(&b).into_owned();
                             if t.len() > 3000 {
-                                t.truncate(3000);
+                                t.truncate(2_000_000);
                                 t.push_str("\n...[truncated]");
                             }
                             println!("  payload: {t}");

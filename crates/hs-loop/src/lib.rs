@@ -462,6 +462,7 @@ impl InnerLoop {
             }
 
             ctx.push_str(&volatile);
+            let assembly_ms = t_assembly.elapsed().as_millis() as u64; // capture BEFORE the model call (was after: read as ~latency)
 
             // the only model round trip in the step
             let out = match self.kernel.call_model("operator", None, &ctx) {
@@ -520,7 +521,7 @@ impl InnerLoop {
                         serde_json::to_vec(&serde_json::json!({
                             "model": out.model, "prompt": ctx, "completion": out.completion,
                             "input_tokens": out.input_tokens, "output_tokens": out.output_tokens,
-                            "assembly_ms": t_assembly.elapsed().as_millis() as u64,
+                            "assembly_ms": assembly_ms,
                         }))
                         .unwrap(),
                     ))
