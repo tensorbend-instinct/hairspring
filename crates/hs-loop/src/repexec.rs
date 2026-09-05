@@ -54,6 +54,16 @@ pub fn sandbox_argv(scratch: &Path, _out_f: &Path, _err_f: &Path, cmd: &str) -> 
     v
 }
 
+/// Extract one unified diff from model-supplied text: a ```diff fence, or
+/// the raw diff itself (starts with "diff --git" or "--- ").
+pub fn extract_diff(raw: &str) -> Option<String> {
+    if let Some(p) = hs_bench::extract_patch(raw) {
+        return Some(p);
+    }
+    let t = raw.trim();
+    (t.starts_with("diff --git") || t.starts_with("--- ")).then(|| t.to_string())
+}
+
 /// Shared prep: read the answer, extract the diff, make a scratch worktree,
 /// apply the patch there. Ok(None) = clean feedback result (no patch / no
 /// diff / does not apply); Err = machinery failure result.
@@ -61,12 +71,18 @@ fn prep(ws: &Path, answer_path: &Path) -> Result<Option<PathBuf>, Value> {
     let raw = match std::fs::read_to_string(answer_path) {
         Ok(s) => s,
         Err(_) => {
-            return Err(json!({"applied": false, "note": "no patch to test yet - write your answer first (answer.write), then exec"}));
+            return Err(json!({"applied": false, "note": "no patch to test yet - write your answer first (answer.write), then exec (or pass args.diff inline)"}));
         }
     };
-    let Some(patch) = hs_bench::extract_patch(&raw) else {
+    let Some(patch) = extract_diff(&raw) else {
         return Err(json!({"applied": false, "note": "no diff found in the current answer - wrap one unified diff in a ```diff fence"}));
     };
+    prep_diff(ws, &patch)
+}
+
+/// Prep from a diff the model supplies inline (T4: test before the first
+/// answer.write). Same scratch-worktree semantics as prep.
+fn prep_diff(ws: &Path, patch: &str) -> Result<Option<PathBuf>, Value> {
     let uniq = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos())
@@ -90,7 +106,7 @@ fn prep(ws: &Path, answer_path: &Path) -> Result<Option<PathBuf>, Value> {
         }
         Err(e) => return Err(json!({"$error": format!("scratch worktree: {e}")})),
     }
-    match hs_bench::apply_model_patch(&scratch, &patch) {
+    match hs_bench::apply_model_patch(&scratch, patch) {
         Ok(hs_bench::ApplyResult::Applied) => Ok(Some(scratch)),
         Ok(hs_bench::ApplyResult::NoApply(msg)) => {
             cleanup(ws, &scratch);
@@ -117,7 +133,19 @@ fn cleanup(ws: &Path, scratch: &Path) {
 
 /// Open-shell exec in the sandbox. `command` is arbitrary by design.
 pub fn run_sandboxed(ws: &Path, answer_path: &Path, command: &str, timeout_secs: u64) -> Value {
-    let scratch = match prep(ws, answer_path) {
+    run_with_prep(prep(ws, answer_path), ws, command, timeout_secs)
+}
+
+/// Open-shell exec against an inline diff (T4: test-before-first-submit).
+pub fn run_sandboxed_with_diff(ws: &Path, diff: &str, command: &str, timeout_secs: u64) -> Value {
+    let Some(patch) = extract_diff(diff) else {
+        return json!({"applied": false, "note": "no unified diff in args.diff - pass one unified diff, raw or in a ```diff fence"});
+    };
+    run_with_prep(prep_diff(ws, &patch), ws, command, timeout_secs)
+}
+
+fn run_with_prep(prepped: Result<Option<PathBuf>, Value>, ws: &Path, command: &str, timeout_secs: u64) -> Value {
+    let scratch = match prepped {
         Ok(Some(s)) => s,
         Ok(None) => unreachable!(),
         Err(early) => return early,

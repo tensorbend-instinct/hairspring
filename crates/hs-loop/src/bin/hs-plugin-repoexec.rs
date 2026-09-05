@@ -13,18 +13,22 @@ fn main() {
                 Ok(w) => std::path::PathBuf::from(w),
                 Err(_) => return serde_json::json!({"$error": "HS_SWE_WORKSPACE not set"}),
             };
+            let timeout: u64 = std::env::var("HS_SWE_EXEC_TIMEOUT_SECS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(120);
+            // inline diff wins (T4): the candidate under test, never a stale file
+            if let Some(diff) = params["args"]["diff"].as_str() {
+                return hs_loop::repexec::run_sandboxed_with_diff(&ws, diff, cmd, timeout);
+            }
             let ans = params["args"]["path"]
                 .as_str()
                 .map(String::from)
                 .or_else(|| std::env::var("HS_SWE_ANSWER").ok())
                 .unwrap_or_default();
             if ans.is_empty() {
-                return serde_json::json!({"$error": "no answer path: pass args.path (the ANSWER_PATH) or set HS_SWE_ANSWER"});
+                return serde_json::json!({"$error": "no answer path: pass args.diff (inline unified diff), args.path (the ANSWER_PATH), or set HS_SWE_ANSWER"});
             }
-            let timeout: u64 = std::env::var("HS_SWE_EXEC_TIMEOUT_SECS")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(120);
             hs_loop::repexec::run_sandboxed(&ws, std::path::Path::new(&ans), cmd, timeout)
         }
         _ => serde_json::json!({"$error": "unknown method"}),
