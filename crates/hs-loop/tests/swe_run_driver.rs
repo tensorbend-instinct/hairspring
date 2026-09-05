@@ -349,3 +349,91 @@ fn driver_mission_calls_mcp_tool() {
     }).expect("a successful mcp.fixture.echo ToolCall event must be on the stream");
     assert!(mcp_call.contains("hello-via-mcp"), "echo payload on stream: {mcp_call}");
 }
+
+/// Seam: the D5 tools (edit.apply, notes.scratch) are wired into every SWE
+/// mission: registered in the generated hairspring.toml, callable through
+/// the real kernel/loop, with notes persisted at log_root/work/<iid>/.
+#[test]
+fn driver_mission_uses_d5_tools() {
+    let dir = tempfile::tempdir().unwrap();
+    let run_dir = dir.path().join("run");
+    let ws = run_dir.join("ws");
+    std::fs::create_dir_all(&ws).unwrap();
+    std::fs::write(ws.join("code.txt"), "broken\n").unwrap();
+    std::fs::write(ws.join("check.sh"), "#!/bin/sh\ngrep -q '^fixed$' code.txt\n").unwrap();
+    let git = |args: &[&str]| {
+        assert!(Command::new("git").args(args).current_dir(&ws).status().unwrap().success());
+    };
+    git(&["init", "-q"]);
+    git(&["config", "user.email", "t@t"]);
+    git(&["config", "user.name", "t"]);
+    git(&["add", "-A"]);
+    git(&["commit", "-qm", "base"]);
+    let diff = "--- a/code.txt\n+++ b/code.txt\n@@ -1 +1 @@\n-broken\n+fixed\n";
+    std::fs::write(
+        dir.path().join("instance.json"),
+        serde_json::to_string(&serde_json::json!({
+            "instance_id": "fixture__git-5",
+            "problem_statement": "code.txt must contain the word fixed",
+            "fail_to_pass": ["sh check.sh"],
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let answer_path = run_dir.join("log").join("work").join("fixture__git-5").join("answer.txt");
+    let script = [
+        serde_json::json!({"tool":"notes.scratch","args":{"op":"write","content":"hypothesis: code.txt holds the wrong word\n"}}).to_string(),
+        serde_json::json!({"tool":"notes.scratch","args":{"op":"read"}}).to_string(),
+        serde_json::json!({"tool":"edit.apply","args":{"diff":diff}}).to_string(),
+        serde_json::json!({"tool":"answer.write","args":{"path":answer_path.display().to_string(),"content":format!("```diff\n{diff}```")}}).to_string(),
+    ];
+    std::fs::write(dir.path().join("script.jsonl"), script.join("\n")).unwrap();
+
+    let out = Command::new(DRIVER)
+        .args([
+            "--instance", &dir.path().join("instance.json").display().to_string(),
+            "--model", "seqmodel",
+            "--feedback", "on",
+            "--budget-micros", "100000",
+            "--max-steps", "8",
+            "--run-dir", &run_dir.display().to_string(),
+        ])
+        .env("HS_SWE_WORKSPACE", &ws)
+        .env("HS_SWE_F2P", "sh check.sh")
+        .env("HS_SWE_P2P", "")
+        .env("HS_SEQMODEL_SCRIPT", dir.path().join("script.jsonl"))
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "driver: {}", String::from_utf8_lossy(&out.stderr));
+    let result: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(run_dir.join("result.json")).unwrap())
+            .unwrap();
+    assert_eq!(result["passed"], true, "mission passes: {result}");
+
+    // both D5 tools registered in the generated config
+    let cfg = std::fs::read_to_string(run_dir.join("hairspring.toml")).unwrap();
+    assert!(cfg.contains("edit.apply"), "edit.apply registered: {cfg}");
+    assert!(cfg.contains("notes.scratch"), "notes.scratch registered: {cfg}");
+
+    // notes persisted at the mission work dir
+    let notes = run_dir.join("log").join("work").join("fixture__git-5").join("notes.md");
+    assert!(std::fs::read_to_string(&notes).unwrap().contains("hypothesis: code.txt holds the wrong word"),
+        "notes file at {}", notes.display());
+
+    // the stream proves both tools really ran: notes read returned the
+    // content, edit.apply returned a cumulative diff
+    let streams_dir = run_dir.join("log").join("streams");
+    let sid = std::fs::read_dir(&streams_dir).unwrap().next().unwrap().unwrap();
+    let sid = uuid::Uuid::parse_str(sid.file_name().to_str().unwrap()).unwrap();
+    let reader = hs_log::StreamReader::open(&run_dir.join("log"), sid).unwrap();
+    let events = reader.events().unwrap();
+    let payloads: Vec<String> = events.iter()
+        .map(|e| String::from_utf8_lossy(&reader.resolve_payload(e).unwrap()).to_string())
+        .collect();
+    let notes_call = payloads.iter().find(|p| p.contains("\"plugin\":\"notes.scratch\"") && p.contains("\"content\"") && p.contains("hypothesis"))
+        .expect("a notes.scratch result carrying the note must be on the stream");
+    assert!(notes_call.contains("\"ok\":true"), "{notes_call}");
+    let edit_call = payloads.iter().find(|p| p.contains("\"plugin\":\"edit.apply\"") && p.contains("cumulative_diff"))
+        .expect("an edit.apply result with cumulative_diff must be on the stream");
+    assert!(edit_call.contains("+fixed"), "cumulative diff carries the patch: {edit_call}");
+}
