@@ -399,6 +399,12 @@ impl InnerLoop {
             // the only model round trip in the step
             let out = match self.kernel.call_model("operator", None, &ctx) {
                 Ok(o) => o,
+                Err(e @ KernelError::PluginApp { .. }) => {
+                    // persistent provider failure (the plugin already burned
+                    // its own retries): book it, don't strike-loop
+                    self.checkpoint(steps, model_calls);
+                    return self.abort_harness(mission, &answer_path, steps, model_calls, e.to_string());
+                }
                 Err(e @ KernelError::PluginDead { .. }) => {
                     self.checkpoint(steps, model_calls);
                     return self.abort_harness(

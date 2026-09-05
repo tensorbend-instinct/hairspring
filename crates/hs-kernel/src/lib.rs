@@ -25,6 +25,12 @@ pub enum KernelError {
     UnknownModel(String),
     Gated { name: String, subject: String },
     Plugin(String),
+    /// Application-level error from a HEALTHY plugin process (a well-formed
+    /// {"error": ...} response): usage mistakes, bad args, provider errors
+    /// after the plugin's own retries. NOT a supervisor strike - the process
+    /// stays up and keeps serving (Eric 2026-09-05: exploration is never
+    /// punished; ab2/17123 died when a usage error counted as strike 3).
+    PluginApp { name: String, detail: String },
     /// Supervisor terminal state: the plugin failed `strikes` consecutive
     /// call attempts (crash, spawn failure, or lease expiry). `detail` is
     /// the most recent REAL failure - never a stale earlier error.
@@ -49,6 +55,7 @@ impl std::fmt::Display for KernelError {
             Self::UnknownModel(n) => write!(f, "unknown model: {n}"),
             Self::Gated { name, subject } => write!(f, "{name} not visible to subject {subject}"),
             Self::Plugin(e) => write!(f, "plugin: {e}"),
+            Self::PluginApp { name, detail } => write!(f, "plugin {name} app error: {detail}"),
             Self::PluginDead {
                 name,
                 strikes,
@@ -206,7 +213,12 @@ impl PluginProc {
             )));
         }
         if let Some(err) = v.get("error") {
-            return Err(KernelError::Plugin(format!("plugin error: {err}")));
+            // a well-formed error response from a LIVE process: the caller
+            // (PluginSlot) must not strike or kill for this
+            return Err(KernelError::PluginApp {
+                name: String::new(),
+                detail: err.to_string(),
+            });
         }
         Ok(v["result"].clone())
     }
@@ -252,6 +264,15 @@ impl PluginSlot {
                     self.proc = Some(p);
                     self.strikes = 0;
                     return Ok(r);
+                }
+                Err(KernelError::PluginApp { name: _, detail }) => {
+                    // application-level error from a live process: hand the
+                    // error to the caller, keep the process, no strike
+                    self.proc = Some(p);
+                    return Err(KernelError::PluginApp {
+                        name: self.entry.name.clone(),
+                        detail,
+                    });
                 }
                 Err(e) => {
                     let _ = p.child.kill();
