@@ -325,13 +325,48 @@ fn driver_mission_calls_mcp_tool() {
         .output()
         .unwrap();
     assert!(out.status.success(), "driver: {}", String::from_utf8_lossy(&out.stderr));
-    // graft-experiment finding (2026-09-05): MCP tools registered in the
-    // kernel but absent from the mission prompt are invisible to the model -
-    // run B never called one. The prompt must enumerate them.
+    // Native tool delivery (Eric 2026-09-05): tools reach the model via the
+    // provider API's tools parameter, NEVER hand-rendered prompt text. The
+    // seam artifact is tools.json: every registered MCP tool must be there
+    // with its input schema, and the prompt must carry no tool markup.
+    let tools_json: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(run_dir.join("tools.json"))
+            .expect("tools.json must be written next to mission_prompt.txt"),
+    )
+    .unwrap();
+    let tool_names: Vec<&str> = tools_json
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["function"]["name"].as_str().unwrap_or(""))
+        .collect();
+    assert!(
+        tool_names.contains(&"mcp.fixture.echo"),
+        "native tools must include registered MCP tools: {tool_names:?}"
+    );
+    assert!(
+        tool_names.contains(&"repo.search"),
+        "native tools must include the builtin surface: {tool_names:?}"
+    );
+    let echo = tools_json
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["function"]["name"] == "mcp.fixture.echo")
+        .unwrap();
+    assert_eq!(
+        echo["function"]["parameters"]["type"].as_str(),
+        Some("object"),
+        "MCP tools carry their server-provided input schema: {echo}"
+    );
     let prompt = std::fs::read_to_string(run_dir.join("mission_prompt.txt")).unwrap();
     assert!(
-        prompt.contains("mcp.fixture.echo"),
-        "mission prompt must enumerate registered MCP tools; got none of mcp.fixture.*"
+        !prompt.contains("mcp.fixture"),
+        "no MCP tool names in prompt text (native delivery)"
+    );
+    assert!(
+        !prompt.contains("\"tool\":"),
+        "no hand-rolled tool-call markup in prompt"
     );
     let result: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(run_dir.join("result.json")).unwrap())

@@ -98,7 +98,9 @@ fn main() {
     // tools through the bridge and register them namespaced. Discovery
     // failure is a hard error - a half-registered surface is worse than none.
     let mut mcp_tools = String::new();
-    let mut mcp_prompt = String::new();
+    // Native tool delivery: builtin schemas + every discovered MCP tool
+    // with its server-provided input schema (Eric 2026-09-05).
+    let mut native_tools = hs_loop::toolschema::builtin_tools();
     if let Ok(servers_toml) = std::env::var("HS_MCP_SERVERS") {
         let servers = hs_loop::mcpbridge::load_mcp_servers(std::path::Path::new(&servers_toml))
             .unwrap_or_else(|e| {
@@ -137,11 +139,10 @@ fn main() {
                     bin("hs-plugin-mcpcall"),
                     s.name,
                 ));
-                // graft-experiment finding: kernel-registered but prompt-absent
-                // tools are invisible - enumerate every MCP tool in the prompt.
-                mcp_prompt.push_str(&format!(
-                    "{{\"tool\":\"{full}\",\"args\":{{...}}}} - MCP tool {tool} (server {}). {}\n",
-                    s.name, desc
+                native_tools.push(hs_loop::toolschema::mcp_tool(
+                    &full,
+                    &desc,
+                    d.get("input_schema").cloned(),
                 ));
             }
         }
@@ -157,10 +158,16 @@ fn main() {
             nudge: std::env::var("HS_SWE_PROMPT_NUDGE").unwrap_or_default(),
             answer_path: answer_path.display().to_string(),
             orientation: hs_loop::sweprompt::probe_orientation(),
-            mcp_tools: mcp_prompt,
+            mcp_tools: String::new(),
         },
     );
     std::fs::write(run_dir.join("mission_prompt.txt"), &prompt).unwrap();
+    // audit artifact: the exact native tool surface the model operates under
+    std::fs::write(
+        run_dir.join("tools.json"),
+        serde_json::to_string_pretty(&native_tools).unwrap(),
+    )
+    .unwrap();
 
     let config = run_dir.join("hairspring.toml");
     std::fs::write(
@@ -236,6 +243,7 @@ default = true
     let kernel = hs_kernel::Kernel::load(&config).expect("kernel load");
     let mut l = hs_loop::InnerLoop::new(kernel, &log_root, feedback, max_steps).expect("loop");
     l.set_budget_micros(budget_micros);
+    l.set_tools(serde_json::Value::Array(native_tools));
     if let Some(w) = wall_secs {
         l.set_wall_secs(w);
     }

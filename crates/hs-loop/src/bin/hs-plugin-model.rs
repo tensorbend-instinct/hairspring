@@ -38,7 +38,8 @@ fn main() {
     serve("model", "model", &mut move |method, params| match method {
         "model.call" => {
             let prompt = params["prompt"].as_str().unwrap_or("");
-            match hs_loop::realmodel::call(&p, prompt) {
+            let tools = params.get("tools");
+            match hs_loop::realmodel::call(&p, prompt, tools) {
                 Ok(v) => v,
                 Err(e) => serde_json::json!({"$error": e}),
             }

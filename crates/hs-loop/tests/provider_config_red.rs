@@ -136,7 +136,7 @@ fn extra_body_json_from_toml_reaches_the_request() {
     let cfgs = load_providers_toml(f.path()).unwrap();
     std::env::set_var("HS_GLM_API_KEY", "mock-key-fill-only");
     let p = provider_from_config(find_provider(&cfgs, "glm").unwrap()).unwrap();
-    let out = call(&p, "MISSION: t\nANSWER_PATH: /p").unwrap();
+    let out = call(&p, "MISSION: t\nANSWER_PATH: /p", None).unwrap();
     let comp: serde_json::Value =
         serde_json::from_str(out["completion"].as_str().unwrap()).unwrap();
     assert_eq!(comp["tool"], "answer.write");

@@ -16,6 +16,7 @@ pub mod ledger;
 pub mod repexec;
 pub mod sweprompt;
 pub mod repotools;
+pub mod toolschema;
 
 use hs_core::{EventBuilder, EventKind, Payload};
 use hs_kernel::{Kernel, KernelError};
@@ -99,6 +100,10 @@ pub struct InnerLoop {
     /// "T-minus" header. None = wall not tracked (old behavior).
     wall_secs: Option<u64>,
     mission_started: Option<std::time::Instant>,
+    /// Native tool schemas delivered to the provider's tools parameter on
+    /// the operator call (native tool calling; Eric 2026-09-05). None = the
+    /// model gets no tools param (legacy/text missions, unit fixtures).
+    tools: Option<serde_json::Value>,
 }
 
 /// D1/W2: input budget from the VERIFIED provider context, minus an
@@ -133,6 +138,7 @@ impl InnerLoop {
             max_steps,
             cost_total_micros: 0,
             budget_micros: None,
+            tools: None,
             progress_path: None,
             ledger: Default::default(),
             context_budget_chars: DEFAULT_CONTEXT_BUDGET_TOKENS * 4,
@@ -166,6 +172,7 @@ impl InnerLoop {
             max_steps,
             cost_total_micros: 0,
             budget_micros: None,
+            tools: None,
             progress_path: None,
             ledger: Default::default(),
             context_budget_chars: DEFAULT_CONTEXT_BUDGET_TOKENS * 4,
@@ -200,6 +207,12 @@ impl InnerLoop {
     /// it externally; this makes it VISIBLE to the model every step.
     pub fn set_wall_secs(&mut self, secs: u64) {
         self.wall_secs = Some(secs);
+    }
+
+    /// Native tool schemas for the operator model call (builtin +
+    /// MCP-discovered), delivered via the provider API's tools parameter.
+    pub fn set_tools(&mut self, tools: serde_json::Value) {
+        self.tools = Some(tools);
     }
 
     /// Wall-kill resilience (phase 1, design D6): when set, the loop writes
@@ -419,6 +432,7 @@ impl InnerLoop {
                                                     "prompt": distill_prompt, "completion": out.completion,
                                                     "input_tokens": out.input_tokens,
                                                     "output_tokens": out.output_tokens,
+                                                    "reasoning_tokens": out.reasoning_tokens,
                                                     "cost_usd_micros": out.cost_usd_micros,
                                                 }))
                                                 .unwrap(),
@@ -465,7 +479,7 @@ impl InnerLoop {
             let assembly_ms = t_assembly.elapsed().as_millis() as u64; // capture BEFORE the model call (was after: read as ~latency)
 
             // the only model round trip in the step
-            let out = match self.kernel.call_model("operator", None, &ctx) {
+            let out = match self.kernel.call_model_with("operator", None, &ctx, self.tools.as_ref()) {
                 Ok(o) => o,
                 Err(e @ KernelError::PluginApp { .. }) => {
                     // persistent provider failure (the plugin already burned
@@ -521,6 +535,7 @@ impl InnerLoop {
                         serde_json::to_vec(&serde_json::json!({
                             "model": out.model, "prompt": ctx, "completion": out.completion,
                             "input_tokens": out.input_tokens, "output_tokens": out.output_tokens,
+                            "reasoning_tokens": out.reasoning_tokens,
                             "assembly_ms": assembly_ms,
                         }))
                         .unwrap(),
@@ -778,6 +793,7 @@ impl InnerLoop {
                                     serde_json::to_vec(&serde_json::json!({
                                         "role": "verifier", "round": round,
                                         "prompt": vprompt, "completion": vout.completion,
+                                        "reasoning_tokens": vout.reasoning_tokens,
                                     }))
                                     .unwrap(),
                                 )),

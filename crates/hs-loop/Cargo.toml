@@ -18,6 +18,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 toml = "0.8"
 tokio = { version = "1", features = ["rt", "process", "io-std", "macros"] }
 rmcp = { version = "0.6", features = ["client", "server", "transport-child-process", "transport-io"] }
+ignore = "0.4"
 
 [dev-dependencies]
 tempfile = "3"

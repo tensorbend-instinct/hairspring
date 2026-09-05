@@ -151,11 +151,12 @@ pub fn provider_from_config(c: &ProviderConfig) -> Result<Provider, String> {
     })
 }
 
-const SYSTEM: &str = "You are the model plugin of an autonomous coding agent. \
-Reply with EXACTLY one JSON object and nothing else (no markdown fences, no prose): \
-{\"tool\":\"answer.write\",\"args\":{\"path\":<the ANSWER_PATH value from the prompt>,\
-\"content\":<your best answer as a string>}}. If FEEDBACK names an expected token, \
-make the content exactly that token.";
+const SYSTEM: &str = "You are the model plugin of an autonomous coding agent.";
+
+/// Operator calls carry native tool schemas; the API enforces exactly one
+/// tool call per reply (tool_choice:"required").
+const SYSTEM_NATIVE: &str = "You are the operator model of an autonomous coding agent. \
+Answer every request by calling exactly one of the provided tools.";
 
 fn env_or(key: &str, default: &str) -> String {
     std::env::var(key)
@@ -231,14 +232,141 @@ pub struct CallResult {
     pub cost_usd_micros: i64,
 }
 
+pub struct ParsedCall {
+    pub completion: String,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cached_tokens: u64,
+    pub reasoning_tokens: u64,
+    pub cost_usd_micros: i64,
+}
+
+/// The request body. tools = the native function schemas (OpenAI shape);
+/// when present, tool_choice:"required" enforces the one-tool-call-per-reply
+/// protocol at the API level (verified live on kimi-k3, 2026-09-05).
+pub fn build_body(
+    model: &str,
+    system: &str,
+    prompt: &str,
+    tools: Option<&serde_json::Value>,
+    extra: Option<&serde_json::Value>,
+) -> serde_json::Value {
+    let mut body = json!({
+        "model": model,
+        "temperature": 0,
+        "max_tokens": 32768,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt},
+        ],
+    });
+    if let Some(t) = tools {
+        // provider name-charset constraint: dots are not wire-legal
+        body["tools"] = crate::toolschema::to_wire(t);
+        body["tool_choice"] = json!("required");
+    }
+    if let (Some(b), Some(x)) = (body.as_object_mut(), extra.and_then(|e| e.as_object())) {
+        for (k, v) in x {
+            b.insert(k.clone(), v.clone());
+        }
+    }
+    body
+}
+
+fn usage_cost(p: &Provider, usage: &serde_json::Value) -> (u64, u64, u64, u64, i64) {
+    let input_tokens = usage["prompt_tokens"].as_u64().unwrap_or(0);
+    let output_tokens = usage["completion_tokens"].as_u64().unwrap_or(0);
+    let reasoning_tokens = usage["completion_tokens_details"]["reasoning_tokens"]
+        .as_u64()
+        .unwrap_or(0);
+    // deepseek: prompt_cache_hit_tokens; openai-style: prompt_tokens_details.cached_tokens
+    let cached = usage["prompt_cache_hit_tokens"]
+        .as_u64()
+        .or_else(|| usage["prompt_tokens_details"]["cached_tokens"].as_u64())
+        .unwrap_or(0)
+        .min(input_tokens);
+    let pin = env_f64(&p.price_in_env, p.default_in_micros);
+    let pcached = env_f64(&p.price_cached_env, p.default_cached_micros);
+    let pout = env_f64(&p.price_out_env, p.default_out_micros);
+    let cost = (cached as f64 * pcached
+        + (input_tokens - cached) as f64 * pin
+        + output_tokens as f64 * pout)
+        .round() as i64;
+    (input_tokens, output_tokens, cached, reasoning_tokens, cost)
+}
+
+/// Native path: the request carried tool_choice:"required", so the response
+/// MUST carry a tool call. A content-only reply is an error that feeds the
+/// caller's retry path - never a silent fallback to parsing prose for JSON
+/// (Eric 2026-09-05: no hand-rolled fallback protocol). The completion is
+/// normalized to the harness's internal {"tool","args"} shape so everything
+/// downstream (ToolCall events, transcript, checker) is unchanged.
+pub fn parse_response(p: &Provider, v: &serde_json::Value) -> Result<ParsedCall, String> {
+    let fr = v["choices"][0]["finish_reason"]
+        .as_str()
+        .unwrap_or("<none>")
+        .to_string();
+    let msg = &v["choices"][0]["message"];
+    let empty = vec![];
+    let tcs = msg["tool_calls"].as_array().unwrap_or(&empty);
+    let tc = tcs
+        .first()
+        .ok_or_else(|| format!("{}: no tool_calls in response (finish_reason={fr})", p.name))?;
+    let wire = tc["function"]["name"]
+        .as_str()
+        .ok_or_else(|| format!("{}: tool_call without function.name", p.name))?;
+    let name = crate::toolschema::internal_name(wire);
+    let args_raw = tc["function"]["arguments"].as_str().unwrap_or("{}");
+    let args: serde_json::Value = serde_json::from_str(args_raw)
+        .map_err(|e| format!("{}: tool_call arguments not JSON: {e}", p.name))?;
+    let completion = json!({"tool": name, "args": args}).to_string();
+    let (input_tokens, output_tokens, cached_tokens, reasoning_tokens, cost) =
+        usage_cost(p, &v["usage"]);
+    Ok(ParsedCall {
+        completion,
+        input_tokens,
+        output_tokens,
+        cached_tokens,
+        reasoning_tokens,
+        cost_usd_micros: cost,
+    })
+}
+
+/// Legacy free-form path (no tools param): distill summaries, the verifier
+/// verdict, provider smoke tests. Content is returned verbatim when it holds
+/// no JSON object - the pre-migration extraction-only behavior silently
+/// broke prose replies (the distill summary never survived it).
+fn parse_response_legacy(p: &Provider, v: &serde_json::Value) -> Result<ParsedCall, String> {
+    let fr = v["choices"][0]["finish_reason"]
+        .as_str()
+        .unwrap_or("<none>")
+        .to_string();
+    let raw = v["choices"][0]["message"]["content"]
+        .as_str()
+        .ok_or_else(|| format!("{}: no choices[0].message.content (finish_reason={})", p.name, fr))?;
+    let completion = extract_json_object(raw)
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| raw.to_string());
+    let (input_tokens, output_tokens, cached_tokens, reasoning_tokens, cost) =
+        usage_cost(p, &v["usage"]);
+    Ok(ParsedCall {
+        completion,
+        input_tokens,
+        output_tokens,
+        cached_tokens,
+        reasoning_tokens,
+        cost_usd_micros: cost,
+    })
+}
+
 fn attempt(
     p: &Provider,
     agent: &ureq::Agent,
     url: &str,
     key: &str,
     body: &serde_json::Value,
-    model: &str,
-) -> Result<serde_json::Value, String> {
+    native: bool,
+) -> Result<ParsedCall, String> {
     let mut resp = agent
         .post(url)
         .header("Authorization", &format!("Bearer {key}"))
@@ -257,42 +385,11 @@ fn attempt(
         .body_mut()
         .read_json()
         .map_err(|e| format!("{}: unparsable provider response: {e}", p.name))?;
-    let fr = v["choices"][0]["finish_reason"]
-        .as_str()
-        .unwrap_or("<none>")
-        .to_string();
-    let raw = v["choices"][0]["message"]["content"]
-        .as_str()
-        .ok_or_else(|| format!("{}: no choices[0].message.content (finish_reason={})", p.name, fr))?;
-    let completion = extract_json_object(raw)
-        .ok_or_else(|| format!(
-            "{}: no JSON object in model output (finish_reason={}, content_len={}, head={:.80})",
-            p.name, fr, raw.len(), raw))?
-        .to_string();
-    let usage = &v["usage"];
-    let input_tokens = usage["prompt_tokens"].as_u64().unwrap_or(0);
-    let output_tokens = usage["completion_tokens"].as_u64().unwrap_or(0);
-    // deepseek: prompt_cache_hit_tokens; openai-style: prompt_tokens_details.cached_tokens
-    let cached = usage["prompt_cache_hit_tokens"]
-        .as_u64()
-        .or_else(|| usage["prompt_tokens_details"]["cached_tokens"].as_u64())
-        .unwrap_or(0)
-        .min(input_tokens);
-    let pin = env_f64(&p.price_in_env, p.default_in_micros);
-    let pcached = env_f64(&p.price_cached_env, p.default_cached_micros);
-    let pout = env_f64(&p.price_out_env, p.default_out_micros);
-    let cost = (cached as f64 * pcached
-        + (input_tokens - cached) as f64 * pin
-        + output_tokens as f64 * pout)
-        .round() as i64;
-    Ok(json!({
-        "completion": completion,
-        "input_tokens": input_tokens,
-        "output_tokens": output_tokens,
-        "cached_tokens": cached,
-        "cost_usd_micros": cost,
-        "provider_model": model,
-    }))
+    if native {
+        parse_response(p, &v)
+    } else {
+        parse_response_legacy(p, &v)
+    }
 }
 
 /// Sentinel completion returned when the provider holds a call past the
@@ -315,31 +412,27 @@ pub fn watchdog_secs() -> u64 {
         .unwrap_or(420)
 }
 
-pub fn call(p: &Provider, prompt: &str) -> Result<serde_json::Value, String> {
+pub fn call(
+    p: &Provider,
+    prompt: &str,
+    tools: Option<&serde_json::Value>,
+) -> Result<serde_json::Value, String> {
     let key = load_key(p)?;
     let url = env_or(&p.base_url_env, &p.default_base_url);
     let model = env_or(&p.model_env, &p.default_model);
-    let mut body = json!({
-        "model": model,
-        "temperature": 0,
-        "max_tokens": 32768,
-        "messages": [
-            {"role": "system", "content": SYSTEM},
-            {"role": "user", "content": prompt},
-        ],
-    });
+    let system = if tools.is_some() { SYSTEM_NATIVE } else { SYSTEM };
     let extra_src = std::env::var(&p.extra_body_json_env)
         .ok()
         .or_else(|| p.default_extra_body_json.clone());
-    if let Some(extra) = extra_src {
-        let extra: serde_json::Value = serde_json::from_str(&extra)
-            .map_err(|e| format!("{}: bad extra_body_json: {e}", p.name))?;
-        if let (Some(b), Some(x)) = (body.as_object_mut(), extra.as_object()) {
-            for (k, v) in x {
-                b.insert(k.clone(), v.clone());
-            }
-        }
-    }
+    let extra: Option<serde_json::Value> = match extra_src {
+        Some(x) => Some(
+            serde_json::from_str(&x)
+                .map_err(|e| format!("{}: bad extra_body_json: {e}", p.name))?,
+        ),
+        None => None,
+    };
+    let native = tools.is_some();
+    let body = build_body(&model, system, prompt, tools, extra.as_ref());
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .timeout_global(Some(Duration::from_secs(1500)))
         .build()
@@ -351,20 +444,24 @@ pub fn call(p: &Provider, prompt: &str) -> Result<serde_json::Value, String> {
             std::thread::sleep(Duration::from_secs(5 * attempt_no as u64));
         }
         let (tx, rx) = std::sync::mpsc::channel();
-        let (a, u, k, b, m) = (
-            agent.clone(),
-            url.clone(),
-            key.clone(),
-            body.clone(),
-            model.clone(),
-        );
+        let (a, u, k, b) = (agent.clone(), url.clone(), key.clone(), body.clone());
         let pt = p.clone();
         std::thread::spawn(move || {
-            let r = attempt(&pt, &a, &u, &k, &b, &m);
+            let r = attempt(&pt, &a, &u, &k, &b, native);
             let _ = tx.send(r);
         });
         match rx.recv_timeout(Duration::from_secs(watchdog)) {
-            Ok(Ok(v)) => return Ok(v),
+            Ok(Ok(out)) => {
+                return Ok(json!({
+                    "completion": out.completion,
+                    "input_tokens": out.input_tokens,
+                    "output_tokens": out.output_tokens,
+                    "cached_tokens": out.cached_tokens,
+                    "reasoning_tokens": out.reasoning_tokens,
+                    "cost_usd_micros": out.cost_usd_micros,
+                    "provider_model": model,
+                }))
+            }
             Ok(Err(e)) => {
                 eprintln!("realmodel {} attempt {} failed: {}", p.name, attempt_no + 1, e);
                 last_err = e;
@@ -377,6 +474,7 @@ pub fn call(p: &Provider, prompt: &str) -> Result<serde_json::Value, String> {
                     "input_tokens": 0,
                     "output_tokens": 0,
                     "cached_tokens": 0,
+                    "reasoning_tokens": 0,
                     "cost_usd_micros": 0,
                     "provider_model": model,
                 }));

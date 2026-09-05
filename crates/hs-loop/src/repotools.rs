@@ -108,6 +108,14 @@ pub fn search_repo(ws: &Path, pattern: &str) -> Result<serde_json::Value, String
         return Err("empty pattern".to_string());
     }
     let ws_canon = ws.canonicalize().map_err(|e| format!("workspace broken: {e}"))?;
+    // Honor the workspace ignore files (ripgrep precedence: .gitignore first,
+    // .ignore overrides it - so `!graft/` + `graft/.cache/` keeps graft cards
+    // greppable while cache/graph state stays out). Found live 2026-09-05:
+    // graft's .cache fingerprint JSON polluted the mission transcript.
+    let mut igb = ignore::gitignore::GitignoreBuilder::new(&ws_canon);
+    let _ = igb.add(ws_canon.join(".gitignore"));
+    let _ = igb.add(ws_canon.join(".ignore"));
+    let ig = igb.build().map_err(|e| format!("ignore-file build: {e}"))?;
     let mut matches = Vec::new();
     let mut capped = false;
     let mut stack = vec![ws_canon.clone()];
@@ -121,6 +129,9 @@ pub fn search_repo(ws: &Path, pattern: &str) -> Result<serde_json::Value, String
             let name = ent.file_name();
             let name = name.to_string_lossy();
             if name == ".git" || name == "target" || name == "node_modules" {
+                continue;
+            }
+            if ig.matched(&path, ent.file_type().map(|t| t.is_dir()).unwrap_or(false)).is_ignore() {
                 continue;
             }
             let ft = match ent.file_type() {

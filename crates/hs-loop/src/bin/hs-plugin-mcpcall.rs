@@ -157,6 +157,10 @@ async fn cli_main(argv: Vec<String>, cfg: McpServerConfig) {
                 .map(|t| serde_json::json!({
                     "name": namespaced_tool(&cfg.name, &t.name),
                     "description": t.description.as_deref().unwrap_or(""),
+                    // native tool delivery: the server's own input schema,
+                    // verbatim from tools/list
+                    "input_schema": serde_json::to_value(&t.input_schema)
+                        .unwrap_or(serde_json::json!({"type":"object","properties":{}})),
                 }))
                 .collect();
             println!("{}", serde_json::to_string(&full).unwrap());

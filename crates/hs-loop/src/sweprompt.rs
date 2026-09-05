@@ -20,16 +20,7 @@ PROBLEM STATEMENT (from the issue tracker):\n{problem_statement}\n\n\
 The checker will apply your patch and run: {fail_to_pass}\n\
 It also runs a set of PASS_TO_PASS regression tests; do not break existing behavior.\n\n\
 Repo files (partial listing):\n{repo_layout}\n\
-TOOLS (one tool call per reply, exactly one JSON object, no prose):\n\
-1. {{\"tool\":\"repo.search\",\"args\":{{\"pattern\":\"<literal substring>\"}}}} - find code by substring; returns path:line hits (max 100).\n\
-2. {{\"tool\":\"repo.read\",\"args\":{{\"path\":\"<repo-relative path>\",\"start_line\":<1-indexed, optional>,\"max_lines\":<optional, default 400>}}}} - read a file window. The reply tells you total_lines and a truncated flag; if truncated, page forward with start_line=end_line+1. NEVER re-read the same window: recent results stay verbatim in your TRANSCRIPT, older work is distilled into the LEDGER block (always shown above), and exact duplicate reads are flagged with their earlier seq. Put durable facts (hypotheses, line numbers, failing tests) in notes.scratch.\n\
-3. {{\"tool\":\"repo.exec\",\"args\":{{\"command\":\"<any command>\",\"diff\":\"<unified diff, optional>\",\"path\":\"<ANSWER_PATH, optional>\"}}}} - run lint/tests on a candidate patch inside a sandbox (applied to a scratch copy; the repo stays clean; full machine floor: network on, system roots writable, you are root). Pass diff INLINE to test a candidate BEFORE writing any answer; pass path (or nothing) to test the current answer file. If the patch does not apply you get the git error back free - fix the framing before spending a checker cycle. Run the FAIL_TO_PASS command before every answer.write.\n\
-6. {{\"tool\":\"edit.apply\",\"args\":{{\"diff\":\"<unified diff>\"}}}} - apply one incremental edit to your persistent candidate workspace (the live repo is never touched). Returns the CUMULATIVE diff of everything you have applied so far: use edit.apply as you work, test with repo.exec, and submit the cumulative result. ops: {{\"op\":\"diff\"}} re-reads the cumulative diff, {{\"op\":\"reset\"}} discards the candidate.\n\
-7. {{\"tool\":\"notes.scratch\",\"args\":{{\"op\":\"write|append|read\",\"content\":\"<text>\"}}}} - persistent notes that survive context truncation. Record hypotheses, failing test names, and line numbers you will need later; read them back instead of re-discovering.\n\'
-
-{mcp_tools}\
-4. {{\"tool\":\"policy.propose_prompt\",\"args\":{{\"name\":\"swe-mission\",\"text\":\"<your improved prompt template>\"}}}} - propose a better operating prompt for FUTURE missions. Recorded, versioned, and reviewed through the gated promotion path; it never changes this mission.\n\
-5. {{\"tool\":\"answer.write\",\"args\":{{\"path\":\"<ANSWER_PATH>\",\"content\":\"```diff\\n<one unified diff, paths a/... b/... relative to repo root>\\n```\"}}}} - submit your patch. Ground every hunk in code you actually read: correct file, correct current line numbers, exact context lines. Prefer a repo.exec pre-flight first. The checker runs automatically after each answer.write and its verdict comes back as FEEDBACK.\n\
+TOOLS: your tools arrive through the native tool-calling API - call exactly one per reply, no prose.\n\
 WORK POLICY:\n\
 - Claim that something is done, fixed, tested, or addressed only when tool output supports the claim. Otherwise state what you did not verify and why.\n\
 - If something is blocked, say so plainly rather than quietly dropping it.\n\

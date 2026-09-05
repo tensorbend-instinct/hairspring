@@ -25,7 +25,11 @@ fn default_template_when_no_policy_overlay() {
     let p = build_mission_prompt(None, &args());
     assert!(p.contains("You are fixing a real bug"), "builtin template: {p}");
     assert!(p.contains("bug: stack mishandled"));
-    assert!(p.contains("repo.exec"), "tool surface listed");
+    // native tool delivery (2026-09-05): the prompt points at the API tools
+    // parameter instead of hand-listing the surface; the schemas themselves
+    // live in toolschema and reach the model out-of-band.
+    assert!(p.contains("native tool-calling API"), "native delivery note: {p}");
+    assert!(!p.contains("\"tool\":"), "no hand-rolled tool markup: {p}");
     // allowlist scaffold was deleted per Eric's ruling - no list in the prompt
     assert!(!p.contains("Allowed:"), "no allowlist mention: {p}");
     assert!(!p.contains("{ws}"), "all placeholders substituted: {p}");

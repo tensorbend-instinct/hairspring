@@ -19,6 +19,7 @@ fn live_glm_round_trip() {
     let v = hs_loop::realmodel::call(
         &hs_loop::realmodel::glm(),
         "Reply with exactly this JSON object and nothing else: {\"pong\": true}",
+        None,
     )
     .expect("live call must succeed - a failure here is the seam, not the model");
     let completion = v["completion"].as_str().unwrap_or("");

@@ -8,7 +8,8 @@ fn main() {
     serve("glm", "model", &mut |method, params| match method {
         "model.call" => {
             let prompt = params["prompt"].as_str().unwrap_or("");
-            match hs_loop::realmodel::call(&hs_loop::realmodel::glm(), prompt) {
+            let tools = params.get("tools");
+            match hs_loop::realmodel::call(&hs_loop::realmodel::glm(), prompt, tools) {
                 Ok(v) => v,
                 Err(e) => serde_json::json!({"$error": e}),
             }

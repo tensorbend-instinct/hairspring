@@ -109,6 +109,7 @@ pub struct ModelOutcome {
     pub completion: String,
     pub input_tokens: u64,
     pub output_tokens: u64,
+    pub reasoning_tokens: u64,
     pub cost_usd_micros: i64,
     pub latency_ms: u32,
     pub model: String,
@@ -477,6 +478,19 @@ impl Kernel {
         model: Option<&str>,
         prompt: &str,
     ) -> Result<ModelOutcome, KernelError> {
+        self.call_model_with(subject, model, prompt, None)
+    }
+
+    /// call_model + native tool schemas: tools is passed to the model
+    /// plugin and on to the provider's tools parameter (native tool
+    /// calling). None = no tools param (distill, verifier, fixtures).
+    pub fn call_model_with(
+        &self,
+        subject: &str,
+        model: Option<&str>,
+        prompt: &str,
+        tools: Option<&serde_json::Value>,
+    ) -> Result<ModelOutcome, KernelError> {
         let name = {
             let models = self.models.borrow();
             match model {
@@ -512,7 +526,13 @@ impl Kernel {
             models
                 .get_mut(&name)
                 .unwrap()
-                .call("model.call", serde_json::json!({"prompt": prompt}))
+                .call(
+                    "model.call",
+                    match tools {
+                        Some(t) => serde_json::json!({"prompt": prompt, "tools": t}),
+                        None => serde_json::json!({"prompt": prompt}),
+                    },
+                )
         };
         let latency_ms = t0.elapsed().as_millis() as u32;
         let r = result?;
@@ -520,6 +540,7 @@ impl Kernel {
             completion: r["completion"].as_str().unwrap_or("").to_string(),
             input_tokens: r["input_tokens"].as_u64().unwrap_or(0),
             output_tokens: r["output_tokens"].as_u64().unwrap_or(0),
+            reasoning_tokens: r["reasoning_tokens"].as_u64().unwrap_or(0),
             cost_usd_micros: r["cost_usd_micros"].as_i64().unwrap_or(0),
             latency_ms,
             model: name.clone(),
@@ -529,6 +550,7 @@ impl Kernel {
             serde_json::json!({
                 "model": name, "prompt": prompt, "completion": out.completion,
                 "input_tokens": out.input_tokens, "output_tokens": out.output_tokens,
+                "reasoning_tokens": out.reasoning_tokens,
             }),
             latency_ms,
             out.cost_usd_micros,
