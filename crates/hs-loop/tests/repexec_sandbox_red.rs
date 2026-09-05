@@ -51,10 +51,14 @@ fn sandbox_hides_host_filesystem_secrets_and_live_ws() {
     // the host home, the mission run dir outside the worktree, and the live
     // ws path must not exist inside the sandbox
     let r = hs_loop::repexec::run_sandboxed(d.path(), &d.path().join("answer.txt"),
-        "ls /home 2>&1; cat /home/sandbox/.keys/glm.key 2>&1; hostname", 30);
+        // NOTE: asserts are capture-safe (markers, not substring bans) - the
+        // pre-fix redirect swallowed all but the last command's output
+        "ls /home 2>/dev/null; echo LS-EXIT=$?; test -r /home/sandbox/.keys/glm.key && echo KEY-READABLE || echo KEY-ABSENT; hostname", 30);
     let out = format!("{}{}", r["stdout"].as_str().unwrap(), r["stderr"].as_str().unwrap());
     assert!(!out.contains("TOPSECRET"), "{out}");
-    assert!(!out.contains("sandbox"), "/home must not show the real user: {out}");
+    assert!(!out.contains("LS-EXIT=0"), "/home must not list inside: {out}");
+    assert!(out.contains("KEY-ABSENT"), "glm.key must not be readable: {out}");
+    assert!(!out.contains("KEY-READABLE"), "{out}");
     // and nothing under the scratch leaks the host run dir
     let r2 = hs_loop::repexec::run_sandboxed(d.path(), &d.path().join("answer.txt"),
         &format!("cat {} 2>&1", secret.display()), 30);
@@ -106,7 +110,7 @@ fn sandbox_still_hides_host_secrets() {
     assert!(out.contains("No such file or directory"), "/home must not exist inside: {out}");
     assert!(!out.contains("instinct-nvme"), "/mnt must not exist inside: {out}");
     assert!(!out.contains("authorized_keys"), "ssh keys must not be readable: {out}");
-    assert!(out.contains("/root/.git-credentials: 0"), "git-credentials masked to zero bytes: {out}");
+    assert!(out.contains("0 /root/.git-credentials"), "git-credentials masked to zero bytes: {out}");
 }
 
 #[test]

@@ -22,32 +22,55 @@ fn tail(bytes: &[u8]) -> String {
 }
 
 /// The sandbox command line, as an argv vector (pure, unit-testable).
-/// Toolchain bind-mounted read-only; scratch rw at /ws; tmpfs /tmp; no /home,
-/// no mission env, no network namespace routes.
+/// Full machine floor (fix 1): the mission gets the real box - rw system
+/// roots (apt/pip/cargo/npm actually work), network on, scratch rw at /ws,
+/// tmpfs /tmp. What stays OUT is host secret material, not capability:
+/// /home and /mnt are never bound, /root/.ssh is tmpfs'd over,
+/// /root/.git-credentials is masked with /dev/null, and --clearenv keeps
+/// mission env (HS_*, keys) out. pid/ipc stay unshared so a mission cannot
+/// signal or shm-snoop harness processes.
 pub fn sandbox_argv(scratch: &Path, _out_f: &Path, _err_f: &Path, cmd: &str) -> Vec<String> {
     // out/err paths inside the sandbox: the scratch is mounted at /ws
-    let script = format!("{cmd} >/ws/.repexec-out 2>/ws/.repexec-err");
+    // Group the command: `a; b >file` redirects ONLY the last simple
+    // command, which used to silently lose every earlier command's output
+    // (they went to the null'd child stdout). Compound commands are the
+    // common case for real shells.
+    let script = format!("{{ {cmd}
+}} >/ws/.repexec-out 2>/ws/.repexec-err");
     let mut v: Vec<String> = [
-        "prlimit", "--as=4294967296", "--nproc=256", "--fsize=268435456", "--nofile=1024",
-        "--", "bwrap", "--unshare-all", "--die-with-parent", "--clearenv",
-        "--ro-bind", "/usr", "/usr", "--ro-bind", "/bin", "/bin",
+        "prlimit", "--as=8589934592", "--nproc=512", "--fsize=8589934592", "--nofile=4096",
+        "--", "bwrap", "--share-net", "--unshare-pid", "--unshare-ipc", "--die-with-parent", "--clearenv",
+        "--bind", "/usr", "/usr", "--bind", "/bin", "/bin",
     ]
     .iter()
     .map(|s| s.to_string())
     .collect();
-    for d in ["/lib", "/lib64", "/etc"] {
+    for d in ["/lib", "/lib64", "/etc", "/var", "/opt", "/root"] {
         if Path::new(d).exists() {
-            v.push("--ro-bind".into());
+            v.push("--bind".into());
             v.push(d.into());
             v.push(d.into());
         }
     }
+    // mask host secret material that sits under the bound roots (a
+    // zero-length regular file: /dev/null as a bind source is EACCES under
+    // this box's device policy)
+    let mask = scratch.join(".repexec-mask");
+    let _ = std::fs::write(&mask, b"");
+    if Path::new("/root/.git-credentials").exists() {
+        v.extend(["--ro-bind".into(), mask.display().to_string(), "/root/.git-credentials".into()]);
+    }
+    if Path::new("/root/.ssh").exists() {
+        v.extend(["--tmpfs".into(), "/root/.ssh".into()]);
+    }
     v.extend([
+        "--dev-bind".into(), "/dev".into(), "/dev".into(),
+        "--proc".into(), "/proc".into(),
         "--bind".into(), scratch.display().to_string(), "/ws".into(),
         "--tmpfs".into(), "/tmp".into(),
         "--chdir".into(), "/ws".into(),
-        "--setenv".into(), "PATH".into(), "/usr/local/bin:/usr/bin:/bin".into(),
-        "--setenv".into(), "HOME".into(), "/tmp".into(),
+        "--setenv".into(), "PATH".into(), "/root/.cargo/bin:/usr/local/cargo/bin:/usr/local/bin:/usr/bin:/bin".into(),
+        "--setenv".into(), "HOME".into(), "/root".into(),
         "--setenv".into(), "LANG".into(), "C.UTF-8".into(),
         "--".into(), "sh".into(), "-c".into(), script,
     ]);
