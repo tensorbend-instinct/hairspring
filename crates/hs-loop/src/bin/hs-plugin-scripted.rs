@@ -16,6 +16,15 @@ fn main() {
     serve("scripted", "model", &mut move |method, params| match method {
         "model.call" => {
             let prompt = params["prompt"].as_str().unwrap_or("");
+            if prompt.starts_with("DISTILL:") {
+                // distillation calls do not consume the mission script
+                return serde_json::json!({
+                    "completion": "PROGRESS AND DECISIONS: read pages 1-3, chose the parser fix\nCONSTRAINTS AND PREFERENCES: no host fs access\nNEXT STEPS: patch parser.rs\nCRITICAL DATA: check.sh is the F2P gate",
+                    "input_tokens": prompt.len() / 4 + 1,
+                    "output_tokens": 40,
+                    "cost_usd_micros": 500
+                });
+            }
             let completion = script[n.min(script.len() - 1)].clone();
             n += 1;
             serde_json::json!({

@@ -176,3 +176,46 @@ fn t8_ledger_summary_bounded_at_200_steps() {
         }
     }
 }
+
+/// D1: when compression DOES fire, the oldest verbatim events are distilled
+/// by the model into the Codex four-element handoff contract (progress and
+/// decisions / constraints and preferences / next steps / critical data) -
+/// never a bare tally. The summary links the source event range and the
+/// distillation call is booked to the log with its cost.
+#[test]
+fn d1_handoff_summary_four_elements() {
+    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let dir = tempfile::tempdir().unwrap();
+    let log = tempfile::tempdir().unwrap();
+    let mut lines: Vec<serde_json::Value> = (1..=8)
+        .map(|i| serde_json::json!({"tool":"bigread.read","args":{"page":i,"size":8000}}))
+        .collect();
+    let answer_path = log.path().join("work").join("task-0").join("answer.txt");
+    lines.push(serde_json::json!({"tool":"answer.write","args":{"path":answer_path.display().to_string(),"content":"blind"}}));
+    let script = write_script(dir.path(), &lines);
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
+
+    let mut l = rig(dir.path(), log.path(), 10);
+    // small budget: compression must fire
+    l.set_context_budget_tokens(16_000);
+    let stream = l.stream_id();
+    let r = l.run_mission("task-0").unwrap();
+    assert_eq!(r.steps, 10, "{r:?}");
+
+    let events = stream_events(log.path(), stream);
+    // the distilled summary reaches later prompts with all four elements
+    let last_prompt = events.iter().rev()
+        .find(|(k, _)| *k == EventKind::ModelCall)
+        .map(|(_, b)| b.clone())
+        .expect("a ModelCall event");
+    for element in ["PROGRESS AND DECISIONS", "CONSTRAINTS AND PREFERENCES", "NEXT STEPS", "CRITICAL DATA"] {
+        assert!(last_prompt.contains(element), "handoff carries {element}");
+    }
+    assert!(last_prompt.contains("seq"), "summary links the source event range");
+    // the distillation call itself is booked, with cost, marked why=distill
+    let distill = events.iter()
+        .find(|(k, b)| *k == EventKind::ModelCall && b.contains("\"why\":\"distill\""))
+        .map(|(_, b)| b.clone())
+        .expect("a ModelCall event with why=distill");
+    assert!(distill.contains("cost_usd_micros"), "distillation cost booked: {distill}");
+}
