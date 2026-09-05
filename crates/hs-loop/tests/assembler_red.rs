@@ -219,3 +219,13 @@ fn d1_handoff_summary_four_elements() {
         .expect("a ModelCall event with why=distill");
     assert!(distill.contains("cost_usd_micros"), "distillation cost booked: {distill}");
 }
+
+/// W2: the default context budget comes from the VERIFIED provider context
+/// (Moonshot docs: kimi-k3 = 1M tokens), minus an output/reasoning reserve,
+/// not the 200k estimate; unknown models fall back conservatively.
+#[test]
+fn w2_budget_from_verified_context() {
+    assert_eq!(default_budget_for_model("kimi-k3"), 983_040, "1M context - 64k reserve");
+    assert_eq!(DEFAULT_CONTEXT_BUDGET_TOKENS, default_budget_for_model("kimi-k3"));
+    assert_eq!(default_budget_for_model("unknown-model"), 200_000, "conservative fallback");
+}
