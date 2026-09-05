@@ -87,3 +87,26 @@ default = true
     // the workspace carries the applied patch
     assert_eq!(std::fs::read_to_string(ws.join("code.txt")).unwrap(), "fixed\n");
 }
+
+/// Fix 2 (Eric, 2026-09-05): every mission prompt opens with an orientation
+/// brief - a map, not a manual. The model must KNOW it has a real machine:
+/// root, writable system roots, network on, which package managers exist.
+/// ab2: missions burned steps probing "can I even run pip?" instead of
+/// working, because the prompt described a toy jail that no longer exists.
+#[test]
+fn mission_prompt_opens_with_machine_orientation() {
+    let args = hs_loop::sweprompt::PromptArgs {
+        ws: "/tmp/ws".into(),
+        problem_statement: "bug".into(),
+        fail_to_pass: vec!["pytest t -x".into()],
+        repo_layout: "src/main.rs\n".into(),
+        nudge: String::new(),
+        answer_path: "/tmp/answer.txt".into(),
+    };
+    let prompt = hs_loop::sweprompt::build_mission_prompt(None, &args);
+    assert!(prompt.contains("MACHINE:"), "orientation block present: {}", &prompt[..prompt.len().min(600)]);
+    assert!(prompt.contains("Network: ON"), "network state stated: {prompt}");
+    assert!(prompt.contains("root"), "identity stated: {prompt}");
+    assert!(prompt.contains("Detected tooling:"), "probed tooling line: {prompt}");
+    assert!(!prompt.contains("no network, no host fs"), "stale jail description removed: {prompt}");
+}
