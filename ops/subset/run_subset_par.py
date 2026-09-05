@@ -154,9 +154,9 @@ def run_task(wid, m):
             "HS_SWE_P2P": "",
             "HS_REALMODEL_CALL_TIMEOUT_SECS": "1500",
         })
-        r = sh(f"timeout 1800 {HS} --instance {shlex.quote(os.path.join(S50, 'instances', iid + '.json'))} "
+        r = sh(f"timeout 3600 {HS} --instance {shlex.quote(os.path.join(S50, 'instances', iid + '.json'))} "
                f"--model glm --feedback on --budget-micros 10000000 --max-steps {MAX_STEPS} "
-               f"--run-dir {shlex.quote(run_dir)}", timeout=1900, env=env)
+               f"--run-dir {shlex.quote(run_dir)}", timeout=3700, env=env)
         open(os.path.join(run_dir, "stdout.log"), "w").write(r.stdout + "\n--- STDERR ---\n" + r.stderr)
         if r.returncode == 124 and not os.path.exists(rj):
             res = {"instance_id": iid, "passed": False, "steps": 0, "model_calls": 0,
