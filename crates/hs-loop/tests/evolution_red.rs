@@ -8,7 +8,8 @@
 //! candidate's worth is measurable through real mission outcomes.
 
 use hs_loop::*;
-use std::process::Command;
+use hs_loop::sweprompt::PromptArgs;
+
 
 static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
@@ -85,8 +86,8 @@ fn d7_promote_only_verified_winners_reject_losers_rewind_restores() {
     let winner = format!("{MARKER}\nYou are fixing a bug. {{{{answer_path}}}} is your ANSWER_PATH.\nANSWER_PATH: {{answer_path}}\nATTEMPT: 1");
     let loser = "no marker here.\nANSWER_PATH: {answer_path}\nATTEMPT: 1".to_string();
 
-    let bench = vec!["task-0".to_string(), "task-0b".to_string()];
-    let held_out = vec!["task-0c".to_string()];
+    let bench = vec!["task-0".to_string(), "task-1".to_string()];
+    let held_out = vec!["task-2".to_string()];
 
     // 1. loser: ties the parent (both fail) -> REJECTED with a reason
     let d1 = evolve::evaluate_candidate(
@@ -117,6 +118,6 @@ fn d7_promote_only_verified_winners_reject_losers_rewind_restores() {
     let j = std::fs::read_to_string(&journal).unwrap();
     assert!(j.contains("rewound"), "rewind recorded: {j}");
     // and behavior reverts: the marker is gone, gatemodel fails again
-    let r = runner(None, "task-0d");
+    let r = runner(None, "task-3");
     assert!(!r.passed, "post-rewind behavior is the parent's");
 }

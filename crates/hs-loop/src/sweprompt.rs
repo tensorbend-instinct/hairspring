@@ -97,7 +97,7 @@ fn proposals_path(dir: &Path) -> PathBuf {
     dir.join("policy_proposals.jsonl")
 }
 
-fn content_hash(s: &str) -> String {
+pub fn content_hash(s: &str) -> String {
     // FNV-1a 64: deterministic across processes, enough for lineage chaining
     let mut h: u64 = 0xcbf29ce484222325;
     for b in s.as_bytes() {

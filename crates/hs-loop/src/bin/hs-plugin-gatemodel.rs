@@ -13,9 +13,15 @@ fn main() {
                 .unwrap_or("")
                 .to_string();
             let content = if prompt.contains("EVO-PREFLIGHT-LAW") {
-                "TOKEN-0-SECRET"
+                // the checker expects TOKEN-<n>-SECRET for task-<n>; the
+                // task id rides in the answer path (.../work/task-N/answer.txt)
+                let n = path.split("/work/task-").nth(1)
+                    .and_then(|r| r.split('/').next())
+                    .and_then(|s| s.parse::<usize>().ok())
+                    .unwrap_or(0);
+                format!("TOKEN-{n}-SECRET")
             } else {
-                "blind-wrong"
+                "blind-wrong".to_string()
             };
             let completion = serde_json::json!({"tool":"answer.write","args":{"path":path,"content":content}});
             serde_json::json!({

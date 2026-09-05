@@ -10,6 +10,7 @@ pub mod realmodel;
 pub mod mcpbridge;
 pub mod assembler;
 pub mod editapply;
+pub mod evolve;
 pub mod goal;
 pub mod ledger;
 pub mod repexec;
@@ -88,9 +89,19 @@ pub struct InnerLoop {
     goal: Option<goal::GoalSpec>,
 }
 
-/// D1: default input budget per the design doc (ESTIMATE, W2: provider
-/// context size must be confirmed; treat as configuration, not a constant).
-pub const DEFAULT_CONTEXT_BUDGET_TOKENS: usize = 200_000;
+/// D1/W2: input budget from the VERIFIED provider context, minus an
+/// output/reasoning reserve. kimi-k3: 1M-token context per Moonshot's
+/// platform docs (models-overview, verified 2026-09-05); 64k reserve for
+/// K3's always-on reasoning + output. Unknown models fall back
+/// conservatively; --context-budget-tokens overrides.
+pub const DEFAULT_CONTEXT_BUDGET_TOKENS: usize = 983_040;
+
+pub fn default_budget_for_model(model: &str) -> usize {
+    match model {
+        "kimi-k3" => 1_048_576 - 65_536,
+        _ => 200_000, // conservative fallback until the provider limit is verified
+    }
+}
 
 impl InnerLoop {
     pub fn new(

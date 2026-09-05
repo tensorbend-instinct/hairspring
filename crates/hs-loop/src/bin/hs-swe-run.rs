@@ -223,9 +223,10 @@ default = true
     let mut l = hs_loop::InnerLoop::new(kernel, &log_root, feedback, max_steps).expect("loop");
     l.set_budget_micros(budget_micros);
     l.set_progress_path(&run_dir.join("progress.json"));
-    if let Some(t) = arg(&args, "--context-budget-tokens").and_then(|v| v.parse::<usize>().ok()) {
-        l.set_context_budget_tokens(t);
-    }
+    let budget_tokens = arg(&args, "--context-budget-tokens")
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or_else(|| hs_loop::default_budget_for_model(&model));
+    l.set_context_budget_tokens(budget_tokens);
     if let Ok(ws) = std::env::var("HS_SWE_WORKSPACE") {
         if !f2p.is_empty() {
             l.set_goal_evaluator(std::path::Path::new(&ws), f2p.clone());
