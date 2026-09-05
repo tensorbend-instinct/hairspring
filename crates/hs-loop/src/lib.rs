@@ -93,6 +93,9 @@ pub struct InnerLoop {
     /// item 4: per-plugin count at which the doom-loop nudge last fired;
     /// refires only when the repeat count grows by +2 (anti-spam)
     doom_nudges: std::collections::HashMap<String, usize>,
+    /// post-B8: per-class guardrail fire counts; same-class repeats
+    /// escalate (the bare refusal never landed with B8's model)
+    guardrail_escalator: repexec::GuardrailEscalator,
     /// item 3: adversarial verifier state - rounds spent and the findings
     /// the last refuted round handed back (the next round's PRIOR_GAPS)
     verifier_rounds: u32,
@@ -147,6 +150,7 @@ impl InnerLoop {
             goal: None,
             dead_tools: Default::default(),
             doom_nudges: Default::default(),
+            guardrail_escalator: Default::default(),
             verifier_rounds: 0,
             prior_gaps: vec![],
             wall_secs: None,
@@ -181,6 +185,7 @@ impl InnerLoop {
             goal: None,
             dead_tools: Default::default(),
             doom_nudges: Default::default(),
+            guardrail_escalator: Default::default(),
             verifier_rounds: 0,
             prior_gaps: vec![],
             wall_secs: None,
@@ -447,6 +452,7 @@ impl InnerLoop {
                                                     "input_tokens": out.input_tokens,
                                                     "output_tokens": out.output_tokens,
                                                     "reasoning_tokens": out.reasoning_tokens,
+                                                    "reasoning_content": out.reasoning_content,
                                                     "cached_tokens": out.cached_tokens,
                                                     "cost_usd_micros": out.cost_usd_micros,
                                                 }))
@@ -550,6 +556,7 @@ impl InnerLoop {
                             "model": out.model, "messages": messages, "completion": out.completion,
                             "input_tokens": out.input_tokens, "output_tokens": out.output_tokens,
                             "reasoning_tokens": out.reasoning_tokens,
+                            "reasoning_content": out.reasoning_content,
                             "cached_tokens": out.cached_tokens,
                             "assembly_ms": assembly_ms,
                         }))
@@ -664,6 +671,28 @@ impl InnerLoop {
                             pending_feedback.push(note);
                         }
                         self.ledger.apply_tool_call(ev.seq, &tool, &args, &tool_out.output);
+                        // Post-B8: guardrail escalation - same-class
+                        // edit-path violations are counted per class; from
+                        // the second fire on, an escalating steer is
+                        // injected (B8's model retried the forbidden class
+                        // 6 times against the bare refusal).
+                        if tool == "repo.exec" {
+                            if let Some(class) = repexec::extract_gate_class(&tool_out.output.to_string()) {
+                                if let Some(note) = self.guardrail_escalator.record(&class) {
+                                    self.writer.append(
+                                        EventBuilder::new(EventKind::ContextInject).payload(
+                                            Payload::Inline(
+                                                serde_json::to_vec(&serde_json::json!({
+                                                    "what": [note.clone()], "why": "guardrail_escalation",
+                                                }))
+                                                .unwrap(),
+                                            ),
+                                        ),
+                                    )?;
+                                    pending_feedback.push(note);
+                                }
+                            }
+                        }
                         // Item 4: doom-loop detection (Grok doom_loop_telemetry,
                         // adapted). Third effectively-identical call in the
                         // window triggers one recovery nudge; it refires only
@@ -772,12 +801,17 @@ impl InnerLoop {
             // Checker red + goal green still stops (goal owns that case).
             let stop_green = match &self.goal {
                 Some(g) => {
-                    let green = goal::verify(g, &answer_path);
+                    let verdict = goal::verify_verdict(g, &answer_path);
+                    let green = verdict == goal::GoalVerdict::Pass;
+                    let env_limit = match &verdict {
+                        goal::GoalVerdict::EnvLimited(r) => Some(r.clone()),
+                        _ => None,
+                    };
                     self.writer.append(
                         EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
                             serde_json::to_vec(&serde_json::json!({
-                                "goal_evaluator": if green { "green" } else { "red" },
-                                "f2p": g.f2p, "checker_passed": passed,
+                                "goal_evaluator": if green { "green" } else if env_limit.is_some() { "env_limited" } else { "red" },
+                                "env_limit": env_limit, "f2p": g.f2p, "checker_passed": passed,
                             }))
                             .unwrap(),
                         )),
@@ -829,6 +863,7 @@ impl InnerLoop {
                                         "prompt": vprompt, "tools": verdict_tools,
                                         "completion": vout.completion,
                                         "reasoning_tokens": vout.reasoning_tokens,
+                                        "reasoning_content": vout.reasoning_content,
                                         "cached_tokens": vout.cached_tokens,
                                     }))
                                     .unwrap(),

@@ -69,3 +69,26 @@ pub fn check_path_allowed(cfg: &McpServerConfig, path: &str) -> Result<(), Strin
         cfg.name, cfg.allowed_roots
     ))
 }
+
+/// Resolve a plugin binary as the canonicalized sibling of the running
+/// executable. B4 lesson: a bridge silently picked up from another tree
+/// runs stale code, so a missing sibling is a LOUD error - never a
+/// fallback to PATH or a neighboring checkout.
+pub fn resolve_plugin_bin(exe: &Path, name: &str) -> Result<std::path::PathBuf, String> {
+    let exe = exe
+        .canonicalize()
+        .map_err(|e| format!("resolve {name}: exe {}: {e}", exe.display()))?;
+    let dir = exe
+        .parent()
+        .ok_or_else(|| format!("resolve {name}: exe {} has no parent dir", exe.display()))?;
+    let cand = dir.join(name);
+    if cand.exists() {
+        Ok(cand)
+    } else {
+        Err(format!(
+            "mcp bridge binary {name} not found next to {} (looked at {}) - build it in the same tree; no fallback to PATH or other trees",
+            exe.display(),
+            cand.display()
+        ))
+    }
+}

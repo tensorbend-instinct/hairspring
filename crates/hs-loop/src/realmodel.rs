@@ -238,6 +238,10 @@ pub struct ParsedCall {
     pub output_tokens: u64,
     pub cached_tokens: u64,
     pub reasoning_tokens: u64,
+    /// The reasoning text itself (provider field `reasoning_content`);
+    /// empty when the provider does not return it. Observability: the
+    /// count alone never told us WHAT the model reasoned.
+    pub reasoning_content: String,
     pub cost_usd_micros: i64,
 }
 
@@ -354,6 +358,7 @@ pub fn parse_response(p: &Provider, v: &serde_json::Value) -> Result<ParsedCall,
     let args: serde_json::Value = serde_json::from_str(args_raw)
         .map_err(|e| format!("{}: tool_call arguments not JSON: {e}", p.name))?;
     let completion = json!({"tool": name, "args": args}).to_string();
+    let reasoning_content = msg["reasoning_content"].as_str().unwrap_or("").to_string();
     let (input_tokens, output_tokens, cached_tokens, reasoning_tokens, cost) =
         usage_cost(p, &v["usage"]);
     Ok(ParsedCall {
@@ -362,6 +367,7 @@ pub fn parse_response(p: &Provider, v: &serde_json::Value) -> Result<ParsedCall,
         output_tokens,
         cached_tokens,
         reasoning_tokens,
+        reasoning_content,
         cost_usd_micros: cost,
     })
 }
@@ -381,6 +387,7 @@ fn parse_response_legacy(p: &Provider, v: &serde_json::Value) -> Result<ParsedCa
     let completion = extract_json_object(raw)
         .map(|s| s.to_string())
         .unwrap_or_else(|| raw.to_string());
+    let reasoning_content = v["choices"][0]["message"]["reasoning_content"].as_str().unwrap_or("").to_string();
     let (input_tokens, output_tokens, cached_tokens, reasoning_tokens, cost) =
         usage_cost(p, &v["usage"]);
     Ok(ParsedCall {
@@ -389,6 +396,7 @@ fn parse_response_legacy(p: &Provider, v: &serde_json::Value) -> Result<ParsedCa
         output_tokens,
         cached_tokens,
         reasoning_tokens,
+        reasoning_content,
         cost_usd_micros: cost,
     })
 }
@@ -501,6 +509,7 @@ fn call_with_body(
                     "output_tokens": out.output_tokens,
                     "cached_tokens": out.cached_tokens,
                     "reasoning_tokens": out.reasoning_tokens,
+                    "reasoning_content": out.reasoning_content,
                     "cost_usd_micros": out.cost_usd_micros,
                     "provider_model": model,
                 }))
@@ -518,6 +527,7 @@ fn call_with_body(
                     "output_tokens": 0,
                     "cached_tokens": 0,
                     "reasoning_tokens": 0,
+                    "reasoning_content": "",
                     "cost_usd_micros": 0,
                     "provider_model": model,
                 }));

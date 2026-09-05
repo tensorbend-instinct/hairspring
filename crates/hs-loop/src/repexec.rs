@@ -253,9 +253,10 @@ pub fn edit_path_violation(command: &str) -> Option<String> {
 /// nothing executed, nothing applied, steering that names edit.apply.
 fn edit_gate(command: &str, patch_mode: bool) -> Option<Value> {
     edit_path_violation(command).map(|reason| {
+        let class = violation_class(&reason);
         json!({"applied": false, "scratch": !patch_mode, "timed_out": false, "exit_code": -1,
                "stdout": "", "stderr": "",
-               "error": format!("forbidden edit path ({reason}): repo.exec is build/test only. Make ALL edits with edit.apply (search/replace blocks; op='diff' shows the cumulative diff) - git apply and raw .diff/.patch file writes are rejected here.")})
+               "error": format!("forbidden edit path (class: {class}, {reason}): repo.exec is build/test only. Make ALL edits with edit.apply - example: edit.apply {{\"edits\":[{{\"path\":\"src/file.py\",\"search\":\"<exact old text>\",\"replace\":\"<new text>\"}}]}}; op=\"diff\" shows the cumulative diff. git apply and raw .diff/.patch file writes are rejected here, and repeated attempts of the same class are counted and escalate.")})
     })
 }
 
@@ -364,4 +365,60 @@ fn run_with_prep(prepped: Result<Option<PathBuf>, Value>, ws: &Path, command: &s
     json!({"applied": patch_mode, "scratch": !patch_mode, "timed_out": false,
            "exit_code": status.and_then(|s| s.code()).unwrap_or(-1),
            "stdout": stdout, "stderr": stderr})
+}
+
+/// Map a guardrail reason to its stable violation class - escalation and
+/// telemetry count per class, not per exact command (the args change on
+/// every retry; the class does not).
+pub fn violation_class(reason: &str) -> String {
+    if reason.starts_with("git apply") {
+        "git_apply".to_string()
+    } else if reason.starts_with("raw diff-file write") {
+        "diff_write".to_string()
+    } else {
+        "other".to_string()
+    }
+}
+
+/// Pull the violation class back out of a gate result string (the loop
+/// counts escalations from the ToolCall output, not from internals).
+pub fn extract_gate_class(output: &str) -> Option<String> {
+    if !output.contains("forbidden edit path") {
+        return None;
+    }
+    let pos = output.find("class: ")? + "class: ".len();
+    let end = output[pos..]
+        .find([',', ')', ' ', '\\', '"'])
+        .map(|i| pos + i)
+        .unwrap_or(output.len());
+    Some(output[pos..end].to_string())
+}
+
+/// Post-B8 escalation (B8: 6 same-class fires, the bare steer never
+/// landed). The first fire speaks through the gate's own error; from the
+/// SECOND same-class fire on, record() returns an escalating steer for
+/// the loop to inject as feedback.
+#[derive(Default)]
+pub struct GuardrailEscalator {
+    counts: std::collections::HashMap<String, usize>,
+}
+
+impl GuardrailEscalator {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    /// Count one fire of `class`; Some(steer) when it is a repeat.
+    pub fn record(&mut self, class: &str) -> Option<String> {
+        let n = {
+            let c = self.counts.entry(class.to_string()).or_insert(0);
+            *c += 1;
+            *c
+        };
+        if n < 2 {
+            return None;
+        }
+        Some(format!(
+            "GUARDRAIL ESCALATION: {n} rejected edit-path attempts of class {class}. Repeating a rejected bypass cannot ever succeed - the CLASS is forbidden outright, not the specific command. Make the edit with edit.apply (search/replace blocks) and use repo.exec ONLY to build and test."
+        ))
+    }
 }

@@ -29,13 +29,11 @@ fn arg(args: &[String], name: &str) -> Option<String> {
 }
 
 fn bin(name: &str) -> String {
-    std::env::current_exe()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join(name)
-        .display()
-        .to_string()
+    let exe = std::env::current_exe().unwrap();
+    let p = hs_loop::mcpbridge::resolve_plugin_bin(&exe, name)
+        .unwrap_or_else(|e| panic!("hs-swe-run: {e}"));
+    eprintln!("hs-swe-run: resolved {name} -> {}", p.display());
+    p.display().to_string()
 }
 
 fn main() {

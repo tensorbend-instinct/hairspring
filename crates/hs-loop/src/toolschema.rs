@@ -31,7 +31,7 @@ pub fn builtin_tools() -> Vec<Value> {
         ),
         f(
             "repo.exec",
-            "Run a command inside a sandbox with the full machine floor: network on, system roots writable, you are root; the live repo stays clean. A bare command runs as a general shell on a pristine copy (git log, grep, pwd - no diff required). Pass diff INLINE to test a candidate patch BEFORE writing any answer; pass path (or neither) to test the current answer file. If the patch does not apply you get the git error back free - fix the framing before spending a checker cycle. Run the FAIL_TO_PASS command before every answer.write. Make edits ONLY with edit.apply: git apply and writing .diff/.patch files here are rejected with a steering error.",
+            "Run a command inside a sandbox with the full machine floor: network on, system roots writable, you are root; the live repo stays clean. A bare command runs as a general shell on a pristine copy (git log, grep, pwd - no diff required). Pass diff INLINE to test a candidate patch BEFORE writing any answer; pass path (or neither) to test the current answer file. If the patch does not apply you get the git error back free - fix the framing before spending a checker cycle. Run the FAIL_TO_PASS command before every answer.write. Make edits ONLY with edit.apply: git apply and writing .diff/.patch files here are rejected with a steering error; repeated attempts of the same class are counted and escalate.",
             json!({"type":"object","properties":{
                 "command":{"type":"string"},
                 "diff":{"type":"string","description":"unified diff, optional"},
