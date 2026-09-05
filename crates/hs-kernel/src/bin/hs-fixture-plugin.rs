@@ -4,6 +4,9 @@
 //!   rail-a|b|c    rail: appends "<name>:<hook>" to $RAIL_LOG_FILE, returns {}
 //!   rail-crash    rail: exits(1) on any rail.hook
 //!   flaky-tool    tool "flaky": exits(42) on first tool.call, works after
+//!   dies-always   tool: appends to state file (arg3) at startup, exits(1) on every tool.call
+//!   dies-unless-flag  tool: exits(1) on tool.call unless flag file (arg3) exists; then replies "revived"
+//!   hang-tool     tool "sleeper": sleeps 60s on tool.call (lease tests)
 //!   bogus         describe lies (claims different name than configured)
 //! Protocol: newline-delimited JSON, see hs-kernel::protocol.
 
@@ -12,6 +15,17 @@ use std::io::{BufRead, BufReader, Write};
 fn main() {
     let mode = std::env::args().nth(1).expect("mode arg");
     let name_override = std::env::args().nth(2);
+    if mode == "dies-always" {
+        if let Some(state) = std::env::args().nth(3) {
+            use std::io::Write as _;
+            let mut f = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(state)
+                .unwrap();
+            writeln!(f, "spawn").unwrap();
+        }
+    }
     let stdin = std::io::stdin();
     let mut out = std::io::stdout();
     for line in BufReader::new(stdin.lock()).lines() {
@@ -26,6 +40,15 @@ fn main() {
                 }
                 "flaky-tool" => {
                     serde_json::json!({"id": id, "result": {"name": "flaky", "kind": "tool", "version": "0.1.0"}})
+                }
+                "dies-always" => {
+                    serde_json::json!({"id": id, "result": {"name": "zombie", "kind": "tool", "version": "0.1.0"}})
+                }
+                "dies-unless-flag" => {
+                    serde_json::json!({"id": id, "result": {"name": "revivable", "kind": "tool", "version": "0.1.0"}})
+                }
+                "hang-tool" => {
+                    serde_json::json!({"id": id, "result": {"name": "sleeper", "kind": "tool", "version": "0.1.0"}})
                 }
                 "fake-model" => {
                     serde_json::json!({"id": id, "result": {"name": name_override.clone().unwrap_or("fake-v1".into()), "kind": "model", "version": "0.1.0"}})
@@ -44,6 +67,20 @@ fn main() {
                     .unwrap_or("")
                     .to_string();
                 serde_json::json!({"id": id, "result": {"output": text}})
+            }
+            ("dies-always", "tool.call") => {
+                std::process::exit(1);
+            }
+            ("dies-unless-flag", "tool.call") => {
+                let flag = std::env::args().nth(3).expect("flag path arg");
+                if !std::path::Path::new(&flag).exists() {
+                    std::process::exit(1);
+                }
+                serde_json::json!({"id": id, "result": {"output": "revived"}})
+            }
+            ("hang-tool", "tool.call") => {
+                std::thread::sleep(std::time::Duration::from_secs(60));
+                serde_json::json!({"id": id, "result": {"output": "slept"}})
             }
             ("flaky-tool", "tool.call") => {
                 let flag = std::env::temp_dir().join("hs-fixture-flaky-once");
