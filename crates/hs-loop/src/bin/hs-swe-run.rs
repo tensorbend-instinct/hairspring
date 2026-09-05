@@ -222,6 +222,9 @@ default = true
     let mut l = hs_loop::InnerLoop::new(kernel, &log_root, feedback, max_steps).expect("loop");
     l.set_budget_micros(budget_micros);
     l.set_progress_path(&run_dir.join("progress.json"));
+    if let Some(t) = arg(&args, "--context-budget-tokens").and_then(|v| v.parse::<usize>().ok()) {
+        l.set_context_budget_tokens(t);
+    }
     let started = std::time::Instant::now();
     let r = l
         .run_mission_full(&inst.instance_id, &prompt)

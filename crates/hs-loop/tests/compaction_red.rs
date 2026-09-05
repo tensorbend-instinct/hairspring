@@ -61,7 +61,11 @@ default = true
     )
     .unwrap();
     let kernel = hs_kernel::Kernel::load(&config).unwrap();
-    InnerLoop::new(kernel, log, true, 8).unwrap()
+    let mut l = InnerLoop::new(kernel, log, true, 8).unwrap();
+    // the D1 budget is token-sized and configurable; this rig uses a small
+    // one so the pressure scenario still exercises the compression path
+    l.set_context_budget_tokens(16_000);
+    l
 }
 
 fn context_injects(log: &std::path::Path, stream: uuid::Uuid) -> Vec<String> {

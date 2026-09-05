@@ -8,7 +8,9 @@
 
 pub mod realmodel;
 pub mod mcpbridge;
+pub mod assembler;
 pub mod editapply;
+pub mod ledger;
 pub mod repexec;
 pub mod sweprompt;
 pub mod repotools;
@@ -79,7 +81,13 @@ pub struct InnerLoop {
     cost_total_micros: u64,
     budget_micros: Option<u64>,
     progress_path: Option<PathBuf>,
+    ledger: ledger::Ledger,
+    context_budget_chars: usize,
 }
+
+/// D1: default input budget per the design doc (ESTIMATE, W2: provider
+/// context size must be confirmed; treat as configuration, not a constant).
+pub const DEFAULT_CONTEXT_BUDGET_TOKENS: usize = 200_000;
 
 impl InnerLoop {
     pub fn new(
@@ -100,6 +108,8 @@ impl InnerLoop {
             cost_total_micros: 0,
             budget_micros: None,
             progress_path: None,
+            ledger: Default::default(),
+            context_budget_chars: DEFAULT_CONTEXT_BUDGET_TOKENS * 4,
         })
     }
 
@@ -123,6 +133,8 @@ impl InnerLoop {
             cost_total_micros: 0,
             budget_micros: None,
             progress_path: None,
+            ledger: Default::default(),
+            context_budget_chars: DEFAULT_CONTEXT_BUDGET_TOKENS * 4,
         })
     }
 
@@ -147,6 +159,11 @@ impl InnerLoop {
     /// step. An external wall-clock kill (timeout, OOM, SIGKILL) then books
     /// from the checkpoint via `book_wall_kill` instead of writing a
     /// 0-step result for a run that did real work.
+    /// D1: size the transcript projection in tokens (4 chars/token proxy).
+    pub fn set_context_budget_tokens(&mut self, tokens: usize) {
+        self.context_budget_chars = tokens.saturating_mul(4);
+    }
+
     pub fn set_progress_path(&mut self, path: &Path) {
         self.progress_path = Some(path.to_path_buf());
     }
@@ -242,123 +259,31 @@ impl InnerLoop {
                 }
                 injected = true;
             }
-            // Mission memory per spec v4: "Memory, recovery, evaluation...
-            // are all read paths over the same log." The transcript is READ
-            // BACK from this stream's own event record (ToolCall payloads
-            // carry args+result), newest-first capped to 60KB - no parallel
-            // store, and it survives process restarts/freeze recovery.
-            // Part of the feedback channel: no injection, no memory.
+            // D2/D1: the LEDGER summary is always resident (bounded); the
+            // transcript is a token-budgeted projection of the stream's own
+            // ToolCall events. No parallel store: both are read models over
+            // the log and survive restarts/freeze recovery.
             if self.feedback_injection {
                 if let Ok(reader) = hs_log::StreamReader::open(&self.log_root, self.stream_id) {
                     if let Ok(events) = reader.events() {
-                        // Collect ALL transcript lines newest-first, tagged
-                        // with their source event for audit refs.
-                        const WINDOW_CAP: usize = 60_000;
-                        const HIGH_WATER: usize = WINDOW_CAP * 85 / 100;
-                        const TAIL_BUDGET: usize = WINDOW_CAP * 60 / 100;
-                        let mut lines: Vec<(u64, uuid::Uuid, String)> = vec![];
-                        for e in events.iter().rev() {
-                            if e.kind != hs_core::EventKind::ToolCall {
-                                continue;
-                            }
-                            // resolve Inline AND BlobRef payloads: hs-log
-                            // promotes large results to blob refs on append,
-                            // and skipping them dropped big tool outputs
-                            // from mission memory entirely
-                            if let Ok(bytes) = reader.resolve_payload(e) {
-                                if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes)
-                                {
-                                    let mut line = format!(
-                                        "{}({}) => {}",
-                                        v["plugin"].as_str().unwrap_or("?"),
-                                        v["args"],
-                                        v["result"]
-                                    );
-                                    if line.len() > 20_000 {
-                                        line.truncate(20_000);
-                                        line.push_str("...[truncated]");
-                                    }
-                                    lines.push((e.seq, e.event_id, line));
-                                }
-                            }
+                        ctx.push_str("LEDGER (your work so far, always current):\n");
+                        ctx.push_str(&self.ledger.summary());
+                        let asm = assembler::assemble(&reader, &events, self.context_budget_chars);
+                        if let Some(c) = &asm.compressed {
+                            let _ = self.writer.append(
+                                EventBuilder::new(EventKind::ContextInject)
+                                    .payload(Payload::Inline(
+                                        format!(
+                                            "context_inject why=pressure compacted={} range=seq{}..seq{}",
+                                            c.count, c.lo_seq, c.hi_seq
+                                        )
+                                        .into_bytes(),
+                                    )),
+                            );
                         }
-                        let total: usize = lines.iter().map(|(_, _, l)| l.len() + 8).sum();
-                        let mut entries: Vec<String> = vec![];
-                        if total > HIGH_WATER {
-                            // GATE 9f (spec v5): compact on window PRESSURE,
-                            // not on a fixed schedule. The recent tail stays
-                            // verbatim; older segments distill into a summary
-                            // that links back to the source event range, so
-                            // distillation never destroys auditability.
-                            let mut budget = TAIL_BUDGET;
-                            let mut kept: Vec<String> = vec![];
-                            let mut compacted: Vec<(u64, uuid::Uuid, String)> = vec![];
-                            for (seq, id, line) in lines {
-                                if compacted.is_empty() && line.len() + 8 <= budget {
-                                    budget -= line.len() + 8;
-                                    kept.push(line);
-                                } else {
-                                    compacted.push((seq, id, line));
-                                }
-                            }
-                            if !compacted.is_empty() {
-                                let lo = compacted.last().unwrap();
-                                let hi = compacted.first().unwrap();
-                                let mut counts: std::collections::BTreeMap<String, usize> =
-                                    Default::default();
-                                for (_, _, l) in &compacted {
-                                    let plugin =
-                                        l.split('(').next().unwrap_or("?").to_string();
-                                    *counts.entry(plugin).or_insert(0) += 1;
-                                }
-                                let tally = counts
-                                    .iter()
-                                    .map(|(p, n)| format!("{p}x{n}"))
-                                    .collect::<Vec<_>>()
-                                    .join(", ");
-                                let summary = format!(
-                                    "COMPACTED {} earlier tool calls (events seq {}..{}, refs {}..{}): {}",
-                                    compacted.len(),
-                                    lo.0,
-                                    hi.0,
-                                    lo.1,
-                                    hi.1,
-                                    tally
-                                );
-                                // record(context_inject, why=pressure)
-                                let body = format!(
-                                    "context_inject why=pressure compacted={} range=seq{}..seq{}",
-                                    compacted.len(),
-                                    lo.0,
-                                    hi.0
-                                );
-                                let _ = self.writer.append(
-                                    EventBuilder::new(EventKind::ContextInject)
-                                        .payload(Payload::Inline(body.into_bytes())),
-                                );
-                                kept.reverse();
-                                entries.push(summary);
-                                entries.extend(kept);
-                            } else {
-                                kept.reverse();
-                                entries = kept;
-                            }
-                        } else {
-                            // under the watermark: everything verbatim,
-                            // newest-first fill (never breaks when it fits)
-                            let mut budget = WINDOW_CAP;
-                            for (_, _, line) in lines {
-                                if line.len() + 8 > budget {
-                                    break;
-                                }
-                                budget -= line.len() + 8;
-                                entries.push(line);
-                            }
-                            entries.reverse();
-                        }
-                        if !entries.is_empty() {
+                        if !asm.entries.is_empty() {
                             ctx.push_str("TRANSCRIPT (earlier tool calls):\n");
-                            for e in &entries {
+                            for e in &asm.entries {
                                 ctx.push_str(&format!("- {e}\n"));
                             }
                         }
@@ -446,7 +371,7 @@ impl InnerLoop {
                 None => Some(r#"your reply was not a single JSON tool call; respond with exactly {"tool":"answer.write","args":{"path":<ANSWER_PATH>,"content":...}}"#.to_string()),
                 Some((tool, args)) => match self.kernel.call_tool("operator", &tool, args.clone()) {
                     Ok(tool_out) => {
-                        self.writer.append(
+                        let ev = self.writer.append(
                             EventBuilder::new(EventKind::ToolCall)
                                 .payload(Payload::Inline(
                                     serde_json::to_vec(&serde_json::json!({
@@ -456,6 +381,24 @@ impl InnerLoop {
                                 ))
                                 .latency_ms(tool_out.latency_ms),
                         )?;
+                        // D2: exact duplicate (tool, args) calls get flagged
+                        // with the prior seq - an explicit, correctable
+                        // signal instead of a silent re-read loop (P3)
+                        if let Some(prior) = self.ledger.find_duplicate(&tool, &args) {
+                            let note = format!(
+                                "duplicate call: identical {tool} args already served at seq {prior} - that result is in your transcript/ledger; do not re-run it"
+                            );
+                            self.writer.append(
+                                EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                                    serde_json::to_vec(&serde_json::json!({
+                                        "duplicate_call": tool, "prior_seq": prior, "note": note,
+                                    }))
+                                    .unwrap(),
+                                )),
+                            )?;
+                            pending_feedback.push(note);
+                        }
+                        self.ledger.apply_tool_call(ev.seq, &tool, &args, &tool_out.output);
                         if tool == "answer.write" {
                             wrote_answer = true;
                         }

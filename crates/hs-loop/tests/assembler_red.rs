@@ -80,7 +80,7 @@ fn stream_events(log: &std::path::Path, stream: uuid::Uuid) -> Vec<(EventKind, S
 
 #[test]
 fn t1_no_context_wipe_50_steps() {
-    let _guard = ENV_LOCK.lock().unwrap();
+    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     // 49 big reads (~8KB each => ~400KB transcript, far over the old 60KB
@@ -88,14 +88,14 @@ fn t1_no_context_wipe_50_steps() {
     let mut lines: Vec<serde_json::Value> = (1..=49)
         .map(|i| serde_json::json!({"tool":"bigread.read","args":{"page":i,"size":8000}}))
         .collect();
-    let answer_path = log.path().join("work").join("task-t1").join("answer.txt");
+    let answer_path = log.path().join("work").join("task-0").join("answer.txt");
     lines.push(serde_json::json!({"tool":"answer.write","args":{"path":answer_path.display().to_string(),"content":"blind"}}));
     let script = write_script(dir.path(), &lines);
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
 
     let mut l = rig(dir.path(), log.path(), 50);
     let stream = l.stream_id();
-    let r = l.run_mission("task-t1").unwrap();
+    let r = l.run_mission("task-0").unwrap();
     assert_eq!(r.steps, 50, "mission runs all 50 steps: {r:?}");
 
     let events = stream_events(log.path(), stream);
@@ -115,10 +115,10 @@ fn t1_no_context_wipe_50_steps() {
 
 #[test]
 fn t2_dup_read_flagged_with_prior_seq() {
-    let _guard = ENV_LOCK.lock().unwrap();
+    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
-    let answer_path = log.path().join("work").join("task-t2").join("answer.txt");
+    let answer_path = log.path().join("work").join("task-0").join("answer.txt");
     let read = serde_json::json!({"tool":"bigread.read","args":{"page":1,"size":8000}});
     let lines = vec![
         read.clone(),
@@ -131,7 +131,7 @@ fn t2_dup_read_flagged_with_prior_seq() {
 
     let mut l = rig(dir.path(), log.path(), 6);
     let stream = l.stream_id();
-    let _ = l.run_mission("task-t2").unwrap();
+    let _ = l.run_mission("task-0").unwrap();
 
     let events = stream_events(log.path(), stream);
     // a Feedback event flags the duplicate, naming the earlier seq
