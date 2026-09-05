@@ -154,8 +154,12 @@ def run_task(wid, m):
             "HS_SWE_P2P": "",
             "HS_REALMODEL_CALL_TIMEOUT_SECS": "1500",
         })
+        budget_flag = ""
+        if os.environ.get("HS_CONTEXT_BUDGET_TOKENS"):
+            budget_flag = f" --context-budget-tokens {os.environ['HS_CONTEXT_BUDGET_TOKENS']}"
         r = sh(f"timeout 3600 {HS} --instance {shlex.quote(os.path.join(S50, 'instances', iid + '.json'))} "
-               f"--model glm --feedback on --budget-micros 10000000 --max-steps {MAX_STEPS} "
+               f"--model glm --feedback on --budget-micros 10000000 --max-steps {MAX_STEPS}"
+               f"{budget_flag} "
                f"--run-dir {shlex.quote(run_dir)}", timeout=3700, env=env)
         open(os.path.join(run_dir, "stdout.log"), "w").write(r.stdout + "\n--- STDERR ---\n" + r.stderr)
         if r.returncode == 124 and not os.path.exists(rj):
