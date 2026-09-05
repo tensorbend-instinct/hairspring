@@ -25,6 +25,14 @@ pub enum KernelError {
     UnknownModel(String),
     Gated { name: String, subject: String },
     Plugin(String),
+    /// Supervisor terminal state: the plugin failed `strikes` consecutive
+    /// call attempts (crash, spawn failure, or lease expiry). `detail` is
+    /// the most recent REAL failure - never a stale earlier error.
+    PluginDead {
+        name: String,
+        strikes: u32,
+        detail: String,
+    },
     Log(LogError),
 }
 impl From<LogError> for KernelError {
@@ -41,6 +49,11 @@ impl std::fmt::Display for KernelError {
             Self::UnknownModel(n) => write!(f, "unknown model: {n}"),
             Self::Gated { name, subject } => write!(f, "{name} not visible to subject {subject}"),
             Self::Plugin(e) => write!(f, "plugin: {e}"),
+            Self::PluginDead {
+                name,
+                strikes,
+                detail,
+            } => write!(f, "plugin {name} dead after {strikes} strikes: {detail}"),
             Self::Log(e) => write!(f, "log: {e}"),
         }
     }
@@ -59,6 +72,11 @@ pub struct PluginEntry {
     pub hooks: Vec<String>,
     #[serde(default)]
     pub priority: i64,
+    /// Per-call lease in seconds: a plugin that does not answer within the
+    /// lease is killed and the attempt counts as a strike. Default 1800s
+    /// (model calls legitimately run to ~1500s under provider timeouts).
+    #[serde(default)]
+    pub lease_secs: Option<u64>,
 }
 fn all_subjects() -> Vec<String> {
     vec!["*".into()]
@@ -89,15 +107,23 @@ pub struct ModelOutcome {
     pub model: String,
 }
 
+/// Default per-call lease when the config does not set one. Model calls
+/// legitimately run to ~1500s under provider-side timeouts, so the default
+/// is generous; tools should set a tighter lease in config.
+const DEFAULT_LEASE_SECS: u64 = 1800;
+
 struct PluginProc {
     child: Child,
     stdin: ChildStdin,
-    stdout: BufReader<ChildStdout>,
+    /// Lines produced by the plugin, pumped by a dedicated reader thread so
+    /// a hung plugin is detectable with a recv deadline (the lease).
+    lines: std::sync::mpsc::Receiver<Result<String, String>>,
     next_id: u64,
+    lease: std::time::Duration,
 }
 
 impl PluginProc {
-    fn spawn(command: &[String]) -> Result<Self, KernelError> {
+    fn spawn(command: &[String], lease_secs: Option<u64>) -> Result<Self, KernelError> {
         let (prog, args) = command
             .split_first()
             .ok_or_else(|| KernelError::Config("empty command".into()))?;
@@ -110,11 +136,34 @@ impl PluginProc {
             .map_err(|e| KernelError::Plugin(format!("spawn {}: {e}", command.join(" "))))?;
         let stdin = child.stdin.take().unwrap();
         let stdout = BufReader::new(child.stdout.take().unwrap());
+        let (tx, rx) = std::sync::mpsc::channel::<Result<String, String>>();
+        std::thread::spawn(move || {
+            let mut stdout = stdout;
+            loop {
+                let mut line = String::new();
+                match stdout.read_line(&mut line) {
+                    Ok(0) => {
+                        let _ = tx.send(Ok(String::new())); // EOF
+                        return;
+                    }
+                    Ok(_) => {
+                        if tx.send(Ok(line)).is_err() {
+                            return; // supervisor gone
+                        }
+                    }
+                    Err(e) => {
+                        let _ = tx.send(Err(format!("read: {e}")));
+                        return;
+                    }
+                }
+            }
+        });
         Ok(PluginProc {
             child,
             stdin,
-            stdout,
+            lines: rx,
             next_id: 0,
+            lease: std::time::Duration::from_secs(lease_secs.unwrap_or(DEFAULT_LEASE_SECS)),
         })
     }
 
@@ -132,12 +181,20 @@ impl PluginProc {
         writeln!(self.stdin, "{}", req)
             .and_then(|_| self.stdin.flush())
             .map_err(|e| KernelError::Plugin(format!("write: {e}")))?;
-        let mut line = String::new();
-        let n = self
-            .stdout
-            .read_line(&mut line)
-            .map_err(|e| KernelError::Plugin(format!("read: {e}")))?;
-        if n == 0 {
+        let line = match self.lines.recv_timeout(self.lease) {
+            Ok(Ok(l)) => l,
+            Ok(Err(e)) => return Err(KernelError::Plugin(e)),
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                return Err(KernelError::Plugin(format!(
+                    "lease expired after {}s (plugin hung)",
+                    self.lease.as_secs()
+                )));
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                return Err(KernelError::Plugin("reader thread gone".into()));
+            }
+        };
+        if line.is_empty() {
             return Err(KernelError::Plugin("plugin exited (EOF)".into()));
         }
         let v: serde_json::Value = serde_json::from_str(&line)
@@ -155,36 +212,60 @@ impl PluginProc {
     }
 }
 
+/// Consecutive call-attempt failures before the slot is declared dead.
+/// Crash, spawn failure, and lease expiry all count as strikes.
+const MAX_STRIKES: u32 = 3;
+
 struct PluginSlot {
     entry: PluginEntry,
     proc: Option<PluginProc>,
+    strikes: u32,
 }
 
 impl PluginSlot {
+    /// Supervisor contract (phase 1, design D4): every attempt starts by
+    /// ensuring a live process - a None slot respawns from config, so a
+    /// previously dead slot recovers the moment the plugin can spawn again.
+    /// Bounded retries: after MAX_STRIKES consecutive failures the call
+    /// returns PluginDead naming the plugin and the most recent real cause.
+    /// Any success resets the strike counter.
     fn call(
         &mut self,
         method: &str,
         params: serde_json::Value,
     ) -> Result<serde_json::Value, KernelError> {
-        let mut p = self
-            .proc
-            .take()
-            .ok_or_else(|| KernelError::Plugin("not spawned".into()))?;
-        match p.call(method, params.clone()) {
-            Ok(r) => {
-                self.proc = Some(p);
-                Ok(r)
+        let mut detail = String::new();
+        for _ in 0..MAX_STRIKES {
+            if self.proc.is_none() {
+                match PluginProc::spawn(&self.entry.command, self.entry.lease_secs) {
+                    Ok(p) => self.proc = Some(p),
+                    Err(e) => {
+                        self.strikes += 1;
+                        detail = e.to_string();
+                        continue;
+                    }
+                }
             }
-            Err(e) => {
-                let _ = p.child.kill();
-                let _ = p.child.wait();
-                // one restart, then give up
-                let mut fresh = PluginProc::spawn(&self.entry.command)?;
-                let r = fresh.call(method, params).map_err(|_| e)?;
-                self.proc = Some(fresh);
-                Ok(r)
+            let mut p = self.proc.take().expect("proc ensured above");
+            match p.call(method, params.clone()) {
+                Ok(r) => {
+                    self.proc = Some(p);
+                    self.strikes = 0;
+                    return Ok(r);
+                }
+                Err(e) => {
+                    let _ = p.child.kill();
+                    let _ = p.child.wait();
+                    self.strikes += 1;
+                    detail = e.to_string();
+                }
             }
         }
+        Err(KernelError::PluginDead {
+            name: self.entry.name.clone(),
+            strikes: self.strikes,
+            detail,
+        })
     }
 }
 
@@ -228,7 +309,7 @@ impl Kernel {
     fn apply_config(&self, parsed: ConfigFile) -> Result<(), KernelError> {
         let spawn_describe =
             |entry: &PluginEntry, kind: &'static str| -> Result<PluginSlot, KernelError> {
-                let mut p = PluginProc::spawn(&entry.command)?;
+                let mut p = PluginProc::spawn(&entry.command, entry.lease_secs)?;
                 let desc = p.call("describe", serde_json::json!({}))?;
                 if desc["name"].as_str() != Some(entry.name.as_str()) {
                     return Err(KernelError::Protocol(format!(
@@ -245,6 +326,7 @@ impl Kernel {
                 Ok(PluginSlot {
                     entry: entry.clone(),
                     proc: Some(p),
+                    strikes: 0,
                 })
             };
         let mut tools = self.tools.borrow_mut();
