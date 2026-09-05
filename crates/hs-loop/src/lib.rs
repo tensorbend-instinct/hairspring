@@ -87,6 +87,7 @@ pub struct InnerLoop {
     context_budget_chars: usize,
     memory_store: Option<Box<dyn hs_memory::MemoryStore>>,
     goal: Option<goal::GoalSpec>,
+    dead_tools: std::collections::HashSet<String>,
 }
 
 /// D1/W2: input budget from the VERIFIED provider context, minus an
@@ -126,6 +127,7 @@ impl InnerLoop {
             context_budget_chars: DEFAULT_CONTEXT_BUDGET_TOKENS * 4,
             memory_store: None,
             goal: None,
+            dead_tools: Default::default(),
         })
     }
 
@@ -153,6 +155,7 @@ impl InnerLoop {
             context_budget_chars: DEFAULT_CONTEXT_BUDGET_TOKENS * 4,
             memory_store: None,
             goal: None,
+            dead_tools: Default::default(),
         })
     }
 
@@ -211,10 +214,19 @@ impl InnerLoop {
         }
     }
 
-    /// Abort the mission on a supervisor-declared dead plugin: book the
-    /// harness_error as a Feedback event (trace-visible) and return the
-    /// partial result. This replaces the old behavior of feeding the error
-    /// back and burning the remaining steps against a dead plugin (run
+    /// Answer-path tools whose death is mission-terminal (measurement run
+    /// ab2/17123): without edit.apply/answer.write no mission can land, so
+    /// continuing burns steps for nothing. Death of any OTHER tool degrades
+    /// to feedback instead of aborting - the mission continues while the
+    /// answer path remains usable.
+    fn is_answer_path(tool: &str) -> bool {
+        matches!(tool, "answer.write" | "edit.apply")
+    }
+
+    /// Abort the mission on a supervisor-declared dead ANSWER-PATH plugin:
+    /// book the harness_error as a Feedback event (trace-visible) and return
+    /// the partial result. This replaces the old behavior of feeding the
+    /// error back and burning the remaining steps against a dead plugin (run
     /// 17117 lost ~24 calls that way).
     fn abort_harness(
         &mut self,
@@ -401,6 +413,11 @@ impl InnerLoop {
             };
             model_calls += 1;
             self.cost_total_micros += out.cost_usd_micros.max(0) as u64;
+            // T5c: checkpoint EVERY step after the model-call accounting,
+            // answer or not - a wall kill must never book a 0-step row for
+            // a mission that did real work (ab2 17092/17102/17117 lost
+            // 19-25 steps each to answer-only checkpointing).
+            self.checkpoint(steps, model_calls);
             if let Some(cap) = self.budget_micros {
                 if self.cost_total_micros > cap {
                     self.writer.append(
@@ -460,6 +477,21 @@ impl InnerLoop {
             let mut wrote_answer = false;
             let tool_feedback = match validated {
                 None => Some(r#"your reply was not a single JSON tool call; respond with exactly {"tool":"answer.write","args":{"path":<ANSWER_PATH>,"content":...}}"#.to_string()),
+                Some((tool, args)) if self.dead_tools.contains(&tool) => {
+                    // T3c: dead tools short-circuit - feedback, no respawn
+                    let msg = format!(
+                        "tool {tool} is dead for the rest of this mission - pick another tool (the answer path, edit.apply/answer.write, is intact)"
+                    );
+                    self.writer.append(
+                        EventBuilder::new(EventKind::ToolCall).payload(Payload::Inline(
+                            serde_json::to_vec(&serde_json::json!({
+                                "plugin": tool, "args": args, "error": msg,
+                            }))
+                            .unwrap(),
+                        )),
+                    )?;
+                    Some(msg)
+                }
                 Some((tool, args)) => match self.kernel.call_tool("operator", &tool, args.clone()) {
                     Ok(tool_out) => {
                         let ev = self.writer.append(
@@ -498,15 +530,34 @@ impl InnerLoop {
                         // stream's own ToolCall events), not a side channel
                         None
                     }
-                    Err(e @ KernelError::PluginDead { .. }) => {
-                        self.checkpoint(steps, model_calls);
-                        return self.abort_harness(
-                            mission,
-                            &answer_path,
-                            steps,
-                            model_calls,
-                            e.to_string(),
+                    Err(KernelError::PluginDead { name, strikes, detail }) => {
+                        // ab2/17123: death of a NON-answer tool degrades to
+                        // feedback instead of aborting - the mission
+                        // continues while the answer path remains usable.
+                        // Only answer-path death is terminal.
+                        if Self::is_answer_path(&name) {
+                            self.checkpoint(steps, model_calls);
+                            return self.abort_harness(
+                                mission,
+                                &answer_path,
+                                steps,
+                                model_calls,
+                                KernelError::PluginDead { name, strikes, detail }.to_string(),
+                            );
+                        }
+                        self.dead_tools.insert(name.clone());
+                        let msg = format!(
+                            "tool {name} is permanently unavailable (dead after {strikes} strikes: {detail}) - continue with the remaining tools; the answer path (edit.apply, answer.write) is intact"
                         );
+                        self.writer.append(
+                            EventBuilder::new(EventKind::ToolCall).payload(Payload::Inline(
+                                serde_json::to_vec(&serde_json::json!({
+                                    "plugin": name, "error": msg,
+                                }))
+                                .unwrap(),
+                            )),
+                        )?;
+                        Some(msg)
                     }
                     Err(e) => {
                         let msg = format!("tool {tool} failed: {e}");

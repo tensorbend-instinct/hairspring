@@ -3,6 +3,7 @@
 use std::io::{BufRead, BufReader, Write};
 
 fn main() {
+    let name = std::env::args().nth(1).unwrap_or_else(|| "zombie".to_string());
     if let Some(state) = std::env::args().nth(2) {
         let mut f = std::fs::OpenOptions::new()
             .create(true)
@@ -19,7 +20,7 @@ fn main() {
         let id = v["id"].clone();
         let resp = match v["method"].as_str().unwrap() {
             "describe" => {
-                serde_json::json!({"id": id, "result": {"name": "zombie", "kind": "tool", "version": "0.1.0"}})
+                serde_json::json!({"id": id, "result": {"name": name, "kind": "tool", "version": "0.1.0"}})
             }
             "tool.call" => std::process::exit(1),
             _ => serde_json::json!({"id": id, "error": "unknown method"}),
