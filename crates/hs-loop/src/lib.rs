@@ -313,6 +313,7 @@ impl InnerLoop {
             // sections lead - MISSION then TRANSCRIPT - so the cached prefix
             // grows monotonically; volatile lines (ATTEMPT/ARTIFACT/FEEDBACK)
             // go last, after the transcript tail.
+            let t_assembly = std::time::Instant::now(); // time audit (Eric 2026-09-05)
             let mut ctx = format!("MISSION: {prompt}\n");
             // Fix 4: budget visibility every step - "step N of MAX, T-minus
             // Xs, $Y of $Z spent" (ab2: the model could not pace itself
@@ -519,6 +520,7 @@ impl InnerLoop {
                         serde_json::to_vec(&serde_json::json!({
                             "model": out.model, "prompt": ctx, "completion": out.completion,
                             "input_tokens": out.input_tokens, "output_tokens": out.output_tokens,
+                            "assembly_ms": t_assembly.elapsed().as_millis() as u64,
                         }))
                         .unwrap(),
                     ))

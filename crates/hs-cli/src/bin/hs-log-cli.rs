@@ -46,12 +46,21 @@ fn main() {
             for s in &streams {
                 let r = StreamReader::open(&dir, *s).unwrap();
                 for e in r.events().unwrap() {
+                    // time-audit fields: ts_wall_ms + payload size make
+                    // inter-event gaps (harness overhead) measurable
+                    let payload_len = match &e.payload {
+                        Payload::Inline(b) => b.len(),
+                        Payload::BlobRef { len, .. } => *len as usize,
+                        _ => 0,
+                    };
                     println!(
-                        "{} seq={} {:?} lat={}ms prev={}.. hash={}..",
+                        "{} seq={} {:?} ts={} lat={}ms plen={} prev={}.. hash={}..",
                         e.event_id,
                         e.seq,
                         e.kind,
+                        e.ts_wall_ms,
                         e.latency_ms,
+                        payload_len,
                         &hex(&e.prev_hash)[..8],
                         &hex(&e.hash)[..8]
                     );
