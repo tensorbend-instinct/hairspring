@@ -109,6 +109,13 @@ impl Ledger {
         }
     }
 
+    /// True once the MODEL has verified something itself (a repo.exec run).
+    /// The harness's own checker.run verdicts are ground truth, not the
+    /// model testing its work, so they never count (fix 5).
+    pub fn model_verified(&self) -> bool {
+        self.test_runs.iter().any(|(_, cmd, _)| cmd != "checker")
+    }
+
     /// A prior seq for an identical (plugin, args) call, if one exists.
     pub fn find_duplicate(&self, plugin: &str, args: &Value) -> Option<u64> {
         let h = args_hash(args);
@@ -154,6 +161,10 @@ impl Ledger {
                 s.push_str(&format!("{path}@seq{seq}; "));
             }
             s.push('\n');
+        }
+        if !self.model_verified() && (!self.files_read.is_empty() || !self.edits.is_empty()) {
+            s.push_str("tests: NO TEST RUN YET - you have not verified anything yourself this mission
+");
         }
         if !self.test_runs.is_empty() {
             s.push_str("tests: ");
