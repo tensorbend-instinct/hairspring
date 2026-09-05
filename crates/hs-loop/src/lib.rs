@@ -325,26 +325,6 @@ impl InnerLoop {
                     artifact.trim()
                 }
             ));
-            // Fix 5: convergence pressure (ab2: three wall-killed missions
-            // ran 19-25 steps with zero model-initiated verification). At
-            // 50% and 75% of the step budget, when the model has never run
-            // a test itself, the header says so in plain terms.
-            let half = self.max_steps.div_ceil(2);
-            let three_q = (self.max_steps * 3).div_ceil(4);
-            let convergence_note = if self.feedback_injection
-                && (step == half || step == three_q)
-                && !self.ledger.model_verified()
-            {
-                let note = format!(
-                    "CONVERGENCE: step {step} of {} and you have not run a test or check yourself. Verify your current hypothesis NOW (run a test, a build, or a checker), or state in one line what you will change and how you will verify it.",
-                    self.max_steps
-                );
-                volatile.push_str(&note);
-                volatile.push('\n');
-                Some(note)
-            } else {
-                None
-            };
             let mut injected = false;
             if self.feedback_injection && !drained.is_empty() {
                 volatile.push_str("FEEDBACK:\n");
@@ -418,8 +398,11 @@ impl InnerLoop {
                             }
                             let did_distill = distilled.is_some();
                             if let Some(summary) = distilled {
+                                // Item 2 (Codex handoff framing): a colleague
+                                // handed this work off - build on it, don't
+                                // re-verify it from scratch.
                                 asm.entries[0] = format!(
-                                    "COMPACTED {} earlier tool calls (events seq {}..{}, refs {}..{}): handoff summary:\n{}",
+                                    "COMPACTED {} earlier tool calls (events seq {}..{}, refs {}..{}). Another run started this mission and did that work before handing off to you. Its handoff summary follows - build on it, do not redo it:\n{}",
                                     c.count, c.lo_seq, c.hi_seq, c.lo_id, c.hi_id, summary
                                 );
                             }
@@ -514,16 +497,6 @@ impl InnerLoop {
                     EventBuilder::new(EventKind::ContextInject).payload(Payload::Inline(
                         serde_json::to_vec(&serde_json::json!({
                             "what": drained, "why": "checker verdict since last step",
-                        }))
-                        .unwrap(),
-                    )),
-                )?;
-            }
-            if let Some(note) = convergence_note {
-                self.writer.append(
-                    EventBuilder::new(EventKind::ContextInject).payload(Payload::Inline(
-                        serde_json::to_vec(&serde_json::json!({
-                            "what": [note], "why": "convergence",
                         }))
                         .unwrap(),
                     )),
