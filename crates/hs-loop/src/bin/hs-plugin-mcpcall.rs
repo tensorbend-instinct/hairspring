@@ -150,11 +150,23 @@ async fn cli_main(argv: Vec<String>, cfg: McpServerConfig) {
             .list_all_tools()
             .await
             .unwrap_or_else(|e| fail(format!("list_tools: {e}")));
-        let names: Vec<String> = tools
-            .iter()
-            .map(|t| namespaced_tool(&cfg.name, &t.name))
-            .collect();
-        println!("{}", serde_json::to_string(&names).unwrap());
+        let verbose = has_flag(&argv, "--list-verbose");
+        if verbose {
+            let full: Vec<serde_json::Value> = tools
+                .iter()
+                .map(|t| serde_json::json!({
+                    "name": namespaced_tool(&cfg.name, &t.name),
+                    "description": t.description.as_deref().unwrap_or(""),
+                }))
+                .collect();
+            println!("{}", serde_json::to_string(&full).unwrap());
+        } else {
+            let names: Vec<String> = tools
+                .iter()
+                .map(|t| namespaced_tool(&cfg.name, &t.name))
+                .collect();
+            println!("{}", serde_json::to_string(&names).unwrap());
+        }
         return;
     }
     let tool = arg(&argv, "--call").unwrap_or_else(|| fail("--list or --call required".into()));

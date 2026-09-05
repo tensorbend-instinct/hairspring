@@ -16,6 +16,7 @@ fn args() -> PromptArgs {
         nudge: String::new(),
         answer_path: "/tmp/answer.txt".into(),
         orientation: String::new(),
+        mcp_tools: String::new(),
     }
 }
 

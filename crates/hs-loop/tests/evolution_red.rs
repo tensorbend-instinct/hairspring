@@ -75,6 +75,7 @@ fn d7_promote_only_verified_winners_reject_losers_rewind_restores() {
                     repo_layout: "".into(), nudge: "".into(),
                     answer_path: log.join("work").join(task).join("answer.txt").display().to_string(),
                     orientation: String::new(),
+                    mcp_tools: String::new(),
                 };
                 sweprompt::build_mission_prompt(None, &args)
             }

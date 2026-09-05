@@ -27,6 +27,7 @@ TOOLS (one tool call per reply, exactly one JSON object, no prose):\n\
 6. {{\"tool\":\"edit.apply\",\"args\":{{\"diff\":\"<unified diff>\"}}}} - apply one incremental edit to your persistent candidate workspace (the live repo is never touched). Returns the CUMULATIVE diff of everything you have applied so far: use edit.apply as you work, test with repo.exec, and submit the cumulative result. ops: {{\"op\":\"diff\"}} re-reads the cumulative diff, {{\"op\":\"reset\"}} discards the candidate.\n\
 7. {{\"tool\":\"notes.scratch\",\"args\":{{\"op\":\"write|append|read\",\"content\":\"<text>\"}}}} - persistent notes that survive context truncation. Record hypotheses, failing test names, and line numbers you will need later; read them back instead of re-discovering.\n\'
 
+{mcp_tools}\
 4. {{\"tool\":\"policy.propose_prompt\",\"args\":{{\"name\":\"swe-mission\",\"text\":\"<your improved prompt template>\"}}}} - propose a better operating prompt for FUTURE missions. Recorded, versioned, and reviewed through the gated promotion path; it never changes this mission.\n\
 5. {{\"tool\":\"answer.write\",\"args\":{{\"path\":\"<ANSWER_PATH>\",\"content\":\"```diff\\n<one unified diff, paths a/... b/... relative to repo root>\\n```\"}}}} - submit your patch. Ground every hunk in code you actually read: correct file, correct current line numbers, exact context lines. Prefer a repo.exec pre-flight first. The checker runs automatically after each answer.write and its verdict comes back as FEEDBACK.\n\
 WORK POLICY:\n\
@@ -47,6 +48,10 @@ pub struct PromptArgs {
     /// Detected tooling for the MACHINE orientation line (fix 2); callers
     /// fill it with probe_orientation().
     pub orientation: String,
+    /// Registered MCP tools, rendered for the TOOLS section (graft-experiment
+    /// finding: kernel-registered but prompt-absent tools are invisible to
+    /// the model). Empty when no MCP servers are configured.
+    pub mcp_tools: String,
 }
 
 /// Probe the machine floor for the orientation brief (fix 2): the repo.exec
@@ -96,6 +101,7 @@ fn substitute(template: &str, args: &PromptArgs) -> String {
         ("{answer_path}", args.answer_path.as_str()),
         ("{nudge}", args.nudge.as_str()),
         ("{orientation}", args.orientation.as_str()),
+        ("{mcp_tools}", args.mcp_tools.as_str()),
     ];
     let mut out = template.to_string();
     for (k, v) in pairs {

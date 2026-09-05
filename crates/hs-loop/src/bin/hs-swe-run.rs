@@ -94,24 +94,11 @@ fn main() {
         ),
         Err(_) => None,
     };
-    let prompt = hs_loop::sweprompt::build_mission_prompt(
-        policy.as_ref(),
-        &hs_loop::sweprompt::PromptArgs {
-            ws: ws.display().to_string(),
-            problem_statement: inst.problem_statement.clone(),
-            fail_to_pass: f2p.clone(),
-            repo_layout: layout.clone(),
-            nudge: std::env::var("HS_SWE_PROMPT_NUDGE").unwrap_or_default(),
-            answer_path: answer_path.display().to_string(),
-            orientation: hs_loop::sweprompt::probe_orientation(),
-        },
-    );
-    std::fs::write(run_dir.join("mission_prompt.txt"), &prompt).unwrap();
-
     // MCP tool surface (docs/mcp-adapter-gate.md): discover each server's
     // tools through the bridge and register them namespaced. Discovery
     // failure is a hard error - a half-registered surface is worse than none.
     let mut mcp_tools = String::new();
+    let mut mcp_prompt = String::new();
     if let Ok(servers_toml) = std::env::var("HS_MCP_SERVERS") {
         let servers = hs_loop::mcpbridge::load_mcp_servers(std::path::Path::new(&servers_toml))
             .unwrap_or_else(|e| {
@@ -120,7 +107,7 @@ fn main() {
             });
         for s in &servers {
             let out = std::process::Command::new(bin("hs-plugin-mcpcall"))
-                .args(["--config", &servers_toml, "--server", &s.name, "--list"])
+                .args(["--config", &servers_toml, "--server", &s.name, "--list", "--list-verbose"])
                 .output()
                 .unwrap_or_else(|e| {
                     eprintln!("hs-swe-run: mcp discovery spawn: {e}");
@@ -130,12 +117,14 @@ fn main() {
                 eprintln!("hs-swe-run: mcp discovery: {}", String::from_utf8_lossy(&out.stderr));
                 std::process::exit(2);
             }
-            let names: Vec<String> = serde_json::from_slice(&out.stdout)
+            let discovered: Vec<serde_json::Value> = serde_json::from_slice(&out.stdout)
                 .unwrap_or_else(|e| {
                     eprintln!("hs-swe-run: mcp discovery parse: {e}");
                     std::process::exit(2);
                 });
-            for full in names {
+            for d in &discovered {
+                let full = d["name"].as_str().unwrap_or("").to_string();
+                let desc = d["description"].as_str().unwrap_or("").to_string();
                 let tool = full
                     .strip_prefix(&format!("mcp.{}.", s.name))
                     .unwrap_or_else(|| {
@@ -148,9 +137,30 @@ fn main() {
                     bin("hs-plugin-mcpcall"),
                     s.name,
                 ));
+                // graft-experiment finding: kernel-registered but prompt-absent
+                // tools are invisible - enumerate every MCP tool in the prompt.
+                mcp_prompt.push_str(&format!(
+                    "{{\"tool\":\"{full}\",\"args\":{{...}}}} - MCP tool {tool} (server {}). {}\n",
+                    s.name, desc
+                ));
             }
         }
     }
+
+    let prompt = hs_loop::sweprompt::build_mission_prompt(
+        policy.as_ref(),
+        &hs_loop::sweprompt::PromptArgs {
+            ws: ws.display().to_string(),
+            problem_statement: inst.problem_statement.clone(),
+            fail_to_pass: f2p.clone(),
+            repo_layout: layout.clone(),
+            nudge: std::env::var("HS_SWE_PROMPT_NUDGE").unwrap_or_default(),
+            answer_path: answer_path.display().to_string(),
+            orientation: hs_loop::sweprompt::probe_orientation(),
+            mcp_tools: mcp_prompt,
+        },
+    );
+    std::fs::write(run_dir.join("mission_prompt.txt"), &prompt).unwrap();
 
     let config = run_dir.join("hairspring.toml");
     std::fs::write(

@@ -103,7 +103,8 @@ fn mission_prompt_opens_with_machine_orientation() {
         nudge: String::new(),
         answer_path: "/tmp/answer.txt".into(),
         orientation: hs_loop::sweprompt::probe_orientation(),
-    };
+            mcp_tools: String::new(),
+        };
     let prompt = hs_loop::sweprompt::build_mission_prompt(None, &args);
     assert!(prompt.contains("MACHINE:"), "orientation block present: {}", &prompt[..prompt.len().min(600)]);
     assert!(prompt.contains("Network: ON"), "network state stated: {prompt}");
@@ -126,7 +127,8 @@ fn mission_prompt_carries_work_policy_discipline() {
         nudge: String::new(),
         answer_path: "/tmp/answer.txt".into(),
         orientation: String::new(),
-    };
+            mcp_tools: String::new(),
+        };
     let prompt = hs_loop::sweprompt::build_mission_prompt(None, &args);
     assert!(prompt.contains("WORK POLICY:"), "policy block present: {prompt}");
     assert!(prompt.contains("only when tool output supports the claim"),
