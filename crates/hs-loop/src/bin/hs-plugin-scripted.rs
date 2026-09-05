@@ -15,7 +15,14 @@ fn main() {
     let mut n = 0usize;
     serve("scripted", "model", &mut move |method, params| match method {
         "model.call" => {
-            let prompt = params["prompt"].as_str().unwrap_or("");
+            let __pv;
+            let prompt = match params["prompt"].as_str() {
+                Some(p) => p,
+                None => {
+                    __pv = hs_loop::msgfmt::prompt_view(&params);
+                    __pv.as_str()
+                }
+            };
             if prompt.starts_with("DISTILL:") {
                 // distillation calls do not consume the mission script
                 return serde_json::json!({

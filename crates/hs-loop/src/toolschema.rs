@@ -101,3 +101,22 @@ pub fn to_wire(tools: &Value) -> Value {
     }
     out
 }
+
+/// The verifier's verdict as a native tool (user directive 2026-09-05: the
+/// verdict path migrates from text-JSON to a native tool call - the
+/// response-format contract lives in this schema, not in prompt prose).
+pub fn verdict_tool() -> Value {
+    f(
+        "verdict.submit",
+        "Submit the audit verdict exactly once. Default to refuted when uncertain a required criterion holds; never invent requirements. Audit the RECORDED evidence only - a prose claim of test output with no recorded run is fabricated: refute.",
+        json!({"type":"object","properties":{
+            "refuted":{"type":"boolean","description":"true when the recorded evidence fails the audit"},
+            "blocking":{"type":"string","enum":["none","contradiction","unverifiable"]},
+            "findings":{"type":"array","items":{"type":"object","properties":{
+                "kind":{"type":"string","enum":["bug","gap","todo"]},
+                "location":{"type":"string"},
+                "detail":{"type":"string","description":"one line"}},
+                "required":["kind","location","detail"]}}
+        },"required":["refuted","blocking","findings"]}),
+    )
+}

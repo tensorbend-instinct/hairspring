@@ -97,3 +97,124 @@ pub fn assemble(reader: &hs_log::StreamReader, events: &[hs_core::Event], budget
     entries.extend(kept);
     Assembly { entries, compressed }
 }
+
+/// Native-messages variant of the transcript projection (structured-
+/// messages migration 2026-09-05): the same log-sourced, token-budgeted
+/// projection as assemble(), but each exchange is emitted as a native
+/// assistant(tool_calls) + tool pair, and over-budget compaction is a user
+/// handoff message. No hand-rendered transcript text survives.
+pub struct AssemblyMessages {
+    pub messages: Vec<serde_json::Value>,
+    pub compressed: Option<Compressed>,
+}
+
+struct Exchange {
+    seq: u64,
+    id: uuid::Uuid,
+    plugin: String,
+    args: serde_json::Value,
+    content: String,
+    line: String,
+}
+
+/// Build the history messages from the stream's ToolCall events.
+/// `budget_chars` = context_budget_tokens * 4 (the loop owns the config).
+pub fn assemble_messages(
+    reader: &hs_log::StreamReader,
+    events: &[hs_core::Event],
+    budget_chars: usize,
+) -> AssemblyMessages {
+    const CONTENT_CAP: usize = 20_000;
+    const PAIR_OVERHEAD: usize = 64; // role/id/type framing, chars
+    let mut exch: Vec<Exchange> = vec![];
+    for e in events.iter().rev() {
+        if e.kind != EventKind::ToolCall {
+            continue;
+        }
+        // resolve Inline AND BlobRef payloads, same as assemble()
+        if let Ok(bytes) = reader.resolve_payload(e) {
+            if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+                let plugin = v["plugin"].as_str().unwrap_or("?").to_string();
+                let args = v["args"].clone();
+                let mut content = if !v["result"].is_null() {
+                    match v["result"].as_str() {
+                        Some(s) => s.to_string(),
+                        None => v["result"].to_string(),
+                    }
+                } else if !v["error"].is_null() {
+                    format!("error: {}", v["error"].as_str().unwrap_or("?"))
+                } else {
+                    "null".to_string()
+                };
+                if content.len() > CONTENT_CAP {
+                    content.truncate(CONTENT_CAP);
+                    content.push_str("...[truncated]");
+                }
+                let line = format!("{}({}) => {}", plugin, v["args"], content);
+                exch.push(Exchange { seq: e.seq, id: e.event_id, plugin, args, content, line });
+            }
+        }
+    }
+    let cost = |x: &Exchange| x.args.to_string().len() + x.content.len() + PAIR_OVERHEAD;
+    let total: usize = exch.iter().map(&cost).sum();
+    let mut messages: Vec<serde_json::Value> = vec![];
+    if total <= budget_chars {
+        // everything fits: newest-first fill, then back to chronological
+        let mut budget = budget_chars;
+        let mut kept: Vec<&Exchange> = vec![];
+        for x in &exch {
+            if cost(x) > budget {
+                break;
+            }
+            budget -= cost(x);
+            kept.push(x);
+        }
+        kept.reverse();
+        for x in kept {
+            let (a, t) = crate::msgfmt::exchange_pair(x.seq, &x.plugin, &x.args, &x.content);
+            messages.push(a);
+            messages.push(t);
+        }
+        return AssemblyMessages { messages, compressed: None };
+    }
+    // over budget: recent tail verbatim (60%), oldest into a compaction
+    // handoff message with audit refs (content-preserving via D2)
+    let mut budget = budget_chars * 60 / 100;
+    let mut kept: Vec<&Exchange> = vec![];
+    let mut compacted: Vec<&Exchange> = vec![];
+    for x in &exch {
+        if compacted.is_empty() && cost(x) <= budget {
+            budget -= cost(x);
+            kept.push(x);
+        } else {
+            compacted.push(x);
+        }
+    }
+    let mut compressed = None;
+    if !compacted.is_empty() {
+        let lo = compacted.last().unwrap();
+        let hi = compacted.first().unwrap();
+        messages.push(serde_json::json!({
+            "role": "user",
+            "content": format!(
+                "COMPACTED {} earlier tool calls (events seq {}..{}, refs {}..{}): distilled into the LEDGER block of the state tail - reads, edits, and test verdicts from that range are recorded there",
+                compacted.len(), lo.seq, hi.seq, lo.id, hi.id
+            ),
+        }));
+        compressed = Some(Compressed {
+            count: compacted.len(),
+            lo_seq: lo.seq,
+            hi_seq: hi.seq,
+            lo_id: lo.id,
+            hi_id: hi.id,
+            lines: compacted.iter().rev().map(|x| x.line.clone()).collect(),
+        });
+    }
+    kept.reverse();
+    for x in kept {
+        let (a, t) = crate::msgfmt::exchange_pair(x.seq, &x.plugin, &x.args, &x.content);
+        messages.push(a);
+        messages.push(t);
+    }
+    AssemblyMessages { messages, compressed }
+}

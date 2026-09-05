@@ -7,7 +7,14 @@ include!("shared/sdk.rs");
 fn main() {
     serve("recmodel", "model", &mut |method, params| match method {
         "model.call" => {
-            let prompt = params["prompt"].as_str().unwrap_or("");
+            let __pv;
+            let prompt = match params["prompt"].as_str() {
+                Some(p) => p,
+                None => {
+                    __pv = hs_loop::msgfmt::prompt_view(&params);
+                    __pv.as_str()
+                }
+            };
             if let Ok(dump) = std::env::var("REC_DUMP") {
                 use std::io::Write;
                 let mut f = std::fs::OpenOptions::new().create(true).append(true).open(dump).unwrap();

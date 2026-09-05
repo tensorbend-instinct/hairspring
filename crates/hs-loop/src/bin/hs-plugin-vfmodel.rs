@@ -22,7 +22,14 @@ fn main() {
     let n = std::cell::Cell::new(0usize);
     serve("vfmodel", "model", &mut move |method, params| match method {
         "model.call" => {
-            let prompt = params["prompt"].as_str().unwrap_or("");
+            let __pv;
+            let prompt = match params["prompt"].as_str() {
+                Some(p) => p,
+                None => {
+                    __pv = hs_loop::msgfmt::prompt_view(&params);
+                    __pv.as_str()
+                }
+            };
             if prompt.contains("ADVERSARIAL VERIFIER") {
                 let ledger = prompt
                     .split("LEDGER (recorded evidence):")
@@ -52,7 +59,7 @@ fn main() {
                     serde_json::json!({"refuted": false, "findings": [], "blocking": "none"})
                 };
                 return serde_json::json!({
-                    "completion": verdict.to_string(),
+                    "completion": serde_json::json!({"tool":"verdict.submit","args":verdict}).to_string(),
                     "input_tokens": prompt.len() / 4 + 1,
                     "output_tokens": 24,
                     "cost_usd_micros": 900

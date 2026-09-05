@@ -9,6 +9,7 @@
 pub mod realmodel;
 pub mod mcpbridge;
 pub mod assembler;
+pub mod msgfmt;
 pub mod editapply;
 pub mod evolve;
 pub mod goal;
@@ -327,7 +328,19 @@ impl InnerLoop {
             // grows monotonically; volatile lines (ATTEMPT/ARTIFACT/FEEDBACK)
             // go last, after the transcript tail.
             let t_assembly = std::time::Instant::now(); // time audit (Eric 2026-09-05)
-            let mut ctx = format!("MISSION: {prompt}\n");
+            // Structured messages (user directive 2026-09-05: EVERYTHING
+            // native, transcript included - efficiency first). The array is
+            // append-only: [mission][compaction?][history pairs...][state
+            // tail]. Every mutable block (ATTEMPT budget, ANSWER_PATH,
+            // ARTIFACT, FEEDBACK, LEDGER, MEMORY) rides ONLY in the final
+            // tail message, so the provider's cached prefix grows
+            // monotonically and no prior message is ever rewritten between
+            // steps (pre-migration the mutating LEDGER sat BEFORE the
+            // transcript, busting the cache for the whole history).
+            let mut messages: Vec<serde_json::Value> = vec![serde_json::json!({
+                "role": "user",
+                "content": format!("MISSION: {prompt}"),
+            })];
             // Fix 4: budget visibility every step - "step N of MAX, T-minus
             // Xs, $Y of $Z spent" (ab2: the model could not pace itself
             // because it never saw a budget).
@@ -381,18 +394,19 @@ impl InnerLoop {
                 injected = true;
             }
             // D2/D1: the LEDGER summary is always resident (bounded); the
-            // transcript is a token-budgeted projection of the stream's own
-            // ToolCall events. No parallel store: both are read models over
-            // the log and survive restarts/freeze recovery.
+            // history is a token-budgeted projection of the stream's own
+            // ToolCall events, replayed as native assistant/tool pairs. No
+            // parallel store: both are read models over the log and survive
+            // restarts/freeze recovery.
             if self.feedback_injection {
                 if let Ok(reader) = hs_log::StreamReader::open(&self.log_root, self.stream_id) {
                     if let Ok(events) = reader.events() {
-                        ctx.push_str("LEDGER (your work so far, always current):\n");
-                        ctx.push_str(&self.ledger.summary());
+                        volatile.push_str("LEDGER (your work so far, always current):\n");
+                        volatile.push_str(&self.ledger.summary());
                         if let Some(store) = &self.memory_store {
                             if let Ok(recs) = store.top_k("operator", 5) {
                                 if !recs.is_empty() {
-                                    ctx.push_str("MEMORY (earlier missions):\n");
+                                    volatile.push_str("MEMORY (earlier missions):\n");
                                     let mut budget = 2000usize;
                                     for r in &recs {
                                         let line = format!(
@@ -403,12 +417,12 @@ impl InnerLoop {
                                         );
                                         if line.len() > budget { break; }
                                         budget -= line.len();
-                                        ctx.push_str(&line);
+                                        volatile.push_str(&line);
                                     }
                                 }
                             }
                         }
-                        let mut asm = assembler::assemble(&reader, &events, self.context_budget_chars);
+                        let mut asm = assembler::assemble_messages(&reader, &events, self.context_budget_chars);
                         if let Some(c) = &asm.compressed {
                             // D1: distill the oldest events into the Codex
                             // four-element handoff contract via the model;
@@ -449,10 +463,13 @@ impl InnerLoop {
                                 // Item 2 (Codex handoff framing): a colleague
                                 // handed this work off - build on it, don't
                                 // re-verify it from scratch.
-                                asm.entries[0] = format!(
-                                    "COMPACTED {} earlier tool calls (events seq {}..{}, refs {}..{}). Another run started this mission and did that work before handing off to you. Its handoff summary follows - build on it, do not redo it:\n{}",
-                                    c.count, c.lo_seq, c.hi_seq, c.lo_id, c.hi_id, summary
-                                );
+                                asm.messages[0] = serde_json::json!({
+                                    "role": "user",
+                                    "content": format!(
+                                        "COMPACTED {} earlier tool calls (events seq {}..{}, refs {}..{}). Another run started this mission and did that work before handing off to you. Its handoff summary follows - build on it, do not redo it:\n{}",
+                                        c.count, c.lo_seq, c.hi_seq, c.lo_id, c.hi_id, summary
+                                    ),
+                                });
                             }
                             let _ = self.writer.append(
                                 EventBuilder::new(EventKind::ContextInject)
@@ -465,21 +482,17 @@ impl InnerLoop {
                                     )),
                             );
                         }
-                        if !asm.entries.is_empty() {
-                            ctx.push_str("TRANSCRIPT (earlier tool calls):\n");
-                            for e in &asm.entries {
-                                ctx.push_str(&format!("- {e}\n"));
-                            }
-                        }
+                        messages.extend(asm.messages);
                     }
                 }
             }
 
-            ctx.push_str(&volatile);
+            messages.push(serde_json::json!({"role": "user", "content": volatile}));
             let assembly_ms = t_assembly.elapsed().as_millis() as u64; // capture BEFORE the model call (was after: read as ~latency)
+            let messages = serde_json::Value::Array(messages);
 
             // the only model round trip in the step
-            let out = match self.kernel.call_model_with("operator", None, &ctx, self.tools.as_ref()) {
+            let out = match self.kernel.call_model_messages("operator", None, &messages, self.tools.as_ref()) {
                 Ok(o) => o,
                 Err(e @ KernelError::PluginApp { .. }) => {
                     // persistent provider failure (the plugin already burned
@@ -533,7 +546,7 @@ impl InnerLoop {
                 EventBuilder::new(EventKind::ModelCall)
                     .payload(Payload::Inline(
                         serde_json::to_vec(&serde_json::json!({
-                            "model": out.model, "prompt": ctx, "completion": out.completion,
+                            "model": out.model, "messages": messages, "completion": out.completion,
                             "input_tokens": out.input_tokens, "output_tokens": out.output_tokens,
                             "reasoning_tokens": out.reasoning_tokens,
                             "assembly_ms": assembly_ms,
@@ -576,7 +589,7 @@ impl InnerLoop {
             // submit (tool errors are feedback too: models produce bad args)
             let mut wrote_answer = false;
             let tool_feedback = match validated {
-                None => Some(r#"your reply was not a single JSON tool call; respond with exactly {"tool":"answer.write","args":{"path":<ANSWER_PATH>,"content":...}}"#.to_string()),
+                None => Some("your reply carried no tool call; call exactly one of the provided tools (the answer path is answer.write with the ANSWER_PATH) - no prose".to_string()),
                 Some((tool, args)) if self.dead_tools.contains(&tool) => {
                     // T3c: dead tools short-circuit - feedback, no respawn
                     let msg = format!(
@@ -784,7 +797,8 @@ impl InnerLoop {
                     let round = self.verifier_rounds;
                     let answer_text = std::fs::read_to_string(&answer_path).unwrap_or_default();
                     let vprompt = build_verifier_prompt(mission, &answer_text, &self.ledger, &self.prior_gaps);
-                    match self.kernel.call_model("operator", None, &vprompt) {
+                    let verdict_tools = serde_json::json!([crate::toolschema::verdict_tool()]);
+                    match self.kernel.call_model_with("operator", None, &vprompt, Some(&verdict_tools)) {
                         Ok(vout) => {
                             model_calls += 1;
                             self.cost_total_micros += vout.cost_usd_micros.max(0) as u64;
@@ -792,16 +806,23 @@ impl InnerLoop {
                                 EventBuilder::new(EventKind::ModelCall).payload(Payload::Inline(
                                     serde_json::to_vec(&serde_json::json!({
                                         "role": "verifier", "round": round,
-                                        "prompt": vprompt, "completion": vout.completion,
+                                        "prompt": vprompt, "tools": verdict_tools,
+                                        "completion": vout.completion,
                                         "reasoning_tokens": vout.reasoning_tokens,
                                     }))
                                     .unwrap(),
                                 )),
                             )?;
-                            let parsed: Result<serde_json::Value, _> =
-                                serde_json::from_str(vout.completion.trim());
-                            match parsed {
-                                Ok(v) => match v["refuted"].as_bool() {
+                            // Native verdict (user directive 2026-09-05):
+                            // the completion is a verdict.submit tool call;
+                            // prose or wrong-tool replies are verifier
+                            // errors, never parsed verdicts.
+                            let verdict_args = serde_json::from_str::<serde_json::Value>(vout.completion.trim())
+                                .ok()
+                                .filter(|env| env["tool"].as_str() == Some("verdict.submit"))
+                                .map(|env| env["args"].clone());
+                            match verdict_args {
+                                Some(v) => match v["refuted"].as_bool() {
                                     Some(false) => {
                                         self.prior_gaps.clear();
                                         self.writer.append(
@@ -852,12 +873,12 @@ impl InnerLoop {
                                         )?;
                                     }
                                 },
-                                Err(_) => {
+                                None => {
                                     self.writer.append(
                                         EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
                                             serde_json::to_vec(&serde_json::json!({
                                                 "why": "verifier_error", "round": round,
-                                                "detail": "verdict was not parseable JSON",
+                                                "detail": "verdict was not a verdict.submit tool call (prose/wrong-tool reply)",
                                             }))
                                             .unwrap(),
                                         )),
@@ -979,6 +1000,7 @@ fn build_verifier_prompt(
     p.push_str(&format!("ANSWER:\n{answer}\n"));
     p.push_str(&format!("LEDGER (recorded evidence):\n{}\n", ledger.summary()));
     p.push_str(&format!("PRIOR_GAPS:\n{gaps}\n"));
-    p.push_str("Respond with exactly one JSON object: {\"refuted\": bool, \"findings\": [{\"kind\": \"bug|gap|todo\", \"location\": \"...\", \"detail\": \"one line\"}], \"blocking\": \"none|contradiction|unverifiable\"}");
+    p.push_str("Submit the verdict by calling the verdict.submit tool exactly once - never prose, never bare JSON.");
+
     p
 }

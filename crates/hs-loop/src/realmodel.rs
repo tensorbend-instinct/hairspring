@@ -273,6 +273,40 @@ pub fn build_body(
     body
 }
 
+
+/// The request body for a caller-supplied messages array (structured
+/// history, user directive 2026-09-05): messages pass through verbatim
+/// behind the system message.
+pub fn build_body_messages(
+    model: &str,
+    system: &str,
+    messages: &serde_json::Value,
+    tools: Option<&serde_json::Value>,
+    extra: Option<&serde_json::Value>,
+) -> serde_json::Value {
+    let mut msgs = vec![json!({"role": "system", "content": system})];
+    if let Some(arr) = messages.as_array() {
+        msgs.extend(arr.iter().cloned());
+    }
+    let mut body = json!({
+        "model": model,
+        "temperature": 0,
+        "max_tokens": 32768,
+        "messages": msgs,
+    });
+    if let Some(t) = tools {
+        // provider name-charset constraint: dots are not wire-legal
+        body["tools"] = crate::toolschema::to_wire(t);
+        body["tool_choice"] = json!("required");
+    }
+    if let (Some(b), Some(x)) = (body.as_object_mut(), extra.and_then(|e| e.as_object())) {
+        for (k, v) in x {
+            b.insert(k.clone(), v.clone());
+        }
+    }
+    body
+}
+
 fn usage_cost(p: &Provider, usage: &serde_json::Value) -> (u64, u64, u64, u64, i64) {
     let input_tokens = usage["prompt_tokens"].as_u64().unwrap_or(0);
     let output_tokens = usage["completion_tokens"].as_u64().unwrap_or(0);
@@ -412,27 +446,36 @@ pub fn watchdog_secs() -> u64 {
         .unwrap_or(420)
 }
 
-pub fn call(
-    p: &Provider,
-    prompt: &str,
-    tools: Option<&serde_json::Value>,
-) -> Result<serde_json::Value, String> {
+fn wire(p: &Provider) -> Result<(String, String, String), String> {
     let key = load_key(p)?;
     let url = env_or(&p.base_url_env, &p.default_base_url);
     let model = env_or(&p.model_env, &p.default_model);
-    let system = if tools.is_some() { SYSTEM_NATIVE } else { SYSTEM };
+    Ok((key, url, model))
+}
+
+fn extra_body(p: &Provider) -> Result<Option<serde_json::Value>, String> {
     let extra_src = std::env::var(&p.extra_body_json_env)
         .ok()
         .or_else(|| p.default_extra_body_json.clone());
-    let extra: Option<serde_json::Value> = match extra_src {
-        Some(x) => Some(
+    match extra_src {
+        Some(x) => Ok(Some(
             serde_json::from_str(&x)
                 .map_err(|e| format!("{}: bad extra_body_json: {e}", p.name))?,
-        ),
-        None => None,
-    };
-    let native = tools.is_some();
-    let body = build_body(&model, system, prompt, tools, extra.as_ref());
+        )),
+        None => Ok(None),
+    }
+}
+
+/// POST the body with retries + the hang watchdog. native = the request
+/// carried tool schemas, so the response must parse through the native
+/// tool_calls path.
+fn call_with_body(
+    p: &Provider,
+    model: &str,
+    body: &serde_json::Value,
+    native: bool,
+) -> Result<serde_json::Value, String> {
+    let (key, url, _) = wire(p)?;
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .timeout_global(Some(Duration::from_secs(1500)))
         .build()
@@ -485,4 +528,31 @@ pub fn call(
         }
     }
     Err(last_err)
+}
+
+pub fn call(
+    p: &Provider,
+    prompt: &str,
+    tools: Option<&serde_json::Value>,
+) -> Result<serde_json::Value, String> {
+    let (_, _, model) = wire(p)?;
+    let system = if tools.is_some() { SYSTEM_NATIVE } else { SYSTEM };
+    let extra = extra_body(p)?;
+    let body = build_body(&model, system, prompt, tools, extra.as_ref());
+    call_with_body(p, &model, &body, tools.is_some())
+}
+
+/// Structured-messages entry point: the caller (the mission loop) owns the
+/// full messages array - mission message, history pairs, state tail. The
+/// provider receives it verbatim; tools/tool_choice behave as in call().
+pub fn call_messages(
+    p: &Provider,
+    messages: &serde_json::Value,
+    tools: Option<&serde_json::Value>,
+) -> Result<serde_json::Value, String> {
+    let (_, _, model) = wire(p)?;
+    let system = if tools.is_some() { SYSTEM_NATIVE } else { SYSTEM };
+    let extra = extra_body(p)?;
+    let body = build_body_messages(&model, system, messages, tools, extra.as_ref());
+    call_with_body(p, &model, &body, tools.is_some())
 }

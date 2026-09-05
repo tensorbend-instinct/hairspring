@@ -93,21 +93,29 @@ default = true
         })
         // item 3: verifier calls are a separate role, not mission steps
         .filter(|v| v["role"].as_str() != Some("verifier"))
-        .map(|v| v["prompt"].as_str().unwrap().to_string())
+        .map(|v| hs_loop::msgfmt::prompt_view(&v))
         .collect();
     let step2 = prompts.last().expect("a second-step prompt must exist");
+    // structured-messages contract (2026-09-05): history is native
+    // assistant/tool pairs, flattened here as "- tool(args) => result"
+    // lines; the ordering law is unchanged - stable mission first, history
+    // in the middle, volatile state tail last.
     assert!(
-        step2.contains("TRANSCRIPT (earlier tool calls):"),
-        "step 2 must carry the transcript: {step2}"
+        step2.contains("- answer.write("),
+        "step 2 must carry the history pair: {step2}"
     );
     let pos = |needle: &str| step2.find(needle).unwrap_or_else(|| panic!("{needle} missing: {step2}"));
     let (m, t, a) = (
         pos("MISSION:"),
-        pos("TRANSCRIPT (earlier tool calls):"),
+        pos("- answer.write("),
         pos("ATTEMPT:"),
     );
     assert!(
         m < t && t < a,
-        "stable prefix must come first: MISSION({m}) < TRANSCRIPT({t}) < ATTEMPT({a})"
+        "stable prefix must come first: MISSION({m}) < history({t}) < state tail({a})"
+    );
+    assert!(
+        !step2.contains("TRANSCRIPT (earlier tool calls):"),
+        "no hand-rendered transcript heading in the native world"
     );
 }

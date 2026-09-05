@@ -136,9 +136,10 @@ fn fabricated_claim_is_refuted_until_the_ratchet_cap() {
     assert_eq!(refusals, 3, "three refuted rounds before the cap: {refusals}");
     assert!(ev.iter().any(|(k, p)| *k == EventKind::Feedback && p.contains("verifier_ratchet")),
         "ratchet event booked");
-    let prompts: Vec<&str> = ev.iter()
+    let prompts: Vec<String> = ev.iter()
         .filter(|(k, _)| *k == EventKind::ModelCall)
-        .filter_map(|(_, p)| serde_json::from_str::<serde_json::Value>(p).ok()?["prompt"].as_str().map(|s| s.to_string()).map(|s| Box::leak(s.into_boxed_str()) as &str))
+        .filter_map(|(_, p)| serde_json::from_str::<serde_json::Value>(p).ok())
+        .map(|v| hs_loop::msgfmt::prompt_view(&v))
         .collect();
     assert!(prompts.iter().any(|p| p.contains("VERIFIER REFUTED")),
         "the refusal reaches the next prompt as feedback");

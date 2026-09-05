@@ -9,7 +9,14 @@ const BLIND: [&str; 6] = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot
 fn main() {
     serve("benchmodel", "model", &mut |method, params| match method {
         "model.call" => {
-            let prompt = params["prompt"].as_str().unwrap_or("");
+            let __pv;
+            let prompt = match params["prompt"].as_str() {
+                Some(p) => p,
+                None => {
+                    __pv = hs_loop::msgfmt::prompt_view(&params);
+                    __pv.as_str()
+                }
+            };
             let path = prompt
                 .lines()
                 .find_map(|l| l.strip_prefix("ANSWER_PATH: "))

@@ -564,6 +564,86 @@ impl Kernel {
         Ok(out)
     }
 
+    pub fn call_model_messages(
+        &self,
+        subject: &str,
+        model: Option<&str>,
+        messages: &serde_json::Value,
+        tools: Option<&serde_json::Value>,
+    ) -> Result<ModelOutcome, KernelError> {
+        let name = {
+            let models = self.models.borrow();
+            match model {
+                Some(m) => m.to_string(),
+                None => models
+                    .values()
+                    .find(|s| s.entry.default)
+                    .map(|s| s.entry.name.clone())
+                    .ok_or_else(|| KernelError::UnknownModel("(no default)".into()))?,
+            }
+        };
+        {
+            let models = self.models.borrow();
+            let slot = models
+                .get(&name)
+                .ok_or_else(|| KernelError::UnknownModel(name.clone()))?;
+            if !Self::visible(&slot.entry, subject) {
+                return Err(KernelError::Gated {
+                    name,
+                    subject: subject.into(),
+                });
+            }
+        }
+        self.fire_rails(
+            "call.pre_model",
+            subject,
+            &name,
+            &serde_json::json!({"messages": messages}),
+        );
+        let t0 = Instant::now();
+        let result = {
+            let mut models = self.models.borrow_mut();
+            models
+                .get_mut(&name)
+                .unwrap()
+                .call(
+                    "model.call",
+                    match tools {
+                        Some(t) => serde_json::json!({"messages": messages, "tools": t}),
+                        None => serde_json::json!({"messages": messages}),
+                    },
+                )
+        };
+        let latency_ms = t0.elapsed().as_millis() as u32;
+        let r = result?;
+        let out = ModelOutcome {
+            completion: r["completion"].as_str().unwrap_or("").to_string(),
+            input_tokens: r["input_tokens"].as_u64().unwrap_or(0),
+            output_tokens: r["output_tokens"].as_u64().unwrap_or(0),
+            reasoning_tokens: r["reasoning_tokens"].as_u64().unwrap_or(0),
+            cost_usd_micros: r["cost_usd_micros"].as_i64().unwrap_or(0),
+            latency_ms,
+            model: name.clone(),
+        };
+        self.record(
+            EventKind::ModelCall,
+            serde_json::json!({
+                "model": name, "messages": messages, "completion": out.completion,
+                "input_tokens": out.input_tokens, "output_tokens": out.output_tokens,
+                "reasoning_tokens": out.reasoning_tokens,
+            }),
+            latency_ms,
+            out.cost_usd_micros,
+        )?;
+        self.fire_rails(
+            "call.post_model",
+            subject,
+            &name,
+            &serde_json::json!({"completion": out.completion}),
+        );
+        Ok(out)
+    }
+
     /// Dispatch a lifecycle hook to attached rails: priority order, name
     /// tie-break (openJiuwen eq. 2). Rail failures are contained and logged.
     fn fire_rails(&self, hook: &str, subject: &str, target: &str, payload: &serde_json::Value) {

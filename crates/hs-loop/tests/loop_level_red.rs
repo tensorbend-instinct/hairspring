@@ -382,7 +382,7 @@ default = true
         .map(|e| {
             let b = reader.resolve_payload(e).unwrap();
             let v: serde_json::Value = serde_json::from_slice(&b).unwrap();
-            v["prompt"].as_str().unwrap_or("").to_string()
+hs_loop::msgfmt::prompt_view(&v)
         })
         .collect();
     assert_eq!(prompts.len(), 2, "scripted mission ran 2 steps: {r:?}");
@@ -451,7 +451,7 @@ default = true
         .map(|e| {
             let b = reader.resolve_payload(e).unwrap();
             let v: serde_json::Value = serde_json::from_slice(&b).unwrap();
-            v["prompt"].as_str().unwrap_or("").to_string()
+hs_loop::msgfmt::prompt_view(&v)
         })
         .collect();
     assert_eq!(prompts.len(), 4, "mission ran to the 4-step cap: {r:?}");
@@ -552,7 +552,7 @@ default = true
         .map(|e| {
             let b = reader.resolve_payload(e).unwrap();
             let v: serde_json::Value = serde_json::from_slice(&b).unwrap();
-            v["prompt"].as_str().unwrap_or("").to_string()
+hs_loop::msgfmt::prompt_view(&v)
         })
         .collect();
     assert!(prompts.len() >= 2 && prompts[1].contains("REJECTED"),
@@ -661,7 +661,7 @@ default = true
         .map(|e| {
             let b = reader.resolve_payload(e).unwrap();
             let v: serde_json::Value = serde_json::from_slice(&b).unwrap();
-            v["prompt"].as_str().unwrap_or("").to_string()
+hs_loop::msgfmt::prompt_view(&v)
         })
         .collect();
     // step 3's call is the third repeat: the nudge lands in step 4's prompt

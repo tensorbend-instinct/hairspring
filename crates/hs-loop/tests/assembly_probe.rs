@@ -48,7 +48,7 @@ default = true
         let b = reader.resolve_payload(&e).unwrap();
         let v: serde_json::Value = serde_json::from_slice(&b).unwrap();
         if v["role"].as_str() == Some("verifier") { continue; }
-        rows.push((e.seq, v["prompt"].as_str().unwrap_or("").len() as u64, v["assembly_ms"].as_u64().unwrap_or(0)));
+        rows.push((e.seq, hs_loop::msgfmt::prompt_view(&v).len() as u64, v["assembly_ms"].as_u64().unwrap_or(0)));
     }
     eprintln!("seq,prompt_bytes,assembly_ms");
     for (s, p, a) in &rows {

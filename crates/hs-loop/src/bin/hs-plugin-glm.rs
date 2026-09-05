@@ -7,9 +7,13 @@ include!("shared/sdk.rs");
 fn main() {
     serve("glm", "model", &mut |method, params| match method {
         "model.call" => {
-            let prompt = params["prompt"].as_str().unwrap_or("");
             let tools = params.get("tools");
-            match hs_loop::realmodel::call(&hs_loop::realmodel::glm(), prompt, tools) {
+            let r = if let Some(msgs) = params.get("messages") {
+                hs_loop::realmodel::call_messages(&hs_loop::realmodel::glm(), msgs, tools)
+            } else {
+                hs_loop::realmodel::call(&hs_loop::realmodel::glm(), params["prompt"].as_str().unwrap_or(""), tools)
+            };
+            match r {
                 Ok(v) => v,
                 Err(e) => serde_json::json!({"$error": e}),
             }
