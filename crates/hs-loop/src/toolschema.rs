@@ -39,10 +39,14 @@ pub fn builtin_tools() -> Vec<Value> {
         ),
         f(
             "edit.apply",
-            "Apply one incremental edit (unified diff) to your persistent candidate workspace - the live repo is never touched. Returns the CUMULATIVE diff of everything you have applied so far: use edit.apply as you work, test with repo.exec, and submit the cumulative result. Set op='diff' to re-read the cumulative diff, op='reset' to discard the candidate.",
+            "Apply search/replace edits to your persistent candidate workspace - the live repo is never touched. Each block: path + old (text to find, copied verbatim from repo.read, must match exactly once) + new (replacement). NO line numbers, NO diff syntax. All blocks in a call apply or none do; a failure names the block and why (not found / ambiguous - add context). Returns the CUMULATIVE diff of everything applied so far: test with repo.exec, submit with answer.write. Set op='diff' to re-read the cumulative diff, op='reset' to discard the candidate.",
             json!({"type":"object","properties":{
-                "diff":{"type":"string","description":"unified diff"},
-                "op":{"type":"string","enum":["diff","reset"],"description":"optional operation instead of applying a diff"}}}),
+                "edits":{"type":"array","items":{"type":"object","properties":{
+                    "path":{"type":"string","description":"repo-relative file path"},
+                    "old":{"type":"string","description":"exact text to replace; unique in the file (whitespace-tolerant fallback applies)"},
+                    "new":{"type":"string","description":"replacement text"}},"required":["path","old","new"]},
+                    "description":"search/replace blocks applied in order"},
+                "op":{"type":"string","enum":["diff","reset"],"description":"optional operation instead of applying edits"}}}),
         ),
         f(
             "notes.scratch",

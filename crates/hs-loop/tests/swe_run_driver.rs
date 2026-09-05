@@ -427,7 +427,7 @@ fn driver_mission_uses_d5_tools() {
     let script = [
         serde_json::json!({"tool":"notes.scratch","args":{"op":"write","content":"hypothesis: code.txt holds the wrong word\n"}}).to_string(),
         serde_json::json!({"tool":"notes.scratch","args":{"op":"read"}}).to_string(),
-        serde_json::json!({"tool":"edit.apply","args":{"diff":diff}}).to_string(),
+        serde_json::json!({"tool":"edit.apply","args":{"edits":[{"path":"code.txt","old":"broken\n","new":"fixed\n"}]}}).to_string(),
         serde_json::json!({"tool":"answer.write","args":{"path":answer_path.display().to_string(),"content":format!("```diff\n{diff}```")}}).to_string(),
     ];
     std::fs::write(dir.path().join("script.jsonl"), script.join("\n")).unwrap();

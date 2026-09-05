@@ -86,6 +86,137 @@ pub fn apply(ws: &Path, diff: &str) -> Value {
     }
 }
 
+
+/// One search/replace block: replace `old` with `new` in the file at `path`.
+#[derive(Clone, Debug)]
+pub struct EditBlock {
+    pub path: String,
+    pub old: String,
+    pub new: String,
+}
+
+/// Splice one block into content: exact-unique match first, then a
+/// whitespace-tolerant fallback (trailing whitespace per line ignored) when
+/// the exact match misses. Both modes require uniqueness.
+fn splice_one(content: &str, old: &str, new: &str) -> Result<(String, &'static str), String> {
+    let n = content.matches(old).count();
+    if n == 1 {
+        return Ok((content.replacen(old, new, 1), "exact"));
+    }
+    if n > 1 {
+        return Err(format!(
+            "old matches {n} times - add more surrounding context so it matches exactly once"
+        ));
+    }
+    let old_lines: Vec<String> = old.lines().map(|l| l.trim_end().to_string()).collect();
+    if old_lines.is_empty() {
+        return Err("old not found in file".to_string());
+    }
+    let lines: Vec<&str> = content.split_inclusive("\n").collect();
+    let mut starts = Vec::with_capacity(lines.len());
+    let mut off = 0usize;
+    for line in &lines {
+        starts.push(off);
+        off += line.len();
+    }
+    let mut hits = Vec::new();
+    if lines.len() >= old_lines.len() {
+        for w in 0..=(lines.len() - old_lines.len()) {
+            let ok = old_lines
+                .iter()
+                .enumerate()
+                .all(|(k, ol)| lines[w + k].trim_end() == ol.as_str());
+            if ok {
+                hits.push(w);
+            }
+        }
+    }
+    match hits.len() {
+        0 => Err("old not found in file (tried exact and whitespace-tolerant match)".to_string()),
+        1 => {
+            let w = hits[0];
+            let from = starts[w];
+            let to = if w + old_lines.len() < starts.len() {
+                starts[w + old_lines.len()]
+            } else {
+                content.len()
+            };
+            let mut out = String::with_capacity(content.len() + new.len());
+            out.push_str(&content[..from]);
+            out.push_str(new);
+            out.push_str(&content[to..]);
+            Ok((out, "fuzzy"))
+        }
+        m => Err(format!(
+            "old matches {m} times under whitespace-tolerant matching - add more surrounding context"
+        )),
+    }
+}
+
+/// Apply search/replace blocks to the candidate (never the live ws). Blocks
+/// apply in order; the call is all-or-nothing: any failing block returns
+/// applied:false with per-block results and NOTHING is written, so earlier
+/// candidate work survives intact. Model-facing edit path: no line numbers,
+/// no diff syntax - the corrupt-patch failure class (measured 2026-09-05:
+/// 6/6 model-written diffs failed on hunk-count arithmetic or truncated
+/// tails) is designed out, not repaired.
+pub fn apply_blocks(ws: &Path, blocks: &[EditBlock]) -> Value {
+    if blocks.is_empty() {
+        return json!({"applied": false, "error": "edits array is empty - pass at least one {path, old, new} block"});
+    }
+    let cand = match ensure_candidate(ws) {
+        Ok(c) => c,
+        Err(e) => return e,
+    };
+    let mut staged: std::collections::BTreeMap<String, String> = Default::default();
+    let mut results: Vec<Value> = Vec::new();
+    for (i, b) in blocks.iter().enumerate() {
+        if b.path.starts_with("/") || b.path.split('/').any(|s| s == "..") {
+            return json!({"applied": false, "error": format!("block {i} ({}): path must be repo-relative, no absolute paths or ..", b.path), "results": results});
+        }
+        if b.old.is_empty() {
+            return json!({"applied": false, "error": format!("block {i} ({}): old must be non-empty", b.path), "results": results});
+        }
+        if !staged.contains_key(&b.path) {
+            match std::fs::read_to_string(cand.join(&b.path)) {
+                Ok(c) => {
+                    staged.insert(b.path.clone(), c);
+                }
+                Err(_) => {
+                    return json!({"applied": false, "error": format!("block {i} ({}): file not found in candidate", b.path), "results": results});
+                }
+            }
+        }
+        let cur = staged[&b.path].clone();
+        match splice_one(&cur, &b.old, &b.new) {
+            Ok((next, how)) => {
+                staged.insert(b.path.clone(), next);
+                results.push(json!({"path": b.path, "status": "ok", "match": how}));
+            }
+            Err(e) => {
+                results.push(json!({"path": b.path, "status": "failed", "detail": e}));
+                return json!({"applied": false, "error": format!("block {i} ({}): {}", b.path, e), "results": results});
+            }
+        }
+    }
+    for (rel, content) in &staged {
+        if let Err(e) = std::fs::write(cand.join(rel), content) {
+            return json!({"$error": format!("write {rel}: {e}")});
+        }
+    }
+    match read_cumulative(&cand) {
+        Ok(cd) => {
+            let files: Vec<&str> = cd
+                .lines()
+                .filter(|l| l.starts_with("diff --git"))
+                .filter_map(|l| l.split(" b/").last())
+                .collect();
+            json!({"applied": true, "results": results, "cumulative_diff": cd, "files_changed": files})
+        }
+        Err(e) => e,
+    }
+}
+
 /// The cumulative diff without applying anything new.
 pub fn cumulative_diff(ws: &Path) -> Value {
     let cand = candidate_dir(ws);
