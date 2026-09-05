@@ -182,7 +182,7 @@ fn driver_mission_uses_repotools_through_synthesized_config() {
     )
     .unwrap();
     assert_eq!(result["passed"], true);
-    assert_eq!(result["steps"], 2, "read via repo.read, then write");
+    assert_eq!(result["steps"], 3, "read via repo.read, verify via repo.exec, then write (hard answer gate)");
 }
 
 /// Seam: repo.exec through the real driver/kernel/loop path (parent bar: no

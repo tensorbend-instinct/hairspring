@@ -1,6 +1,7 @@
 //! Test model "swereader": step 1 reads the repo via repo.read, step 2
-//! writes the gold patch. Exercises the driver-configured repotools through
-//! the kernel in the driver E2E (seam gap C3).
+//! verifies the gold patch inline via repo.exec (hard answer gate), step 3
+//! writes it. Exercises the driver-configured repotools through the kernel
+//! in the driver E2E (seam gap C3).
 include!("shared/sdk.rs");
 fn main() {
     serve("swereader", "model", &mut |method, params| match method {
@@ -23,13 +24,15 @@ fn main() {
                         .and_then(|d| d.parse().ok())
                 })
                 .unwrap_or(1);
+            let gold = std::env::var("HS_SWE_GOLD_PATCH_FILE")
+                .ok()
+                .and_then(|f| std::fs::read_to_string(f).ok())
+                .unwrap_or_default();
             let completion = if attempt == 1 {
                 serde_json::json!({"tool":"repo.read","args":{"path":"code.txt"}})
+            } else if attempt == 2 {
+                serde_json::json!({"tool":"repo.exec","args":{"command":"sh check.sh","diff":gold}})
             } else {
-                let gold = std::env::var("HS_SWE_GOLD_PATCH_FILE")
-                    .ok()
-                    .and_then(|f| std::fs::read_to_string(f).ok())
-                    .unwrap_or_default();
                 serde_json::json!({"tool":"answer.write","args":{"path":path,"content":format!("```diff\n{gold}\n```")}})
             };
             serde_json::json!({
