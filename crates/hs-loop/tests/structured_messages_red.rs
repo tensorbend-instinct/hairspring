@@ -411,7 +411,7 @@ fn build_body_messages_shape() {
         {"role":"tool","tool_call_id":"call_3","content":"src/foo.rs:12: foo"},
         {"role":"user","content":"ATTEMPT: step 2 of 10"}
     ]);
-    let body = realmodel::build_body_messages("kimi-k3", "sys", &messages, Some(&tools), None);
+    let body = realmodel::build_body_messages("kimi-k3", "sys", &messages, Some(&tools), None, true);
     assert_eq!(body["messages"].as_array().unwrap().len(), 5, "system + 4 messages");
     assert_eq!(body["messages"][0]["role"], "system");
     assert_eq!(body["messages"][1]["content"], "MISSION: task-x", "verbatim pass-through");

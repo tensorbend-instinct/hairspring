@@ -87,7 +87,7 @@ fn builtin_tool_schemas_cover_the_mission_surface() {
 #[test]
 fn request_body_carries_native_tools() {
     let tools = json!([{"type":"function","function":{"name":"repo.search","description":"d","parameters":{"type":"object","properties":{"pattern":{"type":"string"}},"required":["pattern"]}}}]);
-    let body = hs_loop::realmodel::build_body("kimi-k3", "sys", "prompt", Some(&tools), None);
+    let body = hs_loop::realmodel::build_body("kimi-k3", "sys", "prompt", Some(&tools), None, true);
     // provider name-charset constraint (verified live: Moonshot rejects dots):
     // names go out in wire form, schemas otherwise verbatim
     assert_eq!(
@@ -102,7 +102,7 @@ fn request_body_carries_native_tools() {
         Some("required"),
         "one tool call per reply, enforced by the API"
     );
-    let bare = hs_loop::realmodel::build_body("kimi-k3", "sys", "prompt", None, None);
+    let bare = hs_loop::realmodel::build_body("kimi-k3", "sys", "prompt", None, None, true);
     assert!(bare.get("tools").is_none(), "no tools param without tools");
     assert!(bare.get("tool_choice").is_none());
 }

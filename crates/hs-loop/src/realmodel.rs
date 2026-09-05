@@ -35,6 +35,11 @@ pub struct Provider {
     pub extra_body_json_env: String,
     /// TOML-sourced extra body; the env var above wins when both are set.
     pub default_extra_body_json: Option<String>,
+    /// true = the API enforces one tool call per reply (tool_choice:
+    /// "required"). false = "auto": DeepSeek v4 thinking mode 400s on
+    /// "required" (live-verified 2026-09-05); the loop's no-tool-call
+    /// feedback already covers a prose reply.
+    pub tool_choice_required: bool,
 }
 
 fn builtin(
@@ -63,6 +68,7 @@ fn builtin(
         default_out_micros: out_micros,
         extra_body_json_env: format!("HS_{up}_EXTRA_BODY_JSON"),
         default_extra_body_json: default_extra.map(|s| s.to_string()),
+        tool_choice_required: true,
     }
 }
 
@@ -79,7 +85,7 @@ pub fn glm() -> Provider {
 }
 
 pub fn deepseek() -> Provider {
-    builtin(
+    let mut p = builtin(
         "deepseek",
         "https://api.deepseek.com/chat/completions",
         "deepseek-v4-flash",
@@ -87,7 +93,10 @@ pub fn deepseek() -> Provider {
         0.014,
         1.32,
         None,
-    )
+    );
+    // DeepSeek v4 thinking mode rejects tool_choice:"required" (400, live).
+    p.tool_choice_required = false;
+    p
 }
 
 /// One [[providers]] entry. Key material never appears here: key_env NAMES
@@ -148,6 +157,7 @@ pub fn provider_from_config(c: &ProviderConfig) -> Result<Provider, String> {
         default_out_micros: c.price_out_micros.unwrap_or(0.0),
         extra_body_json_env: format!("HS_{up}_EXTRA_BODY_JSON"),
         default_extra_body_json: c.extra_body_json.clone(),
+        tool_choice_required: true,
     })
 }
 
@@ -254,6 +264,7 @@ pub fn build_body(
     prompt: &str,
     tools: Option<&serde_json::Value>,
     extra: Option<&serde_json::Value>,
+    tool_choice_required: bool,
 ) -> serde_json::Value {
     let mut body = json!({
         "model": model,
@@ -267,7 +278,7 @@ pub fn build_body(
     if let Some(t) = tools {
         // provider name-charset constraint: dots are not wire-legal
         body["tools"] = crate::toolschema::to_wire(t);
-        body["tool_choice"] = json!("required");
+        body["tool_choice"] = json!(if tool_choice_required { "required" } else { "auto" });
     }
     if let (Some(b), Some(x)) = (body.as_object_mut(), extra.and_then(|e| e.as_object())) {
         for (k, v) in x {
@@ -287,6 +298,7 @@ pub fn build_body_messages(
     messages: &serde_json::Value,
     tools: Option<&serde_json::Value>,
     extra: Option<&serde_json::Value>,
+    tool_choice_required: bool,
 ) -> serde_json::Value {
     let mut msgs = vec![json!({"role": "system", "content": system})];
     if let Some(arr) = messages.as_array() {
@@ -301,7 +313,7 @@ pub fn build_body_messages(
     if let Some(t) = tools {
         // provider name-charset constraint: dots are not wire-legal
         body["tools"] = crate::toolschema::to_wire(t);
-        body["tool_choice"] = json!("required");
+        body["tool_choice"] = json!(if tool_choice_required { "required" } else { "auto" });
     }
     if let (Some(b), Some(x)) = (body.as_object_mut(), extra.and_then(|e| e.as_object())) {
         for (k, v) in x {
@@ -548,7 +560,7 @@ pub fn call(
     let (_, _, model) = wire(p)?;
     let system = if tools.is_some() { SYSTEM_NATIVE } else { SYSTEM };
     let extra = extra_body(p)?;
-    let body = build_body(&model, system, prompt, tools, extra.as_ref());
+    let body = build_body(&model, system, prompt, tools, extra.as_ref(), p.tool_choice_required);
     call_with_body(p, &model, &body, tools.is_some())
 }
 
@@ -563,6 +575,6 @@ pub fn call_messages(
     let (_, _, model) = wire(p)?;
     let system = if tools.is_some() { SYSTEM_NATIVE } else { SYSTEM };
     let extra = extra_body(p)?;
-    let body = build_body_messages(&model, system, messages, tools, extra.as_ref());
+    let body = build_body_messages(&model, system, messages, tools, extra.as_ref(), p.tool_choice_required);
     call_with_body(p, &model, &body, tools.is_some())
 }
