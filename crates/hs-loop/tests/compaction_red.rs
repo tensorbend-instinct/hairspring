@@ -107,6 +107,17 @@ fn pressure_compacts_oldest_with_audit_refs_and_records_context_inject() {
         summary.contains("seq"),
         "summary links back to the source event range: {summary}"
     );
+    // item 2 (Codex handoff framing): the notice frames the summary as a
+    // colleague's handoff to build on - not a bare truncation marker the
+    // model re-verifies from scratch
+    assert!(
+        summary.contains("Another run started this mission"),
+        "colleague-handoff framing: {summary}"
+    );
+    assert!(
+        summary.contains("do not redo"),
+        "build-on-it directive: {summary}"
+    );
 
     let injects = context_injects(log.path(), stream);
     assert!(
