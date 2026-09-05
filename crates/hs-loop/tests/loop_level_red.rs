@@ -12,6 +12,7 @@ const BENCHMODEL: &str = env!("CARGO_BIN_EXE_hs-plugin-benchmodel");
 const SEQMODEL: &str = env!("CARGO_BIN_EXE_hs-plugin-scripted");
 const FIXTURE: &str = env!("CARGO_BIN_EXE_hs-loopfix");
 const REPOEXEC: &str = env!("CARGO_BIN_EXE_hs-plugin-repoexec");
+const PROBE_BIN: &str = env!("CARGO_BIN_EXE_hs-plugin-probe");
 
 static SEQMODEL_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
@@ -600,4 +601,103 @@ default = true
     let mut l = InnerLoop::new(kernel, log.path(), true, 1).unwrap();
     let r = l.run_mission("task-22").unwrap();
     assert!(r.passed, "a one-step mission's only submission must go through: {r:?}");
+}
+
+/// Item 4 (Eric's verifier slate, Grok doom_loop_telemetry adapted): a model
+/// repeating effectively the same (tool, args) call is stuck. The harness
+/// detects the pattern in a sliding window and injects a DOOM LOOP recovery
+/// nudge - once, then again only on escalation, never every step.
+#[test]
+fn doom_loop_nudge_on_repeated_calls_once_then_escalation_only() {
+    let _g = SEQMODEL_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let dir = tempfile::tempdir().unwrap();
+    let log = tempfile::tempdir().unwrap();
+    let answer = log.path().join("work").join("task-23").join("answer.txt");
+    // 6 identical reads (args differ only by whitespace on one), then answer.
+    let read = "{\"tool\":\"probe.read\",\"args\":{\"path\":\"code.txt\"}}";
+    let script = write(
+        dir.path(),
+        "script.jsonl",
+        &format!(
+            "{read}\n{read}\n{read}\n{{\"tool\":\"probe.read\",\"args\":{{\"path\":\"code.txt\"}}}}\n{read}\n{read}\n{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"x\"}}}}",
+            answer.display()
+        ),
+    );
+    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    let config = write(
+        dir.path(),
+        "hairspring.toml",
+        &format!(
+            r#"
+[[tools]]
+name = "probe.read"
+command = ["{PROBE_BIN}"]
+subjects = ["*"]
+
+[[tools]]
+name = "answer.write"
+command = ["{ANSWER}"]
+subjects = ["*"]
+
+[[tools]]
+name = "checker.run"
+command = ["{CHECKER}"]
+subjects = ["*"]
+
+[[models]]
+name = "scripted"
+command = ["{SEQMODEL}"]
+default = true
+"#,
+        ),
+    );
+    let kernel = hs_kernel::Kernel::load(&config).unwrap();
+    let mut l = InnerLoop::new(kernel, log.path(), true, 7).unwrap();
+    let r = l.run_mission("task-23").unwrap();
+    let reader = hs_log::StreamReader::open(log.path(), r.stream_id).unwrap();
+    let events = reader.events().unwrap();
+    let prompts: Vec<String> = events.iter()
+        .filter(|e| e.kind == hs_core::EventKind::ModelCall)
+        .map(|e| {
+            let b = reader.resolve_payload(e).unwrap();
+            let v: serde_json::Value = serde_json::from_slice(&b).unwrap();
+            v["prompt"].as_str().unwrap_or("").to_string()
+        })
+        .collect();
+    // step 3's call is the third repeat: the nudge lands in step 4's prompt
+    assert!(
+        prompts.iter().take(3).all(|p| !p.contains("DOOM LOOP")),
+        "no doom nudge before the third repeat"
+    );
+    assert!(
+        prompts[3].contains("DOOM LOOP"),
+        "doom-loop nudge after the third identical call: {}",
+        &prompts[3][..prompts[3].len().min(500)]
+    );
+    let nudges: Vec<String> = events.iter()
+        .filter(|e| e.kind == hs_core::EventKind::ContextInject)
+        .map(|e| String::from_utf8_lossy(&reader.resolve_payload(e).unwrap()).into_owned())
+        .filter(|p| p.contains("doom_loop"))
+        .collect();
+    // fires at count 3, suppressed at 4, refires at 5 (escalation +2): 2 total
+    assert_eq!(nudges.len(), 2, "fire at threshold, suppress, escalate: {nudges:?}");
+    // control: distinct calls never nudge
+    let dir2 = tempfile::tempdir().unwrap();
+    let log2 = tempfile::tempdir().unwrap();
+    let script2 = write(
+        dir2.path(),
+        "script.jsonl",
+        "{\"tool\":\"probe.read\",\"args\":{\"path\":\"a.txt\"}}\n{\"tool\":\"probe.read\",\"args\":{\"path\":\"b.txt\"}}\n{\"tool\":\"probe.read\",\"args\":{\"path\":\"c.txt\"}}",
+    );
+    std::env::set_var("HS_SEQMODEL_SCRIPT", &script2);
+    let kernel2 = hs_kernel::Kernel::load(&config).unwrap();
+    let mut l2 = InnerLoop::new(kernel2, log2.path(), true, 3).unwrap();
+    let r2 = l2.run_mission("task-23").unwrap();
+    let reader2 = hs_log::StreamReader::open(log2.path(), r2.stream_id).unwrap();
+    let nudges2 = reader2.events().unwrap().iter()
+        .filter(|e| e.kind == hs_core::EventKind::ContextInject)
+        .map(|e| String::from_utf8_lossy(&reader2.resolve_payload(e).unwrap()).into_owned())
+        .filter(|p| p.contains("doom_loop"))
+        .count();
+    assert_eq!(nudges2, 0, "distinct calls never trigger the detector");
 }

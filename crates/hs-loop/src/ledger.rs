@@ -24,12 +24,52 @@ pub struct Ledger {
     edits: Vec<(u64, String)>,
     test_runs: Vec<(u64, String, bool)>,
     open_threads: Vec<String>,
-    last_calls: VecDeque<(String, u64, u64)>, // (plugin, args_hash, seq)
+    last_calls: VecDeque<(String, u64, u64, u64)>, // (plugin, args_hash, args_hash_normalized, seq)
 }
 
 fn args_hash(args: &Value) -> u64 {
     let mut h = DefaultHasher::new();
     h.write(args.to_string().as_bytes());
+    h.finish()
+}
+
+/// Doom-loop hashing ignores whitespace-only differences: "sh check.sh" and
+/// "sh  check.sh" are the same stuck call (Grok doom_loop_telemetry,
+/// adapted).
+fn normalize_strings(v: &Value, out: &mut String) {
+    match v {
+        Value::String(s) => {
+            out.push('"');
+            out.push_str(&s.split_whitespace().collect::<Vec<_>>().join(" "));
+            out.push('"');
+        }
+        Value::Array(a) => {
+            out.push('[');
+            for x in a {
+                normalize_strings(x, out);
+            }
+            out.push(']');
+        }
+        Value::Object(m) => {
+            let mut keys: Vec<&String> = m.keys().collect();
+            keys.sort();
+            out.push('{');
+            for k in keys {
+                out.push_str(k);
+                out.push(':');
+                normalize_strings(&m[k], out);
+            }
+            out.push('}');
+        }
+        other => out.push_str(&other.to_string()),
+    }
+}
+
+fn args_hash_normalized(args: &Value) -> u64 {
+    let mut norm = String::new();
+    normalize_strings(args, &mut norm);
+    let mut h = DefaultHasher::new();
+    h.write(norm.as_bytes());
     h.finish()
 }
 
@@ -52,7 +92,7 @@ impl Ledger {
         if self.last_calls.len() >= LAST_CALLS_CAP {
             self.last_calls.pop_front();
         }
-        self.last_calls.push_back((plugin.to_string(), args_hash(args), seq));
+        self.last_calls.push_back((plugin.to_string(), args_hash(args), args_hash_normalized(args), seq));
 
         match plugin {
             "repo.read" => {
@@ -122,8 +162,30 @@ impl Ledger {
         self.last_calls
             .iter()
             .rev()
-            .find(|(p, ah, _)| p == plugin && *ah == h)
-            .map(|(_, _, seq)| *seq)
+            .find(|(p, ah, _, _)| p == plugin && *ah == h)
+            .map(|(_, _, _, seq)| *seq)
+    }
+
+    /// Doom-loop detection (item 4, Grok doom_loop_telemetry adapted):
+    /// within the last `window` calls, count the largest group sharing
+    /// (plugin, whitespace-normalized args). Returns (plugin, count) when
+    /// that count reaches `threshold` - the caller owns fire-once and
+    /// escalation policy.
+    pub fn doom_loop_repeat(&self, window: usize, threshold: usize) -> Option<(String, usize)> {
+        let mut best: Option<(String, usize)> = None;
+        let n = self.last_calls.len();
+        for (p, _, nh, _) in self.last_calls.iter().skip(n.saturating_sub(window)) {
+            let count = self
+                .last_calls
+                .iter()
+                .skip(n.saturating_sub(window))
+                .filter(|(p2, _, nh2, _)| p2 == p && nh2 == nh)
+                .count();
+            if count >= threshold && best.as_ref().map(|(_, c)| count > *c).unwrap_or(true) {
+                best = Some((p.clone(), count));
+            }
+        }
+        best
     }
 
     /// Bounded render for the always-resident LEDGER prompt block (T8).

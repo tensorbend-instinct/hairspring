@@ -88,6 +88,9 @@ pub struct InnerLoop {
     memory_store: Option<Box<dyn hs_memory::MemoryStore>>,
     goal: Option<goal::GoalSpec>,
     dead_tools: std::collections::HashSet<String>,
+    /// item 4: per-plugin count at which the doom-loop nudge last fired;
+    /// refires only when the repeat count grows by +2 (anti-spam)
+    doom_nudges: std::collections::HashMap<String, usize>,
     /// Fix 4: mission wall budget (secs) + start instant, for the per-step
     /// "T-minus" header. None = wall not tracked (old behavior).
     wall_secs: Option<u64>,
@@ -132,6 +135,7 @@ impl InnerLoop {
             memory_store: None,
             goal: None,
             dead_tools: Default::default(),
+            doom_nudges: Default::default(),
             wall_secs: None,
             mission_started: None,
         })
@@ -162,6 +166,7 @@ impl InnerLoop {
             memory_store: None,
             goal: None,
             dead_tools: Default::default(),
+            doom_nudges: Default::default(),
             wall_secs: None,
             mission_started: None,
         })
@@ -618,6 +623,34 @@ impl InnerLoop {
                             pending_feedback.push(note);
                         }
                         self.ledger.apply_tool_call(ev.seq, &tool, &args, &tool_out.output);
+                        // Item 4: doom-loop detection (Grok doom_loop_telemetry,
+                        // adapted). Third effectively-identical call in the
+                        // window triggers one recovery nudge; it refires only
+                        // when the streak grows by another 2.
+                        const DOOM_WINDOW: usize = 8;
+                        const DOOM_THRESHOLD: usize = 3;
+                        if let Some((plugin, count)) =
+                            self.ledger.doom_loop_repeat(DOOM_WINDOW, DOOM_THRESHOLD)
+                        {
+                            let last = self.doom_nudges.get(&plugin).copied().unwrap_or(0);
+                            if last == 0 || count >= last + 2 {
+                                let note = format!(
+                                    "DOOM LOOP: {plugin} with effectively the same args {count} times in the last {DOOM_WINDOW} calls - repeating it is not working. STOP re-issuing it: change one thing materially (a different command, a different file, a different hypothesis), or verify and submit."
+                                );
+                                self.writer.append(
+                                    EventBuilder::new(EventKind::ContextInject).payload(
+                                        Payload::Inline(
+                                            serde_json::to_vec(&serde_json::json!({
+                                                "what": [note.clone()], "why": "doom_loop",
+                                            }))
+                                            .unwrap(),
+                                        ),
+                                    ),
+                                )?;
+                                pending_feedback.push(note);
+                                self.doom_nudges.insert(plugin, count);
+                            }
+                        }
                         if tool == "answer.write" {
                             wrote_answer = true;
                         }
