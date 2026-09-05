@@ -12,6 +12,8 @@ pub struct Compressed {
     pub hi_seq: u64,
     pub lo_id: uuid::Uuid,
     pub hi_id: uuid::Uuid,
+    /// The verbatim lines being compressed - input to the LLM distiller.
+    pub lines: Vec<String>,
 }
 
 pub struct Assembly {
@@ -88,6 +90,7 @@ pub fn assemble(reader: &hs_log::StreamReader, events: &[hs_core::Event], budget
             hi_seq: hi.0,
             lo_id: lo.1,
             hi_id: hi.1,
+            lines: compacted.iter().map(|(_, _, l)| l.clone()).collect(),
         });
     }
     kept.reverse();

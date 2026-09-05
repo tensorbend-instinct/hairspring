@@ -308,14 +308,54 @@ impl InnerLoop {
                                 }
                             }
                         }
-                        let asm = assembler::assemble(&reader, &events, self.context_budget_chars);
+                        let mut asm = assembler::assemble(&reader, &events, self.context_budget_chars);
                         if let Some(c) = &asm.compressed {
+                            // D1: distill the oldest events into the Codex
+                            // four-element handoff contract via the model;
+                            // the call is booked with its cost. On any
+                            // failure the ledger pointer already in place
+                            // stays - compression never destroys content.
+                            let distill_prompt = format!(
+                                "DISTILL: You are compacting an agent's earlier tool-call history for a fresh context. Summarize the calls below into EXACTLY four labeled sections: PROGRESS AND DECISIONS / CONSTRAINTS AND PREFERENCES / NEXT STEPS / CRITICAL DATA. Be terse; preserve file paths, line numbers, test names, and verdicts.\n\n{}",
+                                c.lines.join("\n")
+                            );
+                            let mut distilled: Option<String> = None;
+                            match self.kernel.call_model("operator", None, &distill_prompt) {
+                                Ok(out) => {
+                                    model_calls += 1;
+                                    self.cost_total_micros += out.cost_usd_micros.max(0) as u64;
+                                    let _ = self.writer.append(
+                                        EventBuilder::new(EventKind::ModelCall)
+                                            .payload(Payload::Inline(
+                                                serde_json::to_vec(&serde_json::json!({
+                                                    "model": out.model, "why": "distill",
+                                                    "prompt": distill_prompt, "completion": out.completion,
+                                                    "input_tokens": out.input_tokens,
+                                                    "output_tokens": out.output_tokens,
+                                                    "cost_usd_micros": out.cost_usd_micros,
+                                                }))
+                                                .unwrap(),
+                                            ))
+                                            .latency_ms(out.latency_ms)
+                                            .cost_usd_micros(out.cost_usd_micros),
+                                    );
+                                    distilled = Some(out.completion);
+                                }
+                                Err(_) => {}
+                            }
+                            let did_distill = distilled.is_some();
+                            if let Some(summary) = distilled {
+                                asm.entries[0] = format!(
+                                    "COMPACTED {} earlier tool calls (events seq {}..{}, refs {}..{}): handoff summary:\n{}",
+                                    c.count, c.lo_seq, c.hi_seq, c.lo_id, c.hi_id, summary
+                                );
+                            }
                             let _ = self.writer.append(
                                 EventBuilder::new(EventKind::ContextInject)
                                     .payload(Payload::Inline(
                                         format!(
-                                            "context_inject why=pressure compacted={} range=seq{}..seq{}",
-                                            c.count, c.lo_seq, c.hi_seq
+                                            "context_inject why=pressure compacted={} range=seq{}..seq{} distilled={}",
+                                            c.count, c.lo_seq, c.hi_seq, did_distill
                                         )
                                         .into_bytes(),
                                     )),
