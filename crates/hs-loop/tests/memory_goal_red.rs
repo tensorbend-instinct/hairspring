@@ -9,6 +9,7 @@
 
 use hs_core::{EventKind, Payload};
 use hs_loop::*;
+use hs_memory::MemoryStore;
 use std::process::Command;
 
 static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());

@@ -9,6 +9,7 @@
 //! Writes <run-dir>/result.json and appends one line to <run-dir>/ledger.txt:
 //!   model,arm,instance_id,passed,steps,model_calls,cost_micros,budget_killed
 
+use hs_memory::MemoryStore;
 use std::path::{Path, PathBuf};
 
 #[derive(serde::Deserialize)]
@@ -225,12 +226,31 @@ default = true
     if let Some(t) = arg(&args, "--context-budget-tokens").and_then(|v| v.parse::<usize>().ok()) {
         l.set_context_budget_tokens(t);
     }
+    if let Ok(ws) = std::env::var("HS_SWE_WORKSPACE") {
+        if !f2p.is_empty() {
+            l.set_goal_evaluator(std::path::Path::new(&ws), f2p.clone());
+        }
+    }
+    let memory_db = arg(&args, "--memory-db").map(std::path::PathBuf::from);
+    if let Some(db) = &memory_db {
+        l.set_memory_db(db);
+    }
     let started = std::time::Instant::now();
     let r = l
         .run_mission_full(&inst.instance_id, &prompt)
         .expect("mission run");
     let wall_secs = started.elapsed().as_secs();
     let cost = l.total_cost_micros();
+
+    if let Some(db) = &memory_db {
+        if let Ok(store) = hs_memory::sqlite::SqliteMemoryStore::open(db).map_err(|e| e.to_string()) {
+            for rec in hs_memory::extract::extract_stream(&log_root, r.stream_id, &inst.instance_id, "operator") {
+                if let Err(e) = store.put(rec) {
+                    eprintln!("memory extract: {e}");
+                }
+            }
+        }
+    }
 
     // final patch = last answer content (the loop re-runs checker each step;
     // the workspace holds the passing state on success)

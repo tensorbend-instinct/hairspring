@@ -10,6 +10,7 @@ pub mod realmodel;
 pub mod mcpbridge;
 pub mod assembler;
 pub mod editapply;
+pub mod goal;
 pub mod ledger;
 pub mod repexec;
 pub mod sweprompt;
@@ -83,6 +84,8 @@ pub struct InnerLoop {
     progress_path: Option<PathBuf>,
     ledger: ledger::Ledger,
     context_budget_chars: usize,
+    memory_store: Option<Box<dyn hs_memory::MemoryStore>>,
+    goal: Option<goal::GoalSpec>,
 }
 
 /// D1: default input budget per the design doc (ESTIMATE, W2: provider
@@ -110,6 +113,8 @@ impl InnerLoop {
             progress_path: None,
             ledger: Default::default(),
             context_budget_chars: DEFAULT_CONTEXT_BUDGET_TOKENS * 4,
+            memory_store: None,
+            goal: None,
         })
     }
 
@@ -135,6 +140,8 @@ impl InnerLoop {
             progress_path: None,
             ledger: Default::default(),
             context_budget_chars: DEFAULT_CONTEXT_BUDGET_TOKENS * 4,
+            memory_store: None,
+            goal: None,
         })
     }
 
@@ -159,6 +166,20 @@ impl InnerLoop {
     /// step. An external wall-clock kill (timeout, OOM, SIGKILL) then books
     /// from the checkpoint via `book_wall_kill` instead of writing a
     /// 0-step result for a run that did real work.
+    /// D3: attach the typed memory plane; the assembler retrieves top-k
+    /// records into every prompt (with source_seqs provenance).
+    pub fn set_memory_db(&mut self, path: &Path) {
+        self.memory_store = Some(Box::new(
+            hs_memory::sqlite::SqliteMemoryStore::open(path).expect("memory db open"),
+        ));
+    }
+
+    /// D6: acceptance-constrained stopping. The stop decision becomes a
+    /// verifiable predicate (patch applies + F2P green in the sandbox).
+    pub fn set_goal_evaluator(&mut self, ws: &Path, f2p: Vec<String>) {
+        self.goal = Some(goal::GoalSpec { ws: ws.to_path_buf(), f2p, timeout_secs: 120 });
+    }
+
     /// D1: size the transcript projection in tokens (4 chars/token proxy).
     pub fn set_context_budget_tokens(&mut self, tokens: usize) {
         self.context_budget_chars = tokens.saturating_mul(4);
@@ -268,6 +289,25 @@ impl InnerLoop {
                     if let Ok(events) = reader.events() {
                         ctx.push_str("LEDGER (your work so far, always current):\n");
                         ctx.push_str(&self.ledger.summary());
+                        if let Some(store) = &self.memory_store {
+                            if let Ok(recs) = store.top_k("operator", 5) {
+                                if !recs.is_empty() {
+                                    ctx.push_str("MEMORY (earlier missions):\n");
+                                    let mut budget = 2000usize;
+                                    for r in &recs {
+                                        let line = format!(
+                                            "- [{} seqs:{}] {}\n",
+                                            r.kind,
+                                            r.source_seqs.iter().map(u64::to_string).collect::<Vec<_>>().join(","),
+                                            r.content
+                                        );
+                                        if line.len() > budget { break; }
+                                        budget -= line.len();
+                                        ctx.push_str(&line);
+                                    }
+                                }
+                            }
+                        }
                         let asm = assembler::assemble(&reader, &events, self.context_budget_chars);
                         if let Some(c) = &asm.compressed {
                             let _ = self.writer.append(
@@ -449,6 +489,24 @@ impl InnerLoop {
             )?;
             let passed = verdict.output["passed"].as_bool().unwrap_or(false);
             let error = verdict.output["error"].as_str().unwrap_or("").to_string();
+            // D6: when a goal evaluator is set, IT owns the stop decision -
+            // a checker verdict (or a lying checker) cannot stop a red mission
+            let stop_green = match &self.goal {
+                Some(g) => {
+                    let green = goal::verify(g, &answer_path);
+                    self.writer.append(
+                        EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                            serde_json::to_vec(&serde_json::json!({
+                                "goal_evaluator": if green { "green" } else { "red" },
+                                "f2p": g.f2p, "checker_passed": passed,
+                            }))
+                            .unwrap(),
+                        )),
+                    )?;
+                    green
+                }
+                None => passed,
+            };
             self.writer.append(
                 EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
                     serde_json::to_vec(&serde_json::json!({
@@ -458,7 +516,7 @@ impl InnerLoop {
                     .unwrap(),
                 )),
             )?;
-            if passed {
+            if stop_green {
                 self.writer.append(
                     EventBuilder::new(EventKind::GoalUpdate).payload(Payload::Inline(
                         serde_json::to_vec(&serde_json::json!({"mission": mission, "done": true}))
@@ -476,7 +534,13 @@ impl InnerLoop {
                     harness_error: None,
                 });
             }
-            pending_feedback.push(error);
+            if passed && !stop_green {
+                pending_feedback.push(
+                    "checker reported pass but the GOAL EVALUATOR is red: F2P still failing in the sandbox - keep working".to_string()
+                );
+            } else {
+                pending_feedback.push(error);
+            }
             self.checkpoint(steps, model_calls);
         }
         Ok(MissionResult {
