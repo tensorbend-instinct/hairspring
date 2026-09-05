@@ -48,6 +48,9 @@ fn main() {
         .parse()
         .unwrap();
     let max_steps: u32 = arg(&args, "--max-steps").unwrap_or("25".into()).parse().unwrap();
+    let wall_secs: Option<u64> = arg(&args, "--wall-secs")
+        .or_else(|| std::env::var("HS_SUBSET_WALL_SECS").ok())
+        .and_then(|v| v.parse().ok());
     let run_dir = PathBuf::from(arg(&args, "--run-dir").expect("--run-dir"));
     std::fs::create_dir_all(&run_dir).unwrap();
 
@@ -222,6 +225,9 @@ default = true
     let kernel = hs_kernel::Kernel::load(&config).expect("kernel load");
     let mut l = hs_loop::InnerLoop::new(kernel, &log_root, feedback, max_steps).expect("loop");
     l.set_budget_micros(budget_micros);
+    if let Some(w) = wall_secs {
+        l.set_wall_secs(w);
+    }
     l.set_progress_path(&run_dir.join("progress.json"));
     let budget_tokens = arg(&args, "--context-budget-tokens")
         .and_then(|v| v.parse::<usize>().ok())

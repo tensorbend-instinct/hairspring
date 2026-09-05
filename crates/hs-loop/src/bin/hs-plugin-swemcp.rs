@@ -11,10 +11,17 @@ fn main() {
                 .find_map(|l| l.strip_prefix("ANSWER_PATH: "))
                 .unwrap_or("")
                 .to_string();
+            // header format (fix 4): "ATTEMPT: step N of MAX, T-minus Xs,
+            // $Y of $Z spent" - extract N; also accepts bare "ATTEMPT: N"
             let attempt: usize = prompt
                 .lines()
                 .find_map(|l| l.strip_prefix("ATTEMPT: "))
-                .and_then(|v| v.parse().ok())
+                .and_then(|v| {
+                    let v = v.strip_prefix("step ").unwrap_or(v);
+                    v.split(|c: char| !c.is_ascii_digit())
+                        .next()
+                        .and_then(|d| d.parse().ok())
+                })
                 .unwrap_or(1);
             let completion = match attempt {
                 1 => serde_json::json!({"tool":"mcp.fixture.echo","args":{"text":"hello-via-mcp"}}),

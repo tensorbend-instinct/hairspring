@@ -88,6 +88,10 @@ pub struct InnerLoop {
     memory_store: Option<Box<dyn hs_memory::MemoryStore>>,
     goal: Option<goal::GoalSpec>,
     dead_tools: std::collections::HashSet<String>,
+    /// Fix 4: mission wall budget (secs) + start instant, for the per-step
+    /// "T-minus" header. None = wall not tracked (old behavior).
+    wall_secs: Option<u64>,
+    mission_started: Option<std::time::Instant>,
 }
 
 /// D1/W2: input budget from the VERIFIED provider context, minus an
@@ -128,6 +132,8 @@ impl InnerLoop {
             memory_store: None,
             goal: None,
             dead_tools: Default::default(),
+            wall_secs: None,
+            mission_started: None,
         })
     }
 
@@ -156,6 +162,8 @@ impl InnerLoop {
             memory_store: None,
             goal: None,
             dead_tools: Default::default(),
+            wall_secs: None,
+            mission_started: None,
         })
     }
 
@@ -173,6 +181,12 @@ impl InnerLoop {
     /// cost would exceed the cap, the mission is killed and scored as failed.
     pub fn set_budget_micros(&mut self, micros: u64) {
         self.budget_micros = Some(micros);
+    }
+
+    /// Fix 4 (ab2): the mission's wall budget in seconds. The runner enforces
+    /// it externally; this makes it VISIBLE to the model every step.
+    pub fn set_wall_secs(&mut self, secs: u64) {
+        self.wall_secs = Some(secs);
     }
 
     /// Wall-kill resilience (phase 1, design D6): when set, the loop writes
@@ -269,6 +283,7 @@ impl InnerLoop {
         prompt: &str,
     ) -> Result<MissionResult, LoopError> {
         let mission = mission_id;
+        self.mission_started = Some(std::time::Instant::now());
         let answer_path = self.log_root.join("work").join(mission).join("answer.txt");
         std::fs::create_dir_all(answer_path.parent().unwrap())?;
         let mut pending_feedback: Vec<String> = vec![];
@@ -286,15 +301,30 @@ impl InnerLoop {
             // grows monotonically; volatile lines (ATTEMPT/ARTIFACT/FEEDBACK)
             // go last, after the transcript tail.
             let mut ctx = format!("MISSION: {prompt}\n");
-            let mut volatile = format!(
-                "ATTEMPT: {step}\nANSWER_PATH: {}\nARTIFACT: {}\n",
+            // Fix 4: budget visibility every step - "step N of MAX, T-minus
+            // Xs, $Y of $Z spent" (ab2: the model could not pace itself
+            // because it never saw a budget).
+            let mut volatile = format!("ATTEMPT: step {step} of {}", self.max_steps);
+            if let (Some(w), Some(t0)) = (self.wall_secs, self.mission_started) {
+                let rem = w.saturating_sub(t0.elapsed().as_secs());
+                volatile.push_str(&format!(", T-minus {rem}s"));
+            }
+            if let Some(cap) = self.budget_micros {
+                volatile.push_str(&format!(
+                    ", ${:.2} of ${:.2} spent",
+                    self.cost_total_micros as f64 / 1e6,
+                    cap as f64 / 1e6
+                ));
+            }
+            volatile.push_str(&format!(
+                "\nANSWER_PATH: {}\nARTIFACT: {}\n",
                 answer_path.display(),
                 if artifact.is_empty() {
                     "<none>"
                 } else {
                     artifact.trim()
                 }
-            );
+            ));
             let mut injected = false;
             if self.feedback_injection && !drained.is_empty() {
                 volatile.push_str("FEEDBACK:\n");
