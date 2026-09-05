@@ -8,6 +8,7 @@
 
 pub mod realmodel;
 pub mod mcpbridge;
+pub mod editapply;
 pub mod repexec;
 pub mod sweprompt;
 pub mod repotools;
