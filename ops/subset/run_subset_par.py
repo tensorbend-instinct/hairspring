@@ -7,6 +7,7 @@ download locks, flocked ledger appends."""
 import fcntl, json, os, shlex, shutil, subprocess, sys, threading, time, urllib.request
 
 S50 = os.environ.get("S50", "/home/sandbox/swbench/subset50")
+TASK_WALL_SECS = int(os.environ.get("HS_SUBSET_WALL_SECS", "3600"))
 HS = os.environ.get("HS_SWE_RUN_BIN", "/home/sandbox/hairspring/target/debug/hs-swe-run")
 TB_DIR = "/home/sandbox/swbench/tarballs"
 VENV = "/home/sandbox/swbench/venvs"
@@ -91,18 +92,36 @@ def prep_ws(m, run_dir):
 def worker_venv(wid, slug):
     """Fresh per-worker venv per slug with pytest + repo extra deps.
     pip install -e . per task rewrites package paths, so venvs must be
-    worker-private."""
+    worker-private. ab2/17123 finding: a venv can exist but be broken
+    (missing pytest, missing pip, missing ensurepip) - verify the import
+    and repair loudly: pip route first, full recreate under the lock if
+    the venv is beyond repair."""
     vd = os.path.join(VENV, f"w{wid}", slug)
     py = os.path.join(vd, "bin", "python")
-    if not os.path.exists(py):
+    deps = EXTRA_DEPS.get(slug, "")
+
+    def healthy():
+        return os.path.exists(py) and sh(
+            f"{shlex.quote(py)} -m pytest --version >/dev/null 2>&1").returncode == 0
+
+    def build():
+        shutil.rmtree(vd, ignore_errors=True)
+        os.makedirs(os.path.dirname(vd), exist_ok=True)
+        sh(f"python3 -m venv {shlex.quote(vd)}")
+        sh(f"{shlex.quote(py)} -m pip install -q --upgrade pip pytest {deps} 2>&1 | tail -2", timeout=900)
+
+    if not healthy():
         lk = os.path.join(VENV, f"w{wid}-{slug}.lock")
         with open(lk, "w") as lf:
             fcntl.flock(lf, fcntl.LOCK_EX)
-            if not os.path.exists(py):
-                os.makedirs(os.path.dirname(vd), exist_ok=True)
-                sh(f"python3 -m venv {shlex.quote(vd)}")
-                deps = EXTRA_DEPS.get(slug, "")
-                sh(f"{shlex.quote(py)} -m pip install -q --upgrade pip pytest {deps} 2>&1 | tail -2", timeout=900)
+            if not healthy():
+                if os.path.exists(py):
+                    sh(f"{shlex.quote(py)} -m ensurepip -q --upgrade 2>&1 | tail -1", timeout=300)
+                    sh(f"{shlex.quote(py)} -m pip install -q pytest {deps} 2>&1 | tail -2", timeout=900)
+                if not healthy():
+                    build()
+                if not healthy():
+                    raise RuntimeError(f"venv {vd} cannot be repaired or recreated with pytest")
     return py
 
 def f2p_nodes(m, ws, venv_python):
@@ -119,6 +138,17 @@ def f2p_nodes(m, ws, venv_python):
             match = [c for c in collected if c.startswith(f)]
             nodes.extend(match if match else [f.split("::")[0]])
     return sorted(set(nodes))
+
+SHIMS = os.path.join(os.path.dirname(S50.rstrip("/")), "shims")
+
+def ensure_shims():
+    """ab2/17123 finding: the exec env has no `python` alias (python3 only),
+    so model verification commands like `python -m pytest` died with empty
+    exit-2 output. Ship a shim dir on PATH instead of touching the box."""
+    os.makedirs(SHIMS, exist_ok=True)
+    py = os.path.join(SHIMS, "python")
+    if not os.path.exists(py):
+        os.symlink(__import__("shutil").which("python3"), py)
 
 def run_task(wid, m):
     iid = m["instance_id"]
@@ -154,13 +184,14 @@ def run_task(wid, m):
             "HS_SWE_P2P": "",
             "HS_REALMODEL_CALL_TIMEOUT_SECS": "1500",
         })
+        env["PATH"] = SHIMS + ":" + env.get("PATH", "")
         budget_flag = ""
         if os.environ.get("HS_CONTEXT_BUDGET_TOKENS"):
             budget_flag = f" --context-budget-tokens {os.environ['HS_CONTEXT_BUDGET_TOKENS']}"
-        r = sh(f"timeout 3600 {HS} --instance {shlex.quote(os.path.join(S50, 'instances', iid + '.json'))} "
+        r = sh(f"timeout {TASK_WALL_SECS} {HS} --instance {shlex.quote(os.path.join(S50, 'instances', iid + '.json'))} "
                f"--model glm --feedback on --budget-micros 10000000 --max-steps {MAX_STEPS}"
                f"{budget_flag} "
-               f"--run-dir {shlex.quote(run_dir)}", timeout=3700, env=env)
+               f"--run-dir {shlex.quote(run_dir)}", timeout=TASK_WALL_SECS + 100, env=env)
         open(os.path.join(run_dir, "stdout.log"), "w").write(r.stdout + "\n--- STDERR ---\n" + r.stderr)
         if r.returncode == 124 and not os.path.exists(rj):
             prog = {}
@@ -171,7 +202,7 @@ def run_task(wid, m):
             res = {"instance_id": iid, "passed": False,
                    "steps": prog.get("steps", 0), "model_calls": prog.get("model_calls", 0),
                    "cost_micros": prog.get("cost_micros", 0), "outcome": "wall_killed",
-                   "wall_secs": 1800, "error": "wall_timeout"}
+                   "wall_secs": TASK_WALL_SECS, "error": "wall_timeout"}  # ab2: real cap, never a hardcoded 1800
             note = "wall_timeout"
         elif os.path.exists(rj):
             res = json.load(open(rj))
@@ -210,6 +241,8 @@ def worker(wid):
                 print("SPEND GUARDRAIL TRIPPED", flush=True)
                 os._exit(1)
         run_task(wid, claimed)
+
+ensure_shims()
 
 if __name__ == "__main__":
     MANIFEST = json.load(open(os.path.join(S50, "manifest.json")))
