@@ -31,6 +31,27 @@ fn run_cmd(dir: &std::path::Path, cmd: &str) -> (bool, String) {
     }
 }
 
+fn reset_to_base(ws: &std::path::Path) {
+    // every judgement starts from the committed base state: a prior green
+    // verdict left the patch applied (3862 wedge: re-judging the same answer
+    // flipped green->red), and a failed one can leave untracked residue that
+    // poisons the next apply (8609: "already exists in working directory")
+    // stdout/stderr nulled: the plugin stdout is the JSON-RPC wire - a
+    // chatty git ("Removing ..." from clean) corrupts the stream
+    let _ = std::process::Command::new("git")
+        .args(["checkout", "--", "."])
+        .current_dir(ws)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
+    let _ = std::process::Command::new("git")
+        .args(["clean", "-fd"])
+        .current_dir(ws)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
+}
+
 fn main() {
     serve("checker.run", "tool", &mut |method, params| match method {
         "tool.call" => {
@@ -45,14 +66,13 @@ fn main() {
                 return serde_json::json!({"passed": false,
                     "error": "no unified diff in your answer file; respond with a JSON tool call whose content is one ```diff fenced unified diff (paths a/... b/...)".to_string()});
             };
+            reset_to_base(&ws);
             match hs_bench::apply_model_patch(&ws, &patch) {
                 Err(e) => serde_json::json!({"$error": format!("apply machinery: {e:?}")}),
                 Ok(hs_bench::ApplyResult::NoApply(msg)) => {
                     // reset any partial application, then feed the error back
-                    let _ = std::process::Command::new("git")
-                        .args(["checkout", "--", "."])
-                        .current_dir(&ws)
-                        .status();
+
+                    reset_to_base(&ws);
                     serde_json::json!({"passed": false,
                         "error": format!("patch did not apply: {}", &msg[..msg.len().min(600)])})
                 }
@@ -94,10 +114,8 @@ fn main() {
                     // a patch that fails tests must not linger in the tree:
                     // the next attempt starts from the base commit state
                     if !failures.is_empty() {
-                        let _ = std::process::Command::new("git")
-                            .args(["checkout", "--", "."])
-                            .current_dir(&ws)
-                            .status();
+
+                        reset_to_base(&ws);
                         serde_json::json!({"passed": false,
                             "error": failures.join("\n---\n")})
                     } else {
