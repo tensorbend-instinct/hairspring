@@ -27,7 +27,7 @@ MAX_STEPS = os.environ.get("HS_SUBSET_MAX_STEPS", "100000")  # Eric 2026-09-05: 
 PAR = int(os.environ.get("PAR", "4"))
 EXTRA_DEPS = {"haystack": "ddtrace opentelemetry-sdk flaky python-docx pypdf azure-ai-formrecognizer",
               "streamlink": "freezegun requests-mock versioningit setuptools",
-              "pdm": "pytest-mock hishel<1"}  # gate-audit 2026-09-06: 10/10 gates collect+execute at base
+              "pdm": "pytest-mock hishel==0.1.5"}  # gate-audit 2026-09-06: 10/10 gates collect+execute at base; == pin, never < (shell redirection bug)
 _lock = threading.Lock()
 
 def sh(cmd, cwd=None, timeout=None, env=None):
@@ -108,6 +108,7 @@ def worker_venv(wid, slug):
     vd = os.path.join(VENV, f"w{wid}", slug)
     py = os.path.join(vd, "bin", "python")
     deps = EXTRA_DEPS.get(slug, "")
+    deps_q = " ".join(shlex.quote(d) for d in deps.split())
 
     def healthy():
         return os.path.exists(py) and sh(
@@ -117,7 +118,7 @@ def worker_venv(wid, slug):
         shutil.rmtree(vd, ignore_errors=True)
         os.makedirs(os.path.dirname(vd), exist_ok=True)
         sh(f"python3 -m venv {shlex.quote(vd)}")
-        sh(f"{shlex.quote(py)} -m pip install -q --upgrade pip pytest {deps} 2>&1 | tail -2", timeout=900)
+        sh(f"{shlex.quote(py)} -m pip install -q --upgrade pip pytest {deps_q} 2>&1 | tail -2", timeout=900)
 
     if not healthy():
         lk = os.path.join(VENV, f"w{wid}-{slug}.lock")
@@ -126,7 +127,7 @@ def worker_venv(wid, slug):
             if not healthy():
                 if os.path.exists(py):
                     sh(f"{shlex.quote(py)} -m ensurepip -q --upgrade 2>&1 | tail -1", timeout=300)
-                    sh(f"{shlex.quote(py)} -m pip install -q pytest {deps} 2>&1 | tail -2", timeout=900)
+                    sh(f"{shlex.quote(py)} -m pip install -q pytest {deps_q} 2>&1 | tail -2", timeout=900)
                 if not healthy():
                     build()
                 if not healthy():
