@@ -13,8 +13,12 @@ TASK_WALL_SECS = int(os.environ.get("HS_SUBSET_WALL_SECS", "3600"))
 # carry model id and hyperparameters; nothing model-specific is hardcoded here.
 MODEL = os.environ.get("HS_SUBSET_MODEL", "glm")
 HS = os.environ.get("HS_SWE_RUN_BIN", "/home/sandbox/hairspring/target/debug/hs-swe-run")
-TB_DIR = "/home/sandbox/swbench/tarballs"
-VENV = "/home/sandbox/swbench/venvs"
+# Bake-off layout (2026-09-06): tarballs shared at the bench root (download
+# locks make concurrent arms safe); venvs per-S50 so two arms never share a
+# worker venv (pip install -e rewrites paths per task).
+_ROOT = os.path.dirname(S50.rstrip("/"))
+TB_DIR = os.path.join(_ROOT, "tarballs")
+VENV = os.path.join(S50, "venvs")
 LEDGER = os.path.join(S50, "ledger.csv")
 STATUS = os.path.join(S50, "status.json")
 CLAIMS = os.path.join(S50, "claims")
@@ -182,7 +186,9 @@ def run_task(wid, m):
         env.update({
             f"HS_{up}_API_KEY_FILE": f"/home/sandbox/.keys/{MODEL}.key",
             f"HS_{up}_EXTRA_BODY_JSON": os.environ.get(f"HS_{up}_EXTRA_BODY_JSON", '{"reasoning_effort":"low"}'),
-            "HS_SWE_PROMPT_NUDGE": "IMPORTANT: before every answer.write, run the FAIL_TO_PASS command on your patch via repo.exec and fix whatever it reports.",
+            "HS_SWE_PROMPT_NUDGE": os.environ.get(
+                "HS_SWE_PROMPT_NUDGE",
+                "IMPORTANT: before every answer.submit, run the FAIL_TO_PASS command via repo.exec and fix whatever it reports."),
             "HS_SWE_WORKSPACE": ws,
             "HS_SWE_F2P": f"bash {f2p_sh}",
             "HS_SWE_P2P": "",
