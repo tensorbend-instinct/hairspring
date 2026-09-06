@@ -30,6 +30,22 @@ fn main() {
                     __pv.as_str()
                 }
             };
+            let kind = if prompt.contains("ADVERSARIAL VERIFIER") { "verifier" } else { "agent" };
+            let start_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
+            if kind == "verifier" {
+                if let Ok(ms) = std::env::var("HS_VF_VERIFIER_SLEEP_MS") {
+                    std::thread::sleep(std::time::Duration::from_millis(ms.parse().unwrap_or(0)));
+                }
+            }
+            if let Ok(logp) = std::env::var("HS_VF_LOG") {
+                let line = serde_json::json!({"kind": kind, "start_ms": start_ms,
+                    "end_ms": std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0),
+                    "prompt": prompt}).to_string();
+                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(logp) {
+                    use std::io::Write;
+                    let _ = writeln!(f, "{line}");
+                }
+            }
             if prompt.contains("ADVERSARIAL VERIFIER") {
                 let ledger = prompt
                     .split("LEDGER (recorded evidence):")

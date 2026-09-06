@@ -589,4 +589,37 @@ impl World {
             took_ms: t0.elapsed().as_millis(),
         })
     }
+
+    /// Restore a snapshot over a LIVE tree (gate-8 async verifier: banking
+    /// and vetoes both return the ws to the audited state). The snapshot
+    /// is rehydrated into a sibling staging dir and hash-verified THERE
+    /// first - a failed restore leaves the live tree untouched - then the
+    /// verified tree is swapped into place and the old tree removed.
+    pub fn restore_replace(&self, snapshot_id: &str, ws: &Path) -> Result<SnapshotReport, WorldError> {
+        let parent = ws
+            .parent()
+            .ok_or_else(|| WorldError::Rejected(format!("ws {} has no parent", ws.display())))?;
+        let stage = parent.join(format!(".hsstage-{}", std::process::id()));
+        let old = parent.join(format!(".hsold-{}", std::process::id()));
+        if stage.exists() {
+            std::fs::remove_dir_all(&stage)
+                .map_err(|e| WorldError::Rejected(format!("clear stage: {e}")))?;
+        }
+        if old.exists() {
+            std::fs::remove_dir_all(&old)
+                .map_err(|e| WorldError::Rejected(format!("clear old: {e}")))?;
+        }
+        let rep = self.restore(snapshot_id, &stage)?;
+        std::fs::rename(ws, &old)
+            .map_err(|e| WorldError::Rejected(format!("park live tree: {e}")))?;
+        if let Err(e) = std::fs::rename(&stage, ws) {
+            // roll back: the verified tree could not move into place
+            let _ = std::fs::rename(&old, ws);
+            return Err(WorldError::Rejected(format!("swap verified tree in: {e}")));
+        }
+        std::fs::remove_dir_all(&old)
+            .map_err(|e| WorldError::Rejected(format!("remove old tree: {e}")))?;
+        Ok(rep)
+    }
 }
+

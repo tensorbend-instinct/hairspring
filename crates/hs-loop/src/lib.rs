@@ -18,6 +18,7 @@ pub mod repexec;
 pub mod sweprompt;
 pub mod repotools;
 pub mod toolschema;
+pub mod verifier;
 
 use hs_core::{EventBuilder, EventKind, Payload};
 use hs_kernel::{Kernel, KernelError};
@@ -108,6 +109,17 @@ pub struct InnerLoop {
     /// the operator call (native tool calling; Eric 2026-09-05). None = the
     /// model gets no tools param (legacy/text missions, unit fixtures).
     tools: Option<serde_json::Value>,
+    /// Gate-8 async verifier seam (waste-only redesign, Eric 2026-09-06):
+    /// when on, a checker-green submit snapshots the ws, fires the audit on
+    /// a worker thread, and the agent keeps working; a decided verdict
+    /// restores the audited snapshot, so the ws is ALWAYS exactly what the
+    /// verifier judged. Verdict inputs are frozen at submit - the verdict
+    /// is bit-identical to the synchronous path.
+    async_verify: bool,
+    ws_path: Option<PathBuf>,
+    world: Option<hs_world::World>,
+    pending_verdict: Option<verifier::PendingVerdict>,
+    verdict_cache: std::collections::HashMap<String, verifier::RecordedVerdict>,
 }
 
 /// D1/W2: input budget from the VERIFIED provider context, minus an
@@ -155,6 +167,11 @@ impl InnerLoop {
             prior_gaps: vec![],
             wall_secs: None,
             mission_started: None,
+            async_verify: false,
+            ws_path: None,
+            world: None,
+            pending_verdict: None,
+            verdict_cache: Default::default(),
         })
     }
 
@@ -190,6 +207,11 @@ impl InnerLoop {
             prior_gaps: vec![],
             wall_secs: None,
             mission_started: None,
+            async_verify: false,
+            ws_path: None,
+            world: None,
+            pending_verdict: None,
+            verdict_cache: Default::default(),
         })
     }
 
@@ -324,6 +346,21 @@ impl InnerLoop {
 
         for step in 1..=self.max_steps {
             steps = step;
+            // gate-8 async seam: a verdict that landed since the last step
+            // is processed BEFORE assembly, so its feedback enters this
+            // step's context and a banked mission ends here.
+            if self.pending_verdict.is_some() {
+                if let Some(r) = self.process_verdict(
+                    false,
+                    mission,
+                    &answer_path,
+                    steps,
+                    &mut model_calls,
+                    &mut pending_feedback,
+                )? {
+                    return Ok(r);
+                }
+            }
             // observe + drain_feedback: what the world said since last step
             let artifact = std::fs::read_to_string(&answer_path).unwrap_or_default();
             let drained = std::mem::take(&mut pending_feedback);
@@ -841,146 +878,19 @@ impl InnerLoop {
                 )),
             )?;
             if stop_green {
-                // Item 3: adversarial verifier veto (docs/verifier-design.md).
-                // The checker is the ground-truth floor; the verifier runs
-                // after green and can only send the work back - never pass
-                // on its own authority. Capped rounds; malfunction never blocks.
-                const VERIFIER_MAX_ROUNDS: u32 = 3;
-                if self.verifier_rounds < VERIFIER_MAX_ROUNDS {
-                    self.verifier_rounds += 1;
-                    let round = self.verifier_rounds;
-                    let answer_text = std::fs::read_to_string(&answer_path).unwrap_or_default();
-                    let vprompt = build_verifier_prompt(mission, &answer_text, &self.ledger, &self.prior_gaps);
-                    let verdict_tools = serde_json::json!([crate::toolschema::verdict_tool()]);
-                    match self.kernel.call_model_with("operator", None, &vprompt, Some(&verdict_tools)) {
-                        Ok(vout) => {
-                            model_calls += 1;
-                            self.cost_total_micros += vout.cost_usd_micros.max(0) as u64;
-                            self.writer.append(
-                                EventBuilder::new(EventKind::ModelCall).payload(Payload::Inline(
-                                    serde_json::to_vec(&serde_json::json!({
-                                        "role": "verifier", "round": round,
-                                        "prompt": vprompt, "tools": verdict_tools,
-                                        "completion": vout.completion,
-                                        "reasoning_tokens": vout.reasoning_tokens,
-                                        "reasoning_content": vout.reasoning_content,
-                                        "cached_tokens": vout.cached_tokens,
-                                    }))
-                                    .unwrap(),
-                                )),
-                            )?;
-                            // Native verdict (user directive 2026-09-05):
-                            // the completion is a verdict.submit tool call;
-                            // prose or wrong-tool replies are verifier
-                            // errors, never parsed verdicts.
-                            let verdict_args = serde_json::from_str::<serde_json::Value>(vout.completion.trim())
-                                .ok()
-                                .filter(|env| env["tool"].as_str() == Some("verdict.submit"))
-                                .map(|env| env["args"].clone());
-                            match verdict_args {
-                                Some(v) => match v["refuted"].as_bool() {
-                                    Some(false) => {
-                                        self.prior_gaps.clear();
-                                        self.writer.append(
-                                            EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
-                                                serde_json::to_vec(&serde_json::json!({
-                                                    "why": "verifier", "round": round, "verdict": "not_refuted",
-                                                }))
-                                                .unwrap(),
-                                            )),
-                                        )?;
-                                    }
-                                    Some(true) => {
-                                        let findings: Vec<String> = v["findings"]
-                                            .as_array()
-                                            .map(|a| {
-                                                a.iter()
-                                                    .filter_map(|f| f["detail"].as_str().map(String::from))
-                                                    .collect()
-                                            })
-                                            .unwrap_or_default();
-                                        let blocking = v["blocking"].as_str().unwrap_or("none").to_string();
-                                        self.prior_gaps = findings.clone();
-                                        self.writer.append(
-                                            EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
-                                                serde_json::to_vec(&serde_json::json!({
-                                                    "why": "verifier", "round": round, "verdict": "refuted",
-                                                    "findings": findings, "blocking": blocking,
-                                                }))
-                                                .unwrap(),
-                                            )),
-                                        )?;
-                                        pending_feedback.push(format!(
-                                            "VERIFIER REFUTED (round {round}/{VERIFIER_MAX_ROUNDS}, blocking={blocking}): {}",
-                                            findings.join("; ")
-                                        ));
-                                        self.checkpoint(steps, model_calls);
-                                        continue;
-                                    }
-                                    None => {
-                                        self.writer.append(
-                                            EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
-                                                serde_json::to_vec(&serde_json::json!({
-                                                    "why": "verifier_error", "round": round,
-                                                    "detail": "verdict JSON missing the refuted field",
-                                                }))
-                                                .unwrap(),
-                                            )),
-                                        )?;
-                                    }
-                                },
-                                None => {
-                                    self.writer.append(
-                                        EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
-                                            serde_json::to_vec(&serde_json::json!({
-                                                "why": "verifier_error", "round": round,
-                                                "detail": "verdict was not a verdict.submit tool call (prose/wrong-tool reply)",
-                                            }))
-                                            .unwrap(),
-                                        )),
-                                    )?;
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            self.writer.append(
-                                EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
-                                    serde_json::to_vec(&serde_json::json!({
-                                        "why": "verifier_error", "round": round,
-                                        "detail": format!("verifier call failed: {e}"),
-                                    }))
-                                    .unwrap(),
-                                )),
-                            )?;
-                        }
-                    }
-                } else {
-                    self.writer.append(
-                        EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
-                            serde_json::to_vec(&serde_json::json!({
-                                "why": "verifier_ratchet", "rounds": VERIFIER_MAX_ROUNDS,
-                                "detail": "verifier failed to converge in 3 rounds - the checker verdict stands",
-                            }))
-                            .unwrap(),
-                        )),
-                    )?;
-                }
-                self.writer.append(
-                    EventBuilder::new(EventKind::GoalUpdate).payload(Payload::Inline(
-                        serde_json::to_vec(&serde_json::json!({"mission": mission, "done": true}))
-                            .unwrap(),
-                    )),
-                )?;
-                self.checkpoint(steps, model_calls);
-                return Ok(MissionResult {
-                    passed: true,
+                match self.stop_green_tail(
+                    mission,
+                    &answer_path,
                     steps,
-                    model_calls,
-                    stream_id: self.stream_id,
-                    answer_path,
-                    budget_killed: false,
-                    harness_error: None,
-                });
+                    &mut model_calls,
+                    &mut pending_feedback,
+                )? {
+                    StopGreen::Continue => {
+                        self.checkpoint(steps, model_calls);
+                        continue;
+                    }
+                    StopGreen::Banked(r) => return Ok(r),
+                }
             }
             if passed && !stop_green {
                 pending_feedback.push(
@@ -1001,6 +911,535 @@ impl InnerLoop {
             harness_error: None,
         })
     }
+
+    /// Gate-8 async verify: enable the speculative-continuation seam for
+    /// this loop. `ws` is the mission workspace - snapshotted at every
+    /// checker-green submit; restored on bank AND on veto, so the ws (and
+    /// the patch extracted from it) is always exactly the audited state.
+    pub fn set_async_verify(&mut self, ws: &Path) {
+        self.async_verify = true;
+        self.ws_path = Some(ws.to_path_buf());
+        self.world = Some(hs_world::World::open(&self.log_root).expect("world open"));
+    }
+
+    /// The stop_green tail: the adversarial verifier veto (item 3), in
+    /// synchronous legacy mode or gate-8 async speculative mode. Rounds,
+    /// prompts, authority, and the ratchet are identical across modes;
+    /// only who waits for the audit differs.
+    fn stop_green_tail(
+        &mut self,
+        mission: &str,
+        answer_path: &Path,
+        steps: u32,
+        model_calls: &mut u32,
+        pending_feedback: &mut Vec<String>,
+    ) -> Result<StopGreen, LoopError> {
+        if self.async_verify && self.pending_verdict.is_some() {
+            // A fresh green submit while an audit is in flight. Rounds are
+            // strictly sequential - round N+1's prompt carries round N's
+            // gaps - so this submit waits for the pending verdict first.
+            if let Some(r) = self.process_verdict(
+                true,
+                mission,
+                answer_path,
+                steps,
+                model_calls,
+                pending_feedback,
+            )? {
+                return Ok(StopGreen::Banked(r));
+            }
+            // refuted: the restore wiped THIS submission's ws state - the
+            // agent repairs from the audited patch and resubmits. No new
+            // round is fired here.
+            return Ok(StopGreen::Continue);
+        }
+        if self.verifier_rounds < verifier::VERIFIER_MAX_ROUNDS {
+            self.verifier_rounds += 1;
+            let round = self.verifier_rounds;
+            if self.async_verify {
+                return self.async_verifier_round(
+                    mission,
+                    answer_path,
+                    round,
+                    steps,
+                    model_calls,
+                    pending_feedback,
+                );
+            }
+            return self.sync_verifier_round(
+                mission,
+                answer_path,
+                round,
+                steps,
+                model_calls,
+                pending_feedback,
+            );
+        }
+        self.writer.append(
+            EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                serde_json::to_vec(&serde_json::json!({
+                    "why": "verifier_ratchet", "rounds": verifier::VERIFIER_MAX_ROUNDS,
+                    "detail": "verifier failed to converge in 3 rounds - the checker verdict stands",
+                }))
+                .unwrap(),
+            )),
+        )?;
+        Ok(StopGreen::Banked(self.bank_pass(mission, answer_path, steps, *model_calls)?))
+    }
+
+    /// Mission banking on a green verdict: GoalUpdate + checkpoint + the
+    /// passed result. One tail for every path that ends a green mission.
+    fn bank_pass(
+        &mut self,
+        mission: &str,
+        answer_path: &Path,
+        steps: u32,
+        model_calls: u32,
+    ) -> Result<MissionResult, LoopError> {
+        self.writer.append(
+            EventBuilder::new(EventKind::GoalUpdate).payload(Payload::Inline(
+                serde_json::to_vec(&serde_json::json!({"mission": mission, "done": true}))
+                    .unwrap(),
+            )),
+        )?;
+        self.checkpoint(steps, model_calls);
+        Ok(MissionResult {
+            passed: true,
+            steps,
+            model_calls,
+            stream_id: self.stream_id,
+            answer_path: answer_path.to_path_buf(),
+            budget_killed: false,
+            harness_error: None,
+        })
+    }
+
+    /// Item 3 (synchronous legacy path, byte-compatible event shapes):
+    /// checker-green -> verifier veto, the agent BLOCKS for the call.
+    /// Kept as the default until the async seam clears its promotion gate,
+    /// and as the degradation path when snapshot infrastructure fails.
+    fn sync_verifier_round(
+        &mut self,
+        mission: &str,
+        answer_path: &Path,
+        round: u32,
+        steps: u32,
+        model_calls: &mut u32,
+        pending_feedback: &mut Vec<String>,
+    ) -> Result<StopGreen, LoopError> {
+        let answer_text = std::fs::read_to_string(answer_path).unwrap_or_default();
+        let vprompt = verifier::build_verifier_prompt(mission, &answer_text, &self.ledger, &self.prior_gaps);
+        let verdict_tools = serde_json::json!([crate::toolschema::verdict_tool()]);
+        match self.kernel.call_model_with("operator", None, &vprompt, Some(&verdict_tools)) {
+            Ok(vout) => {
+                *model_calls += 1;
+                self.cost_total_micros += vout.cost_usd_micros.max(0) as u64;
+                self.writer.append(
+                    EventBuilder::new(EventKind::ModelCall)
+                        .payload(Payload::Inline(
+                            serde_json::to_vec(&serde_json::json!({
+                                "role": "verifier", "round": round,
+                                "prompt": vprompt, "tools": verdict_tools,
+                                "completion": vout.completion,
+                                "input_tokens": vout.input_tokens,
+                                "output_tokens": vout.output_tokens,
+                                "reasoning_tokens": vout.reasoning_tokens,
+                                "reasoning_content": vout.reasoning_content,
+                                "cached_tokens": vout.cached_tokens,
+                                "cost_usd_micros": vout.cost_usd_micros,
+                                "latency_ms": vout.latency_ms,
+                            }))
+                            .unwrap(),
+                        ))
+                        .latency_ms(vout.latency_ms)
+                        .cost_usd_micros(vout.cost_usd_micros),
+                )?;
+                match verifier::parse_verdict(&vout.completion) {
+                    Ok(v) => {
+                        if v.refuted {
+                            self.prior_gaps = v.findings.clone();
+                            self.writer.append(
+                                EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                                    serde_json::to_vec(&serde_json::json!({
+                                        "why": "verifier", "round": round, "verdict": "refuted",
+                                        "findings": v.findings, "blocking": v.blocking,
+                                    }))
+                                    .unwrap(),
+                                )),
+                            )?;
+                            pending_feedback.push(format!(
+                                "VERIFIER REFUTED (round {round}/{}, blocking={}): {}",
+                                verifier::VERIFIER_MAX_ROUNDS,
+                                v.blocking,
+                                v.findings.join("; ")
+                            ));
+                            return Ok(StopGreen::Continue);
+                        }
+                        self.prior_gaps.clear();
+                        self.writer.append(
+                            EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                                serde_json::to_vec(&serde_json::json!({
+                                    "why": "verifier", "round": round, "verdict": "not_refuted",
+                                }))
+                                .unwrap(),
+                            )),
+                        )?;
+                    }
+                    Err(detail) => {
+                        self.writer.append(
+                            EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                                serde_json::to_vec(&serde_json::json!({
+                                    "why": "verifier_error", "round": round,
+                                    "detail": detail,
+                                }))
+                                .unwrap(),
+                            )),
+                        )?;
+                    }
+                }
+            }
+            Err(e) => {
+                self.writer.append(
+                    EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                        serde_json::to_vec(&serde_json::json!({
+                            "why": "verifier_error", "round": round,
+                            "detail": format!("verifier call failed: {e}"),
+                        }))
+                        .unwrap(),
+                    )),
+                )?;
+            }
+        }
+        Ok(StopGreen::Banked(self.bank_pass(mission, answer_path, steps, *model_calls)?))
+    }
+
+    /// Gate-8 async round: snapshot the ws, serve a PROVABLY identical
+    /// resubmission from the verdict cache, otherwise fire the audit on a
+    /// worker thread and let the agent keep working. Snapshot
+    /// infrastructure failure NEVER skips a needed audit - the round
+    /// degrades to the synchronous path.
+    fn async_verifier_round(
+        &mut self,
+        mission: &str,
+        answer_path: &Path,
+        round: u32,
+        steps: u32,
+        model_calls: &mut u32,
+        pending_feedback: &mut Vec<String>,
+    ) -> Result<StopGreen, LoopError> {
+        let answer_text = std::fs::read_to_string(answer_path).unwrap_or_default();
+        let ws = self.ws_path.clone().expect("async_verify sets ws_path");
+        let snapshot_id = match self.world.as_ref().map(|w| w.snapshot(&ws)) {
+            Some(Ok(rep)) => Some(rep.snapshot_id),
+            Some(Err(e)) => {
+                self.writer.append(
+                    EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                        serde_json::to_vec(&serde_json::json!({
+                            "why": "verifier_snapshot_error", "round": round,
+                            "detail": format!("snapshot failed, verifying synchronously: {e:?}"),
+                        }))
+                        .unwrap(),
+                    )),
+                )?;
+                return self.sync_verifier_round(
+                    mission,
+                    answer_path,
+                    round,
+                    steps,
+                    model_calls,
+                    pending_feedback,
+                );
+            }
+            None => None,
+        };
+        let key = verifier::verdict_key(
+            mission,
+            &answer_text,
+            &self.ledger.evidence_key(),
+            &self.prior_gaps,
+            snapshot_id.as_deref().unwrap_or(""),
+        );
+        if let Some(rec) = self.verdict_cache.get(&key).cloned() {
+            // Identical artifact + answer + evidence + gaps: the recorded
+            // verdict IS this audit's verdict - re-asking would resample
+            // an already-drawn verdict, not add scrutiny.
+            self.writer.append(
+                EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                    serde_json::to_vec(&serde_json::json!({
+                        "why": "verifier", "round": round, "verifier_cache_hit": true,
+                        "verdict": if rec.refuted { "refuted" } else { "not_refuted" },
+                    }))
+                    .unwrap(),
+                )),
+            )?;
+            return self.apply_recorded_verdict(
+                rec,
+                round,
+                true,
+                mission,
+                answer_path,
+                steps,
+                model_calls,
+                pending_feedback,
+            );
+        }
+        let vprompt = verifier::build_verifier_prompt(mission, &answer_text, &self.ledger, &self.prior_gaps);
+        let verdict_tools = serde_json::json!([crate::toolschema::verdict_tool()]);
+        let Some(entry) = self.kernel.list_models().into_iter().find(|e| e.default) else {
+            // no default model entry: degrade to the synchronous path
+            return self.sync_verifier_round(
+                mission,
+                answer_path,
+                round,
+                steps,
+                model_calls,
+                pending_feedback,
+            );
+        };
+        let rx = verifier::spawn_round(entry, vprompt, verdict_tools, round);
+        self.pending_verdict = Some(verifier::PendingVerdict {
+            round,
+            rx,
+            snapshot_id,
+            key,
+            fired: std::time::Instant::now(),
+        });
+        pending_feedback.push(format!(
+            "checker green - your submission passed the mechanical gate and is now under adversarial audit (round {round}/{}). The workspace is snapshotted. Keep working: probe edge cases, run more checks, harden the patch. If the audit vetoes, the workspace returns to the audited snapshot (your work since then stays in your transcript).",
+            verifier::VERIFIER_MAX_ROUNDS
+        ));
+        Ok(StopGreen::Continue)
+    }
+
+    /// Drain (blocking=false) or await (blocking=true) the pending async
+    /// verdict. A DECIDED verdict always restores the audited snapshot
+    /// first - the ws the agent repairs from (veto) and the ws the patch
+    /// is extracted from (bank) are byte-identical to what the verifier
+    /// judged.
+    fn process_verdict(
+        &mut self,
+        blocking: bool,
+        mission: &str,
+        answer_path: &Path,
+        steps: u32,
+        model_calls: &mut u32,
+        pending_feedback: &mut Vec<String>,
+    ) -> Result<Option<MissionResult>, LoopError> {
+        let msg = {
+            let Some(p) = &self.pending_verdict else {
+                return Ok(None);
+            };
+            if blocking {
+                match p.rx.recv() {
+                    Ok(m) => m,
+                    Err(_) => verifier::VerdictMsg::CallFailed {
+                        round: p.round,
+                        detail: "verifier worker died without a verdict".to_string(),
+                        prompt: String::new(),
+                        tools: serde_json::Value::Null,
+                    },
+                }
+            } else {
+                match p.rx.try_recv() {
+                    Ok(m) => m,
+                    Err(std::sync::mpsc::TryRecvError::Empty) => return Ok(None),
+                    Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                        // a dead worker must not stall the mission:
+                        // malfunction never blocks (same as a call failure)
+                        verifier::VerdictMsg::CallFailed {
+                            round: p.round,
+                            detail: "verifier worker died without a verdict".to_string(),
+                            prompt: String::new(),
+                            tools: serde_json::Value::Null,
+                        }
+                    }
+                }
+            }
+        };
+        let p = self.pending_verdict.take().unwrap();
+        match msg {
+            verifier::VerdictMsg::Decided { round, v, out, prompt, tools } => {
+                *model_calls += 1;
+                self.cost_total_micros += out.cost_usd_micros.max(0) as u64;
+                self.writer.append(
+                    EventBuilder::new(EventKind::ModelCall)
+                        .payload(Payload::Inline(
+                            serde_json::to_vec(&serde_json::json!({
+                                "role": "verifier", "round": round, "async": true,
+                                "prompt": prompt, "tools": tools,
+                                "completion": out.completion,
+                                "input_tokens": out.input_tokens,
+                                "output_tokens": out.output_tokens,
+                                "reasoning_tokens": out.reasoning_tokens,
+                                "reasoning_content": out.reasoning_content,
+                                "cached_tokens": out.cached_tokens,
+                                "cost_usd_micros": out.cost_usd_micros,
+                                "latency_ms": out.latency_ms,
+                            }))
+                            .unwrap(),
+                        ))
+                        .latency_ms(out.latency_ms)
+                        .cost_usd_micros(out.cost_usd_micros),
+                )?;
+                self.verdict_cache.insert(p.key.clone(), v.clone());
+                self.restore_audited(&p, round)?;
+                match self.apply_recorded_verdict(
+                    v,
+                    round,
+                    false,
+                    mission,
+                    answer_path,
+                    steps,
+                    model_calls,
+                    pending_feedback,
+                )? {
+                    StopGreen::Continue => Ok(None),
+                    StopGreen::Banked(r) => Ok(Some(r)),
+                }
+            }
+            verifier::VerdictMsg::Malformed { round, detail, out, prompt, tools } => {
+                if let Some(out) = out {
+                    *model_calls += 1;
+                    self.cost_total_micros += out.cost_usd_micros.max(0) as u64;
+                    self.writer.append(
+                        EventBuilder::new(EventKind::ModelCall)
+                            .payload(Payload::Inline(
+                                serde_json::to_vec(&serde_json::json!({
+                                    "role": "verifier", "round": round, "async": true,
+                                    "prompt": prompt, "tools": tools,
+                                    "completion": out.completion,
+                                    "input_tokens": out.input_tokens,
+                                    "output_tokens": out.output_tokens,
+                                    "reasoning_tokens": out.reasoning_tokens,
+                                    "reasoning_content": out.reasoning_content,
+                                    "cached_tokens": out.cached_tokens,
+                                    "cost_usd_micros": out.cost_usd_micros,
+                                    "latency_ms": out.latency_ms,
+                                }))
+                                .unwrap(),
+                            ))
+                            .latency_ms(out.latency_ms)
+                            .cost_usd_micros(out.cost_usd_micros),
+                    )?;
+                }
+                self.writer.append(
+                    EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                        serde_json::to_vec(&serde_json::json!({
+                            "why": "verifier_error", "round": round,
+                            "detail": detail,
+                        }))
+                        .unwrap(),
+                    )),
+                )?;
+                // malfunction never blocks: the checker verdict stands
+                Ok(Some(self.bank_pass(mission, answer_path, steps, *model_calls)?))
+            }
+            verifier::VerdictMsg::CallFailed { round, detail, .. } => {
+                self.writer.append(
+                    EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                        serde_json::to_vec(&serde_json::json!({
+                            "why": "verifier_error", "round": round,
+                            "detail": detail,
+                        }))
+                        .unwrap(),
+                    )),
+                )?;
+                Ok(Some(self.bank_pass(mission, answer_path, steps, *model_calls)?))
+            }
+        }
+    }
+
+    /// Restore the ws to the audited snapshot (both verdict outcomes).
+    /// Restore is hash-verified; a failure is a HARNESS failure (the patch
+    /// can no longer be tied to the audit) and aborts the mission as such.
+    fn restore_audited(&mut self, p: &verifier::PendingVerdict, round: u32) -> Result<(), LoopError> {
+        let (Some(w), Some(ws), Some(snap)) = (
+            self.world.as_ref(),
+            self.ws_path.as_ref(),
+            p.snapshot_id.as_deref(),
+        ) else {
+            return Ok(());
+        };
+        match w.restore_replace(snap, ws) {
+            Ok(rep) => {
+                self.writer.append(
+                    EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                        serde_json::to_vec(&serde_json::json!({
+                            "why": "verifier_restore", "round": round,
+                            "snapshot": snap, "took_ms": rep.took_ms,
+                        }))
+                        .unwrap(),
+                    )),
+                )?;
+                Ok(())
+            }
+            Err(e) => {
+                let msg = format!("verifier snapshot restore failed (round {round}, snapshot {snap}): {e:?}");
+                self.writer.append(
+                    EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                        serde_json::to_vec(&serde_json::json!({
+                            "why": "verifier_restore_error", "round": round,
+                            "detail": msg,
+                        }))
+                        .unwrap(),
+                    )),
+                )?;
+                Err(LoopError::ModelOutput(msg))
+            }
+        }
+    }
+
+    /// Apply a decided verdict (async round or cache replay). Event shapes
+    /// match the synchronous path plus the `cached` marker.
+    fn apply_recorded_verdict(
+        &mut self,
+        v: verifier::RecordedVerdict,
+        round: u32,
+        cached: bool,
+        mission: &str,
+        answer_path: &Path,
+        steps: u32,
+        model_calls: &mut u32,
+        pending_feedback: &mut Vec<String>,
+    ) -> Result<StopGreen, LoopError> {
+        if v.refuted {
+            self.prior_gaps = v.findings.clone();
+            self.writer.append(
+                EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                    serde_json::to_vec(&serde_json::json!({
+                        "why": "verifier", "round": round, "verdict": "refuted",
+                        "findings": v.findings, "blocking": v.blocking, "cached": cached,
+                    }))
+                    .unwrap(),
+                )),
+            )?;
+            pending_feedback.push(format!(
+                "VERIFIER REFUTED (round {round}/{}, blocking={}): {}. The workspace was restored to the audited snapshot; your work since the submit is in your transcript.",
+                verifier::VERIFIER_MAX_ROUNDS,
+                v.blocking,
+                v.findings.join("; ")
+            ));
+            return Ok(StopGreen::Continue);
+        }
+        self.prior_gaps.clear();
+        self.writer.append(
+            EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                serde_json::to_vec(&serde_json::json!({
+                    "why": "verifier", "round": round, "verdict": "not_refuted", "cached": cached,
+                }))
+                .unwrap(),
+            )),
+        )?;
+        Ok(StopGreen::Banked(self.bank_pass(mission, answer_path, steps, *model_calls)?))
+    }
+}
+
+/// The stop_green tail's two outcomes.
+enum StopGreen {
+    /// refuted / audit fired - the agent keeps working
+    Continue,
+    /// mission ends green
+    Banked(MissionResult),
 }
 
 
@@ -1029,34 +1468,4 @@ pub fn book_wall_kill(
         "budget_killed": false,
         "outcome": "wall_killed",
     })
-}
-
-/// Item 3: the verifier's prompt. Audit-recorded-evidence only;
-/// default-refuted on uncertainty; anti-ratchet on re-rounds
-/// (docs/verifier-design.md; Grok goal_verifier_prompt.md adapted).
-fn build_verifier_prompt(
-    mission: &str,
-    answer: &str,
-    ledger: &crate::ledger::Ledger,
-    prior_gaps: &[String],
-) -> String {
-    let gaps = if prior_gaps.is_empty() {
-        "none".to_string()
-    } else {
-        prior_gaps
-            .iter()
-            .map(|g| format!("- {g}"))
-            .collect::<Vec<_>>()
-            .join("\n")
-    };
-    let mut p = String::new();
-    p.push_str("ADVERSARIAL VERIFIER\n");
-    p.push_str("You are not the agent that did this work. Default to refuted when uncertain a required criterion holds; never invent requirements. Audit the RECORDED evidence only - a prose claim of test output with no recorded run is fabricated: refute. On a re-verification round (PRIOR_GAPS non-empty), check that each prior gap is genuinely fixed plus demonstrable defects; a fresh stylistic objection a prior round implicitly accepted is out of scope - when every prior gap is fixed and the objective holds, return refuted false.\n");
-    p.push_str(&format!("OBJECTIVE: {mission}\n"));
-    p.push_str(&format!("ANSWER:\n{answer}\n"));
-    p.push_str(&format!("LEDGER (recorded evidence):\n{}\n", ledger.summary()));
-    p.push_str(&format!("PRIOR_GAPS:\n{gaps}\n"));
-    p.push_str("Submit the verdict by calling the verdict.submit tool exactly once - never prose, never bare JSON.");
-
-    p
 }
