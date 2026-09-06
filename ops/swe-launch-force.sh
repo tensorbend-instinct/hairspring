@@ -6,7 +6,7 @@ git -C ws checkout -- . 2>/dev/null
 export HS_GLM_API_KEY_FILE=${HS_GLM_API_KEY_FILE:-/home/sandbox/.keys/glm.key}
 export HS_GLM_BASE_URL=http://127.0.0.1:8787/chat/completions
 export HS_GLM_EXTRA_BODY_JSON='{"reasoning_effort":"low"}'
-export HS_SWE_PROMPT_NUDGE='IMPORTANT: before every answer.write, run the FAIL_TO_PASS command on your patch via repo.exec and fix whatever it reports.'
+export HS_SWE_PROMPT_NUDGE='IMPORTANT: before every answer.submit, run the FAIL_TO_PASS command on your patch via repo.exec and fix whatever it reports.'
 export HS_SWE_WORKSPACE="$RUN/ws"
 export HS_SWE_F2P='python3 -m pytest test/test_jsinterp.py::TestJSInterpreter::test_extract_function_with_global_stack -x -q'
 export HS_SWE_P2P=''

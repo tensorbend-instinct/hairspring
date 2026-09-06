@@ -99,7 +99,7 @@ def main():
                 "HS_GLM_API_KEY_FILE": "/home/sandbox/.keys/glm.key",
                 "HS_GLM_BASE_URL": "http://127.0.0.1:8787/chat/completions",
                 "HS_GLM_EXTRA_BODY_JSON": os.environ.get("HS_GLM_EXTRA_BODY_JSON", '{"reasoning_effort":"low"}'),
-                "HS_SWE_PROMPT_NUDGE": "IMPORTANT: before every answer.write, run the FAIL_TO_PASS command on your patch via repo.exec and fix whatever it reports.",
+                "HS_SWE_PROMPT_NUDGE": "IMPORTANT: before every answer.submit, run the FAIL_TO_PASS command on your patch via repo.exec and fix whatever it reports.",
                 "HS_SWE_WORKSPACE": ws,
                 "HS_SWE_F2P": f"bash {f2p_sh}",
                 "HS_SWE_P2P": "",
