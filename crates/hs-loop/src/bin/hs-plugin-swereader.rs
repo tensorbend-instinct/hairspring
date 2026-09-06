@@ -1,6 +1,6 @@
 //! Test model "swereader": step 1 reads the repo via repo.read, step 2
 //! verifies the gold patch inline via repo.exec (hard answer gate), step 3
-//! writes it. Exercises the driver-configured repotools through the kernel
+//! edit.patch builds the fix, step 4 submits (answer.submit computes the diff). Exercises the driver-configured repotools through the kernel
 //! in the driver E2E (seam gap C3).
 include!("shared/sdk.rs");
 fn main() {
@@ -39,8 +39,11 @@ fn main() {
                 serde_json::json!({"tool":"repo.read","args":{"path":"code.txt"}})
             } else if attempt == 2 {
                 serde_json::json!({"tool":"repo.exec","args":{"command":"sh check.sh","diff":gold}})
+            } else if attempt == 3 {
+                serde_json::json!({"tool":"edit.patch","args":{"patch":
+                    "*** Begin Patch\n*** Update File: code.txt\n@@\n-broken\n+fixed\n*** End Patch\n"}})
             } else {
-                serde_json::json!({"tool":"answer.write","args":{"path":path,"content":format!("```diff\n{gold}\n```")}})
+                serde_json::json!({"tool":"answer.submit","args":{"path":path}})
             };
             serde_json::json!({
                 "completion": completion.to_string(),

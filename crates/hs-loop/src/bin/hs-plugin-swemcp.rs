@@ -1,6 +1,7 @@
 //! Test model "swemcp": drives an MCP-discovered tool through the real loop.
 //! Attempt 1: mcp.fixture.echo {"text":"hello-via-mcp"}.
-//! Attempt 2: answer.write the gold patch (checker passes, mission ends).
+//! Attempt 2: repo.exec verifies the gold patch. Attempt 3: edit.patch.
+//! Attempt 4: answer.submit (checker passes, mission ends).
 include!("shared/sdk.rs");
 fn main() {
     serve("swemcp", "model", &mut |method, params| match method {
@@ -30,16 +31,16 @@ fn main() {
                         .and_then(|d| d.parse().ok())
                 })
                 .unwrap_or(1);
+            let gold = std::env::var("HS_SWE_GOLD_PATCH_FILE")
+                .ok()
+                .and_then(|f| std::fs::read_to_string(f).ok())
+                .unwrap_or_default();
             let completion = match attempt {
                 1 => serde_json::json!({"tool":"mcp.fixture.echo","args":{"text":"hello-via-mcp"}}),
-                _ => {
-                    let gold = std::env::var("HS_SWE_GOLD_PATCH_FILE")
-                        .ok()
-                        .and_then(|f| std::fs::read_to_string(f).ok())
-                        .unwrap_or_default();
-                    serde_json::json!({"tool":"answer.write","args":{"path":path,
-                        "content":format!("```diff\n{gold}\n```")}})
-                }
+                2 => serde_json::json!({"tool":"repo.exec","args":{"command":"sh check.sh","diff":gold}}),
+                3 => serde_json::json!({"tool":"edit.patch","args":{"patch":
+                    "*** Begin Patch\n*** Update File: code.txt\n@@\n-broken\n+fixed\n*** End Patch\n"}}),
+                _ => serde_json::json!({"tool":"answer.submit","args":{"path":path}}),
             };
             serde_json::json!({
                 "completion": completion.to_string(),

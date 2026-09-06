@@ -12,7 +12,8 @@
 
 use hs_loop::*;
 
-const ANSWER: &str = env!("CARGO_BIN_EXE_hs-plugin-answer");
+const ANSWERSUBMIT: &str = env!("CARGO_BIN_EXE_hs-plugin-answersubmit");
+const APPLYPATCH: &str = env!("CARGO_BIN_EXE_hs-plugin-applypatch");
 const SWECHECK: &str = env!("CARGO_BIN_EXE_hs-plugin-swecheck");
 const SWEMODEL: &str = env!("CARGO_BIN_EXE_hs-plugin-swemodel");
 
@@ -49,8 +50,13 @@ fn ctx_layout_keeps_stable_prefix_first() {
         format!(
             r#"
 [[tools]]
-name = "answer.write"
-command = ["{ANSWER}"]
+name = "answer.submit"
+command = ["{ANSWERSUBMIT}"]
+subjects = ["*"]
+
+[[tools]]
+name = "edit.patch"
+command = ["{APPLYPATCH}"]
 subjects = ["*"]
 
 [[tools]]
@@ -75,10 +81,10 @@ default = true
         .run_mission_full(
             "fixture__ctx-1",
             "MISSION fixture: code.txt must contain the word fixed. \
-             Reply with a JSON tool call answer.write whose content is one fenced unified diff.",
+             Build the fix with edit.patch, then answer.submit.",
         )
         .unwrap();
-    assert!(r.passed && r.steps == 2, "fixture must pass in 2 steps");
+    assert!(r.passed && r.steps == 3, "fixture must pass in 3 steps");
 
     // read the prompts back from the stream itself
     let reader = hs_log::StreamReader::open(&log, sid).unwrap();
@@ -101,13 +107,13 @@ default = true
     // lines; the ordering law is unchanged - stable mission first, history
     // in the middle, volatile state tail last.
     assert!(
-        step2.contains("- answer.write("),
+        step2.contains("- answer.submit("),
         "step 2 must carry the history pair: {step2}"
     );
     let pos = |needle: &str| step2.find(needle).unwrap_or_else(|| panic!("{needle} missing: {step2}"));
     let (m, t, a) = (
         pos("MISSION:"),
-        pos("- answer.write("),
+        pos("- answer.submit("),
         pos("ATTEMPT:"),
     );
     assert!(

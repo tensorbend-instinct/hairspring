@@ -31,22 +31,18 @@ pub fn builtin_tools() -> Vec<Value> {
         ),
         f(
             "repo.exec",
-            "Run a command inside a sandbox with the full machine floor: network on, system roots writable, you are root; the live repo stays clean. A bare command runs as a general shell on a pristine copy (git log, grep, pwd - no diff required). Pass diff INLINE to test a candidate patch BEFORE writing any answer; pass path (or neither) to test the current answer file. If the patch does not apply you get the git error back free - fix the framing before spending a checker cycle. Run the FAIL_TO_PASS command before every answer.write. Make edits ONLY with edit.apply: git apply and writing .diff/.patch files here are rejected with a steering error; repeated attempts of the same class are counted and escalate.",
+            "Run a command inside a sandbox with the full machine floor: network on, system roots writable, you are root; the live repo stays clean. A bare command runs as a general shell on a pristine copy (git log, grep, pwd - no diff required). Pass diff INLINE to test a candidate patch BEFORE writing any answer; pass path (or neither) to test the current answer file. If the patch does not apply you get the git error back free - fix the framing before spending a checker cycle. Run the FAIL_TO_PASS command before every answer.submit. Make edits ONLY with edit.patch: git apply and writing .diff/.patch files here are rejected with a steering error; repeated attempts of the same class are counted and escalate.",
             json!({"type":"object","properties":{
                 "command":{"type":"string"},
                 "diff":{"type":"string","description":"unified diff, optional"},
                 "path":{"type":"string","description":"ANSWER_PATH, optional"}},"required":["command"]}),
         ),
         f(
-            "edit.apply",
-            "Apply search/replace edits to your persistent candidate workspace - the live repo is never touched. Each block: path + old (text to find, copied verbatim from repo.read, must match exactly once) + new (replacement). NO line numbers, NO diff syntax. All blocks in a call apply or none do; a failure names the block and why (not found / ambiguous - add context). Returns the CUMULATIVE diff of everything applied so far: test with repo.exec, submit with answer.write. Set op='diff' to re-read the cumulative diff, op='reset' to discard the candidate.",
+            "edit.patch",
+            "Edit your persistent candidate workspace with the Codex apply_patch grammar - the live repo is never touched. patch text: *** Begin Patch, then per file one of: *** Update File: path (an @@ context line, then -old/+new lines copied verbatim from repo.read), *** Add File: path (+lines), *** Delete File: path; close with *** End Patch. NO line numbers, NO unified-diff syntax. Context must match the CURRENT candidate exactly: a mismatch is a named error and the candidate stays untouched. Returns the CUMULATIVE diff of everything applied so far: test with repo.exec, submit with answer.submit. Set op='diff' to re-read the cumulative diff, op='reset' to discard the candidate.",
             json!({"type":"object","properties":{
-                "edits":{"type":"array","items":{"type":"object","properties":{
-                    "path":{"type":"string","description":"repo-relative file path"},
-                    "old":{"type":"string","description":"exact text to replace; unique in the file (whitespace-tolerant fallback applies)"},
-                    "new":{"type":"string","description":"replacement text"}},"required":["path","old","new"]},
-                    "description":"search/replace blocks applied in order"},
-                "op":{"type":"string","enum":["diff","reset"],"description":"optional operation instead of applying edits"}}}),
+                "patch":{"type":"string","description":"one apply_patch text: *** Begin Patch ... *** End Patch"},
+                "op":{"type":"string","enum":["diff","reset"],"description":"optional operation instead of applying a patch"}}}),
         ),
         f(
             "notes.scratch",
@@ -63,11 +59,10 @@ pub fn builtin_tools() -> Vec<Value> {
                 "text":{"type":"string","description":"your improved prompt template"}},"required":["name","text"]}),
         ),
         f(
-            "answer.write",
-            "Submit your patch: content is one fenced unified diff (```diff ... ```, paths a/... b/... relative to repo root). Ground every hunk in code you actually read: correct file, correct current line numbers, exact context lines. Run the FAIL_TO_PASS command via repo.exec before every answer.write. The checker runs automatically after each answer.write and its verdict comes back as FEEDBACK.",
+            "answer.submit",
+            "Submit your fix: computes the unified diff of your candidate workspace with git and writes it to ANSWER_PATH. No content argument - the submission is exactly what you built with edit.patch and verified with repo.exec; hand-written diff text is never accepted. Fails with a steering error when the candidate has no edits. Run the FAIL_TO_PASS command via repo.exec before every answer.submit. The checker runs automatically after each answer.submit and its verdict comes back as FEEDBACK.",
             json!({"type":"object","properties":{
-                "path":{"type":"string","description":"the ANSWER_PATH value"},
-                "content":{"type":"string","description":"```diff\n<one unified diff>\n```"}},"required":["path","content"]}),
+                "path":{"type":"string","description":"the ANSWER_PATH value"}},"required":["path"]}),
         ),
     ]
 }

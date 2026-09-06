@@ -237,3 +237,140 @@ pub fn reset(ws: &Path) -> Value {
     let _ = git(ws, &["worktree", "prune"]);
     json!({"ok": true})
 }
+
+// ─── Codex apply_patch edit path (2026-09-06) ───────────────────────
+// The model never authors diff syntax: it edits the persistent candidate
+// with the Codex apply_patch grammar (hs-applypatch crate, vendored from
+// openai/codex via xai-org/grok-build) and answer.submit computes the
+// final unified diff with git. Failure classes this kills by construction
+// (session traces, 2026-09-06): corrupt hand-written hunks (8619/3314),
+// empty fenced submissions (8609), prose-contaminated answer files.
+
+/// Reject absolute paths and any `..` escape; the candidate root is the
+/// only writable scope for model edits.
+fn safe_join(base: &Path, rel: &Path) -> Result<PathBuf, Value> {
+    if rel.is_absolute() {
+        return Err(json!({"applied": false, "$error": format!("path must be repo-relative: {}", rel.display())}));
+    }
+    for c in rel.components() {
+        if !matches!(c, std::path::Component::Normal(_)) {
+            return Err(json!({"applied": false, "$error": format!("path escapes the candidate: {}", rel.display())}));
+        }
+    }
+    Ok(base.join(rel))
+}
+
+enum Write {
+    Set(PathBuf, String),
+    Del(PathBuf),
+}
+
+/// Apply one Codex-grammar patch to the candidate worktree. Atomic: every
+/// hunk is validated (paths, existence, context match) BEFORE any write,
+/// so a failure leaves the candidate byte-identical. Returns applied +
+/// cumulative_diff on success; a named $error on failure.
+pub fn apply_codex_patch(ws: &Path, patch_text: &str) -> Value {
+    use hs_applypatch::parser::Hunk;
+    let parsed = match hs_applypatch::parser::parse_patch(patch_text) {
+        Ok(p) => p,
+        Err(e) => return json!({"applied": false, "$error": format!("patch parse: {e}")}),
+    };
+    let cand = match ensure_candidate(ws) {
+        Ok(c) => c,
+        Err(e) => return e,
+    };
+    let mut writes: Vec<Write> = Vec::new();
+    let mut moves: Vec<(PathBuf, PathBuf)> = Vec::new();
+    for h in &parsed.hunks {
+        match h {
+            Hunk::AddFile { path, contents } => {
+                let dest = match safe_join(&cand, path) { Ok(d) => d, Err(e) => return e };
+                if dest.exists() {
+                    return json!({"applied": false, "$error": format!("{}: already exists in the candidate - use Update File", path.display())});
+                }
+                writes.push(Write::Set(dest, contents.clone()));
+            }
+            Hunk::DeleteFile { path } => {
+                let dest = match safe_join(&cand, path) { Ok(d) => d, Err(e) => return e };
+                if !dest.exists() {
+                    return json!({"applied": false, "$error": format!("{}: no such file in the candidate", path.display())});
+                }
+                writes.push(Write::Del(dest));
+            }
+            Hunk::UpdateFile { path, move_path, chunks } => {
+                let src = match safe_join(&cand, path) { Ok(d) => d, Err(e) => return e };
+                let original = match std::fs::read_to_string(&src) {
+                    Ok(s) => s,
+                    Err(_) => return json!({"applied": false, "$error": format!("{}: no such file in the candidate", path.display())}),
+                };
+                let new = match hs_applypatch::apply::derive_new_contents(&original, path, chunks) {
+                    Ok(n) => n,
+                    Err(e) => return json!({"applied": false, "$error": format!("{}: {e} - context must match the CURRENT candidate exactly (repo.read it again, or op=diff to see your cumulative state)", path.display())}),
+                };
+                if let Some(mp) = move_path {
+                    match safe_join(&cand, mp) {
+                        Ok(dst) => moves.push((src.clone(), dst)),
+                        Err(e) => return e,
+                    }
+                }
+                writes.push(Write::Set(src, new));
+            }
+        }
+    }
+    for w in writes {
+        match w {
+            Write::Set(p, contents) => {
+                if let Some(parent) = p.parent() {
+                    if let Err(e) = std::fs::create_dir_all(parent) {
+                        return json!({"applied": false, "$error": format!("mkdir {}: {e}", parent.display())});
+                    }
+                }
+                if let Err(e) = std::fs::write(&p, contents) {
+                    return json!({"applied": false, "$error": format!("write {}: {e}", p.display())});
+                }
+            }
+            Write::Del(p) => {
+                if let Err(e) = std::fs::remove_file(&p) {
+                    return json!({"applied": false, "$error": format!("delete {}: {e}", p.display())});
+                }
+            }
+        }
+    }
+    for (src, dst) in moves {
+        if src != dst {
+            if let Some(parent) = dst.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            if let Err(e) = std::fs::rename(&src, &dst) {
+                return json!({"applied": false, "$error": format!("move {} -> {}: {e}", src.display(), dst.display())});
+            }
+        }
+    }
+    match read_cumulative(&cand) {
+        Ok(diff) => json!({"applied": true, "cumulative_diff": diff}),
+        Err(e) => e,
+    }
+}
+
+/// answer.submit backend: the answer file is the candidate's cumulative
+/// diff, computed with git - never model-authored text. No candidate or an
+/// untouched candidate is a steering error, not a submission (replay class:
+/// 8609's literal empty ```diff fence, 2026-09-06).
+pub fn answer_submit(ws: &Path, answer_path: &Path) -> Value {
+    let cand = candidate_dir(ws);
+    let diff = if cand.join(".git").exists() {
+        match read_cumulative(&cand) {
+            Ok(d) => d,
+            Err(e) => return e,
+        }
+    } else {
+        String::new()
+    };
+    if diff.trim().is_empty() {
+        return json!({"$error": "nothing to submit: the candidate has no edits - make your fix with edit.patch first, verify it with repo.exec, then answer.submit"});
+    }
+    match std::fs::write(answer_path, &diff) {
+        Ok(()) => json!({"written": true, "path": answer_path.to_string_lossy(), "bytes": diff.len()}),
+        Err(e) => json!({"$error": e.to_string()}),
+    }
+}

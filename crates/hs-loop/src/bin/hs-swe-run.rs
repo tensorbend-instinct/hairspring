@@ -61,6 +61,15 @@ fn main() {
         inst.fail_to_pass_caps
     };
 
+    // Goal evaluator f2p = the REAL acceptance command (HS_SWE_F2P, written
+    // by ops/subset/run_subset_par.py as "bash <run_dir>/f2p.sh"), never the
+    // instance's fail_to_pass test IDs (forensic item 1, 2026-09-06: test IDs
+    // ran as shell -> exit 127 -> env_limited in 100% of sessions).
+    let goal_cmds: Vec<String> = std::env::var("HS_SWE_F2P")
+        .ok()
+        .map(|s| s.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect())
+        .unwrap_or_default();
+
     let ws = run_dir.join("ws");
     assert!(ws.join(".git").exists(), "workspace not prepped: {}", ws.display());
     let log_root = run_dir.join("log");
@@ -151,7 +160,7 @@ fn main() {
         &hs_loop::sweprompt::PromptArgs {
             ws: ws.display().to_string(),
             problem_statement: inst.problem_statement.clone(),
-            fail_to_pass: f2p.clone(),
+            fail_to_pass: if !goal_cmds.is_empty() { goal_cmds.clone() } else { f2p.clone() },
             repo_layout: layout.clone(),
             nudge: std::env::var("HS_SWE_PROMPT_NUDGE").unwrap_or_default(),
             answer_path: answer_path.display().to_string(),
@@ -173,8 +182,8 @@ fn main() {
         format!(
             r#"
 [[tools]]
-name = "answer.write"
-command = ["{answer}"]
+name = "answer.submit"
+command = ["{answersubmit}"]
 subjects = ["*"]
 
 [[tools]]
@@ -203,8 +212,8 @@ command = ["{policy}"]
 subjects = ["*"]
 
 [[tools]]
-name = "edit.apply"
-command = ["{editapply}"]
+name = "edit.patch"
+command = ["{editpatch}"]
 subjects = ["*"]
 
 [[tools]]
@@ -218,13 +227,13 @@ command = ["{model_bin}"]
 default = true
 {mcp_tools}
 "#,
-            answer = bin("hs-plugin-answer"),
+            answersubmit = bin("hs-plugin-answersubmit"),
             checker = bin("hs-plugin-swecheck"),
             fileread = bin("hs-plugin-fileread"),
             reposearch = bin("hs-plugin-reposearch"),
             repoexec = bin("hs-plugin-repoexec"),
             policy = bin("hs-plugin-policy"),
-            editapply = bin("hs-plugin-editapply"),
+            editpatch = bin("hs-plugin-applypatch"),
             notescratch = bin("hs-plugin-notescratch"),
             model = model,
             model_bin = bin(&format!("hs-plugin-{model}")),
@@ -251,8 +260,8 @@ default = true
         .unwrap_or_else(|| hs_loop::default_budget_for_model(&model));
     l.set_context_budget_tokens(budget_tokens);
     if let Ok(ws) = std::env::var("HS_SWE_WORKSPACE") {
-        if !f2p.is_empty() {
-            l.set_goal_evaluator(std::path::Path::new(&ws), f2p.clone());
+        if !goal_cmds.is_empty() {
+            l.set_goal_evaluator(std::path::Path::new(&ws), goal_cmds.clone());
         }
     }
     let memory_db = arg(&args, "--memory-db").map(std::path::PathBuf::from);

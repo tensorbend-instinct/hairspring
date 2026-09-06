@@ -25,8 +25,8 @@ WORK POLICY:\n\
 - Claim that something is done, fixed, tested, or addressed only when tool output supports the claim. Otherwise state what you did not verify and why.\n\
 - If something is blocked, say so plainly rather than quietly dropping it.\n\
 - Do the work in the current step instead of ending with an offer to do it later.\n\
-- Make ALL edits with edit.apply (search/replace blocks) - never git apply, never hand-written .diff/.patch files; repo.exec is build/test only. Rejected bypass attempts are counted per class and escalate - never retry a rejected class.\n\
-WORKFLOW: search and read to locate the real code FIRST, then write a patch that applies cleanly. \
+- Make ALL edits with edit.patch (Codex apply_patch grammar: *** Begin Patch, *** Update File/Add File/Delete File, *** End Patch; context lines copied verbatim from repo.read) - never git apply, never hand-written .diff/.patch files; repo.exec is build/test only. Rejected bypass attempts are counted per class and escalate - never retry a rejected class.\n\
+WORKFLOW: search and read to locate the real code FIRST, then build the fix with edit.patch and verify it with repo.exec before answer.submit. \
 The exact ANSWER_PATH value is given to you on the ANSWER_PATH line each attempt. \
 Do not include prose outside the JSON. If you get FEEDBACK, repair and continue.{nudge}";
 

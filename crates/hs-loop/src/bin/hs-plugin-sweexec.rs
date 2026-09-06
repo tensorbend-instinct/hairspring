@@ -3,7 +3,8 @@
 //!   - the free apply-error feedback path, booked on the audit stream.
 //! Attempt 2: repo.exec the gold INLINE patch - the honest pre-submit
 //!   verification the hard answer.write gate requires.
-//! Attempt 3: answer.write the gold patch (accepted, checker passes).
+//! Attempt 3: edit.patch the fix (Codex grammar).
+//! Attempt 4: answer.submit (accepted, checker passes).
 include!("shared/sdk.rs");
 fn main() {
     serve("sweexec", "model", &mut |method, params| match method {
@@ -42,8 +43,9 @@ fn main() {
                     "diff":"--- a/code.txt\n+++ b/code.txt\n@@ -1 +1 @@\n-WRONGCONTEXT\n+fixed\n"}}),
                 2 => serde_json::json!({"tool":"repo.exec","args":{"command":"sh check.sh",
                     "diff":gold}}),
-                _ => serde_json::json!({"tool":"answer.write","args":{"path":path,
-                    "content":format!("```diff\n{gold}\n```")}}),
+                3 => serde_json::json!({"tool":"edit.patch","args":{"patch":
+                    "*** Begin Patch\n*** Update File: code.txt\n@@\n-broken\n+fixed\n*** End Patch\n"}}),
+                _ => serde_json::json!({"tool":"answer.submit","args":{"path":path}}),
             };
             serde_json::json!({
                 "completion": completion.to_string(),

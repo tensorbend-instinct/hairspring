@@ -261,12 +261,12 @@ impl InnerLoop {
     }
 
     /// Answer-path tools whose death is mission-terminal (measurement run
-    /// ab2/17123): without edit.apply/answer.write no mission can land, so
+    /// ab2/17123): without edit.patch/answer.submit no mission can land, so
     /// continuing burns steps for nothing. Death of any OTHER tool degrades
     /// to feedback instead of aborting - the mission continues while the
     /// answer path remains usable.
     fn is_answer_path(tool: &str) -> bool {
-        matches!(tool, "answer.write" | "edit.apply")
+        matches!(tool, "answer.submit" | "edit.patch" | "answer.write" | "edit.apply")
     }
 
     /// Abort the mission on a supervisor-declared dead ANSWER-PATH plugin:
@@ -598,11 +598,11 @@ impl InnerLoop {
             // submit (tool errors are feedback too: models produce bad args)
             let mut wrote_answer = false;
             let tool_feedback = match validated {
-                None => Some("your reply carried no tool call; call exactly one of the provided tools (the answer path is answer.write with the ANSWER_PATH) - no prose".to_string()),
+                None => Some("your reply carried no tool call; call exactly one of the provided tools (the answer path is answer.submit with the ANSWER_PATH) - no prose".to_string()),
                 Some((tool, args)) if self.dead_tools.contains(&tool) => {
                     // T3c: dead tools short-circuit - feedback, no respawn
                     let msg = format!(
-                        "tool {tool} is dead for the rest of this mission - pick another tool (the answer path, edit.apply/answer.write, is intact)"
+                        "tool {tool} is dead for the rest of this mission - pick another tool (the answer path, edit.patch/answer.submit, is intact)"
                     );
                     self.writer.append(
                         EventBuilder::new(EventKind::ToolCall).payload(Payload::Inline(
@@ -614,12 +614,12 @@ impl InnerLoop {
                     )?;
                     Some(msg)
                 }
-                // Hard rule (Eric, 2026-09-05): an untested answer.write is
+                // Hard rule (Eric, 2026-09-05): an untested answer.submit is
                 // REJECTED with feedback whenever steps remain - submitting
                 // without running the mission's own checks must never spend a
                 // checker cycle. At the last step a hail-mary goes through:
                 // an unverified answer beats no answer.
-                Some((tool, args)) if tool == "answer.write"
+                Some((tool, args)) if (tool == "answer.submit" || tool == "answer.write")
                     && !self.ledger.model_verified()
                     && step < self.max_steps
                     // the rejection must name an action the model can
@@ -628,7 +628,7 @@ impl InnerLoop {
                     && self.kernel.list_tools("operator").iter().any(|t| t.name == "repo.exec") =>
                 {
                     let msg = format!(
-                        "answer.write REJECTED: no verification run yet. Run the mission's own checks first (repo.exec with your candidate diff, or the mission's stated test command) - a submission with zero test evidence is not a submission. Steps remaining: {}",
+                        "answer.submit REJECTED: no verification run yet. Run the mission's own checks first (repo.exec against your candidate diff, or the mission's stated test command) - a submission with zero test evidence is not a submission. Steps remaining: {}",
                         self.max_steps - step
                     );
                     self.writer.append(
@@ -721,7 +721,7 @@ impl InnerLoop {
                                 self.doom_nudges.insert(plugin, count);
                             }
                         }
-                        if tool == "answer.write" {
+                        if tool == "answer.submit" || tool == "answer.write" {
                             wrote_answer = true;
                         }
                         // non-write results reach future steps via the
@@ -746,7 +746,7 @@ impl InnerLoop {
                         }
                         self.dead_tools.insert(name.clone());
                         let msg = format!(
-                            "tool {name} is permanently unavailable (dead after {strikes} strikes: {detail}) - continue with the remaining tools; the answer path (edit.apply, answer.write) is intact"
+                            "tool {name} is permanently unavailable (dead after {strikes} strikes: {detail}) - continue with the remaining tools; the answer path (edit.patch, answer.submit) is intact"
                         );
                         self.writer.append(
                             EventBuilder::new(EventKind::ToolCall).payload(Payload::Inline(
@@ -782,7 +782,7 @@ impl InnerLoop {
             }
 
             // the world answers (checker = ground truth at this gate);
-            // only an answer.write produces something to judge
+            // only an answer.submit produces something to judge
             let verdict = self.kernel.call_tool(
                 "operator",
                 "checker.run",

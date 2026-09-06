@@ -84,7 +84,9 @@ pub fn extract_diff(raw: &str) -> Option<String> {
         return Some(p);
     }
     let t = raw.trim();
-    (t.starts_with("diff --git") || t.starts_with("--- ")).then(|| t.to_string())
+    // git apply rejects a patch whose last hunk line lacks the trailing
+    // newline ("corrupt patch at line N") - always re-terminate.
+    (t.starts_with("diff --git") || t.starts_with("--- ")).then(|| format!("{t}\n"))
 }
 
 /// Shared prep: read the answer, extract the diff, make a scratch worktree,
@@ -94,7 +96,7 @@ fn prep(ws: &Path, answer_path: &Path) -> Result<Option<PathBuf>, Value> {
     let raw = match std::fs::read_to_string(answer_path) {
         Ok(s) => s,
         Err(_) => {
-            return Err(json!({"applied": false, "note": "no patch to test yet - write your answer first (answer.write), then exec (or pass args.diff inline)"}));
+            return Err(json!({"applied": false, "note": "no patch to test yet - build your fix first (edit.patch), then exec (or pass args.diff inline)"}));
         }
     };
     let Some(patch) = extract_diff(&raw) else {
@@ -363,6 +365,67 @@ fn run_with_prep(prepped: Result<Option<PathBuf>, Value>, ws: &Path, command: &s
                       "stdout": stdout, "stderr": stderr});
     }
     json!({"applied": patch_mode, "scratch": !patch_mode, "timed_out": false,
+           "exit_code": status.and_then(|s| s.code()).unwrap_or(-1),
+           "stdout": stdout, "stderr": stderr})
+}
+
+
+/// Host-side exec for harness-generated acceptance commands (the goal
+/// evaluator's f2p). The bwrap sandbox exists to contain MODEL commands;
+/// the goal evaluator runs harness-fixed commands, and mission venvs live
+/// under /home which bwrap never binds (forensic item 1, 2026-09-06: every
+/// session's goal evaluation died at exit 127 and recorded env_limited).
+/// Same scratch-worktree prep, same timeout discipline, exec on the host
+/// exactly where the standalone checker runs.
+pub fn run_host(ws: &Path, answer_path: &Path, command: &str, timeout_secs: u64) -> Value {
+    let scratch = match prep(ws, answer_path) {
+        Ok(Some(s)) => s,
+        Ok(None) => unreachable!(),
+        Err(early) => return early,
+    };
+    let out_f = scratch.join(".repexec-out");
+    let err_f = scratch.join(".repexec-err");
+    let wrapped = format!("{} >'{}' 2>'{}'", command.trim(), out_f.display(), err_f.display());
+    let child = Command::new("sh")
+        .arg("-c")
+        .arg(&wrapped)
+        .current_dir(&scratch)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn();
+    let mut child = match child {
+        Ok(c) => c,
+        Err(e) => {
+            cleanup_scratch(ws, &scratch, true);
+            return json!({"$error": format!("spawn host exec: {e}")});
+        }
+    };
+    let t0 = std::time::Instant::now();
+    let timeout = std::time::Duration::from_secs(timeout_secs);
+    let (status, timed_out) = loop {
+        match child.try_wait() {
+            Ok(Some(st)) => break (Some(st), false),
+            Ok(None) if t0.elapsed() > timeout => {
+                let _ = child.kill();
+                let _ = child.wait();
+                break (None, true);
+            }
+            Ok(None) => std::thread::sleep(std::time::Duration::from_millis(50)),
+            Err(e) => {
+                cleanup_scratch(ws, &scratch, true);
+                return json!({"$error": format!("wait: {e}")});
+            }
+        }
+    };
+    let stdout = tail(&std::fs::read(&out_f).unwrap_or_default());
+    let stderr = tail(&std::fs::read(&err_f).unwrap_or_default());
+    cleanup_scratch(ws, &scratch, true);
+    if timed_out {
+        return json!({"applied": true, "timed_out": true, "timeout_secs": timeout_secs,
+                      "stdout": stdout, "stderr": stderr});
+    }
+    json!({"applied": true, "timed_out": false,
            "exit_code": status.and_then(|s| s.code()).unwrap_or(-1),
            "stdout": stdout, "stderr": stderr})
 }

@@ -50,10 +50,10 @@ fn builtin_tool_schemas_cover_the_mission_surface() {
         "repo.search",
         "repo.read",
         "repo.exec",
-        "edit.apply",
+        "edit.patch",
         "notes.scratch",
         "policy.propose_prompt",
-        "answer.write",
+        "answer.submit",
     ] {
         assert!(names.contains(&want), "missing native schema for {want}");
     }
@@ -74,13 +74,13 @@ fn builtin_tool_schemas_cover_the_mission_surface() {
         .find(|t| t["function"]["name"] == "repo.search")
         .unwrap();
     assert_eq!(search["function"]["parameters"]["required"], json!(["pattern"]));
-    let write = tools
+    let submit = tools
         .iter()
-        .find(|t| t["function"]["name"] == "answer.write")
+        .find(|t| t["function"]["name"] == "answer.submit")
         .unwrap();
     assert_eq!(
-        write["function"]["parameters"]["required"],
-        json!(["path", "content"])
+        submit["function"]["parameters"]["required"],
+        json!(["path"])
     );
 }
 

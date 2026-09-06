@@ -1,7 +1,13 @@
 //! D6 goal evaluator: acceptance-constrained stopping (openJiuwen Goal
 //! Mode). The stop decision is owned by a VERIFIABLE predicate - the
-//! submitted patch applies and the FAIL_TO_PASS command exits 0 inside the
-//! bwrap sandbox - never by a checker plugin's say-so (T7).
+//! submitted patch applies and the FAIL_TO_PASS command exits 0 - never by
+//! a checker plugin's say-so (T7). f2p commands are harness-generated
+//! (ops/subset/run_subset_par.py writes f2p.sh; HS_SWE_F2P carries it), so
+//! they run HOST-side in a scratch worktree (repexec::run_host), at the
+//! same exec location as the standalone checker: the bwrap sandbox exists
+//! to contain MODEL commands and never binds /home, where mission venvs
+//! live (forensic item 1, 2026-09-06: sandboxed goal evals were exit 127
+//! env_limited in 100% of sessions).
 
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -51,11 +57,13 @@ pub fn classify_env_failure(r: &Value) -> Option<String> {
     Some("exit 127 (command not found)".to_string())
 }
 
-/// Richer verify: EnvLimited when the sandbox cannot run f2p at all, so
-/// the caller records the limitation explicitly instead of a bare red.
+/// Richer verify: EnvLimited when f2p cannot run at all (missing venv
+/// tool, exit 127), so the caller records the limitation explicitly
+/// instead of a bare red. Runs HOST-side: these are harness-fixed
+/// commands, not model input.
 pub fn verify_verdict(goal: &GoalSpec, answer_path: &Path) -> GoalVerdict {
     let cmd = goal.f2p.join(" && ");
-    let r: Value = crate::repexec::run_sandboxed(&goal.ws, answer_path, &cmd, goal.timeout_secs);
+    let r: Value = crate::repexec::run_host(&goal.ws, answer_path, &cmd, goal.timeout_secs);
     if r["applied"].as_bool() == Some(true) && r["exit_code"].as_i64() == Some(0) {
         return GoalVerdict::Pass;
     }
@@ -66,7 +74,7 @@ pub fn verify_verdict(goal: &GoalSpec, answer_path: &Path) -> GoalVerdict {
 }
 
 /// Verify the acceptance predicate against the current answer file.
-/// Reuses the repo.exec sandbox: scratch worktree, no host fs, no network.
+/// Host-side scratch worktree (run_host): same exec location as the checker.
 pub fn verify(goal: &GoalSpec, answer_path: &Path) -> bool {
     verify_verdict(goal, answer_path) == GoalVerdict::Pass
 }

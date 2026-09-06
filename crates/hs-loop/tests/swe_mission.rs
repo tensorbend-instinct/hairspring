@@ -11,6 +11,8 @@ use hs_loop::*;
 const ANSWER: &str = env!("CARGO_BIN_EXE_hs-plugin-answer");
 const SWECHECK: &str = env!("CARGO_BIN_EXE_hs-plugin-swecheck");
 const SWEMODEL: &str = env!("CARGO_BIN_EXE_hs-plugin-swemodel");
+const ANSWERSUBMIT: &str = env!("CARGO_BIN_EXE_hs-plugin-answersubmit");
+const APPLYPATCH: &str = env!("CARGO_BIN_EXE_hs-plugin-applypatch");
 
 fn fixture_workspace(dir: &std::path::Path) -> (std::path::PathBuf, String) {
     let ws = dir.join("ws");
@@ -54,8 +56,13 @@ fn swe_mission_repairs_via_feedback_and_passes() {
         format!(
             r#"
 [[tools]]
-name = "answer.write"
-command = ["{ANSWER}"]
+name = "answer.submit"
+command = ["{ANSWERSUBMIT}"]
+subjects = ["*"]
+
+[[tools]]
+name = "edit.patch"
+command = ["{APPLYPATCH}"]
 subjects = ["*"]
 
 [[tools]]
@@ -76,13 +83,13 @@ default = true
     let mut l = InnerLoop::new(kernel, &log, true, 8).unwrap();
     l.set_budget_micros(10_000);
     let prompt = "MISSION fixture__git-1: code.txt must contain the word fixed. \
-                  Reply with a JSON tool call answer.write whose content is one fenced unified diff.";
+                  Build the fix with edit.patch, then submit with answer.submit (the diff is computed, never hand-written).";
     let r = match l.run_mission_full("fixture__git-1", prompt) {
         Ok(r) => r,
         Err(e) => panic!("mission errored: {e:?}"),
     };
     assert!(r.passed, "SWE mission must pass after feedback repair");
-    assert_eq!(r.steps, 2, "prose first, gold patch after feedback");
+    assert_eq!(r.steps, 3, "empty-submit steering error, edit.patch, answer.submit");
     assert!(!r.budget_killed);
     // the workspace carries the applied patch
     assert_eq!(std::fs::read_to_string(ws.join("code.txt")).unwrap(), "fixed\n");

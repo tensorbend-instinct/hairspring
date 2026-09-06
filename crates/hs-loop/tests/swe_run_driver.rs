@@ -182,7 +182,7 @@ fn driver_mission_uses_repotools_through_synthesized_config() {
     )
     .unwrap();
     assert_eq!(result["passed"], true);
-    assert_eq!(result["steps"], 3, "read via repo.read, verify via repo.exec, then write (hard answer gate)");
+    assert_eq!(result["steps"], 4, "read via repo.read, verify via repo.exec, edit.patch, then answer.submit (hard answer gate)");
 }
 
 /// Seam: repo.exec through the real driver/kernel/loop path (parent bar: no
@@ -393,7 +393,7 @@ fn driver_mission_calls_mcp_tool() {
     assert!(mcp_call.contains("hello-via-mcp"), "echo payload on stream: {mcp_call}");
 }
 
-/// Seam: the D5 tools (edit.apply, notes.scratch) are wired into every SWE
+/// Seam: the D5 tools (edit.patch, notes.scratch) are wired into every SWE
 /// mission: registered in the generated hairspring.toml, callable through
 /// the real kernel/loop, with notes persisted at log_root/work/<iid>/.
 #[test]
@@ -427,8 +427,9 @@ fn driver_mission_uses_d5_tools() {
     let script = [
         serde_json::json!({"tool":"notes.scratch","args":{"op":"write","content":"hypothesis: code.txt holds the wrong word\n"}}).to_string(),
         serde_json::json!({"tool":"notes.scratch","args":{"op":"read"}}).to_string(),
-        serde_json::json!({"tool":"edit.apply","args":{"edits":[{"path":"code.txt","old":"broken\n","new":"fixed\n"}]}}).to_string(),
-        serde_json::json!({"tool":"answer.write","args":{"path":answer_path.display().to_string(),"content":format!("```diff\n{diff}```")}}).to_string(),
+        serde_json::json!({"tool":"edit.patch","args":{"patch":"*** Begin Patch\n*** Update File: code.txt\n@@\n-broken\n+fixed\n*** End Patch\n"}}).to_string(),
+        serde_json::json!({"tool":"repo.exec","args":{"command":"sh check.sh","diff":diff}}).to_string(),
+        serde_json::json!({"tool":"answer.submit","args":{"path":answer_path.display().to_string()}}).to_string(),
     ];
     std::fs::write(dir.path().join("script.jsonl"), script.join("\n")).unwrap();
 
@@ -455,7 +456,7 @@ fn driver_mission_uses_d5_tools() {
 
     // both D5 tools registered in the generated config
     let cfg = std::fs::read_to_string(run_dir.join("hairspring.toml")).unwrap();
-    assert!(cfg.contains("edit.apply"), "edit.apply registered: {cfg}");
+    assert!(cfg.contains("edit.patch"), "edit.patch registered: {cfg}");
     assert!(cfg.contains("notes.scratch"), "notes.scratch registered: {cfg}");
 
     // notes persisted at the mission work dir
@@ -476,7 +477,7 @@ fn driver_mission_uses_d5_tools() {
     let notes_call = payloads.iter().find(|p| p.contains("\"plugin\":\"notes.scratch\"") && p.contains("\"content\"") && p.contains("hypothesis"))
         .expect("a notes.scratch result carrying the note must be on the stream");
     assert!(notes_call.contains("\"ok\":true"), "{notes_call}");
-    let edit_call = payloads.iter().find(|p| p.contains("\"plugin\":\"edit.apply\"") && p.contains("cumulative_diff"))
-        .expect("an edit.apply result with cumulative_diff must be on the stream");
+    let edit_call = payloads.iter().find(|p| p.contains("\"plugin\":\"edit.patch\"") && p.contains("cumulative_diff"))
+        .expect("an edit.patch result with cumulative_diff must be on the stream");
     assert!(edit_call.contains("+fixed"), "cumulative diff carries the patch: {edit_call}");
 }

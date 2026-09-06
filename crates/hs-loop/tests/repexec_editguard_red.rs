@@ -171,9 +171,12 @@ fn allowed_command_still_executes_end_to_end() {
 
 #[test]
 fn prompt_steers_edits_only_via_edit_apply() {
+    // 2026-09-06: the edit path is now edit.patch (Codex apply_patch
+    // grammar); the guardrail property is unchanged: exactly ONE named edit
+    // path, git apply forbidden.
     assert!(
-        hs_loop::sweprompt::SWE_MISSION_TEMPLATE.contains("edit.apply"),
-        "mission template must name edit.apply as the only edit path"
+        hs_loop::sweprompt::SWE_MISSION_TEMPLATE.contains("edit.patch"),
+        "mission template must name edit.patch as the only edit path"
     );
     let tools = hs_loop::toolschema::builtin_tools();
     let exec = tools
@@ -181,7 +184,7 @@ fn prompt_steers_edits_only_via_edit_apply() {
         .find(|t| t["function"]["name"] == "repo.exec")
         .expect("repo.exec schema");
     let desc = exec["function"]["description"].as_str().unwrap();
-    assert!(desc.contains("edit.apply"), "repo.exec description steers to edit.apply: {desc}");
+    assert!(desc.contains("edit.patch"), "repo.exec description steers to edit.patch: {desc}");
     assert!(desc.contains("git apply"), "repo.exec description names the forbidden class: {desc}");
 }
 
