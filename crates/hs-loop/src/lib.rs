@@ -1068,8 +1068,7 @@ impl InnerLoop {
                                 )),
                             )?;
                             pending_feedback.push(format!(
-                                "VERIFIER REFUTED (round {round}/{}, blocking={}): {}",
-                                verifier::VERIFIER_MAX_ROUNDS,
+                                "VERIFIER REFUTED (blocking={}): {}",
                                 v.blocking,
                                 v.findings.join("; ")
                             ));
@@ -1414,8 +1413,7 @@ impl InnerLoop {
                 )),
             )?;
             pending_feedback.push(format!(
-                "VERIFIER REFUTED (round {round}/{}, blocking={}): {}. The workspace was restored to the audited snapshot; your work since the submit is in your transcript.",
-                verifier::VERIFIER_MAX_ROUNDS,
+                "VERIFIER REFUTED (blocking={}): {}. The workspace was restored to the audited snapshot; your work since the submit is in your transcript.",
                 v.blocking,
                 v.findings.join("; ")
             ));
