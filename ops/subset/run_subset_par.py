@@ -211,6 +211,28 @@ def ensure_shims():
     if not os.path.exists(py):
         os.symlink(__import__("shutil").which("python3"), py)
 
+
+def agent_env(venv_py, base_env=None, ws="", f2p_sh=""):
+    """Eric 2026-09-06: the agent exec env must resolve python/pytest/pip to the
+    MISSION venv, not the system interpreter - pdm-3314's agent burned 6 identical
+    steps self-repairing hishel against system python because only f2p.sh used the
+    venv. venv bin first, shims second (bare-python alias fallback), system last."""
+    env = dict(base_env if base_env is not None else os.environ)
+    up = MODEL.upper()
+    env.update({
+        f"HS_{up}_API_KEY_FILE": f"/home/sandbox/.keys/{MODEL}.key",
+        f"HS_{up}_EXTRA_BODY_JSON": os.environ.get(f"HS_{up}_EXTRA_BODY_JSON", '{"reasoning_effort":"low"}'),
+        "HS_SWE_PROMPT_NUDGE": os.environ.get(
+            "HS_SWE_PROMPT_NUDGE",
+            "IMPORTANT: before every answer.submit, run the FAIL_TO_PASS command via repo.exec and fix whatever it reports."),
+        "HS_SWE_WORKSPACE": ws,
+        "HS_SWE_F2P": f"bash {f2p_sh}" if f2p_sh else "",
+        "HS_SWE_P2P": "",
+        "HS_REALMODEL_CALL_TIMEOUT_SECS": "1500",
+    })
+    env["PATH"] = os.path.dirname(venv_py) + ":" + SHIMS + ":" + env.get("PATH", "")
+    return env
+
 def run_task(wid, m):
     iid = m["instance_id"]
     slug = m["repo"].split("/")[-1]
@@ -242,22 +264,9 @@ def run_task(wid, m):
             note = "preflight_invalid"
             print(f"[w{wid}] {iid} PREFLIGHT REFUSED: {pf_err}", flush=True)
         else:
-            env = dict(os.environ)
-            up = MODEL.upper()
-            env.update({
-                f"HS_{up}_API_KEY_FILE": f"/home/sandbox/.keys/{MODEL}.key",
-                f"HS_{up}_EXTRA_BODY_JSON": os.environ.get(f"HS_{up}_EXTRA_BODY_JSON", '{"reasoning_effort":"low"}'),
-                "HS_SWE_PROMPT_NUDGE": os.environ.get(
-                    "HS_SWE_PROMPT_NUDGE",
-                    "IMPORTANT: before every answer.submit, run the FAIL_TO_PASS command via repo.exec and fix whatever it reports."),
-                "HS_SWE_WORKSPACE": ws,
-                "HS_SWE_F2P": f"bash {f2p_sh}",
-                "HS_SWE_P2P": "",
-                "HS_REALMODEL_CALL_TIMEOUT_SECS": "1500",
-            })
+            env = agent_env(venv_py, ws=ws, f2p_sh=f2p_sh)
             if MODEL == "glm":
                 env["HS_GLM_BASE_URL"] = "http://127.0.0.1:8787/chat/completions"
-            env["PATH"] = SHIMS + ":" + env.get("PATH", "")
             budget_flag = ""
             if os.environ.get("HS_CONTEXT_BUDGET_TOKENS"):
                 budget_flag = f" --context-budget-tokens {os.environ['HS_CONTEXT_BUDGET_TOKENS']}"
