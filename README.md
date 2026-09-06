@@ -2,7 +2,7 @@
 
 A self-improving agent harness, judged by its own history.
 
-Rust implementation of `hairspring_engineering_design_v4` (spec in the
+Rust implementation of `hairspring_engineering_design_v5` (spec in the
 closed-loop-signal-lab Drive folder). The build order's 8 proof gates are the
 plan; each gate is a commit + tag (`gate-1`, `gate-2`, ...). Nothing is built
 ahead of its gate - the spec's cut list applies to this repo.

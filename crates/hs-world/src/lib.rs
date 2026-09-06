@@ -118,6 +118,11 @@ impl World {
         }
         Ok(())
     }
+    /// The canonical world stream id (proofs and snapshot verification read it).
+    pub fn world_stream(&self) -> uuid::Uuid {
+        self.world_stream
+    }
+
     pub fn log_root(&self) -> &std::path::Path {
         &self.log_root
     }
@@ -333,5 +338,207 @@ impl World {
     fn content_of(&self, a: &Artifact) -> Result<Vec<u8>, WorldError> {
         // content-addressed: blobs live in the log's blob store by hash
         hs_log::read_blob(&self.log_root, &a.content_hash).map_err(WorldError::Log)
+    }
+}
+
+// ---------------------------------------------------------------------
+// Recovery tier B (spec v5 "Recovery tiers"): snapshot restore. The
+// snapshot is content-addressed in the same blob store as the log: every
+// file is a blob, the manifest is a blob, and the manifest hash IS the
+// snapshot_ref. Restore re-walks the rehydrated tree and recomputes the
+// manifest hash - a byte off anywhere fails the restore, never silently.
+
+/// The full manifest: every directory (empty ones too - spec: "filesystem
+/// state back") plus every file with its content hash.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+pub struct SnapshotManifest {
+    pub dirs: Vec<String>,
+    pub files: Vec<SnapshotEntry>,
+}
+
+/// One manifest entry: a file, its content hash, and its length.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+pub struct SnapshotEntry {
+    pub path: String,
+    pub hash: String,
+    pub len: u64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SnapshotReport {
+    pub snapshot_id: String,
+    pub files: u64,
+    pub bytes: u64,
+    /// Measured, never rounded (spec: "cold measured and reported, not
+    /// rounded down").
+    pub took_ms: u128,
+}
+
+fn hex32(h: &[u8; 32]) -> String {
+    h.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+fn parse_hex32(s: &str) -> Result<[u8; 32], WorldError> {
+    let b = (0..s.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&s[i..i + 2], 16))
+        .collect::<Result<Vec<u8>, _>>()
+        .map_err(|e| WorldError::Rejected(format!("bad snapshot id: {e}")))?;
+    b.try_into()
+        .map_err(|_| WorldError::Rejected("snapshot id must be 32 bytes hex".into()))
+}
+
+/// Deterministic full-tree walk: sorted relative dir paths + file bytes.
+fn walk_tree(root: &Path) -> Result<(Vec<String>, Vec<(String, Vec<u8>)>), WorldError> {
+    let mut dirs: Vec<String> = Vec::new();
+    let mut out: Vec<(String, Vec<u8>)> = Vec::new();
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let mut names: Vec<_> = std::fs::read_dir(&dir)
+            .map_err(|e| WorldError::Rejected(format!("snapshot walk {}: {e}", dir.display())))?
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name())
+            .collect();
+        names.sort();
+        for name in names {
+            let p = dir.join(&name);
+            let md = std::fs::metadata(&p)
+                .map_err(|e| WorldError::Rejected(format!("stat {}: {e}", p.display())))?;
+            if md.is_dir() {
+                let rel = p
+                    .strip_prefix(root)
+                    .unwrap()
+                    .to_string_lossy()
+                    .replace(std::path::MAIN_SEPARATOR, "/");
+                dirs.push(rel);
+                stack.push(p);
+            } else if md.is_file() {
+                let rel = p
+                    .strip_prefix(root)
+                    .unwrap()
+                    .to_string_lossy()
+                    .replace(std::path::MAIN_SEPARATOR, "/");
+                let data = std::fs::read(&p)
+                    .map_err(|e| WorldError::Rejected(format!("read {}: {e}", p.display())))?;
+                out.push((rel, data));
+            }
+            // symlinks and special files are followed by metadata() /
+            // skipped deliberately: mission trees are regular files + dirs.
+        }
+    }
+    dirs.sort();
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    Ok((dirs, out))
+}
+
+fn manifest_bytes(m: &SnapshotManifest) -> Vec<u8> {
+    // Canonical: the walk is path-sorted and serde_json emits struct fields
+    // in declaration order, so the encoding is deterministic.
+    serde_json::to_vec(m).unwrap()
+}
+
+impl World {
+    /// Capture the full tree (source, .git, venv, build artifacts) into the
+    /// content-addressed store and record a SnapshotRef event naming the
+    /// manifest hash. Dedup is free: identical files hash to the same blob.
+    pub fn snapshot(&self, ws: &Path) -> Result<SnapshotReport, WorldError> {
+        let t0 = std::time::Instant::now();
+        let (dirs, tree) = walk_tree(ws)?;
+        let mut manifest_files: Vec<SnapshotEntry> = Vec::with_capacity(tree.len());
+        let mut bytes = 0u64;
+        for (rel, data) in &tree {
+            let hash = hs_log::write_blob(&self.log_root, data)?;
+            bytes += data.len() as u64;
+            manifest_files.push(SnapshotEntry {
+                path: rel.clone(),
+                hash: hex32(&hash),
+                len: data.len() as u64,
+            });
+        }
+        let manifest = SnapshotManifest { dirs, files: manifest_files };
+        let manifest_hash = hs_log::write_blob(&self.log_root, &manifest_bytes(&manifest))?;
+        let snapshot_id = hex32(&manifest_hash);
+        let rep = SnapshotReport {
+            snapshot_id: snapshot_id.clone(),
+            files: manifest.files.len() as u64,
+            bytes,
+            took_ms: t0.elapsed().as_millis(),
+        };
+        let mut w = StreamWriter::resume(&self.log_root, self.world_stream)?.writer;
+        w.append(
+            EventBuilder::new(EventKind::SnapshotRef)
+                .payload(Payload::Inline(serde_json::to_vec(&rep).unwrap())),
+        )?;
+        Ok(rep)
+    }
+
+    /// Rehydrate a snapshot into dest and PROVE it: the tree is re-walked
+    /// and the manifest hash recomputed; any mismatch fails the restore.
+    pub fn restore(&self, snapshot_id: &str, dest: &Path) -> Result<SnapshotReport, WorldError> {
+        let t0 = std::time::Instant::now();
+        let manifest_hash = parse_hex32(snapshot_id)?;
+        let mbytes = hs_log::read_blob(&self.log_root, &manifest_hash).map_err(|_| {
+            WorldError::Rejected(format!("unknown snapshot id {snapshot_id}"))
+        })?;
+        let manifest: SnapshotManifest = serde_json::from_slice(&mbytes)
+            .map_err(|e| WorldError::Rejected(format!("corrupt manifest: {e}")))?;
+        std::fs::create_dir_all(dest)
+            .map_err(|e| WorldError::Rejected(format!("mkdir {}: {e}", dest.display())))?;
+        for d in &manifest.dirs {
+            let dp = dest.join(d);
+            if !dp.starts_with(dest) {
+                return Err(WorldError::Rejected(format!("manifest dir escapes dest: {d}")));
+            }
+            std::fs::create_dir_all(&dp)
+                .map_err(|e| WorldError::Rejected(format!("mkdir {}: {e}", dp.display())))?;
+        }
+        let mut bytes = 0u64;
+        for e in &manifest.files {
+            let hash = parse_hex32(&e.hash)?;
+            let data = hs_log::read_blob(&self.log_root, &hash)
+                .map_err(|_| WorldError::Rejected(format!("missing blob {} for {}", e.hash, e.path)))?;
+            if data.len() as u64 != e.len {
+                return Err(WorldError::Rejected(format!("length mismatch on {}", e.path)));
+            }
+            let dest_p = dest.join(&e.path);
+            // path-escape guard: a forged manifest must not write outside dest
+            if !dest_p.starts_with(dest) {
+                return Err(WorldError::Rejected(format!("manifest path escapes dest: {}", e.path)));
+            }
+            if let Some(parent) = dest_p.parent() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e2| WorldError::Rejected(format!("mkdir {}: {e2}", parent.display())))?;
+            }
+            std::fs::write(&dest_p, &data)
+                .map_err(|e2| WorldError::Rejected(format!("write {}: {e2}", dest_p.display())))?;
+            bytes += data.len() as u64;
+        }
+        // Verify: rebuild the manifest from the rehydrated tree.
+        let (rdirs, tree) = walk_tree(dest)?;
+        let rfiles: Vec<SnapshotEntry> = tree
+            .iter()
+            .map(|(rel, data)| {
+                let h: [u8; 32] = sha2::Sha256::digest(data).into();
+                SnapshotEntry {
+                    path: rel.clone(),
+                    hash: hex32(&h),
+                    len: data.len() as u64,
+                }
+            })
+            .collect();
+        let rebuilt = SnapshotManifest { dirs: rdirs, files: rfiles };
+        let rebuilt_bytes = manifest_bytes(&rebuilt);
+        let rebuilt_hash: [u8; 32] = sha2::Sha256::digest(&rebuilt_bytes).into();
+        if rebuilt_hash != manifest_hash {
+            return Err(WorldError::Rejected(
+                "restore verification failed: rehydrated tree does not match the snapshot manifest".into(),
+            ));
+        }
+        Ok(SnapshotReport {
+            snapshot_id: snapshot_id.to_string(),
+            files: manifest.files.len() as u64,
+            bytes,
+            took_ms: t0.elapsed().as_millis(),
+        })
     }
 }
