@@ -300,7 +300,7 @@ pub fn apply_model_patch(workspace: &Path, patch: &str) -> Result<ApplyResult, B
     if patch.trim().is_empty() {
         return Ok(ApplyResult::NoApply("empty patch".into()));
     }
-    let patch_path = workspace.join(".bench-model.patch");
+    let patch_path = workspace.join(".hs-eval.patch");
     std::fs::write(&patch_path, patch)?;
     let out = Command::new("git")
         .args(["apply", "--whitespace=nowarn"])

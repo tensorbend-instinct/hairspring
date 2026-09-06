@@ -38,8 +38,8 @@ fn ensure_candidate(ws: &Path) -> Result<PathBuf, Value> {
 }
 
 fn read_cumulative(cand: &Path) -> Result<String, Value> {
-    // the apply helper drops .bench-model.patch in the tree; never stage it
-    let _ = std::fs::remove_file(cand.join(".bench-model.patch"));
+    // the apply helper drops .hs-eval.patch in the tree; never stage it
+    let _ = std::fs::remove_file(cand.join(".hs-eval.patch"));
     let out = git(cand, &["add", "-A"]);
     if !out.status.success() {
         return Err(json!({"$error": format!("candidate stage: {}", String::from_utf8_lossy(&out.stderr))}));
@@ -65,15 +65,15 @@ pub fn apply(ws: &Path, diff: &str) -> Value {
     match hs_bench::apply_model_patch(&cand, &patch) {
         Ok(hs_bench::ApplyResult::Applied) => {}
         Ok(hs_bench::ApplyResult::NoApply(msg)) => {
-            let _ = std::fs::remove_file(cand.join(".bench-model.patch"));
+            let _ = std::fs::remove_file(cand.join(".hs-eval.patch"));
             return json!({"applied": false, "apply_error": msg});
         }
         Err(e) => {
-            let _ = std::fs::remove_file(cand.join(".bench-model.patch"));
+            let _ = std::fs::remove_file(cand.join(".hs-eval.patch"));
             return json!({"$error": format!("apply machinery: {e:?}")});
         }
     }
-    let _ = std::fs::remove_file(cand.join(".bench-model.patch"));
+    let _ = std::fs::remove_file(cand.join(".hs-eval.patch"));
     match read_cumulative(&cand) {
         Ok(cd) => {
             let files: Vec<&str> = cd.lines()

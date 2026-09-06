@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 /// The builtin template. Placeholders: {ws} {problem_statement}
 /// {fail_to_pass} {repo_layout} {answer_path} {nudge}. Unknown placeholders
 /// are left intact so policy authors can extend the arg set additively.
-pub const SWE_MISSION_TEMPLATE: &str = "You are fixing a real bug in the repository checked out at {ws} (base commit, failing tests already added).\n\
+pub const SWE_MISSION_TEMPLATE: &str = "You are fixing a real bug in the repository checked out at {ws} (base commit, failing tests already added). repo.exec sees the repo at /ws; every tool takes repo-relative paths.\n\
 MACHINE: you are on a real Linux box as root, not a toy sandbox. {network_line} System roots are writable - apt-get/pip/cargo/npm all work. Host-only paths stay hidden (/home, /mnt). Detected tooling: {orientation}\n\
 PROBLEM STATEMENT (from the issue tracker):\n{problem_statement}\n\n\
 The checker will apply your patch and run: {fail_to_pass}\n\
