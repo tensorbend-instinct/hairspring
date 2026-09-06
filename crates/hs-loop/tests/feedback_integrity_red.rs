@@ -221,3 +221,95 @@ fn mission_prompt_makes_feedback_repair_binding() {
     assert!(p.contains("replayed"), "the prompt names the verdict-cache replay: {p}");
     assert!(!p.contains("repair and continue"), "no advisory dodge left: {p}");
 }
+
+const SCRIPTED: &str = env!("CARGO_BIN_EXE_hs-plugin-scripted");
+
+fn config_for(dir: &std::path::Path, checker_bin: &str, model_bin: &str, model_name: &str) -> std::path::PathBuf {
+    let c = format!(
+        r#"
+[[tools]]
+name = "answer.write"
+command = ["{ANSWER}"]
+subjects = ["*"]
+
+[[tools]]
+name = "checker.run"
+command = ["{checker_bin}"]
+subjects = ["*"]
+
+[[models]]
+name = "{model_name}"
+command = ["{model_bin}"]
+default = true
+"#
+    );
+    let p = dir.join("hairspring.toml");
+    std::fs::write(&p, c).unwrap();
+    p
+}
+
+/// Finding 2: the ratchet cap banked a PASS byte-identical to a verified
+/// one - result.json could not tell "refuted 3x then the cap freed it"
+/// from "audited and accepted". The result carries an outcome label.
+#[test]
+fn ratchet_cap_pass_is_labeled_ratchet_capped() {
+    let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let dir = tempfile::tempdir().unwrap();
+    let log = tempfile::tempdir().unwrap();
+    let answer = log.path().join("work").join("task-12").join("answer.txt");
+    let script = dir.path().join("script.jsonl");
+    std::fs::write(&script, format!(
+        "{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"TOKEN-12-SECRET\"}}}}",
+        answer.display())).unwrap();
+    std::env::set_var("HS_VF_SCRIPT", &script);
+    let config = config_for(dir.path(), CHECKER, VFMODEL, "vfmodel");
+    let kernel = hs_kernel::Kernel::load(&config).unwrap();
+    let mut l = InnerLoop::new(kernel, log.path(), true, 6).unwrap();
+    let r = l.run_mission("task-12").unwrap();
+    assert!(r.passed, "cap reached: the mission resolves: {r:?}");
+    assert_eq!(r.outcome, "ratchet_capped", "a capped pass is labeled, never silent: {r:?}");
+}
+
+/// Finding 3: a verifier malfunction (unparseable verdict, dead worker)
+/// banked the same silent PASS. Labeled too.
+#[test]
+fn malfunction_pass_is_labeled_verifier_malfunction() {
+    let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let dir = tempfile::tempdir().unwrap();
+    let log = tempfile::tempdir().unwrap();
+    let answer = log.path().join("work").join("task-13").join("answer.txt");
+    let script = dir.path().join("script.jsonl");
+    std::fs::write(&script, format!(
+        "{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"TOKEN-13-SECRET\"}}}}",
+        answer.display())).unwrap();
+    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    let config = config_for(dir.path(), CHECKER, SCRIPTED, "scripted");
+    let kernel = hs_kernel::Kernel::load(&config).unwrap();
+    let mut l = InnerLoop::new(kernel, log.path(), true, 4).unwrap();
+    let r = l.run_mission("task-13").unwrap();
+    assert!(r.passed, "a broken verifier cannot block good work: {r:?}");
+    assert_eq!(r.outcome, "verifier_malfunction", "a malfunction pass is labeled, never silent: {r:?}");
+}
+
+/// The normal path: audited and accepted - labeled "verified".
+#[test]
+fn audited_pass_is_labeled_verified() {
+    let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let dir = tempfile::tempdir().unwrap();
+    let log = tempfile::tempdir().unwrap();
+    let ws = git_ws(dir.path());
+    std::env::set_var("HS_SWE_WORKSPACE", &ws);
+    let answer = log.path().join("work").join("task-14").join("answer.txt");
+    let diff = "```diff\\n--- a/code.txt\\n+++ b/code.txt\\n@@ -1 +1 @@\\n-broken\\n+fixed\\n```";
+    let script = dir.path().join("script.jsonl");
+    std::fs::write(&script, format!(
+        "{{\"tool\":\"repo.exec\",\"args\":{{\"command\":\"cat code.txt\",\"diff\":\"{diff}\"}}}}\n{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"TOKEN-14-SECRET\"}}}}",
+        answer.display())).unwrap();
+    std::env::set_var("HS_VF_SCRIPT", &script);
+    let config = config_with(dir.path(), CHECKER, true);
+    let kernel = hs_kernel::Kernel::load(&config).unwrap();
+    let mut l = InnerLoop::new(kernel, log.path(), true, 5).unwrap();
+    let r = l.run_mission("task-14").unwrap();
+    assert!(r.passed, "honest verified work passes: {r:?}");
+    assert_eq!(r.outcome, "verified", "the audited path is labeled: {r:?}");
+}

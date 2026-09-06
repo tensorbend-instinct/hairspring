@@ -74,6 +74,14 @@ pub struct MissionResult {
     /// the plugin and the real cause. Harness-aborted missions book their
     /// steps-so-far; they are infrastructure failures, not model failures.
     pub harness_error: Option<String>,
+    /// How the mission resolved (feedback integrity F2/F3): "verified"
+    /// (checker green + verifier audited and accepted), "ratchet_capped"
+    /// (checker green but the verifier refuted every round and the cap
+    /// freed the submit), "verifier_malfunction" (checker green, the
+    /// audit itself errored and never blocked), "budget_killed",
+    /// "steps_exhausted", "harness_error". A capped or malfunction pass
+    /// is never byte-identical to an audited one again.
+    pub outcome: String,
 }
 
 pub struct InnerLoop {
@@ -320,6 +328,7 @@ impl InnerLoop {
             answer_path: answer_path.to_path_buf(),
             budget_killed: false,
             harness_error: Some(msg),
+            outcome: "harness_error".to_string(),
         })
     }
 
@@ -583,6 +592,7 @@ impl InnerLoop {
                         answer_path,
                         budget_killed: true,
                         harness_error: None,
+                        outcome: "budget_killed".to_string(),
                     });
                 }
             }
@@ -915,6 +925,7 @@ impl InnerLoop {
             answer_path,
             budget_killed: false,
             harness_error: None,
+            outcome: "steps_exhausted".to_string(),
         })
     }
 
@@ -990,7 +1001,7 @@ impl InnerLoop {
                 .unwrap(),
             )),
         )?;
-        Ok(StopGreen::Banked(self.bank_pass(mission, answer_path, steps, *model_calls)?))
+        Ok(StopGreen::Banked(self.bank_pass(mission, answer_path, steps, *model_calls, "ratchet_capped")?))
     }
 
     /// Mission banking on a green verdict: GoalUpdate + checkpoint + the
@@ -1001,6 +1012,7 @@ impl InnerLoop {
         answer_path: &Path,
         steps: u32,
         model_calls: u32,
+        outcome: &str,
     ) -> Result<MissionResult, LoopError> {
         self.writer.append(
             EventBuilder::new(EventKind::GoalUpdate).payload(Payload::Inline(
@@ -1017,6 +1029,7 @@ impl InnerLoop {
             answer_path: answer_path.to_path_buf(),
             budget_killed: false,
             harness_error: None,
+            outcome: outcome.to_string(),
         })
     }
 
@@ -1034,6 +1047,7 @@ impl InnerLoop {
         pending_feedback: &mut Vec<String>,
     ) -> Result<StopGreen, LoopError> {
         let answer_text = std::fs::read_to_string(answer_path).unwrap_or_default();
+        let mut sync_outcome = "verified";
         let vprompt = verifier::build_verifier_prompt(mission, &answer_text, &self.ledger, &self.prior_gaps);
         let verdict_tools = serde_json::json!([crate::toolschema::verdict_tool()]);
         match self.kernel.call_model_with("operator", None, &vprompt, Some(&verdict_tools)) {
@@ -1091,6 +1105,7 @@ impl InnerLoop {
                         )?;
                     }
                     Err(detail) => {
+                        sync_outcome = "verifier_malfunction";
                         self.writer.append(
                             EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
                                 serde_json::to_vec(&serde_json::json!({
@@ -1104,6 +1119,7 @@ impl InnerLoop {
                 }
             }
             Err(e) => {
+                sync_outcome = "verifier_malfunction";
                 self.writer.append(
                     EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
                         serde_json::to_vec(&serde_json::json!({
@@ -1115,7 +1131,7 @@ impl InnerLoop {
                 )?;
             }
         }
-        Ok(StopGreen::Banked(self.bank_pass(mission, answer_path, steps, *model_calls)?))
+        Ok(StopGreen::Banked(self.bank_pass(mission, answer_path, steps, *model_calls, sync_outcome)?))
     }
 
     /// Gate-8 async round: snapshot the ws, serve a PROVABLY identical
@@ -1337,7 +1353,7 @@ impl InnerLoop {
                     )),
                 )?;
                 // malfunction never blocks: the checker verdict stands
-                Ok(Some(self.bank_pass(mission, answer_path, steps, *model_calls)?))
+                Ok(Some(self.bank_pass(mission, answer_path, steps, *model_calls, "verifier_malfunction")?))
             }
             verifier::VerdictMsg::CallFailed { round, detail, .. } => {
                 self.writer.append(
@@ -1349,7 +1365,7 @@ impl InnerLoop {
                         .unwrap(),
                     )),
                 )?;
-                Ok(Some(self.bank_pass(mission, answer_path, steps, *model_calls)?))
+                Ok(Some(self.bank_pass(mission, answer_path, steps, *model_calls, "verifier_malfunction")?))
             }
         }
     }
@@ -1438,7 +1454,7 @@ impl InnerLoop {
                 .unwrap(),
             )),
         )?;
-        Ok(StopGreen::Banked(self.bank_pass(mission, answer_path, steps, *model_calls)?))
+        Ok(StopGreen::Banked(self.bank_pass(mission, answer_path, steps, *model_calls, "verified")?))
     }
 }
 

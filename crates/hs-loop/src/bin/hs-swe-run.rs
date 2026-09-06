@@ -321,6 +321,7 @@ default = true
         "cost_micros": cost,
         "budget_killed": r.budget_killed,
         "harness_error": r.harness_error,
+        "outcome": r.outcome,
         "wall_secs": wall_secs,
     });
     std::fs::write(
