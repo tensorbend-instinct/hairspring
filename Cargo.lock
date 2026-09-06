@@ -571,6 +571,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "hs-hashline"
+version = "0.1.0"
+
+[[package]]
 name = "hs-kernel"
 version = "0.1.0"
 dependencies = [
