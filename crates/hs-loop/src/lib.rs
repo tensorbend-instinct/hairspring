@@ -741,9 +741,15 @@ impl InnerLoop {
                         {
                             let last = self.doom_nudges.get(&plugin).copied().unwrap_or(0);
                             if last == 0 || count >= last + 2 {
-                                let note = format!(
-                                    "DOOM LOOP: {plugin} with effectively the same args {count} times in the last {DOOM_WINDOW} calls - repeating it is not working. STOP re-issuing it: change one thing materially (a different command, a different file, a different hypothesis), or verify and submit."
-                                );
+                                let note = if self.prior_gaps.is_empty() {
+                                    format!(
+                                        "DOOM LOOP: {plugin} with effectively the same args {count} times in the last {DOOM_WINDOW} calls - repeating it is not working. STOP re-issuing it: change one thing materially (a different command, a different file, a different hypothesis), or verify and submit."
+                                    )
+                                } else {
+                                    format!(
+                                        "DOOM LOOP: {plugin} with effectively the same args {count} times in the last {DOOM_WINDOW} calls - repeating it is not working. The verifier REFUTED your last submission: re-issuing this call repairs nothing. Change one thing materially (a different command, a different file, a different hypothesis) to address the findings in FEEDBACK."
+                                    )
+                                };
                                 self.writer.append(
                                     EventBuilder::new(EventKind::ContextInject).payload(
                                         Payload::Inline(
