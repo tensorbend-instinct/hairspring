@@ -7,7 +7,7 @@ download locks, flocked ledger appends."""
 import fcntl, json, os, shlex, shutil, subprocess, sys, threading, time, urllib.request
 
 S50 = os.environ.get("S50", "/home/sandbox/swbench/subset50")
-TASK_WALL_SECS = int(os.environ.get("HS_SUBSET_WALL_SECS", "3600"))
+TASK_WALL_SECS = int(os.environ.get("HS_SUBSET_WALL_SECS", "7200"))  # Eric 2026-09-05: 2h wall is a guard
 # Model under test (2026-09-05): env-selectable, config-first - the provider's
 # own env vars (HS_<MODEL>_API_KEY_FILE, HS_<MODEL>_EXTRA_BODY_JSON, HS_<MODEL>_MODEL)
 # carry model id and hyperparameters; nothing model-specific is hardcoded here.
@@ -23,7 +23,7 @@ LEDGER = os.path.join(S50, "ledger.csv")
 STATUS = os.path.join(S50, "status.json")
 CLAIMS = os.path.join(S50, "claims")
 GUARDRAIL = 50_000_000
-MAX_STEPS = os.environ.get("HS_SUBSET_MAX_STEPS", "50")
+MAX_STEPS = os.environ.get("HS_SUBSET_MAX_STEPS", "100000")  # Eric 2026-09-05: NO step/tool-call caps - budget + wall are the only guards
 PAR = int(os.environ.get("PAR", "4"))
 EXTRA_DEPS = {"haystack": "ddtrace opentelemetry-sdk",
               "streamlink": "freezegun requests-mock versioningit",
