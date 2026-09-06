@@ -384,6 +384,50 @@ pub fn write_blob(root: &Path, bytes: &[u8]) -> Result<[u8; 32], LogError> {
     }
 }
 
+/// Bulk blob write for large content sets (snapshots). Same
+/// content-addressed store and durability outcome as [write_blob] - every
+/// blob is complete and durable when this returns - but the flush is
+/// amortized: blobs are written, then a single syncfs commits the whole
+/// batch, instead of one fsync pair per blob.
+pub fn write_blobs_bulk(root: &Path, items: &[&[u8]]) -> Result<Vec<[u8; 32]>, LogError> {
+    let mut out = Vec::with_capacity(items.len());
+    let mut dirs_touched: std::collections::BTreeSet<PathBuf> = std::collections::BTreeSet::new();
+    for bytes in items {
+        let hash: [u8; 32] = Sha256::digest(bytes).into();
+        let path = blob_path_inner(root, &hash);
+        if !path.exists() {
+            let dir = path.parent().unwrap().to_path_buf();
+            fs::create_dir_all(&dir)?;
+            let tmp = dir.join(format!(".tmp-{}", Uuid::new_v4()));
+            {
+                let mut f = File::create(&tmp)?;
+                f.write_all(bytes)?;
+            }
+            fs::rename(&tmp, &path)?;
+            dirs_touched.insert(dir);
+        }
+        out.push(hash);
+    }
+    if !dirs_touched.is_empty() {
+        // One filesystem-level flush for the batch (Linux). Falls back to
+        // per-directory fsync where syncfs is unavailable.
+        #[cfg(target_os = "linux")]
+        {
+            let f = File::open(root)?;
+            let fd = std::os::unix::io::AsRawFd::as_raw_fd(&f);
+            let rc = unsafe { libc::syncfs(fd) };
+            if rc != 0 {
+                return Err(LogError::Io(std::io::Error::last_os_error()));
+            }
+        }
+        #[cfg(not(target_os = "linux"))]
+        for d in &dirs_touched {
+            fsync_dir(d)?;
+        }
+    }
+    Ok(out)
+}
+
 /// Read a blob by content hash.
 pub fn read_blob(root: &Path, hash: &[u8; 32]) -> Result<Vec<u8>, LogError> {
     Ok(fs::read(blob_path_inner(root, hash))?)

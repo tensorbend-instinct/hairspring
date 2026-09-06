@@ -10,6 +10,7 @@ hs-core = { path = "../hs-core" }
 sha2 = "0.10"
 uuid = { version = "1", features = ["v4", "serde"] }
 crc32fast = "1"
+libc = "0.2"
 
 [dev-dependencies]
 tempfile = "3"

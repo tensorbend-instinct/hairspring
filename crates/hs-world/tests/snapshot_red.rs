@@ -98,3 +98,26 @@ fn snapshot_lands_on_the_log_and_tampering_fails() {
     let bad = world.restore(&"0".repeat(64), &dir.path().join("x"));
     assert!(bad.is_err(), "unknown snapshot id must fail loudly");
 }
+
+#[test]
+fn snapshot_preserves_symlinks_as_symlinks() {
+    // Real mission trees (venvs especially) are full of symlinks. Following
+    // them duplicates content and loses structure; the snapshot must record
+    // them as links and restore them as links.
+    let dir = tempfile::tempdir().unwrap();
+    let ws = dir.path().join("ws");
+    std::fs::create_dir_all(ws.join("venv/bin")).unwrap();
+    std::fs::write(ws.join("venv/bin/python3.12"), b"#!/bin/sh\n").unwrap();
+    std::os::unix::fs::symlink("python3.12", ws.join("venv/bin/python")).unwrap();
+    std::os::unix::fs::symlink("/nonexistent-target-xyz", ws.join("venv/dangling")).unwrap();
+    let log_root = dir.path().join("log");
+    let world = hs_world::World::open(&log_root).unwrap();
+    let rep = world.snapshot(&ws).unwrap();
+    std::fs::remove_dir_all(&ws).unwrap();
+    world.restore(&rep.snapshot_id, &ws).unwrap();
+    let md = std::fs::symlink_metadata(ws.join("venv/bin/python")).unwrap();
+    assert!(md.file_type().is_symlink(), "python must be restored as a symlink");
+    assert_eq!(std::fs::read_link(ws.join("venv/bin/python")).unwrap().to_string_lossy(), "python3.12");
+    assert_eq!(std::fs::read_link(ws.join("venv/dangling")).unwrap().to_string_lossy(), "/nonexistent-target-xyz");
+    assert_eq!(std::fs::read(ws.join("venv/bin/python3.12")).unwrap(), b"#!/bin/sh\n");
+}

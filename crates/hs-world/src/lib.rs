@@ -354,6 +354,16 @@ impl World {
 pub struct SnapshotManifest {
     pub dirs: Vec<String>,
     pub files: Vec<SnapshotEntry>,
+    /// Symlinks recorded as links (target string), never followed: real
+    /// mission trees (venvs) are full of them, including dangling ones.
+    pub symlinks: Vec<SymlinkEntry>,
+}
+
+/// A symlink: relative path and its verbatim target.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+pub struct SymlinkEntry {
+    pub path: String,
+    pub target: String,
 }
 
 /// One manifest entry: a file, its content hash, and its length.
@@ -389,8 +399,13 @@ fn parse_hex32(s: &str) -> Result<[u8; 32], WorldError> {
 }
 
 /// Deterministic full-tree walk: sorted relative dir paths + file bytes.
-fn walk_tree(root: &Path) -> Result<(Vec<String>, Vec<(String, Vec<u8>)>), WorldError> {
+/// (dirs, symlinks, files). symlink_metadata: links are recorded, never
+/// followed - a dangling link must not kill the snapshot.
+fn walk_tree(
+    root: &Path,
+) -> Result<(Vec<String>, Vec<SymlinkEntry>, Vec<(String, Vec<u8>)>), WorldError> {
     let mut dirs: Vec<String> = Vec::new();
+    let mut links: Vec<SymlinkEntry> = Vec::new();
     let mut out: Vec<(String, Vec<u8>)> = Vec::new();
     let mut stack = vec![root.to_path_buf()];
     while let Some(dir) = stack.pop() {
@@ -402,33 +417,36 @@ fn walk_tree(root: &Path) -> Result<(Vec<String>, Vec<(String, Vec<u8>)>), World
         names.sort();
         for name in names {
             let p = dir.join(&name);
-            let md = std::fs::metadata(&p)
+            let rel = p
+                .strip_prefix(root)
+                .unwrap()
+                .to_string_lossy()
+                .replace(std::path::MAIN_SEPARATOR, "/");
+            let md = std::fs::symlink_metadata(&p)
                 .map_err(|e| WorldError::Rejected(format!("stat {}: {e}", p.display())))?;
-            if md.is_dir() {
-                let rel = p
-                    .strip_prefix(root)
-                    .unwrap()
-                    .to_string_lossy()
-                    .replace(std::path::MAIN_SEPARATOR, "/");
+            if md.file_type().is_symlink() {
+                let target = std::fs::read_link(&p)
+                    .map_err(|e| WorldError::Rejected(format!("readlink {}: {e}", p.display())))?;
+                links.push(SymlinkEntry {
+                    path: rel,
+                    target: target.to_string_lossy().into_owned(),
+                });
+            } else if md.is_dir() {
                 dirs.push(rel);
                 stack.push(p);
             } else if md.is_file() {
-                let rel = p
-                    .strip_prefix(root)
-                    .unwrap()
-                    .to_string_lossy()
-                    .replace(std::path::MAIN_SEPARATOR, "/");
                 let data = std::fs::read(&p)
                     .map_err(|e| WorldError::Rejected(format!("read {}: {e}", p.display())))?;
                 out.push((rel, data));
             }
-            // symlinks and special files are followed by metadata() /
-            // skipped deliberately: mission trees are regular files + dirs.
+            // sockets/fifos/devices have no place in a mission snapshot and
+            // cannot be rehydrated meaningfully; skipped deliberately.
         }
     }
     dirs.sort();
+    links.sort_by(|a, b| a.path.cmp(&b.path));
     out.sort_by(|a, b| a.0.cmp(&b.0));
-    Ok((dirs, out))
+    Ok((dirs, links, out))
 }
 
 fn manifest_bytes(m: &SnapshotManifest) -> Vec<u8> {
@@ -443,19 +461,37 @@ impl World {
     /// manifest hash. Dedup is free: identical files hash to the same blob.
     pub fn snapshot(&self, ws: &Path) -> Result<SnapshotReport, WorldError> {
         let t0 = std::time::Instant::now();
-        let (dirs, tree) = walk_tree(ws)?;
+        let (dirs, symlinks, tree) = walk_tree(ws)?;
         let mut manifest_files: Vec<SnapshotEntry> = Vec::with_capacity(tree.len());
         let mut bytes = 0u64;
-        for (rel, data) in &tree {
-            let hash = hs_log::write_blob(&self.log_root, data)?;
-            bytes += data.len() as u64;
-            manifest_files.push(SnapshotEntry {
-                path: rel.clone(),
-                hash: hex32(&hash),
-                len: data.len() as u64,
-            });
+        // Bulk-write in ~256 MiB batches: one flush per batch instead of one
+        // fsync pair per blob (47k-file trees went from ~90 s to seconds).
+        const BATCH: usize = 256 * 1024 * 1024;
+        let mut i = 0;
+        while i < tree.len() {
+            let mut j = i;
+            let mut batch_bytes = 0usize;
+            while j < tree.len() && batch_bytes + tree[j].1.len() <= BATCH {
+                batch_bytes += tree[j].1.len();
+                j += 1;
+            }
+            if j == i {
+                j = i + 1; // single file larger than the batch
+            }
+            let refs: Vec<&[u8]> = tree[i..j].iter().map(|(_, d)| d.as_slice()).collect();
+            let hashes = hs_log::write_blobs_bulk(&self.log_root, &refs)?;
+            for (k, hash) in hashes.iter().enumerate() {
+                let (rel, data) = &tree[i + k];
+                bytes += data.len() as u64;
+                manifest_files.push(SnapshotEntry {
+                    path: rel.clone(),
+                    hash: hex32(hash),
+                    len: data.len() as u64,
+                });
+            }
+            i = j;
         }
-        let manifest = SnapshotManifest { dirs, files: manifest_files };
+        let manifest = SnapshotManifest { dirs, files: manifest_files, symlinks };
         let manifest_hash = hs_log::write_blob(&self.log_root, &manifest_bytes(&manifest))?;
         let snapshot_id = hex32(&manifest_hash);
         let rep = SnapshotReport {
@@ -484,6 +520,18 @@ impl World {
             .map_err(|e| WorldError::Rejected(format!("corrupt manifest: {e}")))?;
         std::fs::create_dir_all(dest)
             .map_err(|e| WorldError::Rejected(format!("mkdir {}: {e}", dest.display())))?;
+        for l in &manifest.symlinks {
+            let lp = dest.join(&l.path);
+            if !lp.starts_with(dest) {
+                return Err(WorldError::Rejected(format!("manifest link escapes dest: {}", l.path)));
+            }
+            if let Some(parent) = lp.parent() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| WorldError::Rejected(format!("mkdir {}: {e}", parent.display())))?;
+            }
+            std::os::unix::fs::symlink(&l.target, &lp)
+                .map_err(|e| WorldError::Rejected(format!("symlink {}: {e}", lp.display())))?;
+        }
         for d in &manifest.dirs {
             let dp = dest.join(d);
             if !dp.starts_with(dest) {
@@ -514,7 +562,7 @@ impl World {
             bytes += data.len() as u64;
         }
         // Verify: rebuild the manifest from the rehydrated tree.
-        let (rdirs, tree) = walk_tree(dest)?;
+        let (rdirs, rlinks, tree) = walk_tree(dest)?;
         let rfiles: Vec<SnapshotEntry> = tree
             .iter()
             .map(|(rel, data)| {
@@ -526,7 +574,7 @@ impl World {
                 }
             })
             .collect();
-        let rebuilt = SnapshotManifest { dirs: rdirs, files: rfiles };
+        let rebuilt = SnapshotManifest { dirs: rdirs, files: rfiles, symlinks: rlinks };
         let rebuilt_bytes = manifest_bytes(&rebuilt);
         let rebuilt_hash: [u8; 32] = sha2::Sha256::digest(&rebuilt_bytes).into();
         if rebuilt_hash != manifest_hash {
