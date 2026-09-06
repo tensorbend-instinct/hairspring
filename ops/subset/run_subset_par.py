@@ -104,6 +104,7 @@ def worker_venv(wid, slug):
     (missing pytest, missing pip, missing ensurepip) - verify the import
     and repair loudly: pip route first, full recreate under the lock if
     the venv is beyond repair."""
+    os.makedirs(VENV, exist_ok=True)
     vd = os.path.join(VENV, f"w{wid}", slug)
     py = os.path.join(vd, "bin", "python")
     deps = EXTRA_DEPS.get(slug, "")
