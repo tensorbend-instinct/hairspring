@@ -398,6 +398,14 @@ impl InnerLoop {
                     cap as f64 / 1e6
                 ));
             }
+            let mut injected = false;
+            if self.feedback_injection && !drained.is_empty() {
+                volatile.push_str("FEEDBACK:\n");
+                for f in &drained {
+                    volatile.push_str(&format!("- {f}\n"));
+                }
+                injected = true;
+            }
             volatile.push_str(&format!(
                 "\nANSWER_PATH: {}\nARTIFACT: {}\n",
                 answer_path.display(),
@@ -427,14 +435,6 @@ impl InnerLoop {
             } else {
                 None
             };
-            let mut injected = false;
-            if self.feedback_injection && !drained.is_empty() {
-                volatile.push_str("FEEDBACK:\n");
-                for f in &drained {
-                    volatile.push_str(&format!("- {f}\n"));
-                }
-                injected = true;
-            }
             // D2/D1: the LEDGER summary is always resident (bounded); the
             // history is a token-budgeted projection of the stream's own
             // ToolCall events, replayed as native assistant/tool pairs. No
