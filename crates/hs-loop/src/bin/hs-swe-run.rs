@@ -262,13 +262,6 @@ default = true
 
     let kernel = hs_kernel::Kernel::load(&config).expect("kernel load");
     let mut l = hs_loop::InnerLoop::new(kernel, &log_root, feedback, max_steps).expect("loop");
-    // Gate-8 async verifier seam (promotion-gated): HS_ASYNC_VERIFY=1 turns
-    // on speculative continuation + the verdict cache. Off = today's
-    // synchronous baseline, untouched.
-    if std::env::var("HS_ASYNC_VERIFY").as_deref() == Ok("1") {
-        let ws = std::env::var("HS_SWE_WORKSPACE").expect("HS_SWE_WORKSPACE for async verify");
-        l.set_async_verify(std::path::Path::new(&ws));
-    }
     l.set_budget_micros(budget_micros);
     l.set_tools(serde_json::Value::Array(native_tools));
     if let Some(w) = wall_secs {

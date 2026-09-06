@@ -29,9 +29,6 @@ pub struct Ledger {
     restored_before: Option<u64>,
     open_threads: Vec<String>,
     last_calls: VecDeque<(String, u64, u64, u64)>, // (plugin, args_hash, args_hash_normalized, seq)
-    /// seqs of answer-path writes (gate-8 verdict cache): submission
-    /// receipts are bookkeeping, not evidence - the evidence key skips them.
-    answer_writes: std::collections::HashSet<u64>,
 }
 
 fn args_hash(args: &Value) -> u64 {
@@ -140,7 +137,6 @@ impl Ledger {
             }
             "answer.write" => {
                 if let Some(p) = args["path"].as_str() {
-                    self.answer_writes.insert(seq);
                     self.edits.push((seq, p.to_string()));
                 }
             }
@@ -169,40 +165,6 @@ impl Ledger {
             }
             _ => {}
         }
-    }
-
-    /// Gate-8 verdict cache: a content key over the ledger's EVIDENCE
-    /// sections - files read (paths + merged ranges), ws edits, test runs
-    /// (command + verdict), open threads - excluding submission receipts
-    /// (answer-path writes) and sequence numbers, so a byte-identical
-    /// resubmission hashes identically. Combined with the ws snapshot id
-    /// (which pins every byte of the tree), this covers everything the
-    /// verifier's audit can consult.
-    pub fn evidence_key(&self) -> String {
-        use std::fmt::Write;
-        let mut s = String::new();
-        for (f, ranges) in &self.files_read {
-            let _ = write!(s, "R{f}:");
-            for (a, b) in ranges {
-                let _ = write!(s, "{a}-{b},");
-            }
-            s.push(';');
-        }
-        for (seq, f) in &self.edits {
-            if self.answer_writes.contains(seq) {
-                continue;
-            }
-            let _ = write!(s, "E{f};");
-        }
-        for (_, cmd, ok, tail) in &self.test_runs {
-            let _ = write!(s, "T{cmd}:{ok}:{tail};");
-        }
-        for t in &self.open_threads {
-            let _ = write!(s, "O{t};");
-        }
-        let mut h = DefaultHasher::new();
-        std::hash::Hash::hash(&s, &mut h);
-        format!("{:016x}", h.finish())
     }
 
     /// True once the MODEL has verified something itself (a repo.exec run).
