@@ -39,12 +39,18 @@ pub fn sandbox_argv(scratch: &Path, _out_f: &Path, _err_f: &Path, cmd: &str) -> 
 }} >/ws/.repexec-out 2>/ws/.repexec-err");
     let mut v: Vec<String> = [
         "prlimit", "--as=8589934592", "--nproc=512", "--fsize=8589934592", "--nofile=4096",
-        "--", "bwrap", "--share-net", "--unshare-pid", "--unshare-ipc", "--die-with-parent", "--clearenv",
+        "--", "bwrap", "--unshare-pid", "--unshare-ipc", "--die-with-parent", "--clearenv",
         "--bind", "/usr", "/usr", "--bind", "/bin", "/bin",
     ]
     .iter()
     .map(|s| s.to_string())
     .collect();
+    // Egress switch (2026-09-06, contamination re-baseline prep): default is
+    // host network; HS_SWE_NET=off drops --share-net so bwrap unshares the
+    // net namespace - no outbound, no loopback. Gold-patch fetching dies.
+    if !egress_off() {
+        v.push("--share-net".into());
+    }
     for d in ["/lib", "/lib64", "/etc", "/var", "/opt", "/root"] {
         if Path::new(d).exists() {
             v.push("--bind".into());
@@ -377,6 +383,26 @@ fn run_with_prep(prepped: Result<Option<PathBuf>, Value>, ws: &Path, command: &s
 /// session's goal evaluation died at exit 127 and recorded env_limited).
 /// Same scratch-worktree prep, same timeout discipline, exec on the host
 /// exactly where the standalone checker runs.
+/// Egress-off predicate (contamination re-baseline, 2026-09-06).
+pub fn egress_off() -> bool {
+    std::env::var("HS_SWE_NET").as_deref() == Ok("off")
+}
+
+/// The host-side eval command, wrapped for the egress policy. With
+/// HS_SWE_NET=off the f2p evaluator also loses network (unshare -n), so a
+/// test suite cannot fetch reference material either.
+pub fn host_command_wrapper(command: &str) -> String {
+    if egress_off() {
+        format!("unshare -n sh -c {}", shell_quote(command))
+    } else {
+        command.to_string()
+    }
+}
+
+fn shell_quote(c: &str) -> String {
+    format!("'{}'", c.replace('\'', "'\\''"))
+}
+
 pub fn run_host(ws: &Path, answer_path: &Path, command: &str, timeout_secs: u64) -> Value {
     let scratch = match prep(ws, answer_path) {
         Ok(Some(s)) => s,
@@ -385,7 +411,7 @@ pub fn run_host(ws: &Path, answer_path: &Path, command: &str, timeout_secs: u64)
     };
     let out_f = scratch.join(".repexec-out");
     let err_f = scratch.join(".repexec-err");
-    let wrapped = format!("{} >'{}' 2>'{}'", command.trim(), out_f.display(), err_f.display());
+    let wrapped = format!("{} >'{}' 2>'{}'", host_command_wrapper(command.trim()), out_f.display(), err_f.display());
     let child = Command::new("sh")
         .arg("-c")
         .arg(&wrapped)
