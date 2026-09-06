@@ -435,7 +435,7 @@ impl InnerLoop {
                 && !self.ledger.model_verified()
             {
                 let note = format!(
-                    "CONVERGENCE: step {step} of {} and you have not run a test or check yourself. Verify your current hypothesis NOW (run a test, a build, or a checker), or state in one line what you will change and how you will verify it.",
+                    "CONVERGENCE: step {step} of {} and you have not run a test or check yourself. Verify your current hypothesis NOW: run a test, a build, or the checker before your next edit.",
                     self.max_steps
                 );
                 volatile.push_str(&note);

@@ -313,3 +313,34 @@ fn audited_pass_is_labeled_verified() {
     assert!(r.passed, "honest verified work passes: {r:?}");
     assert_eq!(r.outcome, "verified", "the audited path is labeled: {r:?}");
 }
+
+/// Finding 10: the convergence nudge offered "or state in one line what
+/// you will change and how you will verify it" - prose the native
+/// protocol forbids (TOOLS: call exactly one per reply, no prose) and the
+/// mission's own WORK POLICY bans ("do the work in the current step
+/// instead of ending with an offer to do it later"). The nudge must
+/// demand verification, not offer a prose exit.
+#[test]
+fn convergence_nudge_offers_no_prose_exit() {
+    let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let dir = tempfile::tempdir().unwrap();
+    let log = tempfile::tempdir().unwrap();
+    let answer = log.path().join("work").join("task-15").join("answer.txt");
+    let script = dir.path().join("script.jsonl");
+    std::fs::write(&script, format!(
+        "{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"WRONG\"}}}}",
+        answer.display())).unwrap();
+    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    let config = config_for(dir.path(), CHECKER, SCRIPTED, "scripted");
+    let kernel = hs_kernel::Kernel::load(&config).unwrap();
+    let mut l = InnerLoop::new(kernel, log.path(), true, 4).unwrap();
+    let r = l.run_mission("task-15").unwrap();
+    assert!(!r.passed, "wrong answer never passes: {r:?}");
+    let ev = events_of(log.path(), r.stream_id);
+    let prompts = prompts_of(&ev);
+    let nudges: Vec<&String> = prompts.iter().filter(|p| p.contains("CONVERGENCE:")).collect();
+    assert!(!nudges.is_empty(), "the convergence nudge fires at the half-step with no self-verification");
+    for n in nudges {
+        assert!(!n.contains("or state"), "no prose exit the protocol forbids: {n}");
+    }
+}
