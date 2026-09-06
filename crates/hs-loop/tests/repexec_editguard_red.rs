@@ -174,10 +174,33 @@ fn prompt_steers_edits_only_via_edit_apply() {
     // 2026-09-06: the edit path is now edit.patch (Codex apply_patch
     // grammar); the guardrail property is unchanged: exactly ONE named edit
     // path, git apply forbidden.
+    // 2026-09-06 bake-off: the template carries {edit_tool}/{edit_policy}
+    // placeholders; each arm must render its own tool name and never the
+    // other arm's.
     assert!(
-        hs_loop::sweprompt::SWE_MISSION_TEMPLATE.contains("edit.patch"),
-        "mission template must name edit.patch as the only edit path"
+        hs_loop::sweprompt::SWE_MISSION_TEMPLATE.contains("{edit_tool}"),
+        "mission template must carry the edit-tool placeholder"
     );
+    let args = hs_loop::sweprompt::PromptArgs {
+        ws: "/tmp/ws".into(),
+        problem_statement: "p".into(),
+        fail_to_pass: vec!["t".into()],
+        repo_layout: "src/main.rs\n".into(),
+        nudge: String::new(),
+        answer_path: "/tmp/a".into(),
+        orientation: String::new(),
+        mcp_tools: String::new(),
+    };
+    std::env::remove_var("HS_SWE_EDIT_PATH");
+    let p_default = hs_loop::sweprompt::build_mission_prompt(None, &args);
+    assert!(p_default.contains("edit.patch"), "default arm renders edit.patch");
+    assert!(!p_default.contains("edit.anchor"), "default arm never names edit.anchor");
+    std::env::set_var("HS_SWE_EDIT_PATH", "anchor");
+    let p_anchor = hs_loop::sweprompt::build_mission_prompt(None, &args);
+    std::env::remove_var("HS_SWE_EDIT_PATH");
+    assert!(p_anchor.contains("edit.anchor"), "anchor arm renders edit.anchor");
+    assert!(!p_anchor.contains("edit.patch"), "anchor arm never names edit.patch: {}",
+        p_anchor.lines().filter(|l| l.contains("edit.patch")).collect::<Vec<_>>().join(" || "));
     let tools = hs_loop::toolschema::builtin_tools();
     let exec = tools
         .iter()

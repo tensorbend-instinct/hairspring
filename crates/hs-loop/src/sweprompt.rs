@@ -26,7 +26,7 @@ WORK POLICY:\n\
 - If something is blocked, say so plainly rather than quietly dropping it.\n\
 - Do the work in the current step instead of ending with an offer to do it later.\n\
 - {edit_policy}\n\
-WORKFLOW: search and read to locate the real code FIRST, then build the fix with edit.patch and verify it with repo.exec before answer.submit. \
+WORKFLOW: search and read to locate the real code FIRST, then build the fix with {edit_tool} and verify it with repo.exec before answer.submit. \
 The exact ANSWER_PATH value is given to you on the ANSWER_PATH line each attempt. \
 Do not include prose outside the JSON. If you get FEEDBACK, repair and continue.{nudge}";
 
@@ -91,6 +91,7 @@ fn substitute(template: &str, args: &PromptArgs) -> String {
         ("{problem_statement}", args.problem_statement.trim()),
         ("{fail_to_pass}", f2p.as_str()),
         ("{edit_policy}", editpol.as_str()),
+        ("{edit_tool}", if std::env::var("HS_SWE_EDIT_PATH").as_deref() == Ok("anchor") { "edit.anchor" } else { "edit.patch" }),
         ("{repo_layout}", args.repo_layout.as_str()),
         ("{answer_path}", args.answer_path.as_str()),
         ("{nudge}", args.nudge.as_str()),

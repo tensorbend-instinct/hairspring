@@ -29,7 +29,7 @@ pub fn builtin_tools_with_edit(edit_path: &str) -> Vec<Value> {
                 Some("edit.patch") => {
                     *t = f(
                         "edit.anchor",
-                        "Edit your persistent candidate workspace by anchors - the live repo is never touched. repo.read shows every line as LINE:HASH->content; quote those anchors back exactly. edits: [{op:\"replace\", anchor, end_anchor?, content} (empty content deletes), {op:\"insert_after\", anchor (\"0:\"=top of file, \"EOF\"=end), content}, {op:\"write\", content} (whole file; the only way to create a new file)]. Anchors are validated against the CURRENT candidate at apply time: a stale or wrong anchor is a named error listing the failed anchors - re-read the file and re-quote; nothing is half-applied. Returns a fresh-anchored snippet of the edited region plus the CUMULATIVE diff of everything applied so far: test with repo.exec, submit with answer.submit. Set op='diff' to re-read the cumulative diff, op='reset' to discard the candidate.",
+                        "Edit your persistent candidate workspace by anchors - the live repo is never touched. repo.read shows every line as LINE:HASH\u{2192}content; quote those anchors back exactly. edits: [{op:\"replace\", anchor, end_anchor?, content} (empty content deletes), {op:\"insert_after\", anchor (\"0:\"=top of file, \"EOF\"=end), content}, {op:\"write\", content} (whole file; the only way to create a new file)]. Anchors are validated against the CURRENT candidate at apply time: a stale or wrong anchor is a named error listing the failed anchors - re-read the file and re-quote; nothing is half-applied. Returns a fresh-anchored snippet of the edited region plus the CUMULATIVE diff of everything applied so far: test with repo.exec, submit with answer.submit. Set op='diff' to re-read the cumulative diff, op='reset' to discard the candidate.",
                         json!({"type":"object","properties":{
                             "path":{"type":"string","description":"repo-relative file path"},
                             "edits":{"type":"array","items":{"type":"object"},"description":"anchor-typed ops, applied bottom-up after full validation"},
@@ -39,7 +39,7 @@ pub fn builtin_tools_with_edit(edit_path: &str) -> Vec<Value> {
                 Some("repo.read") => {
                     *t = f(
                         "repo.read",
-                        "Read a file window of YOUR CANDIDATE (your edits are visible here). Every line is shown as LINE:HASH->content - quote the LINE:HASH anchor back to edit.anchor. The reply tells you total_lines and a truncated flag; if truncated, page forward with start_line=end_line+1. NEVER re-read the same window: recent results stay verbatim in your transcript. Put durable facts (hypotheses, line numbers, failing tests) in notes.scratch.",
+                        "Read a file window of YOUR CANDIDATE (your edits are visible here). Every line is shown as LINE:HASH\u{2192}content - quote the LINE:HASH anchor back to edit.anchor. The reply tells you total_lines and a truncated flag; if truncated, page forward with start_line=end_line+1. NEVER re-read the same window: recent results stay verbatim in your transcript. Put durable facts (hypotheses, line numbers, failing tests) in notes.scratch.",
                         json!({"type":"object","properties":{
                             "path":{"type":"string","description":"repo-relative path"},
                             "start_line":{"type":"integer","description":"1-indexed first line, optional"},
