@@ -28,7 +28,7 @@ WORK POLICY:\n\
 - {edit_policy}\n\
 WORKFLOW: search and read to locate the real code FIRST, then build the fix with {edit_tool} and verify it with repo.exec before answer.submit. \
 The exact ANSWER_PATH value is given to you on the ANSWER_PATH line each attempt. \
-Do not include prose outside the JSON. If you get FEEDBACK, repair what it reports before resubmitting - a resubmission the verifier already refuted is replayed from the verdict cache with no new scrutiny.{nudge}";
+Do not include prose outside the JSON. If you get FEEDBACK, repair what it reports before resubmitting - resubmitting an answer the verifier already refuted earns another refutation, not acceptance.{nudge}";
 
 pub struct PromptArgs {
     pub ws: String,

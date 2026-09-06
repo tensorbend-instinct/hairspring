@@ -218,7 +218,8 @@ fn mission_prompt_makes_feedback_repair_binding() {
         mcp_tools: String::new(),
     };
     let p = sweprompt::build_mission_prompt(None, &args);
-    assert!(p.contains("replayed"), "the prompt names the verdict-cache replay: {p}");
+    assert!(p.contains("earns another refutation"), "the prompt names the re-refute: {p}");
+    assert!(!p.contains("verdict cache"), "no claim about machinery the tree does not have: {p}");
     assert!(!p.contains("repair and continue"), "no advisory dodge left: {p}");
 }
 
