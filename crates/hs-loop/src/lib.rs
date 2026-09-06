@@ -1376,6 +1376,10 @@ impl InnerLoop {
                         .unwrap(),
                     )),
                 )?;
+                // F8: runs recorded before the restore describe a tree
+                // that no longer exists - the ledger marks them.
+                let s = self.ledger.last_seq();
+                self.ledger.note_restore(s);
                 Ok(())
             }
             Err(e) => {

@@ -192,7 +192,7 @@ fn ledger_marks_pre_restore_runs() {
     let run = |seq: u64| (serde_json::json!({"command": "pytest -q"}), serde_json::json!({"applied": true, "exit_code": 0, "stdout": "1 passed"}));
     let (a, r) = run(3);
     led.apply_tool_call(3, "repo.exec", &a, &r);
-    // led.note_restore(5); // RED: API added by the fix - the marker assertion below fails behaviorally until then
+    led.note_restore(5);
     let (a2, r2) = run(6);
     led.apply_tool_call(6, "repo.exec", &a2, &r2);
     let s = led.summary();

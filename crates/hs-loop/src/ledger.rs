@@ -22,7 +22,11 @@ const OPEN_SHOWN: usize = 5;
 pub struct Ledger {
     files_read: BTreeMap<String, Vec<(u32, u32)>>,
     edits: Vec<(u64, String)>,
-    test_runs: Vec<(u64, String, bool)>,
+    test_runs: Vec<(u64, String, bool, String)>,
+    /// seq watermark of the last verifier-mandated workspace restore:
+    /// runs recorded at or before it describe a tree that no longer
+    /// exists and render marked (feedback integrity F8).
+    restored_before: Option<u64>,
     open_threads: Vec<String>,
     last_calls: VecDeque<(String, u64, u64, u64)>, // (plugin, args_hash, args_hash_normalized, seq)
     /// seqs of answer-path writes (gate-8 verdict cache): submission
@@ -89,6 +93,20 @@ fn merge_range(ranges: &mut Vec<(u32, u32)>, lo: u32, hi: u32) {
     }
 }
 
+/// Bounded output tail for a recorded run (F7): the verifier audits
+/// recorded evidence, and a run rendered without its output is
+/// indistinguishable from a bare claim. Whitespace-collapsed, last 160
+/// chars (the verdict line lives at the tail for test runners).
+fn output_tail(result: &Value) -> String {
+    let flat = result["stdout"]
+        .as_str()
+        .unwrap_or("")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    flat.chars().rev().take(160).collect::<Vec<_>>().into_iter().rev().collect()
+}
+
 impl Ledger {
     /// Fold one ToolCall event into the projection.
     pub fn apply_tool_call(&mut self, seq: u64, plugin: &str, args: &Value, result: &Value) {
@@ -130,12 +148,12 @@ impl Ledger {
                 if result["applied"].as_bool() == Some(true) {
                     let cmd = args["command"].as_str().unwrap_or("").chars().take(60).collect();
                     let ok = result["exit_code"].as_i64() == Some(0);
-                    self.test_runs.push((seq, cmd, ok));
+                    self.test_runs.push((seq, cmd, ok, output_tail(result)));
                 }
             }
             "checker.run" => {
                 let ok = result["passed"].as_bool().unwrap_or(false);
-                self.test_runs.push((seq, "checker".to_string(), ok));
+                self.test_runs.push((seq, "checker".to_string(), ok, String::new()));
             }
             "notes.scratch" => {
                 if matches!(args["op"].as_str(), Some("write") | Some("append")) {
@@ -176,8 +194,8 @@ impl Ledger {
             }
             let _ = write!(s, "E{f};");
         }
-        for (_, cmd, ok) in &self.test_runs {
-            let _ = write!(s, "T{cmd}:{ok};");
+        for (_, cmd, ok, tail) in &self.test_runs {
+            let _ = write!(s, "T{cmd}:{ok}:{tail};");
         }
         for t in &self.open_threads {
             let _ = write!(s, "O{t};");
@@ -191,7 +209,20 @@ impl Ledger {
     /// The harness's own checker.run verdicts are ground truth, not the
     /// model testing its work, so they never count (fix 5).
     pub fn model_verified(&self) -> bool {
-        self.test_runs.iter().any(|(_, cmd, _)| cmd != "checker")
+        self.test_runs.iter().any(|(_, cmd, _, _)| cmd != "checker")
+    }
+
+    /// Mark every run recorded at or before `seq` as pre-restore (F8): a
+    /// refuted verdict restored the workspace to the audited snapshot, so
+    /// those runs describe a tree that no longer exists. Display-only;
+    /// the history itself is kept.
+    pub fn note_restore(&mut self, seq: u64) {
+        self.restored_before = Some(seq);
+    }
+
+    /// Latest recorded call seq (0 when the ledger is empty).
+    pub fn last_seq(&self) -> u64 {
+        self.last_calls.back().map(|t| t.3).unwrap_or(0)
     }
 
     /// A prior seq for an identical (plugin, args) call, if one exists.
@@ -268,8 +299,10 @@ impl Ledger {
         }
         if !self.test_runs.is_empty() {
             s.push_str("tests: ");
-            for (seq, cmd, ok) in self.test_runs.iter().rev().take(TESTS_SHOWN).rev() {
-                s.push_str(&format!("\"{cmd}\" {}@seq{seq}; ", if *ok { "PASS" } else { "FAIL" }));
+            for (seq, cmd, ok, tail) in self.test_runs.iter().rev().take(TESTS_SHOWN).rev() {
+                let stale = if self.restored_before.map(|r| *seq <= r).unwrap_or(false) { "(pre-restore)" } else { "" };
+                let ev_tail = if tail.is_empty() { String::new() } else { format!(" [{tail}]") };
+                s.push_str(&format!("\"{cmd}\" {}@seq{seq}{stale}{ev_tail}; ", if *ok { "PASS" } else { "FAIL" }));
             }
             s.push('\n');
         }
