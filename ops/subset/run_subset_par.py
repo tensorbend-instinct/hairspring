@@ -25,9 +25,9 @@ CLAIMS = os.path.join(S50, "claims")
 GUARDRAIL = 50_000_000
 MAX_STEPS = os.environ.get("HS_SUBSET_MAX_STEPS", "100000")  # Eric 2026-09-05: NO step/tool-call caps - budget + wall are the only guards
 PAR = int(os.environ.get("PAR", "4"))
-EXTRA_DEPS = {"haystack": "ddtrace opentelemetry-sdk",
-              "streamlink": "freezegun requests-mock versioningit",
-              "pdm": "pytest-mock"}
+EXTRA_DEPS = {"haystack": "ddtrace opentelemetry-sdk flaky python-docx pypdf azure-ai-formrecognizer",
+              "streamlink": "freezegun requests-mock versioningit setuptools",
+              "pdm": "pytest-mock hishel<1"}  # gate-audit 2026-09-06: 10/10 gates collect+execute at base
 _lock = threading.Lock()
 
 def sh(cmd, cwd=None, timeout=None, env=None):
@@ -148,6 +148,57 @@ def f2p_nodes(m, ws, venv_python):
             nodes.extend(match if match else [f.split("::")[0]])
     return sorted(set(nodes))
 
+
+IMPORT_PKG = {"cfn-lint": "cfnlint"}  # slug -> top-level import name (default: slug)
+
+def preflight_gate(m, ws, venv_python, nodes):
+    """Gate-8 2026-09-06 audit finding: a mission whose gate collects/executes
+    zero tests is unpassable and indistinguishable from red in summaries
+    (haystack-8619 burned 2h on a strict-markers abort). Refuse to start:
+    every ::node must collect, zero collection ERRORs, >=1 test must execute,
+    zero execute-time ERRORs (FAILED at base is expected - that IS the mission),
+    and the venv's editable import target must be THIS task's ws (stale copied
+    venvs silently grade another arm's code)."""
+    import re as _re
+    def fail(why):
+        return f"preflight_gate_invalid: {why}"
+    pip = os.path.join(os.path.dirname(venv_python), "pip")
+    r = sh(f"{shlex.quote(pip)} install -q -e . 2>&1 | tail -2", cwd=ws, timeout=900)
+    pkg = IMPORT_PKG.get(m["repo"].split("/")[-1], m["repo"].split("/")[-1])
+    r = sh(f"{shlex.quote(venv_python)} -c \"import {pkg}, os; print(os.path.dirname(os.path.abspath({pkg}.__file__)))\"",
+           cwd=ws, timeout=120)
+    target = r.stdout.strip()
+    if r.returncode != 0 or not target:
+        return fail(f"editable import of {pkg!r} failed: {(r.stdout + r.stderr).strip()[-200:]}")
+    if os.path.commonpath([os.path.abspath(ws), os.path.abspath(target)]) != os.path.abspath(ws):
+        return fail(f"editable import of {pkg!r} resolves outside task ws: {target}")
+    sel = " ".join(shlex.quote(n) for n in nodes)
+    rc = sh(f"{shlex.quote(venv_python)} -m pytest {sel} --co -q", cwd=ws, timeout=900)
+    collected = [l.strip() for l in rc.stdout.splitlines() if "::" in l and not l.startswith("=")]
+    coll_err = len(_re.findall(r"^ERROR", rc.stdout, _re.M)) + len(_re.findall(r"^ERROR", rc.stderr, _re.M))
+    if coll_err:
+        return fail(f"{coll_err} collection ERROR(s): {(rc.stdout + rc.stderr)[-300:]}")
+    for n in nodes:
+        if "::" in n:
+            if n not in collected:
+                return fail(f"node not collected: {n} (collected {len(collected)})")
+        else:
+            if not any(c.startswith(n) for c in collected):
+                return fail(f"no tests collected from file node: {n}")
+    if not collected:
+        return fail("zero tests collected")
+    rx = sh(f"{shlex.quote(venv_python)} -m pytest {sel} -q", cwd=ws, timeout=1800)
+    out = rx.stdout + rx.stderr
+    counts = {}
+    for v, k in _re.findall(r"(\d+) (passed|failed|error)s?", out):
+        counts[k] = int(v)
+    executed = counts.get("passed", 0) + counts.get("failed", 0)
+    if counts.get("error", 0):
+        return fail(f"{counts['error']} ERROR(s) at execute: {out[-300:]}")
+    if executed < 1 or "found no collectors" in out or "no tests ran" in out:
+        return fail(f"zero tests executed: {out[-300:]}")
+    return None
+
 SHIMS = os.path.join(os.path.dirname(S50.rstrip("/")), "shims")
 
 def ensure_shims():
@@ -179,51 +230,59 @@ def run_task(wid, m):
             if os.path.exists(os.path.join(ws, rf)):
                 sh(f"{shlex.quote(os.path.join(os.path.dirname(venv_py), 'pip'))} install -q -r {shlex.quote(rf)} 2>&1 | tail -2", cwd=ws, timeout=900)
                 break
-        nodes = " ".join(shlex.quote(n) for n in f2p_nodes(m, ws, venv_py))
+        node_list = f2p_nodes(m, ws, venv_py)
+        nodes = " ".join(shlex.quote(n) for n in node_list)
         f2p_sh = os.path.join(run_dir, "f2p.sh")
         open(f2p_sh, "w").write(f"#!/bin/bash\nexec {shlex.quote(venv_py)} -m pytest {nodes} -x -q\n")
-        env = dict(os.environ)
-        up = MODEL.upper()
-        env.update({
-            f"HS_{up}_API_KEY_FILE": f"/home/sandbox/.keys/{MODEL}.key",
-            f"HS_{up}_EXTRA_BODY_JSON": os.environ.get(f"HS_{up}_EXTRA_BODY_JSON", '{"reasoning_effort":"low"}'),
-            "HS_SWE_PROMPT_NUDGE": os.environ.get(
-                "HS_SWE_PROMPT_NUDGE",
-                "IMPORTANT: before every answer.submit, run the FAIL_TO_PASS command via repo.exec and fix whatever it reports."),
-            "HS_SWE_WORKSPACE": ws,
-            "HS_SWE_F2P": f"bash {f2p_sh}",
-            "HS_SWE_P2P": "",
-            "HS_REALMODEL_CALL_TIMEOUT_SECS": "1500",
-        })
-        if MODEL == "glm":
-            env["HS_GLM_BASE_URL"] = "http://127.0.0.1:8787/chat/completions"
-        env["PATH"] = SHIMS + ":" + env.get("PATH", "")
-        budget_flag = ""
-        if os.environ.get("HS_CONTEXT_BUDGET_TOKENS"):
-            budget_flag = f" --context-budget-tokens {os.environ['HS_CONTEXT_BUDGET_TOKENS']}"
-        r = sh(f"timeout {TASK_WALL_SECS} {HS} --instance {shlex.quote(os.path.join(S50, 'instances', iid + '.json'))} "
-               f"--model {MODEL} --feedback on --budget-micros 10000000 --max-steps {MAX_STEPS}"
-               f"{budget_flag} "
-               f"--run-dir {shlex.quote(run_dir)}", timeout=TASK_WALL_SECS + 100, env=env)
-        open(os.path.join(run_dir, "stdout.log"), "w").write(r.stdout + "\n--- STDERR ---\n" + r.stderr)
-        if r.returncode == 124 and not os.path.exists(rj):
-            prog = {}
-            try:
-                prog = json.load(open(os.path.join(run_dir, "progress.json")))
-            except Exception:
-                pass
-            res = {"instance_id": iid, "passed": False,
-                   "steps": prog.get("steps", 0), "model_calls": prog.get("model_calls", 0),
-                   "cost_micros": prog.get("cost_micros", 0), "outcome": "wall_killed",
-                   "wall_secs": TASK_WALL_SECS, "error": "wall_timeout"}  # ab2: real cap, never a hardcoded 1800
-            note = "wall_timeout"
-        elif os.path.exists(rj):
-            res = json.load(open(rj))
-        else:
+        pf_err = preflight_gate(m, ws, venv_py, node_list)
+        if pf_err:
             res = {"instance_id": iid, "passed": False, "steps": 0, "model_calls": 0,
-                   "cost_micros": 0, "wall_secs": int(time.time() - t0),
-                   "error": f"runner rc={r.returncode}: {r.stderr[-300:]}"}
-            note = "runner_error"
+                   "cost_micros": 0, "wall_secs": int(time.time() - t0), "error": pf_err}
+            note = "preflight_invalid"
+            print(f"[w{wid}] {iid} PREFLIGHT REFUSED: {pf_err}", flush=True)
+        else:
+            env = dict(os.environ)
+            up = MODEL.upper()
+            env.update({
+                f"HS_{up}_API_KEY_FILE": f"/home/sandbox/.keys/{MODEL}.key",
+                f"HS_{up}_EXTRA_BODY_JSON": os.environ.get(f"HS_{up}_EXTRA_BODY_JSON", '{"reasoning_effort":"low"}'),
+                "HS_SWE_PROMPT_NUDGE": os.environ.get(
+                    "HS_SWE_PROMPT_NUDGE",
+                    "IMPORTANT: before every answer.submit, run the FAIL_TO_PASS command via repo.exec and fix whatever it reports."),
+                "HS_SWE_WORKSPACE": ws,
+                "HS_SWE_F2P": f"bash {f2p_sh}",
+                "HS_SWE_P2P": "",
+                "HS_REALMODEL_CALL_TIMEOUT_SECS": "1500",
+            })
+            if MODEL == "glm":
+                env["HS_GLM_BASE_URL"] = "http://127.0.0.1:8787/chat/completions"
+            env["PATH"] = SHIMS + ":" + env.get("PATH", "")
+            budget_flag = ""
+            if os.environ.get("HS_CONTEXT_BUDGET_TOKENS"):
+                budget_flag = f" --context-budget-tokens {os.environ['HS_CONTEXT_BUDGET_TOKENS']}"
+            r = sh(f"timeout {TASK_WALL_SECS} {HS} --instance {shlex.quote(os.path.join(S50, 'instances', iid + '.json'))} "
+                   f"--model {MODEL} --feedback on --budget-micros 10000000 --max-steps {MAX_STEPS}"
+                   f"{budget_flag} "
+                   f"--run-dir {shlex.quote(run_dir)}", timeout=TASK_WALL_SECS + 100, env=env)
+            open(os.path.join(run_dir, "stdout.log"), "w").write(r.stdout + "\n--- STDERR ---\n" + r.stderr)
+            if r.returncode == 124 and not os.path.exists(rj):
+                prog = {}
+                try:
+                    prog = json.load(open(os.path.join(run_dir, "progress.json")))
+                except Exception:
+                    pass
+                res = {"instance_id": iid, "passed": False,
+                       "steps": prog.get("steps", 0), "model_calls": prog.get("model_calls", 0),
+                       "cost_micros": prog.get("cost_micros", 0), "outcome": "wall_killed",
+                       "wall_secs": TASK_WALL_SECS, "error": "wall_timeout"}  # ab2: real cap, never a hardcoded 1800
+                note = "wall_timeout"
+            elif os.path.exists(rj):
+                res = json.load(open(rj))
+            else:
+                res = {"instance_id": iid, "passed": False, "steps": 0, "model_calls": 0,
+                       "cost_micros": 0, "wall_secs": int(time.time() - t0),
+                       "error": f"runner rc={r.returncode}: {r.stderr[-300:]}"}
+                note = "runner_error"
     if not os.path.exists(rj):
         json.dump(res, open(rj, "w"), indent=2)
     res.setdefault("wall_secs", int(time.time() - t0))
