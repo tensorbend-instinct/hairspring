@@ -374,3 +374,136 @@ pub fn answer_submit(ws: &Path, answer_path: &Path) -> Value {
         Err(e) => json!({"$error": e.to_string()}),
     }
 }
+
+// ─── Hashline anchor edit path (2026-09-06, bake-off arm) ───────────
+// Grok Build's hashline flavor, hairspring-native: repo.read shows
+// LINE:HASH prefixes (anchored_read), edit.anchor applies anchor-typed
+// ops validated against the pre-edit snapshot (hs-hashline engine,
+// vendored). Same candidate-worktree + computed-submit invariants as
+// edit.patch.
+
+/// Render file content with LINE:HASH anchors (Grok chunk scheme,
+/// hash_len=3, chunk_size=8 - their shipped default).
+pub fn anchored_read(content: &str) -> String {
+    let scheme = hs_hashline::config::HashlineSchemeParams::default()
+        .build_scheme()
+        .expect("default scheme builds");
+    hs_hashline::render::format_hashline_content(content, None, None, &*scheme).0
+}
+
+/// Apply anchor-typed ops to a candidate file. Anchors are validated
+/// against the CURRENT candidate content; a stale or wrong anchor is a
+/// named error and the file stays byte-identical (engine applies
+/// bottom-up after full validation). Returns snippet with FRESH anchors
+/// plus the cumulative diff on success.
+pub fn apply_anchor_edits(ws: &Path, path: &str, edits: Value) -> Value {
+    use hs_hashline::edit::apply::apply_edits;
+    use hs_hashline::edit::types::{HashlineEditOutput, HashlineOp};
+    let rel = Path::new(path);
+    let ops: Vec<HashlineOp> = match serde_json::from_value(edits.clone()) {
+        Ok(v) => v,
+        Err(_) => match edits.as_str().and_then(|s| serde_json::from_str(s).ok()) {
+            Some(v) => v,
+            None => return json!({"applied": false, "$error": "edits must be an array of {op, anchor, content} operations"}),
+        },
+    };
+    let cand = match ensure_candidate(ws) {
+        Ok(c) => c,
+        Err(e) => return e,
+    };
+    let dest = match safe_join(&cand, rel) {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+    let exists = dest.exists();
+    let content = if exists {
+        match std::fs::read_to_string(&dest) {
+            Ok(s) => s,
+            Err(e) => return json!({"applied": false, "$error": format!("read {path}: {e}")}),
+        }
+    } else {
+        // only a bare `write` op may create a file
+        if ops.len() == 1 && matches!(ops[0], HashlineOp::Write { .. }) {
+            String::new()
+        } else {
+            return json!({"applied": false, "$error": format!("{path}: no such file in the candidate (a single write op creates new files)")});
+        }
+    };
+    let scheme = match hs_hashline::config::HashlineSchemeParams::default().build_scheme() {
+        Ok(s) => s,
+        Err(e) => return json!({"applied": false, "$error": e}),
+    };
+    let result = apply_edits(&content, &ops, rel, &*scheme);
+    match result.output {
+        HashlineEditOutput::EditsApplied(applied) => {
+            let new_content = match result.new_content {
+                Some(n) => n,
+                None => return json!({"applied": false, "$error": "engine returned no content"}),
+            };
+            if let Some(parent) = dest.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            if let Err(e) = std::fs::write(&dest, new_content) {
+                return json!({"applied": false, "$error": format!("write {path}: {e}")});
+            }
+            match read_cumulative(&cand) {
+                Ok(diff) => json!({
+                    "applied": true,
+                    "ops": applied.applied,
+                    "scheme": applied.scheme,
+                    "snippet": applied.snippet,
+                    "snippet_start_line": applied.snippet_start_line,
+                    "warnings": applied.warnings,
+                    "cumulative_diff": diff,
+                }),
+                Err(e) => e,
+            }
+        }
+        HashlineEditOutput::Error(err) => json!({
+            "applied": false,
+            "$error": format!("anchor validation failed for {path}: {}", serde_json::to_string_pretty(&err).unwrap_or_default()),
+        }),
+    }
+}
+
+/// repo.read in anchor mode reads the CANDIDATE (the model's edits change
+/// anchors; reading the pristine base would make every anchor stale after
+/// the first edit). Same windowing contract as repotools::read_repo_window,
+/// content rendered with LINE:HASH prefixes.
+pub fn anchored_read_window(
+    ws: &Path,
+    rel: &str,
+    start_line: Option<u64>,
+    max_lines: Option<u64>,
+) -> Result<Value, String> {
+    let cand = ensure_candidate(ws).map_err(|e| e.to_string())?;
+    let dest = safe_join(&cand, Path::new(rel)).map_err(|e| e.to_string())?;
+    let meta = std::fs::metadata(&dest).map_err(|_| format!("not found: {rel}"))?;
+    if meta.is_dir() {
+        return Err(format!("is a directory: {rel}"));
+    }
+    let text = std::fs::read_to_string(&dest)
+        .map_err(|e| format!("not found or not utf-8: {rel} ({e})"))?;
+    let total_lines = text.lines().count() as u64;
+    let start = start_line.unwrap_or(1).max(1);
+    let want = max_lines.unwrap_or(400).min(400);
+    let scheme = hs_hashline::config::HashlineSchemeParams::default()
+        .build_scheme()
+        .map_err(|e| e.to_string())?;
+    let (anchored, _raw) = hs_hashline::render::format_hashline_content(
+        &text,
+        Some(start as usize),
+        Some(want as usize),
+        &*scheme,
+    );
+    let end = (start - 1 + want).min(total_lines);
+    Ok(json!({
+        "path": rel,
+        "content": anchored,
+        "start_line": start,
+        "end_line": end,
+        "total_lines": total_lines,
+        "truncated": end < total_lines,
+        "anchor_scheme": "chunk h=3 c=8",
+    }))
+}

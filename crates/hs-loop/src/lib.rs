@@ -266,7 +266,7 @@ impl InnerLoop {
     /// to feedback instead of aborting - the mission continues while the
     /// answer path remains usable.
     fn is_answer_path(tool: &str) -> bool {
-        matches!(tool, "answer.submit" | "edit.patch" | "answer.write" | "edit.apply")
+        matches!(tool, "answer.submit" | "edit.patch" | "edit.anchor" | "answer.write" | "edit.apply")
     }
 
     /// Abort the mission on a supervisor-declared dead ANSWER-PATH plugin:

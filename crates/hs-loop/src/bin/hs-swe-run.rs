@@ -70,6 +70,18 @@ fn main() {
         .map(|s| s.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect())
         .unwrap_or_default();
 
+    // bake-off (2026-09-06): HS_SWE_EDIT_PATH=applypatch|anchor selects the
+    // edit tool; anchor mode also puts repo.read into anchored mode (the
+    // env is inherited by every plugin process the kernel spawns).
+    let edit_path = std::env::var("HS_SWE_EDIT_PATH").unwrap_or_else(|_| "applypatch".to_string());
+    unsafe {
+        if edit_path == "anchor" {
+            std::env::set_var("HS_SWE_READ_ANCHORS", "1");
+        } else {
+            std::env::remove_var("HS_SWE_READ_ANCHORS");
+        }
+    }
+
     let ws = run_dir.join("ws");
     assert!(ws.join(".git").exists(), "workspace not prepped: {}", ws.display());
     let log_root = run_dir.join("log");
@@ -107,7 +119,7 @@ fn main() {
     let mut mcp_tools = String::new();
     // Native tool delivery: builtin schemas + every discovered MCP tool
     // with its server-provided input schema (Eric 2026-09-05).
-    let mut native_tools = hs_loop::toolschema::builtin_tools();
+    let mut native_tools = hs_loop::toolschema::builtin_tools_with_edit(&edit_path);
     if let Ok(servers_toml) = std::env::var("HS_MCP_SERVERS") {
         let servers = hs_loop::mcpbridge::load_mcp_servers(std::path::Path::new(&servers_toml))
             .unwrap_or_else(|e| {
@@ -212,7 +224,7 @@ command = ["{policy}"]
 subjects = ["*"]
 
 [[tools]]
-name = "edit.patch"
+name = "{edittoolname}"
 command = ["{editpatch}"]
 subjects = ["*"]
 
@@ -233,7 +245,8 @@ default = true
             reposearch = bin("hs-plugin-reposearch"),
             repoexec = bin("hs-plugin-repoexec"),
             policy = bin("hs-plugin-policy"),
-            editpatch = bin("hs-plugin-applypatch"),
+            editpatch = bin(if edit_path == "anchor" { "hs-plugin-editanchor" } else { "hs-plugin-applypatch" }),
+            edittoolname = if edit_path == "anchor" { "edit.anchor" } else { "edit.patch" },
             notescratch = bin("hs-plugin-notescratch"),
             model = model,
             model_bin = bin(&format!("hs-plugin-{model}")),

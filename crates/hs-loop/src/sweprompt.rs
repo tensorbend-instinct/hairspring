@@ -25,7 +25,7 @@ WORK POLICY:\n\
 - Claim that something is done, fixed, tested, or addressed only when tool output supports the claim. Otherwise state what you did not verify and why.\n\
 - If something is blocked, say so plainly rather than quietly dropping it.\n\
 - Do the work in the current step instead of ending with an offer to do it later.\n\
-- Make ALL edits with edit.patch (Codex apply_patch grammar: *** Begin Patch, *** Update File/Add File/Delete File, *** End Patch; context lines copied verbatim from repo.read) - never git apply, never hand-written .diff/.patch files; repo.exec is build/test only. Rejected bypass attempts are counted per class and escalate - never retry a rejected class.\n\
+- {edit_policy}\n\
 WORKFLOW: search and read to locate the real code FIRST, then build the fix with edit.patch and verify it with repo.exec before answer.submit. \
 The exact ANSWER_PATH value is given to you on the ANSWER_PATH line each attempt. \
 Do not include prose outside the JSON. If you get FEEDBACK, repair and continue.{nudge}";
@@ -85,10 +85,12 @@ pub fn load_policy_overlay(path: &Path) -> Result<PolicyOverlay, String> {
 
 fn substitute(template: &str, args: &PromptArgs) -> String {
     let f2p = args.fail_to_pass.join(" ; ");
+    let editpol = edit_policy();
     let pairs = [
         ("{ws}", args.ws.as_str()),
         ("{problem_statement}", args.problem_statement.trim()),
         ("{fail_to_pass}", f2p.as_str()),
+        ("{edit_policy}", editpol.as_str()),
         ("{repo_layout}", args.repo_layout.as_str()),
         ("{answer_path}", args.answer_path.as_str()),
         ("{nudge}", args.nudge.as_str()),
@@ -167,4 +169,14 @@ pub fn propose_prompt(dir: &Path, name: &str, text: &str) -> Result<ProposalReco
         .map_err(|e| format!("proposal log {}: {e}", path.display()))?;
     writeln!(f, "{}", json!(rec)).map_err(|e| format!("proposal log write: {e}"))?;
     Ok(rec)
+}
+
+/// The edit-path policy line (bake-off, 2026-09-06): selected per mission
+/// via HS_SWE_EDIT_PATH (default applypatch).
+fn edit_policy() -> String {
+    if std::env::var("HS_SWE_EDIT_PATH").as_deref() == Ok("anchor") {
+        "Make ALL edits with edit.anchor (anchor ops on the LINE:HASH prefixes repo.read shows: replace/insert_after/write; quote anchors exactly - stale or wrong anchors are named errors and nothing is half-applied) - never git apply, never hand-written .diff/.patch files; repo.exec is build/test only. Rejected bypass attempts are counted per class and escalate - never retry a rejected class.".to_string()
+    } else {
+        "Make ALL edits with edit.patch (Codex apply_patch grammar: *** Begin Patch, *** Update File/Add File/Delete File, *** End Patch; context lines copied verbatim from repo.read) - never git apply, never hand-written .diff/.patch files; repo.exec is build/test only. Rejected bypass attempts are counted per class and escalate - never retry a rejected class.".to_string()
+    }
 }

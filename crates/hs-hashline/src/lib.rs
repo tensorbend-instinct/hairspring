@@ -3,6 +3,9 @@
 //! validated against the pre-edit snapshot, bounded shifted-anchor recovery.
 //! No hand-rolled parts.
 pub mod anchor;
+pub mod config;
+pub mod edit;
+pub mod render;
 pub mod hash;
 pub mod mutate;
 pub mod scheme;

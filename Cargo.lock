@@ -573,6 +573,12 @@ dependencies = [
 [[package]]
 name = "hs-hashline"
 version = "0.1.0"
+dependencies = [
+ "schemars",
+ "serde",
+ "serde_json",
+ "tracing",
+]
 
 [[package]]
 name = "hs-kernel"
@@ -605,6 +611,7 @@ dependencies = [
  "hs-applypatch",
  "hs-bench",
  "hs-core",
+ "hs-hashline",
  "hs-kernel",
  "hs-log",
  "hs-memory",
