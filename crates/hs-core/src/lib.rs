@@ -160,14 +160,19 @@ impl<'a> Reader<'a> {
     fn u8(&mut self, at: &'static str) -> Result<u8, DecodeError> {
         Ok(self.take(1, at)?[0])
     }
+    /// Read exactly N bytes as a fixed-size array. `take` guarantees the
+    /// length, so the slice-to-array conversion cannot fail.
+    fn arr<const N: usize>(&mut self, at: &'static str) -> Result<[u8; N], DecodeError> {
+        Ok(self.take(N, at)?.try_into().expect("take returns exactly N bytes"))
+    }
     fn u32(&mut self, at: &'static str) -> Result<u32, DecodeError> {
-        Ok(u32::from_le_bytes(self.take(4, at)?.try_into().unwrap()))
+        Ok(u32::from_le_bytes(self.arr(at)?))
     }
     fn u64(&mut self, at: &'static str) -> Result<u64, DecodeError> {
-        Ok(u64::from_le_bytes(self.take(8, at)?.try_into().unwrap()))
+        Ok(u64::from_le_bytes(self.arr(at)?))
     }
     fn i64(&mut self, at: &'static str) -> Result<i64, DecodeError> {
-        Ok(i64::from_le_bytes(self.take(8, at)?.try_into().unwrap()))
+        Ok(i64::from_le_bytes(self.arr(at)?))
     }
 }
 
@@ -231,8 +236,8 @@ impl Event {
 
     pub fn decode(buf: &[u8]) -> Result<Self, DecodeError> {
         let mut r = Reader { buf, pos: 0 };
-        let event_id = Uuid::from_bytes(r.take(16, "event_id")?.try_into().unwrap());
-        let stream_id = Uuid::from_bytes(r.take(16, "stream_id")?.try_into().unwrap());
+        let event_id = Uuid::from_bytes(r.arr("event_id")?);
+        let stream_id = Uuid::from_bytes(r.arr("stream_id")?);
         let seq = r.u64("seq")?;
         let ts_wall_ms = r.i64("ts_wall_ms")?;
         let kind = EventKind::from_tag(r.u8("kind")?)?;
@@ -243,7 +248,7 @@ impl Event {
                 Payload::Inline(r.take(n, "payload.bytes")?.to_vec())
             }
             2 => {
-                let hash: [u8; 32] = r.take(32, "payload.hash")?.try_into().unwrap();
+                let hash: [u8; 32] = r.arr("payload.hash")?;
                 let len = r.u64("payload.len")?;
                 Payload::BlobRef { hash, len }
             }
@@ -251,18 +256,16 @@ impl Event {
         };
         let parent_event_id = match r.u8("parent")? {
             0 => None,
-            _ => Some(Uuid::from_bytes(
-                r.take(16, "parent.id")?.try_into().unwrap(),
-            )),
+            _ => Some(Uuid::from_bytes(r.arr("parent.id")?)),
         };
         let latency_ms = r.u32("latency_ms")?;
         let cost_usd_micros = r.i64("cost_usd_micros")?;
         let sandbox_snap_id = match r.u8("snap")? {
             0 => None,
-            _ => Some(Uuid::from_bytes(r.take(16, "snap.id")?.try_into().unwrap())),
+            _ => Some(Uuid::from_bytes(r.arr("snap.id")?)),
         };
-        let prev_hash: [u8; 32] = r.take(32, "prev_hash")?.try_into().unwrap();
-        let hash: [u8; 32] = r.take(32, "hash")?.try_into().unwrap();
+        let prev_hash: [u8; 32] = r.arr("prev_hash")?;
+        let hash: [u8; 32] = r.arr("hash")?;
         if r.pos != buf.len() {
             return Err(DecodeError::TrailingBytes(buf.len() - r.pos));
         }
