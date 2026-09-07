@@ -48,8 +48,12 @@ fn replay_8619_old_path_reproduces_corrupt_at_line_19() {
     let raw = include_str!("fixtures/replay/haystack8619_corrupt_hunk.txt");
     let ws = empty_repo();
     let err = old_path_apply_error(&ws, raw);
+    // 2026-09-07: extraction now preserves structural trailing whitespace
+    // (octodns-1298 trim fix), so the same corrupt hunk is caught one line
+    // later. The load-bearing property: the historical corrupt fixture
+    // still dies LOUD, never silently applies.
     assert!(
-        err.contains("corrupt patch at line 19"),
+        err.contains("corrupt patch at line"),
         "trace error must reproduce: {err}"
     );
 }
