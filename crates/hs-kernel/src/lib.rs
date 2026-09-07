@@ -137,6 +137,19 @@ struct PluginProc {
 
 impl PluginProc {
     fn spawn(command: &[String], lease_secs: Option<u64>) -> Result<Self, KernelError> {
+        Self::spawn_inner(command, lease_secs, None)
+    }
+
+    /// spawn + optional stderr capture: a wedged or dying plugin must leave
+    /// its stderr somewhere an operator can read (conan-17302, 2026-09-07:
+    /// 19 min of silence with stderr wired to /dev/null). Falls back to
+    /// Stdio::null when no log path is configured - never pipe: an
+    /// undrained pipe is itself a wedge vector.
+    fn spawn_inner(
+        command: &[String],
+        lease_secs: Option<u64>,
+        stderr_log: Option<&std::path::Path>,
+    ) -> Result<Self, KernelError> {
         let (prog, args) = command
             .split_first()
             .ok_or_else(|| KernelError::Config("empty command".into()))?;
@@ -144,7 +157,20 @@ impl PluginProc {
             .args(args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(match stderr_log {
+                Some(p) => {
+                    if let Some(parent) = p.parent() {
+                        let _ = std::fs::create_dir_all(parent);
+                    }
+                    std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(p)
+                        .map(Stdio::from)
+                        .unwrap_or(Stdio::null())
+                }
+                None => Stdio::null(),
+            })
             .spawn()
             .map_err(|e| KernelError::Plugin(format!("spawn {}: {e}", command.join(" "))))?;
         let stdin = child.stdin.take().unwrap();
@@ -238,9 +264,21 @@ struct PluginSlot {
     entry: PluginEntry,
     proc: Option<PluginProc>,
     strikes: u32,
+    stderr_dir: Option<std::path::PathBuf>,
 }
 
 impl PluginSlot {
+    fn spawn_fresh(&self) -> Result<PluginProc, KernelError> {
+        let log = self.stderr_dir.as_ref().map(|d| {
+            let nanos = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|t| t.as_nanos())
+                .unwrap_or(0);
+            d.join(format!("{}-{}.stderr.log", self.entry.name, nanos))
+        });
+        PluginProc::spawn_inner(&self.entry.command, self.entry.lease_secs, log.as_deref())
+    }
+
     /// Supervisor contract (phase 1, design D4): every attempt starts by
     /// ensuring a live process - a None slot respawns from config, so a
     /// previously dead slot recovers the moment the plugin can spawn again.
@@ -255,7 +293,7 @@ impl PluginSlot {
         let mut detail = String::new();
         for _ in 0..MAX_STRIKES {
             if self.proc.is_none() {
-                match PluginProc::spawn(&self.entry.command, self.entry.lease_secs) {
+                match self.spawn_fresh() {
                     Ok(p) => self.proc = Some(p),
                     Err(e) => {
                         self.strikes += 1;
@@ -334,9 +372,17 @@ impl Kernel {
     }
 
     fn apply_config(&self, parsed: ConfigFile) -> Result<(), KernelError> {
+        let stderr_dir = self.log_root.as_ref().map(|r| r.join("stderr"));
         let spawn_describe =
             |entry: &PluginEntry, kind: &'static str| -> Result<PluginSlot, KernelError> {
-                let mut p = PluginProc::spawn(&entry.command, entry.lease_secs)?;
+                let nanos = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|t| t.as_nanos())
+                    .unwrap_or(0);
+                let log = stderr_dir
+                    .as_ref()
+                    .map(|d| d.join(format!("{}-{}.stderr.log", entry.name, nanos)));
+                let mut p = PluginProc::spawn_inner(&entry.command, entry.lease_secs, log.as_deref())?;
                 let desc = p.call("describe", serde_json::json!({}))?;
                 if desc["name"].as_str() != Some(entry.name.as_str()) {
                     return Err(KernelError::Protocol(format!(
@@ -354,6 +400,7 @@ impl Kernel {
                     entry: entry.clone(),
                     proc: Some(p),
                     strikes: 0,
+                    stderr_dir: stderr_dir.clone(),
                 })
             };
         let mut tools = self.tools.borrow_mut();
@@ -438,6 +485,17 @@ impl Kernel {
         }
         drop(tools);
         self.fire_rails("call.pre_tool", subject, name, &args);
+        // Dispatch-side record: the stream must name the in-flight plugin
+        // BEFORE the call is awaited, so a wedged call is diagnosable while
+        // it is wedged (conan-17302 read as total silence for 19 min).
+        self.record(
+            EventKind::Observation,
+            serde_json::json!({
+                "plugin": name, "stage": "dispatch", "method": "tool.call", "args": args.clone(),
+            }),
+            0,
+            0,
+        )?;
         let t0 = Instant::now();
         let result = {
             let mut tools = self.tools.borrow_mut();
@@ -525,6 +583,14 @@ impl Kernel {
             &name,
             &serde_json::json!({"prompt": prompt}),
         );
+        self.record(
+            EventKind::Observation,
+            serde_json::json!({
+                "plugin": name, "stage": "dispatch", "method": "model.call", "prompt": prompt,
+            }),
+            0,
+            0,
+        )?;
         let t0 = Instant::now();
         let result = {
             let mut models = self.models.borrow_mut();
@@ -609,6 +675,14 @@ impl Kernel {
             &name,
             &serde_json::json!({"messages": messages}),
         );
+        self.record(
+            EventKind::Observation,
+            serde_json::json!({
+                "plugin": name, "stage": "dispatch", "method": "model.call", "messages": messages,
+            }),
+            0,
+            0,
+        )?;
         let t0 = Instant::now();
         let result = {
             let mut models = self.models.borrow_mut();

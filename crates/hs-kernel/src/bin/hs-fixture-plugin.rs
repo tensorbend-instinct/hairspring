@@ -16,6 +16,9 @@ use std::io::{BufRead, BufReader, Write};
 fn main() {
     let mode = std::env::args().nth(1).expect("mode arg");
     let name_override = std::env::args().nth(2);
+    if mode == "stderr-spew" {
+        eprintln!("fixture-stderr-marker: spew plugin starting");
+    }
     if mode == "usage-error" {
         if let Some(state) = std::env::args().nth(2) {
             use std::io::Write as _;
@@ -62,6 +65,9 @@ fn main() {
                 "hang-tool" => {
                     serde_json::json!({"id": id, "result": {"name": "sleeper", "kind": "tool", "version": "0.1.0"}})
                 }
+                "stderr-spew" => {
+                    serde_json::json!({"id": id, "result": {"name": "spew", "kind": "tool", "version": "0.1.0"}})
+                }
                 "usage-error" => {
                     serde_json::json!({"id": id, "result": {"name": "usageerr", "kind": "tool", "version": "0.1.0"}})
                 }
@@ -105,6 +111,9 @@ fn main() {
                     writeln!(f, "call").unwrap();
                 }
                 serde_json::json!({"id": id, "error": "usage: pass args.diff (inline unified diff) or args.path (the ANSWER_PATH)"})
+            }
+            ("stderr-spew", "tool.call") => {
+                serde_json::json!({"id": id, "result": {"output": "spew-ok"}})
             }
             ("hang-tool", "tool.call") => {
                 std::thread::sleep(std::time::Duration::from_secs(60));
