@@ -150,6 +150,26 @@ def f2p_nodes(m, ws, venv_python):
     return sorted(set(nodes))
 
 
+
+def parse_exec_counts(out):
+    """Pytest execute-pass counts from the FINAL summary line only
+    (cfn-lint-3855, 2026-09-06): scraping the whole output counts assertion
+    message text like "Expected 1 errors for ..." as real pytest errors and
+    over-refuses valid missions. The summary line is the one pytest prints
+    as "... 2 failed, 3 passed in 0.07s" (optionally wrapped in ====).
+    """
+    import re as _re
+    summary = None
+    for line in out.splitlines():
+        s = line.strip().strip("=").strip()
+        if _re.search(r"\bin \d+(\.\d+)?s", s) and _re.search(r"\d+ (passed|failed|error)", s):
+            summary = s
+    counts = {}
+    if summary:
+        for v, k in _re.findall(r"(\d+) (passed|failed|error)s?", summary):
+            counts[k] = counts.get(k, 0) + int(v)
+    return counts
+
 IMPORT_PKG = {"cfn-lint": "cfnlint"}  # slug -> top-level import name (default: slug)
 
 def preflight_gate(m, ws, venv_python, nodes):
@@ -190,9 +210,7 @@ def preflight_gate(m, ws, venv_python, nodes):
         return fail("zero tests collected")
     rx = sh(f"{shlex.quote(venv_python)} -m pytest {sel} -q", cwd=ws, timeout=1800)
     out = rx.stdout + rx.stderr
-    counts = {}
-    for v, k in _re.findall(r"(\d+) (passed|failed|error)s?", out):
-        counts[k] = int(v)
+    counts = parse_exec_counts(out)
     executed = counts.get("passed", 0) + counts.get("failed", 0)
     if counts.get("error", 0):
         return fail(f"{counts['error']} ERROR(s) at execute: {out[-300:]}")
