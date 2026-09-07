@@ -137,7 +137,7 @@ fn main() {
 }
 
 fn only_stream(dir: &std::path::Path) -> Uuid {
-    let mut entries: Vec<_> = std::fs::read_dir(dir.join("streams"))
+    let entries: Vec<_> = std::fs::read_dir(dir.join("streams"))
         .expect("no streams dir: nothing to resume")
         .map(|e| {
             e.expect("readable streams dir entry")

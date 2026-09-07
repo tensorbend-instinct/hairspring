@@ -106,6 +106,51 @@ fn builtin_tools_inner() -> Vec<Value> {
     ]
 }
 
+
+/// Terminal-bench tool surface (2026-09-07): the agent works DIRECTLY on the
+/// live task container - term.exec replaces repo.exec + edit.patch (the
+/// container is the sandbox; the graded artifact is machine state, not a
+/// patch). checker.run is never model-visible: it runs automatically after
+/// answer.submit. Same blind stop authority as swe blind mode: the agent's
+/// own .hs/checks decide completion; official tests are hidden and external.
+pub fn tb_tools() -> Vec<Value> {
+    vec![
+        f(
+            "term.exec",
+            "Run a bash command DIRECTLY in the live task container (you are root, network on). State PERSISTS between calls: files you write, packages you install, services you start all stay - this is the real machine the hidden tests inspect after you finish, so make your changes here, never in scratch copies. Returns exit_code + stdout/stderr tails. For services or long jobs, start them in the background (nohup ... &) and poll.",
+            json!({"type":"object","properties":{
+                "command":{"type":"string","description":"a bash command line, run from the task workdir"}},"required":["command"]}),
+        ),
+        f(
+            "repo.search",
+            "Find code by literal substring under the task workdir; returns path:line hits (max 100).",
+            json!({"type":"object","properties":{"pattern":{"type":"string","description":"literal substring to find"}},"required":["pattern"]}),
+        ),
+        f(
+            "repo.read",
+            "Read a file window under the task workdir. The reply tells you total_lines and a truncated flag; if truncated, page forward with start_line=end_line+1. NEVER re-read the same window: recent results stay verbatim in your transcript. Put durable facts in notes.scratch.",
+            json!({"type":"object","properties":{
+                "path":{"type":"string","description":"workdir-relative path"},
+                "start_line":{"type":"integer","description":"1-indexed first line, optional"},
+                "max_lines":{"type":"integer","description":"optional, default 400"}},"required":["path"]}),
+        ),
+        f(
+            "notes.scratch",
+            "Persistent notes that survive context truncation. Record hypotheses, commands that worked, and values you will need later; read them back instead of re-discovering.",
+            json!({"type":"object","properties":{
+                "op":{"type":"string","enum":["write","append","read"]},
+                "content":{"type":"string","description":"text for write/append"}},"required":["op"]}),
+        ),
+        f(
+            "answer.submit",
+            "Finish the task: writes your completion summary (summary: what you changed and how you verified it) to ANSWER_PATH and triggers the checker, which runs YOUR .hs/checks against the live machine. Green ends the mission; red comes back as FEEDBACK. Submit only when every check you declared passes.",
+            json!({"type":"object","properties":{
+                "path":{"type":"string","description":"the ANSWER_PATH value"},
+                "summary":{"type":"string","description":"what you changed and how you verified it"}},"required":["path","summary"]}),
+        ),
+    ]
+}
+
 /// One MCP-discovered tool in native shape. The input schema comes from the
 /// server's tools/list verbatim; an absent schema degrades to an open object.
 pub fn mcp_tool(name: &str, description: &str, input_schema: Option<Value>) -> Value {

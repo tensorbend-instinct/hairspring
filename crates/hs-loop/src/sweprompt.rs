@@ -45,6 +45,36 @@ WORKFLOW: search and read to locate the real code FIRST, then build the fix with
 The exact ANSWER_PATH value is given to you on the ANSWER_PATH line each attempt. \
 Do not include prose outside the JSON. If you get FEEDBACK, repair what it reports before resubmitting - resubmitting an answer the verifier already refuted earns another refutation, not acceptance.{nudge}";
 
+
+/// Terminal-bench mission shape (2026-09-07): the agent works directly on a
+/// live task container; the graded artifact is the machine state. Hidden
+/// official tests grade after the agent finishes (Harbor separate-verifier) -
+/// nothing ground-truth exists to leak, and the agent's own .hs/checks are
+/// the only completion gate (same blind discipline as swe blind mode).
+pub struct TbPromptArgs {
+    pub workdir: String,
+    pub instruction: String,
+    pub answer_path: String,
+}
+
+pub const TB_MISSION_TEMPLATE: &str = "You are solving a terminal task inside a live Linux container. You work DIRECTLY on the real machine at {workdir} (you are root, network on, state persists between commands - what you build here is exactly what gets graded). Every tool path is relative to {workdir}.\n\
+THE TASK:\n{instruction}\n\n\
+There is NO provided test suite and the official grading tests are HIDDEN: they run only after you finish, you never see them, and nothing about them is in your inputs. Your own verification is the ONLY completion signal. Write the checks that convince you the task is done - one command per line - into .hs/checks at the workdir root (harness machinery, created with term.exec; the grader never sees it), and run them with term.exec until every one passes. A submission is only as strong as the checks you declare.\n\n\
+WORK POLICY:\n\
+- Inspect before you change: ls the workdir, read the task files, understand the data and formats first.\n\
+- Claim that something is done, fixed, tested, or addressed only when tool output supports the claim. Otherwise state what you did not verify and why.\n\
+- If something is blocked, say so plainly rather than quietly dropping it.\n\
+- Do the work in the current step instead of ending with an offer to do it later.\n\
+WORKFLOW: explore with term.exec / repo.read / repo.search, do the task with term.exec, write .hs/checks, verify until green, then answer.submit with a summary of what you changed and how you verified it. The checker runs your .hs/checks after every submit; green ends the mission, red comes back as FEEDBACK - repair what it reports before resubmitting.\n\
+ANSWER_PATH: {answer_path}";
+
+pub fn build_tb_mission_prompt(args: &TbPromptArgs) -> String {
+    TB_MISSION_TEMPLATE
+        .replace("{workdir}", &args.workdir)
+        .replace("{instruction}", &args.instruction)
+        .replace("{answer_path}", &args.answer_path)
+}
+
 pub struct PromptArgs {
     pub ws: String,
     pub problem_statement: String,

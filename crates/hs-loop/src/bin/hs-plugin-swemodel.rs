@@ -45,7 +45,27 @@ fn main() {
             // per-call sandbox copy).
             let checks_patch =
                 "*** Begin Patch\n*** Add File: .hs/checks\n+sh check.sh\n*** End Patch\n";
-            let completion = if prompt.contains(".hs/checks") {
+            // Terminal-bench flow (prompt teaches term.exec): the agent works
+            // DIRECTLY on the live workdir (no candidate, no patch channel).
+            // Attempt 1 submits with an empty summary (steering error). Attempt
+            // 2 makes the fix via term.exec (skipped under HS_SWEMODEL_NOFIX
+            // for the failing-checks gate). Attempt 3 declares .hs/checks and
+            // runs them. Attempt 4 submits with a summary.
+            let nofix = std::env::var("HS_SWEMODEL_NOFIX").is_ok();
+            let completion = if prompt.contains("term.exec") {
+                match attempt {
+                    1 => serde_json::json!({"tool":"answer.submit","args":{"path":path,"summary":""}}),
+                    2 => {
+                        if nofix {
+                            serde_json::json!({"tool":"term.exec","args":{"command":"true"}})
+                        } else {
+                            serde_json::json!({"tool":"term.exec","args":{"command":"printf 'fixed\n' > code.txt"}})
+                        }
+                    }
+                    3 => serde_json::json!({"tool":"term.exec","args":{"command":"mkdir -p .hs && printf 'sh check.sh\n' > .hs/checks && sh .hs/checks"}}),
+                    _ => serde_json::json!({"tool":"answer.submit","args":{"path":path,"summary":"fixed code.txt; check.sh green"}}),
+                }
+            } else if prompt.contains(".hs/checks") {
                 match attempt {
                     1 => serde_json::json!({"tool":"answer.submit","args":{"path":path}}),
                     2 => serde_json::json!({"tool":"edit.patch","args":{"patch":codex_gold}}),

@@ -13,7 +13,15 @@ pub const CHECKS_REL: &str = ".hs/checks";
 /// command in the candidate, green only when all pass. Feedback names the
 /// failing command with its output tail so the loop can repair.
 pub fn check(ws: &std::path::Path) -> serde_json::Value {
-    let cand = crate::editapply::candidate_dir(ws);
+    // Terminal-bench mode (HS_SELFCHECK_DIRECT=1): no candidate worktree -
+    // the agent works on the live machine and .hs/checks lives in the real
+    // workdir. Same contract: green only when every declared command passes.
+    let direct = std::env::var("HS_SELFCHECK_DIRECT").as_deref() == Ok("1");
+    let cand = if direct {
+        ws.to_path_buf()
+    } else {
+        crate::editapply::candidate_dir(ws)
+    };
     let f = cand.join(CHECKS_REL);
     let text = match std::fs::read_to_string(&f) {
         Ok(t) => t,

@@ -18,6 +18,7 @@ pub mod repexec;
 pub mod repl;
 pub mod repotools;
 pub mod selfcheck;
+pub mod termexec;
 pub mod sweprompt;
 pub mod toolschema;
 
