@@ -1,0 +1,61 @@
+# HAIRSPRING example rig for hs-repl: one live model + the repo tools, with
+# the SWE checker as the mission's stop authority. Run from the repo root
+# (tool commands are relative paths).
+#
+# Required env:
+#   HS_DEEPSEEK_API_KEY_FILE  - file holding the DeepSeek API key
+#                               (or HS_DEEPSEEK_API_KEY with the key itself)
+#   HS_SWE_WORKSPACE          - the repo checkout the agent works on
+#   HS_SWE_F2P                - comma-separated pass-condition commands, run
+#                               in the workspace (e.g. "cargo test")
+# Optional env:
+#   HS_SWE_P2P                - comma-separated regression commands
+#   HS_SWE_SETUP              - command run once before the test commands
+#
+# One-shot:  target/debug/hs-repl run --goal "your goal" --config hairspring.example.toml --dir /tmp/hs-run
+# Interactive: target/debug/hs-repl --config hairspring.example.toml --dir /tmp/hs-run
+
+[[tools]]
+name = "answer.write"
+command = ["./target/debug/hs-plugin-answer"]
+subjects = ["*"]
+
+[[tools]]
+name = "answer.submit"
+command = ["./target/debug/hs-plugin-answersubmit"]
+subjects = ["*"]
+
+[[tools]]
+name = "checker.run"
+command = ["./target/debug/hs-plugin-swecheck"]
+subjects = ["*"]
+
+[[tools]]
+name = "repo.read"
+command = ["./target/debug/hs-plugin-fileread"]
+subjects = ["*"]
+
+[[tools]]
+name = "repo.search"
+command = ["./target/debug/hs-plugin-reposearch"]
+subjects = ["*"]
+
+[[tools]]
+name = "repo.exec"
+command = ["./target/debug/hs-plugin-repoexec"]
+subjects = ["*"]
+
+[[tools]]
+name = "edit.apply"
+command = ["./target/debug/hs-plugin-editapply"]
+subjects = ["*"]
+
+[[tools]]
+name = "notes.scratch"
+command = ["./target/debug/hs-plugin-notescratch"]
+subjects = ["*"]
+
+[[models]]
+name = "deepseek"
+command = ["./target/debug/hs-plugin-deepseek"]
+default = true
