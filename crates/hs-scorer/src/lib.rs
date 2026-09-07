@@ -304,8 +304,11 @@ impl std::error::Error for PromotionError {}
 
 struct Entry {
     candidate: Candidate,
-    s0: Tier01,
-    s1: Tier02,
+    // tier scores retained as the durable record of why the verdict
+    // landed; the in-memory reads go through `verdict` (champion selection
+    // is held-out only), so these fields are write-only by design
+    _s0: Tier01,
+    _s1: Tier02,
     verdict: AssayVerdict,
 }
 
@@ -330,8 +333,8 @@ impl Lineage {
     pub fn record(&mut self, candidate: &Candidate, s0: Tier01, s1: Tier02, verdict: AssayVerdict) {
         self.entries.push(Entry {
             candidate: candidate.clone(),
-            s0,
-            s1,
+            _s0: s0,
+            _s1: s1,
             verdict,
         });
     }

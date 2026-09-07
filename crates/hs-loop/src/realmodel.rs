@@ -580,7 +580,6 @@ fn call_with_body(
     while attempt_no < attempts {
         if !pending_sleep.is_zero() {
             std::thread::sleep(pending_sleep);
-            pending_sleep = Duration::from_secs(0);
         }
         attempt_no += 1;
         let (tx, rx) = std::sync::mpsc::channel();

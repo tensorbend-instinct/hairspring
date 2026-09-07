@@ -6,7 +6,7 @@
 //! is injected so the same driver serves fixture benches and the SWE path.
 
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[derive(Debug, Clone)]
 pub struct BenchOutcome {
