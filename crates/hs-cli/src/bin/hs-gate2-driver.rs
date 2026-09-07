@@ -12,7 +12,7 @@
 use hs_kernel::Kernel;
 use std::io::{BufRead, BufReader, Write};
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
     let get = |f: &str| {
         args.iter()
@@ -22,11 +22,11 @@ fn main() {
     };
     let dir = std::path::PathBuf::from(get("--dir").expect("--dir"));
     let config = std::path::PathBuf::from(get("--config").expect("--config"));
-    let mut kernel = Kernel::load_with_log(&config, &dir).expect("kernel load");
+    let mut kernel = Kernel::load_with_log(&config, &dir)?;
     let stdin = std::io::stdin();
     let mut out = std::io::stdout();
     println!("READY");
-    out.flush().unwrap();
+    out.flush()?;
     for line in BufReader::new(stdin.lock()).lines() {
         let Ok(line) = line else { break };
         let mut it = line.splitn(3, ' ');
@@ -50,6 +50,7 @@ fn main() {
             _ => "ERR bad command".to_string(),
         };
         println!("{resp}");
-        out.flush().unwrap();
+        out.flush()?;
     }
+    Ok(())
 }

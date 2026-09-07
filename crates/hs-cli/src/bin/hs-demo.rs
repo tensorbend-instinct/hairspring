@@ -26,8 +26,14 @@ fn main() {
             .cloned()
     };
     let dir = PathBuf::from(get("--dir").expect("--dir required"));
-    let steps: u64 = get("--steps").expect("--steps required").parse().unwrap();
-    let seed: u64 = get("--seed").expect("--seed required").parse().unwrap();
+    let steps: u64 = get("--steps")
+        .expect("--steps required")
+        .parse()
+        .expect("--steps must be an integer");
+    let seed: u64 = get("--seed")
+        .expect("--seed required")
+        .parse()
+        .expect("--seed must be an integer");
     let mode = args
         .iter()
         .find(|a| *a == "run" || *a == "resume")
@@ -54,8 +60,8 @@ fn main() {
                 outcome.truncated_bytes,
                 t0.elapsed().as_millis()
             );
-            let reader = StreamReader::open(&dir, stream).unwrap();
-            let events = reader.events().unwrap();
+            let reader = StreamReader::open(&dir, stream).expect("reopen stream we just wrote");
+            let events = reader.events().expect("read stream we just wrote");
             match last_step(&events) {
                 Some((i, s)) => (outcome.writer, i, s, Some(outcome.events_recovered)),
                 None => {
@@ -92,7 +98,7 @@ fn main() {
                 .append(
                     EventBuilder::new(EventKind::Decision)
                         .payload(Payload::Inline(body.clone()))
-                        .parent(parent.unwrap()),
+                        .parent(parent.expect("assigned one line above")),
                 )
                 .expect("append breakpoint");
             parent = Some(e.event_id);
@@ -103,7 +109,7 @@ fn main() {
                 .append(
                     EventBuilder::new(EventKind::Observation)
                         .payload(Payload::Inline(blob))
-                        .parent(parent.unwrap()),
+                        .parent(parent.expect("assigned one line above")),
                 )
                 .expect("append blob observation");
             parent = Some(e.event_id);
@@ -121,7 +127,7 @@ fn main() {
         .append(
             EventBuilder::new(EventKind::GoalUpdate)
                 .payload(Payload::Inline(final_body))
-                .parent(parent.unwrap()),
+                .parent(parent.expect("assigned one line above")),
         )
         .expect("append goal_update");
     println!(
@@ -133,14 +139,20 @@ fn main() {
 fn only_stream(dir: &std::path::Path) -> Uuid {
     let mut entries: Vec<_> = std::fs::read_dir(dir.join("streams"))
         .expect("no streams dir: nothing to resume")
-        .map(|e| e.unwrap().file_name().into_string().unwrap())
+        .map(|e| {
+            e.expect("readable streams dir entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .collect();
     assert!(
         entries.len() == 1,
         "expected exactly one stream, found {}",
         entries.len()
     );
-    Uuid::parse_str(&entries.pop().unwrap()).unwrap()
+    Uuid::parse_str(entries.last().expect("asserted one stream"))
+        .expect("stream dir name is a Uuid")
 }
 
 fn last_step(events: &[Event]) -> Option<(u64, [u8; 32])> {
@@ -155,8 +167,8 @@ fn last_step(events: &[Event]) -> Option<(u64, [u8; 32])> {
             return None;
         }
         Some((
-            u64::from_le_bytes(b[0..8].try_into().unwrap()),
-            b[8..40].try_into().unwrap(),
+            u64::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]),
+            <[u8; 32]>::try_from(&b[8..40]).expect("slice is exactly 32 bytes"),
         ))
     })
 }

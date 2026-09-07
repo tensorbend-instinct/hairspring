@@ -8,7 +8,7 @@ use hs_log::*;
 use std::path::PathBuf;
 use uuid::Uuid;
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
     let cmd = args.get(1).map(|s| s.as_str()).unwrap_or("help");
     let dir = PathBuf::from(
@@ -20,7 +20,7 @@ fn main() {
     let streams: Vec<Uuid> = std::fs::read_dir(dir.join("streams"))
         .map(|rd| {
             rd.filter_map(|e| e.ok())
-                .filter_map(|e| Uuid::parse_str(&e.file_name().into_string().unwrap()).ok())
+                .filter_map(|e| Uuid::parse_str(&e.file_name().to_string_lossy()).ok())
                 .collect()
         })
         .unwrap_or_default();
@@ -45,8 +45,8 @@ fn main() {
         "dump" => {
             let with_payloads = args.iter().any(|a| a == "--payloads");
             for s in &streams {
-                let r = StreamReader::open(&dir, *s).unwrap();
-                for e in r.events().unwrap() {
+                let r = StreamReader::open(&dir, *s)?;
+                for e in r.events()? {
                     // time-audit fields: ts_wall_ms + payload size make
                     // inter-event gaps (harness overhead) measurable
                     let payload_len = match &e.payload {
@@ -95,7 +95,7 @@ fn main() {
                 if follow {
                     if let Ok(rd) = std::fs::read_dir(dir.join("streams")) {
                         for e in rd.filter_map(|e| e.ok()) {
-                            if let Ok(u) = Uuid::parse_str(&e.file_name().into_string().unwrap()) {
+                            if let Ok(u) = Uuid::parse_str(&e.file_name().to_string_lossy()) {
                                 if !known.contains(&u) {
                                     known.push(u);
                                 }
@@ -161,6 +161,7 @@ fn main() {
             std::process::exit(2);
         }
     }
+    Ok(())
 }
 
 fn hex(b: &[u8; 32]) -> String {
