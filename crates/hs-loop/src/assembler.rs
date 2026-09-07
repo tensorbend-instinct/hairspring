@@ -85,8 +85,8 @@ pub fn assemble(
     }
     let mut compressed = None;
     if !compacted.is_empty() {
-        let lo = compacted.last().unwrap();
-        let hi = compacted.first().unwrap();
+        let lo = compacted.last().expect("non-empty check above");
+        let hi = compacted.first().expect("non-empty check above");
         entries.push(format!(
             "COMPACTED {} earlier tool calls (events seq {}..{}, refs {}..{}): distilled into the LEDGER block above - reads, edits, and test verdicts from that range are recorded there",
             compacted.len(), lo.0, hi.0, lo.1, hi.1
@@ -241,8 +241,8 @@ pub fn assemble_messages(
     }
     let mut compressed = None;
     if !compacted.is_empty() {
-        let lo = compacted.last().unwrap();
-        let hi = compacted.first().unwrap();
+        let lo = compacted.last().expect("non-empty check above");
+        let hi = compacted.first().expect("non-empty check above");
         messages.push(serde_json::json!({
             "role": "user",
             "content": format!(

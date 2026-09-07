@@ -68,7 +68,12 @@ fn append_journal(path: &Path, rec: &JournalRecord) {
         .append(true)
         .open(path)
         .expect("journal open");
-    writeln!(f, "{}", serde_json::to_string(rec).unwrap()).expect("journal write");
+    writeln!(
+        f,
+        "{}",
+        serde_json::to_string(rec).expect("bench records serialize")
+    )
+    .expect("journal write");
 }
 
 fn fitness(outcomes: &[BenchOutcome]) -> (u32, u64) {

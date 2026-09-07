@@ -26,15 +26,15 @@ fn arg(args: &[String], name: &str) -> Option<String> {
     args.windows(2).find(|w| w[0] == name).map(|w| w[1].clone())
 }
 
-fn bin(name: &str) -> String {
-    let exe = std::env::current_exe().unwrap();
+fn bin(name: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let exe = std::env::current_exe()?;
     let p = hs_loop::mcpbridge::resolve_plugin_bin(&exe, name)
-        .unwrap_or_else(|e| panic!("hs-swe-run: {e}"));
+        .map_err(|e| format!("hs-swe-run: {e}"))?;
     eprintln!("hs-swe-run: resolved {name} -> {}", p.display());
-    p.display().to_string()
+    Ok(p.display().to_string())
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
     let instance_path = arg(&args, "--instance").expect("--instance");
     let model = arg(&args, "--model").expect("--model glm|deepseek");
@@ -42,20 +42,20 @@ fn main() {
     let budget_micros: u64 = arg(&args, "--budget-micros")
         .expect("--budget-micros")
         .parse()
-        .unwrap();
+        .map_err(|_| "--budget-micros must be an integer")?;
     let max_steps: u32 = arg(&args, "--max-steps")
         .unwrap_or("25".into())
         .parse()
-        .unwrap();
+        .map_err(|_| "--max-steps must be an integer")?;
     let wall_secs: Option<u64> = arg(&args, "--wall-secs")
         .or_else(|| std::env::var("HS_SUBSET_WALL_SECS").ok())
         .and_then(|v| v.parse().ok());
     let run_dir = PathBuf::from(arg(&args, "--run-dir").expect("--run-dir"));
-    std::fs::create_dir_all(&run_dir).unwrap();
+    std::fs::create_dir_all(&run_dir)?;
 
-    let raw = std::fs::read_to_string(&instance_path).unwrap();
-    let v: serde_json::Value = serde_json::from_str(&raw).unwrap();
-    let inst: Instance = serde_json::from_value(v.clone()).unwrap();
+    let raw = std::fs::read_to_string(&instance_path)?;
+    let v: serde_json::Value = serde_json::from_str(&raw)?;
+    let inst: Instance = serde_json::from_value(v.clone())?;
     let f2p = if !inst.fail_to_pass.is_empty() {
         inst.fail_to_pass
     } else {
@@ -104,12 +104,8 @@ fn main() {
     let listing = std::process::Command::new("git")
         .args(["ls-files"])
         .current_dir(&ws)
-        .output()
-        .unwrap();
-    let files: Vec<&str> = std::str::from_utf8(&listing.stdout)
-        .unwrap()
-        .lines()
-        .collect();
+        .output()?;
+    let files: Vec<&str> = std::str::from_utf8(&listing.stdout)?.lines().collect();
     let mut layout = String::new();
     for f in files.iter().take(60) {
         layout.push_str(f);
@@ -139,7 +135,7 @@ fn main() {
                 std::process::exit(2);
             });
         for s in &servers {
-            let out = std::process::Command::new(bin("hs-plugin-mcpcall"))
+            let out = std::process::Command::new(bin("hs-plugin-mcpcall")?)
                 .args([
                     "--config",
                     &servers_toml,
@@ -177,7 +173,7 @@ fn main() {
                     .to_string();
                 mcp_tools.push_str(&format!(
                     "\n[[tools]]\nname = \"{full}\"\ncommand = [\"{}\", \"--plugin\", \"--config\", \"{servers_toml}\", \"--server\", \"{}\", \"--tool\", \"{tool}\", \"--name\", \"{full}\"]\nsubjects = [\"*\"]\n",
-                    bin("hs-plugin-mcpcall"),
+                    bin("hs-plugin-mcpcall")?,
                     s.name,
                 ));
                 native_tools.push(hs_loop::toolschema::mcp_tool(
@@ -216,13 +212,12 @@ fn main() {
             mcp_tools: String::new(),
         },
     );
-    std::fs::write(run_dir.join("mission_prompt.txt"), &prompt).unwrap();
+    std::fs::write(run_dir.join("mission_prompt.txt"), &prompt)?;
     // audit artifact: the exact native tool surface the model operates under
     std::fs::write(
         run_dir.join("tools.json"),
-        serde_json::to_string_pretty(&native_tools).unwrap(),
-    )
-    .unwrap();
+        serde_json::to_string_pretty(&native_tools).expect("json! values serialize"),
+    )?;
 
     let config = run_dir.join("hairspring.toml");
     std::fs::write(
@@ -275,29 +270,28 @@ command = ["{model_bin}"]
 default = true
 {mcp_tools}
 "#,
-            answersubmit = bin("hs-plugin-answersubmit"),
-            checker = bin("hs-plugin-swecheck"),
-            fileread = bin("hs-plugin-fileread"),
-            reposearch = bin("hs-plugin-reposearch"),
-            repoexec = bin("hs-plugin-repoexec"),
-            policy = bin("hs-plugin-policy"),
+            answersubmit = bin("hs-plugin-answersubmit")?,
+            checker = bin("hs-plugin-swecheck")?,
+            fileread = bin("hs-plugin-fileread")?,
+            reposearch = bin("hs-plugin-reposearch")?,
+            repoexec = bin("hs-plugin-repoexec")?,
+            policy = bin("hs-plugin-policy")?,
             editpatch = bin(if edit_path == "anchor" {
                 "hs-plugin-editanchor"
             } else {
                 "hs-plugin-applypatch"
-            }),
+            })?,
             edittoolname = if edit_path == "anchor" {
                 "edit.anchor"
             } else {
                 "edit.patch"
             },
-            notescratch = bin("hs-plugin-notescratch"),
+            notescratch = bin("hs-plugin-notescratch")?,
             model = model,
-            model_bin = bin(&format!("hs-plugin-{model}")),
+            model_bin = bin(&format!("hs-plugin-{model}"))?,
             mcp_tools = mcp_tools,
         ),
-    )
-    .unwrap();
+    )?;
 
     let work_dir = log_root.join("work").join(&inst.instance_id);
     std::fs::create_dir_all(&work_dir).expect("work dir");
@@ -356,7 +350,7 @@ default = true
     // the workspace holds the passing state on success)
     let answer = std::fs::read_to_string(&r.answer_path).unwrap_or_default();
     if let Some(patch) = hs_bench::extract_patch(&answer) {
-        std::fs::write(run_dir.join("model_patch.diff"), patch).unwrap();
+        std::fs::write(run_dir.join("model_patch.diff"), patch)?;
     }
     let result = serde_json::json!({
         "instance_id": inst.instance_id,
@@ -373,9 +367,8 @@ default = true
     });
     std::fs::write(
         run_dir.join("result.json"),
-        serde_json::to_string_pretty(&result).unwrap(),
-    )
-    .unwrap();
+        serde_json::to_string_pretty(&result).expect("json! values serialize"),
+    )?;
     let ledger = format!(
         "{model},{arm},{id},{passed},{steps},{calls},{cost},{killed},{wall}s\n",
         arm = if feedback { "system" } else { "baseline" },
@@ -395,6 +388,10 @@ default = true
             use std::io::Write;
             f.write_all(ledger.as_bytes())
         });
-    println!("{}", serde_json::to_string(&result).unwrap());
+    println!(
+        "{}",
+        serde_json::to_string(&result).expect("json! values serialize")
+    );
     let _ = Path::new("/"); // keep Path import
+    Ok(())
 }

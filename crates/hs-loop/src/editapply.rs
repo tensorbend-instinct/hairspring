@@ -22,7 +22,7 @@ fn git(ws: &Path, args: &[&str]) -> std::process::Output {
         .args(args)
         .current_dir(ws)
         .output()
-        .unwrap_or_else(|e| panic!("git spawn: {e}"))
+        .expect("git binary must be spawnable (harness hard dependency)")
 }
 
 fn ensure_candidate(ws: &Path) -> Result<PathBuf, Value> {

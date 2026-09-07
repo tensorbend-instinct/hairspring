@@ -268,7 +268,10 @@ impl InnerLoop {
                 "model_calls": model_calls,
                 "cost_micros": self.cost_total_micros,
             });
-            let _ = std::fs::write(p, serde_json::to_string(&body).unwrap());
+            let _ = std::fs::write(
+                p,
+                serde_json::to_string(&body).expect("json! values serialize"),
+            );
         }
     }
 
@@ -302,7 +305,7 @@ impl InnerLoop {
                 serde_json::to_vec(&serde_json::json!({
                     "harness_error": msg, "mission": mission, "steps": steps,
                 }))
-                .unwrap(),
+                .expect("json! values serialize"),
             )),
         )?;
         Ok(MissionResult {
@@ -333,7 +336,11 @@ impl InnerLoop {
         let mission = mission_id;
         self.mission_started = Some(std::time::Instant::now());
         let answer_path = self.log_root.join("work").join(mission).join("answer.txt");
-        std::fs::create_dir_all(answer_path.parent().unwrap())?;
+        std::fs::create_dir_all(
+            answer_path
+                .parent()
+                .expect("joined path always has a parent"),
+        )?;
         let mut pending_feedback: Vec<String> = vec![];
         let mut steps = 0u32;
         let mut model_calls = 0u32;
@@ -475,7 +482,7 @@ impl InnerLoop {
                                                     "cached_tokens": out.cached_tokens,
                                                     "cost_usd_micros": out.cost_usd_micros,
                                                 }))
-                                                .unwrap(),
+                                                .expect("json! values serialize"),
                                             ))
                                             .latency_ms(out.latency_ms)
                                             .cost_usd_micros(out.cost_usd_micros),
@@ -562,7 +569,7 @@ impl InnerLoop {
                                 "budget_killed": true, "cap_micros": cap,
                                 "cost_micros": self.cost_total_micros,
                             }))
-                            .unwrap(),
+                            .expect("json! values serialize"),
                         )),
                     )?;
                     self.checkpoint(steps, model_calls);
@@ -589,7 +596,7 @@ impl InnerLoop {
                             "cached_tokens": out.cached_tokens,
                             "assembly_ms": assembly_ms,
                         }))
-                        .unwrap(),
+                        .expect("json! values serialize"),
                     ))
                     .latency_ms(out.latency_ms)
                     .cost_usd_micros(out.cost_usd_micros),
@@ -600,7 +607,7 @@ impl InnerLoop {
                         serde_json::to_vec(&serde_json::json!({
                             "what": drained, "why": "checker verdict since last step",
                         }))
-                        .unwrap(),
+                        .expect("json! values serialize"),
                     )),
                 )?;
             }
@@ -610,7 +617,7 @@ impl InnerLoop {
                         serde_json::to_vec(&serde_json::json!({
                             "what": [note], "why": "convergence",
                         }))
-                        .unwrap(),
+                        .expect("json! values serialize"),
                     )),
                 )?;
             }
@@ -638,7 +645,7 @@ impl InnerLoop {
                             serde_json::to_vec(&serde_json::json!({
                                 "plugin": tool, "args": args, "error": msg,
                             }))
-                            .unwrap(),
+                            .expect("json! values serialize"),
                         )),
                     )?;
                     Some(msg)
@@ -665,7 +672,7 @@ impl InnerLoop {
                             serde_json::to_vec(&serde_json::json!({
                                 "plugin": tool, "args": args, "error": msg,
                             }))
-                            .unwrap(),
+                            .expect("json! values serialize"),
                         )),
                     )?;
                     Some(msg)
@@ -678,7 +685,7 @@ impl InnerLoop {
                                     serde_json::to_vec(&serde_json::json!({
                                         "plugin": tool, "args": args, "result": tool_out.output,
                                     }))
-                                    .unwrap(),
+                                    .expect("json! values serialize"),
                                 ))
                                 .latency_ms(tool_out.latency_ms),
                         )?;
@@ -694,7 +701,7 @@ impl InnerLoop {
                                     serde_json::to_vec(&serde_json::json!({
                                         "duplicate_call": tool, "prior_seq": prior, "note": note,
                                     }))
-                                    .unwrap(),
+                                    .expect("json! values serialize"),
                                 )),
                             )?;
                             pending_feedback.push(note);
@@ -714,7 +721,7 @@ impl InnerLoop {
                                                 serde_json::to_vec(&serde_json::json!({
                                                     "what": [note.clone()], "why": "guardrail_escalation",
                                                 }))
-                                                .unwrap(),
+                                                .expect("json! values serialize"),
                                             ),
                                         ),
                                     )?;
@@ -748,7 +755,7 @@ impl InnerLoop {
                                             serde_json::to_vec(&serde_json::json!({
                                                 "what": [note.clone()], "why": "doom_loop",
                                             }))
-                                            .unwrap(),
+                                            .expect("json! values serialize"),
                                         ),
                                     ),
                                 )?;
@@ -788,7 +795,7 @@ impl InnerLoop {
                                 serde_json::to_vec(&serde_json::json!({
                                     "plugin": name, "error": msg,
                                 }))
-                                .unwrap(),
+                                .expect("json! values serialize"),
                             )),
                         )?;
                         Some(msg)
@@ -801,7 +808,7 @@ impl InnerLoop {
                                     serde_json::to_vec(&serde_json::json!({
                                         "plugin": tool, "args": args, "error": msg,
                                     }))
-                                    .unwrap(),
+                                    .expect("json! values serialize"),
                                 )),
                         )?;
                         Some(msg)
@@ -848,7 +855,7 @@ impl InnerLoop {
                                 "goal_evaluator": if green { "green" } else if env_limit.is_some() { "env_limited" } else { "red" },
                                 "env_limit": env_limit, "f2p": g.f2p, "checker_passed": passed,
                             }))
-                            .unwrap(),
+                            .expect("json! values serialize"),
                         )),
                     )?;
                     if passed && !green {
@@ -858,7 +865,7 @@ impl InnerLoop {
                                     "conflict": "checker green overrides goal red",
                                     "detail": "goal evaluator vetoed a checker-passed mission - the checker verdict stands (post-A7 rule)",
                                 }))
-                                .unwrap(),
+                                .expect("json! values serialize"),
                             )),
                         )?;
                     }
@@ -872,7 +879,7 @@ impl InnerLoop {
                         "checker": "checker.run", "task_id": mission,
                         "passed": passed, "error": error,
                     }))
-                    .unwrap(),
+                    .expect("json! values serialize"),
                 )),
             )?;
             if stop_green {
@@ -916,7 +923,7 @@ impl InnerLoop {
                                         "reasoning_content": vout.reasoning_content,
                                         "cached_tokens": vout.cached_tokens,
                                     }))
-                                    .unwrap(),
+                                    .expect("json! values serialize"),
                                 )),
                             )?;
                             // Native verdict (user directive 2026-09-05):
@@ -937,7 +944,7 @@ impl InnerLoop {
                                                 serde_json::to_vec(&serde_json::json!({
                                                     "why": "verifier", "round": round, "verdict": "not_refuted",
                                                 }))
-                                                .unwrap(),
+                                                .expect("json! values serialize"),
                                             )),
                                         )?;
                                     }
@@ -961,7 +968,7 @@ impl InnerLoop {
                                                     "why": "verifier", "round": round, "verdict": "refuted",
                                                     "findings": findings, "blocking": blocking,
                                                 }))
-                                                .unwrap(),
+                                                .expect("json! values serialize"),
                                             )),
                                         )?;
                                         pending_feedback.push(format!(
@@ -979,7 +986,7 @@ impl InnerLoop {
                                                     "why": "verifier_error", "round": round,
                                                     "detail": "verdict JSON missing the refuted field",
                                                 }))
-                                                .unwrap(),
+                                                .expect("json! values serialize"),
                                             )),
                                         )?;
                                     }
@@ -992,7 +999,7 @@ impl InnerLoop {
                                                 "why": "verifier_error", "round": round,
                                                 "detail": "verdict was not a verdict.submit tool call (prose/wrong-tool reply)",
                                             }))
-                                            .unwrap(),
+                                            .expect("json! values serialize"),
                                         )),
                                     )?;
                                 }
@@ -1006,7 +1013,7 @@ impl InnerLoop {
                                         "why": "verifier_error", "round": round,
                                         "detail": format!("verifier call failed: {e}"),
                                     }))
-                                    .unwrap(),
+                                    .expect("json! values serialize"),
                                 )),
                             )?;
                         }
@@ -1019,14 +1026,14 @@ impl InnerLoop {
                                 "why": "verifier_ratchet", "rounds": VERIFIER_MAX_ROUNDS,
                                 "detail": "verifier failed to converge in 3 rounds - the checker verdict stands",
                             }))
-                            .unwrap(),
+                            .expect("json! values serialize"),
                         )),
                     )?;
                 }
                 self.writer.append(
                     EventBuilder::new(EventKind::GoalUpdate).payload(Payload::Inline(
                         serde_json::to_vec(&serde_json::json!({"mission": mission, "done": true}))
-                            .unwrap(),
+                            .expect("json! values serialize"),
                     )),
                 )?;
                 self.checkpoint(steps, model_calls);
