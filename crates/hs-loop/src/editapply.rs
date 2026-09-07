@@ -10,7 +10,7 @@ use std::hash::Hasher;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-fn candidate_dir(ws: &Path) -> PathBuf {
+pub fn candidate_dir(ws: &Path) -> PathBuf {
     let canon = ws.canonicalize().unwrap_or_else(|_| ws.to_path_buf());
     let mut h = DefaultHasher::new();
     h.write(canon.to_string_lossy().as_bytes());
@@ -62,7 +62,19 @@ fn read_cumulative(cand: &Path) -> Result<String, Value> {
     // exclude the path from staging and from the cumulative diff itself, so
     // neither the file nor its deletion can ever leak into the graded patch.
     let _ = git(cand, &["checkout", "HEAD", "--", ".hs-eval.patch"]);
-    let out = git(cand, &["add", "-A", "--", ".", ":(exclude).hs-eval.patch"]);
+    // .hs/ is the agent's blind-mode checks declaration: harness machinery,
+    // like .hs-eval.patch - it must never join the submitted patch.
+    let out = git(
+        cand,
+        &[
+            "add",
+            "-A",
+            "--",
+            ".",
+            ":(exclude).hs-eval.patch",
+            ":(exclude).hs",
+        ],
+    );
     if !out.status.success() {
         return Err(
             json!({"$error": format!("candidate stage: {}", String::from_utf8_lossy(&out.stderr))}),
@@ -77,6 +89,7 @@ fn read_cumulative(cand: &Path) -> Result<String, Value> {
             "--",
             ".",
             ":(exclude).hs-eval.patch",
+            ":(exclude).hs",
         ],
     );
     if !diff.status.success() {

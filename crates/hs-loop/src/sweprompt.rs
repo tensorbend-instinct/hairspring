@@ -30,6 +30,21 @@ WORKFLOW: search and read to locate the real code FIRST, then build the fix with
 The exact ANSWER_PATH value is given to you on the ANSWER_PATH line each attempt. \
 Do not include prose outside the JSON. If you get FEEDBACK, repair what it reports before resubmitting - resubmitting an answer the verifier already refuted earns another refutation, not acceptance.{nudge}";
 
+pub const SWE_MISSION_BLIND_TEMPLATE: &str = "You are fixing a real bug in the repository checked out at {ws} (base commit). repo.exec sees the repo at /ws; every tool takes repo-relative paths.\n\
+MACHINE: you are on a real Linux box as root, not a toy sandbox. {network_line} System roots are writable - apt-get/pip/cargo/npm all work. Host-only paths stay hidden (/home, /mnt). Detected tooling: {orientation}\n\
+PROBLEM STATEMENT (from the issue tracker):\n{problem_statement}\n\n\
+There is NO provided test suite: your own checks are the only gate. Write tests that would catch this bug, then declare the commands that run them - one per line - in .hs/checks at the repo root (harness machinery: the file never joins your submitted patch). The checker runs exactly those commands against your candidate and is green only when every one passes. Run them yourself with repo.exec before submitting; an audit of your recorded work follows every submission.\n\n\
+Repo files (partial listing):\n{repo_layout}\n\
+TOOLS: your tools arrive through the native tool-calling API - call exactly one per reply, no prose.\n\
+WORK POLICY:\n\
+- Claim that something is done, fixed, tested, or addressed only when tool output supports the claim. Otherwise state what you did not verify and why.\n\
+- If something is blocked, say so plainly rather than quietly dropping it.\n\
+- Do the work in the current step instead of ending with an offer to do it later.\n\
+- {edit_policy}\n\
+WORKFLOW: search and read to locate the real code FIRST, then build the fix with {edit_tool} and verify it with repo.exec before answer.submit. \
+The exact ANSWER_PATH value is given to you on the ANSWER_PATH line each attempt. \
+Do not include prose outside the JSON. If you get FEEDBACK, repair what it reports before resubmitting - resubmitting an answer the verifier already refuted earns another refutation, not acceptance.{nudge}";
+
 pub struct PromptArgs {
     pub ws: String,
     pub problem_statement: String,
@@ -120,6 +135,18 @@ fn substitute(template: &str, args: &PromptArgs) -> String {
         out = out.replace(k, v);
     }
     out
+}
+
+/// Blind mode (Eric 2026-09-07: "no fail to pass - that's cheating"): the
+/// mission prompt teaches self-verification via .hs/checks; ground-truth
+/// FAIL_TO_PASS text never appears in any form. fail_to_pass in `args` is
+/// ignored by construction - the blind template has no placeholder for it.
+pub fn build_blind_mission_prompt(policy: Option<&PolicyOverlay>, args: &PromptArgs) -> String {
+    let template = policy
+        .and_then(|p| p.prompts.get("swe-mission-blind"))
+        .map(String::as_str)
+        .unwrap_or(SWE_MISSION_BLIND_TEMPLATE);
+    substitute(template, args)
 }
 
 pub fn build_mission_prompt(policy: Option<&PolicyOverlay>, args: &PromptArgs) -> String {

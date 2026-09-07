@@ -51,6 +51,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .or_else(|| std::env::var("HS_SUBSET_WALL_SECS").ok())
         .and_then(|v| v.parse().ok());
     let run_dir = PathBuf::from(arg(&args, "--run-dir").expect("--run-dir"));
+    let blind = arg(&args, "--mode").as_deref() == Some("blind");
+    // blind mode: ground truth enters ONLY here, as process memory - never
+    // env (the repo.exec sandbox inherits the driver env), never the prompt,
+    // never the mission streams. It grades after the mission, outside it.
+    let grade_cmds: Vec<String> = args
+        .windows(2)
+        .filter(|w| w[0] == "--grade-cmd")
+        .map(|w| w[1].clone())
+        .collect();
     std::fs::create_dir_all(&run_dir)?;
 
     let raw = std::fs::read_to_string(&instance_path)?;
@@ -66,15 +75,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // by ops/subset/run_subset_par.py as "bash <run_dir>/f2p.sh"), never the
     // instance's fail_to_pass test IDs (forensic item 1, 2026-09-06: test IDs
     // ran as shell -> exit 127 -> env_limited in 100% of sessions).
-    let goal_cmds: Vec<String> = std::env::var("HS_SWE_F2P")
-        .ok()
-        .map(|s| {
-            s.split(',')
-                .map(|x| x.trim().to_string())
-                .filter(|x| !x.is_empty())
-                .collect()
-        })
-        .unwrap_or_default();
+    let goal_cmds: Vec<String> = if blind {
+        Vec::new()
+    } else {
+        std::env::var("HS_SWE_F2P")
+            .ok()
+            .map(|s| {
+                s.split(',')
+                    .map(|x| x.trim().to_string())
+                    .filter(|x| !x.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
 
     // bake-off (2026-09-06): HS_SWE_EDIT_PATH=applypatch|anchor selects the
     // edit tool; anchor mode also puts repo.read into anchored mode (the
@@ -185,33 +198,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let prompt = hs_loop::sweprompt::build_mission_prompt(
-        policy.as_ref(),
-        &hs_loop::sweprompt::PromptArgs {
-            ws: ws.display().to_string(),
-            problem_statement: inst.problem_statement.clone(),
-            // Prompt carries the SANDBOX-resolved FAIL_TO_PASS command
-            // (octodns-1298, 2026-09-07): the host f2p.sh path is hidden
-            // from the repo.exec sandbox and the model burned steps hunting
-            // the filesystem for it. Runner override: HS_SWE_F2P_DISPLAY.
-            // Default: pytest node ids run with python3 (the mission venv
-            // is first on the sandbox PATH).
-            fail_to_pass: std::env::var("HS_SWE_F2P_DISPLAY")
-                .map(|d| vec![d])
-                .unwrap_or_else(|_| {
-                    if !f2p.is_empty() {
-                        vec![format!("python3 -m pytest {} -x -q", f2p.join(" "))]
-                    } else {
-                        goal_cmds.clone()
-                    }
-                }),
-            repo_layout: layout.clone(),
-            nudge: std::env::var("HS_SWE_PROMPT_NUDGE").unwrap_or_default(),
-            answer_path: answer_path.display().to_string(),
-            orientation: hs_loop::sweprompt::probe_orientation(),
-            mcp_tools: String::new(),
-        },
-    );
+    let prompt_args = hs_loop::sweprompt::PromptArgs {
+        ws: ws.display().to_string(),
+        problem_statement: inst.problem_statement.clone(),
+        // Prompt carries the SANDBOX-resolved FAIL_TO_PASS command
+        // (octodns-1298, 2026-09-07): the host f2p.sh path is hidden
+        // from the repo.exec sandbox and the model burned steps hunting
+        // the filesystem for it. Runner override: HS_SWE_F2P_DISPLAY.
+        // Default: pytest node ids run with python3 (the mission venv
+        // is first on the sandbox PATH).
+        fail_to_pass: std::env::var("HS_SWE_F2P_DISPLAY")
+            .map(|d| vec![d])
+            .unwrap_or_else(|_| {
+                if !f2p.is_empty() {
+                    vec![format!("python3 -m pytest {} -x -q", f2p.join(" "))]
+                } else {
+                    goal_cmds.clone()
+                }
+            }),
+        repo_layout: layout.clone(),
+        nudge: std::env::var("HS_SWE_PROMPT_NUDGE").unwrap_or_default(),
+        answer_path: answer_path.display().to_string(),
+        orientation: hs_loop::sweprompt::probe_orientation(),
+        mcp_tools: String::new(),
+    };
+    let prompt = if blind {
+        hs_loop::sweprompt::build_blind_mission_prompt(policy.as_ref(), &prompt_args)
+    } else {
+        hs_loop::sweprompt::build_mission_prompt(policy.as_ref(), &prompt_args)
+    };
     std::fs::write(run_dir.join("mission_prompt.txt"), &prompt)?;
     // audit artifact: the exact native tool surface the model operates under
     std::fs::write(
@@ -271,7 +286,11 @@ default = true
 {mcp_tools}
 "#,
             answersubmit = bin("hs-plugin-answersubmit")?,
-            checker = bin("hs-plugin-swecheck")?,
+            checker = bin(if blind {
+                "hs-plugin-selfcheck"
+            } else {
+                "hs-plugin-swecheck"
+            })?,
             fileread = bin("hs-plugin-fileread")?,
             reposearch = bin("hs-plugin-reposearch")?,
             repoexec = bin("hs-plugin-repoexec")?,
@@ -352,9 +371,25 @@ default = true
     if let Some(patch) = hs_bench::extract_patch(&answer) {
         std::fs::write(run_dir.join("model_patch.diff"), patch)?;
     }
+    // Blind-mode external grading (Eric 2026-09-07): ground truth touches
+    // the run ONLY here - after the mission is over, writing a separate
+    // grade.json that never enters any mission stream. This is the
+    // SWE-bench-official shape: blind submission, external scoring.
+    if !grade_cmds.is_empty() {
+        let grade = grade_submission(&ws, &run_dir, &grade_cmds);
+        std::fs::write(
+            run_dir.join("grade.json"),
+            serde_json::to_string_pretty(&grade).expect("json! values serialize"),
+        )?;
+        eprintln!(
+            "grade: passed={} (external, post-mission)",
+            grade["passed"].as_bool().unwrap_or(false)
+        );
+    }
     let result = serde_json::json!({
         "instance_id": inst.instance_id,
         "model": model,
+        "mode": if blind { "blind" } else { "f2p" },
         "feedback": feedback,
         "passed": r.passed,
         "steps": r.steps,
@@ -394,4 +429,82 @@ default = true
     );
     let _ = Path::new("/"); // keep Path import
     Ok(())
+}
+
+/// Apply the submitted patch to a pristine clone of the base workspace and
+/// run the ground-truth commands there. Process-memory only: `grade_cmds`
+/// arrive as CLI args, never env (the agent's exec sandbox inherits env).
+fn grade_submission(
+    ws: &std::path::Path,
+    run_dir: &std::path::Path,
+    cmds: &[String],
+) -> serde_json::Value {
+    let gws = run_dir.join("grade-ws");
+    let _ = std::fs::remove_dir_all(&gws);
+    let clone = std::process::Command::new("git")
+        .args([
+            "clone",
+            "-q",
+            &ws.display().to_string(),
+            &gws.display().to_string(),
+        ])
+        .output();
+    match clone {
+        Ok(o) if !o.status.success() => {
+            return serde_json::json!({"graded": true, "passed": false, "error": format!("clone: {}", String::from_utf8_lossy(&o.stderr))});
+        }
+        Err(e) => {
+            return serde_json::json!({"graded": true, "passed": false, "error": format!("clone spawn: {e}")});
+        }
+        _ => {}
+    }
+    let patch = run_dir.join("model_patch.diff");
+    if patch.exists() {
+        let apply = std::process::Command::new("git")
+            .args(["apply", &patch.display().to_string()])
+            .current_dir(&gws)
+            .output();
+        match apply {
+            Ok(o) if !o.status.success() => {
+                return serde_json::json!({"graded": true, "passed": false, "error": format!("patch apply: {}", String::from_utf8_lossy(&o.stderr))});
+            }
+            Err(e) => {
+                return serde_json::json!({"graded": true, "passed": false, "error": format!("apply spawn: {e}")});
+            }
+            _ => {}
+        }
+    }
+    let mut results = vec![];
+    let mut passed = true;
+    for c in cmds {
+        match std::process::Command::new("sh")
+            .args(["-c", c])
+            .current_dir(&gws)
+            .output()
+        {
+            Ok(o) => {
+                let ok = o.status.success();
+                if !ok {
+                    passed = false;
+                }
+                let mut tail = String::from_utf8_lossy(&o.stdout).into_owned();
+                tail.push_str(&String::from_utf8_lossy(&o.stderr));
+                if tail.len() > 2000 {
+                    tail = tail[tail.len() - 2000..].to_string();
+                }
+                results
+                    .push(serde_json::json!({"cmd": c, "passed": ok, "output_tail": tail.trim()}));
+            }
+            Err(e) => {
+                passed = false;
+                results.push(serde_json::json!({"cmd": c, "passed": false, "output_tail": format!("spawn: {e}")}));
+            }
+        }
+    }
+    serde_json::json!({
+        "graded": true,
+        "passed": passed,
+        "results": results,
+        "note": "external post-mission grading - these commands never entered the mission",
+    })
 }

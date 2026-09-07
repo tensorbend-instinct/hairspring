@@ -1,16 +1,20 @@
-# HAIRSPRING example rig for hs-repl: one live model + the repo tools, with
-# the SWE checker as the mission's stop authority. Run from the repo root
-# (tool commands are relative paths).
+# HAIRSPRING example rig for hs-repl: one live model + the repo tools.
+# BLIND completion mode (the mode results are proved in, Eric 2026-09-07):
+# the mission's stop authority is the agent's OWN declared checks - the agent
+# writes its verification commands, one per line, into .hs/checks in its
+# candidate (harness machinery; it never joins the submitted patch), and
+# checker.run is green only when every one passes. No ground-truth
+# FAIL_TO_PASS enters the mission: it grades after the fact, outside
+# (hs-swe-run --mode blind --grade-cmd "..."). The f2p rig remains available
+# for development: swap checker.run to ./target/debug/hs-plugin-swecheck and
+# set HS_SWE_F2P.
 #
 # Required env:
 #   HS_DEEPSEEK_API_KEY_FILE  - file holding the DeepSeek API key
 #                               (or HS_DEEPSEEK_API_KEY with the key itself)
 #   HS_SWE_WORKSPACE          - the repo checkout the agent works on
-#   HS_SWE_F2P                - comma-separated pass-condition commands, run
-#                               in the workspace (e.g. "cargo test")
-# Optional env:
-#   HS_SWE_P2P                - comma-separated regression commands
-#   HS_SWE_SETUP              - command run once before the test commands
+# Optional env (f2p dev rig only):
+#   HS_SWE_F2P / HS_SWE_P2P / HS_SWE_SETUP - ground-truth commands for swecheck
 #
 # One-shot:  target/debug/hs-repl run --goal "your goal" --config hairspring.example.toml --dir /tmp/hs-run
 # Interactive: target/debug/hs-repl --config hairspring.example.toml --dir /tmp/hs-run
@@ -27,7 +31,7 @@ subjects = ["*"]
 
 [[tools]]
 name = "checker.run"
-command = ["./target/debug/hs-plugin-swecheck"]
+command = ["./target/debug/hs-plugin-selfcheck"]
 subjects = ["*"]
 
 [[tools]]

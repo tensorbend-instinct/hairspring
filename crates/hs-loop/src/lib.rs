@@ -17,6 +17,7 @@ pub mod realmodel;
 pub mod repexec;
 pub mod repl;
 pub mod repotools;
+pub mod selfcheck;
 pub mod sweprompt;
 pub mod toolschema;
 
