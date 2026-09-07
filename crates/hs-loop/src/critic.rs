@@ -1,0 +1,469 @@
+//! The CRITIC self-check standard (Eric 2026-09-07: author/critic
+//! separation). The author writes and greens its own .hs/checks; then an
+//! INDEPENDENT critic - a fresh model context that never saw the authoring
+//! session - gets the original instruction, the declared checks, and shell
+//! access, with one directive: REFUTE the submission. Instruction-anchored
+//! hard assertions are extracted from the task text; every computed value
+//! is re-derived by a DIFFERENT method than the declared checks use. A
+//! submission passes only when the author's checks are green AND the critic
+//! cannot refute it.
+//!
+//! Fail-closed everywhere: step cap, wall cap, budget cap, transport
+//! error, malformed verdict - each means NOT passed. A capped or broken
+//! critic is not a clean critic.
+
+use serde_json::{json, Value};
+use std::path::Path;
+use std::time::Instant;
+
+/// One tool the critic may call: a shell command on the live machine.
+pub const TERM_EXEC_TOOL: &str = "term_exec";
+
+pub const CRITIC_SYSTEM: &str = "You are an independent verifier reviewing a finished submission on a live Linux machine. You did NOT do the work under review and you have no memory of how it was produced. Your only job is to try to REFUTE the claim that the submission satisfies the task. You have one tool, term_exec: it runs a shell command on the live machine (cwd is the task workdir, you are root, state persists between calls).\n\
+METHOD, in order:\n\
+1. Extract every hard requirement from the task instruction: required files, paths, formats, labels, units, counts, and numeric ranges. Test EACH ONE against the live machine state. Do not trust the declared checks' coverage - test the instruction, not the checks.\n\
+2. For every computed value in the submission, re-derive it by a DIFFERENT method than the declared checks use: a different formula, an independent code path, or a back-calculation from the outputs. Both methods must agree.\n\
+3. Probe the edges the declared checks ignore: missing files, units, rounding, ordering, extra or missing lines.\n\
+RULES:\n\
+- Read-only on the task's deliverable files: never modify, move, or delete them. Scratch work goes in /tmp only.\n\
+- A refutation must be concrete and reproduced: name the command you ran and the output that proves the failure.\n\
+- When you are done, reply with exactly one JSON object and nothing else: {\"refuted\": true, \"reason\": \"<reproduced failure, quoting command and output>\"} or {\"refuted\": false, \"reason\": \"<what you tested and re-derived>\"}. Reply refuted:false only after genuinely running steps 1-3.";
+
+/// One model reply: either tool calls to run, or the final verdict text.
+pub enum CriticReply {
+    /// (call id, shell command) pairs.
+    ToolCalls(Vec<(String, String)>),
+    Final(String),
+}
+
+impl std::fmt::Debug for CriticReply {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CriticReply::ToolCalls(cs) => write!(f, "ToolCalls({cs:?})"),
+            CriticReply::Final(t) => write!(f, "Final({t:?})"),
+        }
+    }
+}
+
+/// The critic's model interface. Scripted in tests, DeepSeek in prod.
+pub trait CriticModel {
+    fn step(&mut self, messages: &[Value]) -> Result<CriticReply, String>;
+    /// Cumulative (input_tokens, output_tokens, cost_micros).
+    fn usage(&self) -> (u64, u64, u64) {
+        (0, 0, 0)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct RefuteConfig {
+    pub max_steps: u32,
+    pub wall_secs: u64,
+    pub budget_micros: u64,
+    pub cmd_timeout_secs: u64,
+}
+
+impl Default for RefuteConfig {
+    fn default() -> Self {
+        Self { max_steps: 12, wall_secs: 600, budget_micros: 1_000_000, cmd_timeout_secs: 120 }
+    }
+}
+
+impl RefuteConfig {
+    pub fn from_env() -> Self {
+        let d = Self::default();
+        let g = |k: &str, cur: u64| std::env::var(k).ok().and_then(|v| v.parse().ok()).unwrap_or(cur);
+        Self {
+            max_steps: g("HS_CRITIC_MAX_STEPS", d.max_steps as u64) as u32,
+            wall_secs: g("HS_CRITIC_WALL_SECS", d.wall_secs),
+            budget_micros: g("HS_CRITIC_BUDGET_MICROS", d.budget_micros),
+            cmd_timeout_secs: g("HS_CRITIC_CMD_TIMEOUT_SECS", d.cmd_timeout_secs),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct RefuteOutcome {
+    pub passed: bool,
+    pub reason: String,
+    pub steps: u32,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cost_micros: u64,
+    pub trace: Vec<Value>,
+}
+
+/// Lenient verdict parse: first JSON object in the text carrying a bool
+/// "refuted". The model is told to reply with only the object; prose
+/// around it is tolerated, a missing/malformed object is not.
+pub fn parse_verdict(text: &str) -> Option<(bool, String)> {
+    let start = text.find('{')?;
+    let end = text.rfind('}')?;
+    if end <= start {
+        return None;
+    }
+    let v: Value = serde_json::from_str(&text[start..=end]).ok()?;
+    let refuted = v["refuted"].as_bool()?;
+    let reason = v["reason"].as_str().unwrap_or("").to_string();
+    Some((refuted, reason))
+}
+
+fn tail(s: &str, n: usize) -> String {
+    if s.len() > n { s[s.len() - n..].to_string() } else { s.to_string() }
+}
+
+/// Run the refutation loop. Never panics into a pass: every abnormal exit
+/// is passed:false with the reason.
+pub fn refute(
+    workdir: &Path,
+    instruction: &str,
+    checks_text: &str,
+    cfg: &RefuteConfig,
+    model: &mut dyn CriticModel,
+) -> RefuteOutcome {
+    let mut trace: Vec<Value> = vec![];
+    let started = Instant::now();
+    let mut messages = vec![
+        json!({"role": "system", "content": CRITIC_SYSTEM}),
+        json!({"role": "user", "content": format!(
+            "TASK INSTRUCTION (verbatim):\n{instruction}\n\nTHE SUBMISSION UNDER REVIEW declares these checks (already green):\n{checks_text}\n\nWorkdir: {wd}. Refute the submission or clear it.",
+            wd = workdir.display()
+        )}),
+    ];
+    let mut steps: u32 = 0;
+    macro_rules! out {
+        ($passed:expr, $reason:expr) => {{
+            let (i, o, c) = model.usage();
+            return RefuteOutcome {
+                passed: $passed,
+                reason: $reason,
+                steps,
+                input_tokens: i,
+                output_tokens: o,
+                cost_micros: c,
+                trace,
+            };
+        }};
+    }
+    loop {
+        if steps >= cfg.max_steps {
+            out!(false, format!("critic hit its step cap ({}) without a verdict - fail-closed", cfg.max_steps));
+        }
+        if started.elapsed().as_secs() >= cfg.wall_secs {
+            out!(false, format!("critic hit its wall cap ({}s) without a verdict - fail-closed", cfg.wall_secs));
+        }
+        let (_, _, cost) = model.usage();
+        if cost >= cfg.budget_micros {
+            out!(false, format!("critic hit its budget cap (${:.2}) without a verdict - fail-closed", cfg.budget_micros as f64 / 1e6));
+        }
+        steps += 1;
+        let reply = match model.step(&messages) {
+            Ok(r) => r,
+            Err(e) => out!(false, format!("critic model error: {e} - fail-closed")),
+        };
+        match reply {
+            CriticReply::Final(text) => {
+                trace.push(json!({"kind": "verdict", "text": text}));
+                match parse_verdict(&text) {
+                    Some((true, reason)) => out!(false, format!("critic refuted the submission: {reason}")),
+                    Some((false, reason)) => out!(true, reason),
+                    None => out!(false, "critic verdict unparseable - fail-closed".to_string()),
+                }
+            }
+            CriticReply::ToolCalls(calls) => {
+                let tcs: Vec<Value> = calls
+                    .iter()
+                    .map(|(id, cmd)| json!({
+                        "id": id, "type": "function",
+                        "function": {"name": TERM_EXEC_TOOL, "arguments": json!({"command": cmd}).to_string()}
+                    }))
+                    .collect();
+                messages.push(json!({"role": "assistant", "content": null, "tool_calls": tcs}));
+                for (id, cmd) in &calls {
+                    trace.push(json!({"kind": "term_exec", "command": cmd}));
+                    let o = crate::termexec::run(workdir, cmd, cfg.cmd_timeout_secs);
+                    let result_text = tail(
+                        &format!(
+                            "exit {}\nstdout:\n{}\nstderr:\n{}",
+                            o["exit_code"].as_i64().map(|c| c.to_string()).unwrap_or_else(|| "?".into()),
+                            o["stdout"].as_str().unwrap_or(""),
+                            o["stderr"].as_str().unwrap_or("")
+                        ),
+                        6000,
+                    );
+                    trace.push(json!({"kind": "term_result", "command": cmd, "output": result_text}));
+                    messages.push(json!({"role": "tool", "tool_call_id": id, "content": result_text}));
+                }
+            }
+        }
+    }
+}
+
+/// The checker.run gate: phase 1 the author's declared checks, phase 2 the
+/// independent critic. Phase 2 runs only when phase 1 is green.
+pub fn checker_gate(ws: &Path) -> Value {
+    let phase1 = crate::selfcheck::check(ws);
+    if phase1["passed"].as_bool() != Some(true) {
+        return phase1;
+    }
+    let instruction = std::env::var("HS_TB_INSTRUCTION_FILE")
+        .ok()
+        .and_then(|f| std::fs::read_to_string(f).ok())
+        .unwrap_or_default();
+    if instruction.trim().is_empty() {
+        return json!({"passed": false, "error": "critic gate: HS_TB_INSTRUCTION_FILE missing or unreadable - fail-closed"});
+    }
+    // The author's own answer summary (when present) is part of what the
+    // critic reviews: its claims are refutation targets.
+    let mut brief = instruction;
+    if let Ok(f) = std::env::var("HS_TB_ANSWER_FILE") {
+        if let Ok(a) = std::fs::read_to_string(&f) {
+            if !a.trim().is_empty() {
+                brief.push_str("\n\nAUTHOR'S SUBMISSION SUMMARY:\n");
+                brief.push_str(&a);
+            }
+        }
+    }
+    let checks_text = std::fs::read_to_string(ws.join(crate::selfcheck::CHECKS_REL)).unwrap_or_default();
+    let cfg = RefuteConfig::from_env();
+    let mut model: Box<dyn CriticModel> = match ScriptedCritic::from_env() {
+        Some(s) => Box::new(s),
+        None => match DeepseekCritic::from_env() {
+            Ok(d) => Box::new(d),
+            Err(e) => {
+                return json!({"passed": false, "error": format!("critic gate: no critic model available: {e} - fail-closed")});
+            }
+        },
+    };
+    let outcome = refute(ws, &brief, &checks_text, &cfg, model.as_mut());
+    if let Ok(tp) = std::env::var("HS_CRITIC_TRACE") {
+        let mut s = String::new();
+        for t in &outcome.trace {
+            s.push_str(&t.to_string());
+            s.push('\n');
+        }
+        let _ = std::fs::write(&tp, s);
+    }
+    if outcome.passed {
+        json!({
+            "passed": true, "error": "",
+            "critic": {"steps": outcome.steps, "cost_micros": outcome.cost_micros, "reason": outcome.reason},
+        })
+    } else {
+        json!({"passed": false, "error": format!("independent critic: {}", outcome.reason)})
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Scripted critic: test seam (unit tests + HS_CRITIC_SCRIPT integration).
+
+pub struct ScriptedCritic {
+    replies: std::collections::VecDeque<CriticReply>,
+    err: Option<String>,
+    seen: Vec<String>,
+    seen_count: usize,
+}
+
+impl ScriptedCritic {
+    pub fn new(replies: Vec<CriticReply>) -> Self {
+        Self { replies: replies.into(), err: None, seen: vec![], seen_count: 0 }
+    }
+    pub fn failing(err: &str) -> Self {
+        Self { replies: Default::default(), err: Some(err.to_string()), seen: vec![], seen_count: 0 }
+    }
+    pub fn seen_tool_results(&self) -> &Vec<String> {
+        &self.seen
+    }
+    /// HS_CRITIC_SCRIPT: "|"-separated segments, each "tool:<cmd>",
+    /// "refute:<reason>", or "clean". Test seam only - never set in prod.
+    pub fn from_env() -> Option<Self> {
+        let s = std::env::var("HS_CRITIC_SCRIPT").ok()?;
+        let mut replies = vec![];
+        for seg in s.split('|') {
+            if let Some(cmd) = seg.strip_prefix("tool:") {
+                let id = format!("c{}", replies.len() + 1);
+                replies.push(CriticReply::ToolCalls(vec![(id, cmd.to_string())]));
+            } else if let Some(reason) = seg.strip_prefix("refute:") {
+                replies.push(CriticReply::Final(
+                    json!({"refuted": true, "reason": reason}).to_string(),
+                ));
+            } else if seg == "clean" {
+                replies.push(CriticReply::Final(
+                    json!({"refuted": false, "reason": "scripted clean"}).to_string(),
+                ));
+            }
+        }
+        Some(Self::new(replies))
+    }
+}
+
+impl CriticModel for ScriptedCritic {
+    fn step(&mut self, messages: &[Value]) -> Result<CriticReply, String> {
+        for m in messages.iter().filter(|m| m["role"] == "tool") {
+            let c = m["content"].as_str().unwrap_or("").to_string();
+            if !self.seen.contains(&c) {
+                self.seen.push(c);
+            }
+            self.seen_count += 1;
+        }
+        if let Some(e) = &self.err {
+            return Err(e.clone());
+        }
+        Ok(self
+            .replies
+            .pop_front()
+            .unwrap_or_else(|| CriticReply::Final("script exhausted without a verdict".into())))
+    }
+}
+
+// ---------------------------------------------------------------------------
+// DeepSeek critic: production model. Minimal OpenAI-shaped client with the
+// realmodel watchdog pattern (thread + recv_timeout: ureq's global timeout
+// does not fire on a stalled body read). Key material is fill-only from the
+// environment and never logged.
+
+pub struct DeepseekCritic {
+    url: String,
+    model: String,
+    key: String,
+    input_tokens: u64,
+    output_tokens: u64,
+    cost_micros: u64,
+    in_micros: f64,
+    cached_micros: f64,
+    out_micros: f64,
+}
+
+impl DeepseekCritic {
+    pub fn from_env() -> Result<Self, String> {
+        let p = crate::realmodel::deepseek();
+        let key = std::env::var(&p.key_env)
+            .ok()
+            .filter(|k| !k.trim().is_empty())
+            .or_else(|| {
+                std::env::var(&p.key_file_env)
+                    .ok()
+                    .and_then(|f| std::fs::read_to_string(f).ok())
+                    .map(|k| k.trim().to_string())
+            })
+            .filter(|k| !k.is_empty())
+            .ok_or_else(|| format!("neither {} nor {} is set", p.key_env, p.key_file_env))?;
+        let envf = |k: &str, d: f64| std::env::var(k).ok().and_then(|v| v.parse().ok()).unwrap_or(d);
+        Ok(Self {
+            url: std::env::var(&p.base_url_env).unwrap_or(p.default_base_url),
+            model: std::env::var(&p.model_env).unwrap_or(p.default_model),
+            key,
+            input_tokens: 0,
+            output_tokens: 0,
+            cost_micros: 0,
+            in_micros: envf(&p.price_in_env, p.default_in_micros),
+            cached_micros: envf(&p.price_cached_env, p.default_cached_micros),
+            out_micros: envf(&p.price_out_env, p.default_out_micros),
+        })
+    }
+
+    fn attempt(&self, body: &Value) -> Result<Value, String> {
+        let agent: ureq::Agent = ureq::Agent::config_builder()
+            .timeout_global(Some(std::time::Duration::from_secs(crate::realmodel::watchdog_secs() + 30)))
+            .build()
+            .into();
+        let mut resp = agent
+            .post(&self.url)
+            .header("Authorization", &format!("Bearer {}", self.key))
+            .header("Content-Type", "application/json")
+            .send_json(body)
+            .map_err(|e| format!("deepseek critic: request failed: {e}"))?;
+        let status = resp.status();
+        if !status.is_success() {
+            return Err(format!("deepseek critic: HTTP {}", status.as_u16()));
+        }
+        resp.body_mut()
+            .read_json()
+            .map_err(|e| format!("deepseek critic: unparsable response: {e}"))
+    }
+}
+
+impl CriticModel for DeepseekCritic {
+    fn step(&mut self, messages: &[Value]) -> Result<CriticReply, String> {
+        let tools = json!([{
+            "type": "function",
+            "function": {
+                "name": TERM_EXEC_TOOL,
+                "description": "Run a shell command on the live machine (cwd = task workdir, root, state persists). Read-only on deliverables; scratch in /tmp.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"command": {"type": "string"}},
+                    "required": ["command"]
+                }
+            }
+        }]);
+        let body = json!({
+            "model": self.model,
+            "temperature": 0,
+            "messages": messages,
+            "tools": tools,
+            "tool_choice": "auto",
+        });
+        // Watchdog: a stalled provider must cost the gate a failure, not
+        // hang the harness (realmodel finding 2026-09-03).
+        let (tx, rx) = std::sync::mpsc::channel();
+        let me = Self {
+            url: self.url.clone(),
+            model: self.model.clone(),
+            key: self.key.clone(),
+            input_tokens: 0,
+            output_tokens: 0,
+            cost_micros: 0,
+            in_micros: self.in_micros,
+            cached_micros: self.cached_micros,
+            out_micros: self.out_micros,
+        };
+        let body2 = body.clone();
+        std::thread::spawn(move || {
+            let _ = tx.send(me.attempt(&body2));
+        });
+        let v = match rx.recv_timeout(std::time::Duration::from_secs(crate::realmodel::watchdog_secs())) {
+            Ok(r) => r?,
+            Err(_) => return Err("deepseek critic: provider watchdog timeout".into()),
+        };
+        let usage = &v["usage"];
+        let in_tok = usage["prompt_tokens"].as_u64().unwrap_or(0);
+        let cached = usage["prompt_cache_hit_tokens"].as_u64().unwrap_or(0);
+        let out_tok = usage["completion_tokens"].as_u64().unwrap_or(0);
+        self.input_tokens += in_tok;
+        self.output_tokens += out_tok;
+        self.cost_micros += ((in_tok.saturating_sub(cached)) as f64 * self.in_micros
+            + cached as f64 * self.cached_micros
+            + out_tok as f64 * self.out_micros) as u64;
+        let msg = &v["choices"][0]["message"];
+        if let Some(tcs) = msg["tool_calls"].as_array() {
+            if !tcs.is_empty() {
+                let mut calls = vec![];
+                for tc in tcs {
+                    let id = tc["id"].as_str().unwrap_or("c0").to_string();
+                    let name = tc["function"]["name"].as_str().unwrap_or("");
+                    if name != TERM_EXEC_TOOL {
+                        return Err(format!("deepseek critic: unknown tool {name:?}"));
+                    }
+                    let args: Value = serde_json::from_str(
+                        tc["function"]["arguments"].as_str().unwrap_or("{}"),
+                    )
+                    .map_err(|e| format!("deepseek critic: bad tool arguments: {e}"))?;
+                    let cmd = args["command"]
+                        .as_str()
+                        .ok_or("deepseek critic: tool call missing command")?
+                        .to_string();
+                    calls.push((id, cmd));
+                }
+                return Ok(CriticReply::ToolCalls(calls));
+            }
+        }
+        let content = msg["content"]
+            .as_str()
+            .ok_or("deepseek critic: completion carried neither tool calls nor content")?;
+        Ok(CriticReply::Final(content.to_string()))
+    }
+
+    fn usage(&self) -> (u64, u64, u64) {
+        (self.input_tokens, self.output_tokens, self.cost_micros)
+    }
+}

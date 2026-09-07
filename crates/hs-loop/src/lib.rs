@@ -7,6 +7,7 @@
 //! the window, and why). Feedback never costs a model round trip.
 
 pub mod assembler;
+pub mod critic;
 pub mod editapply;
 pub mod evolve;
 pub mod goal;

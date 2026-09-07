@@ -42,6 +42,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let wall_secs: Option<u64> = arg(&args, "--wall-secs").and_then(|v| v.parse().ok());
     let run_dir = PathBuf::from(arg(&args, "--run-dir").expect("--run-dir"));
     let workdir = arg(&args, "--workdir").unwrap_or_else(|| "/app".into());
+    // --critic on: the stop authority gains a second gate - an independent
+    // critic context that tries to REFUTE the submission after the agent's
+    // own checks go green (Eric 2026-09-07). Default off: blind selfcheck.
+    let critic = arg(&args, "--critic").as_deref() == Some("on");
     std::fs::create_dir_all(&run_dir)?;
 
     let instruction = std::fs::read_to_string(&instruction_path)?;
@@ -56,13 +60,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::env::set_var("HS_TERM_WORKDIR", &workdir);
         std::env::set_var("HS_SELFCHECK_DIRECT", "1");
         std::env::set_var("HS_ANSWER_RAW", "1");
+        if critic {
+            std::env::set_var("HS_TB_INSTRUCTION_FILE", &instruction_path);
+            std::env::set_var("HS_TB_ANSWER_FILE", &answer_path);
+            std::env::set_var("HS_CRITIC_TRACE", run_dir.join("critic-trace.jsonl"));
+        }
     }
 
-    let prompt = hs_loop::sweprompt::build_tb_mission_prompt(&hs_loop::sweprompt::TbPromptArgs {
+    let prompt_args = hs_loop::sweprompt::TbPromptArgs {
         workdir: workdir.clone(),
         instruction: instruction.clone(),
         answer_path: answer_path.display().to_string(),
-    });
+    };
+    let prompt = if critic {
+        hs_loop::sweprompt::build_tb_mission_prompt_critic(&prompt_args)
+    } else {
+        hs_loop::sweprompt::build_tb_mission_prompt(&prompt_args)
+    };
     std::fs::write(run_dir.join("mission_prompt.txt"), &prompt)?;
     let native_tools = hs_loop::toolschema::tb_tools();
     std::fs::write(
@@ -111,7 +125,7 @@ command = ["{model_bin}"]
 default = true
 "#,
             answersubmit = bin("hs-plugin-answersubmit")?,
-            checker = bin("hs-plugin-selfcheck")?,
+            checker = bin(if critic { "hs-plugin-critic" } else { "hs-plugin-selfcheck" })?,
             fileread = bin("hs-plugin-fileread")?,
             reposearch = bin("hs-plugin-reposearch")?,
             termexec = bin("hs-plugin-termexec")?,
@@ -148,7 +162,8 @@ default = true
     let result = serde_json::json!({
         "task_id": task_id,
         "model": model,
-        "mode": "tb-blind",
+        "mode": if critic { "tb-critic" } else { "tb-blind" },
+        "critic": critic,
         "feedback": feedback,
         "passed": r.passed,
         "steps": r.steps,

@@ -75,6 +75,29 @@ pub fn build_tb_mission_prompt(args: &TbPromptArgs) -> String {
         .replace("{answer_path}", &args.answer_path)
 }
 
+/// Critic-mode template (Eric 2026-09-07): same blind discipline, plus the
+/// disclosure that an INDEPENDENT critic - a fresh context that never saw
+/// this session - will try to REFUTE the submission after .hs/checks go
+/// green. The author learns the bar its checks must clear: instruction-
+/// anchored, re-derived by a different method, probed past happy paths.
+pub const TB_MISSION_CRITIC_TEMPLATE: &str = "You are solving a terminal task inside a live Linux container. You work DIRECTLY on the real machine at {workdir} (you are root, network on, state persists between commands - what you build here is exactly what gets graded). Every tool path is relative to {workdir}.\n\
+THE TASK:\n{instruction}\n\n\
+There is NO provided test suite and the official grading tests are HIDDEN: they run only after you finish, you never see them, and nothing about them is in your inputs. Verification has TWO gates. Gate 1: write the checks that convince you the task is done - one command per line - into .hs/checks at the workdir root (harness machinery, created with term.exec; the grader never sees it), and run them with term.exec until every one passes. Gate 2: an INDEPENDENT critic then reviews your submission - a fresh verifier that never saw this session, gets the original task text and your declared checks, has shell access to the live machine, and its only job is to REFUTE you: it extracts every hard requirement from the task text (files, formats, labels, units, numeric ranges) and tests each one, re-derives every computed value by a DIFFERENT method than your checks use, and probes the edges your checks ignore. The mission passes only when your checks are green AND the critic cannot refute the submission. Weak checks that pass wrong values will be caught - verify the way a skeptic would.\n\n\
+WORK POLICY:\n\
+- Inspect before you change: ls the workdir, read the task files, understand the data and formats first.\n\
+- Claim that something is done, fixed, tested, or addressed only when tool output supports the claim. Otherwise state what you did not verify and why.\n\
+- If something is blocked, say so plainly rather than quietly dropping it.\n\
+- Do the work in the current step instead of ending with an offer to do it later.\n\
+WORKFLOW: explore with term.exec / repo.read / repo.search, do the task with term.exec, write .hs/checks, verify until green, then answer.submit with a summary of what you changed and how you verified it. After every submit the checker runs your .hs/checks and then the critic; green on both ends the mission, red from either comes back as FEEDBACK - repair what it reports before resubmitting.\n\
+ANSWER_PATH: {answer_path}";
+
+pub fn build_tb_mission_prompt_critic(args: &TbPromptArgs) -> String {
+    TB_MISSION_CRITIC_TEMPLATE
+        .replace("{workdir}", &args.workdir)
+        .replace("{instruction}", &args.instruction)
+        .replace("{answer_path}", &args.answer_path)
+}
+
 pub struct PromptArgs {
     pub ws: String,
     pub problem_statement: String,
