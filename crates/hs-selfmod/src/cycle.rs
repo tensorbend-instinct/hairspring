@@ -53,14 +53,19 @@ pub fn check_balance(
             "empty cycle: close one open failure AND add one bounded capability".into(),
         ));
     }
-    let cap = p.adds_capability.as_ref().unwrap();
+    let cap = p
+        .adds_capability
+        .as_ref()
+        .expect("balance check above requires a non-empty capability");
     if cap.len() > BOUNDED_CAPABILITY_MAX {
         return Err(crate::SelfModError::UnbalancedCycle(format!(
             "capability must be bounded (<= {BOUNDED_CAPABILITY_MAX} chars), got {}",
             cap.len()
         )));
     }
-    let claim_id = p.closes_failure.unwrap();
+    let claim_id = p
+        .closes_failure
+        .expect("balance check above requires a closed failure");
     let claim = evidence.iter().find(|c| c.claim_id == claim_id);
     match claim {
         Some(c)

@@ -101,7 +101,7 @@ impl Fork {
     pub fn candidate(&self) -> Candidate {
         let artifact = match self.policy.tools.get("answer") {
             Some(PolicyTool::PrefixRule) => Artifact::by_rule(|t: &Task| {
-                let i: usize = t.id[1..].parse().unwrap();
+                let i: usize = t.id[1..].parse().ok()?;
                 Some(format!(
                     "{}-{i}",
                     if t.id.starts_with('V') {
@@ -205,14 +205,14 @@ impl SelfModLoop {
         &self.current
     }
 
-    fn emit(&mut self, kind: EventKind, body: &str) {
-        let hash = hs_log::write_blob(&self.log_root, body.as_bytes()).unwrap();
+    fn emit(&mut self, kind: EventKind, body: &str) -> Result<(), SelfModError> {
+        let hash = hs_log::write_blob(&self.log_root, body.as_bytes())?;
         self.writer
             .append(EventBuilder::new(kind).payload(Payload::BlobRef {
                 hash,
                 len: body.len() as u64,
-            }))
-            .unwrap();
+            }))?;
+        Ok(())
     }
 
     /// Evidence state read-through for the proposer (spec v5: the
@@ -267,8 +267,8 @@ impl SelfModLoop {
             "fork": fork.stream.to_string(),
             "changes": m.changes(),
         }))
-        .unwrap();
-        self.emit(EventKind::Mutation, &body);
+        .expect("json! values serialize");
+        self.emit(EventKind::Mutation, &body)?;
         Ok(())
     }
 
@@ -349,7 +349,7 @@ impl SelfModLoop {
                 self.current.prompts.len(),
                 self.current.tools.len()
             ),
-        );
+        )?;
         self.emit(
             EventKind::FitnessDelta,
             &format!(
@@ -357,7 +357,7 @@ impl SelfModLoop {
                 cand.name(),
                 verdict.pass_rate
             ),
-        );
+        )?;
         Ok(())
     }
 
@@ -369,7 +369,7 @@ impl SelfModLoop {
         self.emit(
             EventKind::Mutation,
             &format!("rewind fork={} restored known-good policy", fork.stream),
-        );
+        )?;
         Ok(())
     }
 
