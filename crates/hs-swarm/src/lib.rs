@@ -88,7 +88,7 @@ impl Spawner {
                 serde_json::to_vec(&serde_json::json!({
                     "mission": mission, "child_of": parent_stream, "done": false,
                 }))
-                .unwrap(),
+                .expect("json! values serialize"),
             )),
         )?;
         drop(cw);
@@ -102,7 +102,7 @@ impl Spawner {
                     "mission": mission,
                     "budget": {"max_steps": self.max_steps},
                 }))
-                .unwrap(),
+                .expect("json! values serialize"),
             )),
         )?;
 
