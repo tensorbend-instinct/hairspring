@@ -140,8 +140,8 @@ fn read_frame(file: &mut File) -> Result<FrameRead, LogError> {
     if n < 8 {
         return Ok(FrameRead::TornTail(n as u64));
     }
-    let len = u32::from_le_bytes(hdr[0..4].try_into().unwrap()) as usize;
-    let crc = u32::from_le_bytes(hdr[4..8].try_into().unwrap());
+    let len = u32::from_le_bytes([hdr[0], hdr[1], hdr[2], hdr[3]]) as usize;
+    let crc = u32::from_le_bytes([hdr[4], hdr[5], hdr[6], hdr[7]]);
     // Absurd length means a torn/garbage header, not a 4GB allocation.
     if len as u64 > SEGMENT_MAX_BYTES {
         return Ok(FrameRead::TornTail(8));
@@ -369,7 +369,10 @@ pub fn write_blob(root: &Path, bytes: &[u8]) -> Result<[u8; 32], LogError> {
         let hash: [u8; 32] = Sha256::digest(bytes).into();
         let path = blob_path_inner(root, &hash);
         if !path.exists() {
-            let dir = path.parent().unwrap().to_path_buf();
+            let dir = path
+                .parent()
+                .expect("blob_path_inner always nests under root/blobs")
+                .to_path_buf();
             fs::create_dir_all(&dir)?;
             let tmp = dir.join(format!(".tmp-{}", Uuid::new_v4()));
             {
@@ -396,7 +399,10 @@ pub fn write_blobs_bulk(root: &Path, items: &[&[u8]]) -> Result<Vec<[u8; 32]>, L
         let hash: [u8; 32] = Sha256::digest(bytes).into();
         let path = blob_path_inner(root, &hash);
         if !path.exists() {
-            let dir = path.parent().unwrap().to_path_buf();
+            let dir = path
+                .parent()
+                .expect("blob_path_inner always nests under root/blobs")
+                .to_path_buf();
             fs::create_dir_all(&dir)?;
             let tmp = dir.join(format!(".tmp-{}", Uuid::new_v4()));
             {
