@@ -14,7 +14,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::process::{Child, ChildStdin, Command, Stdio};
 use std::time::{Instant, SystemTime};
 
 #[derive(Debug)]
@@ -136,16 +136,12 @@ struct PluginProc {
 }
 
 impl PluginProc {
-    fn spawn(command: &[String], lease_secs: Option<u64>) -> Result<Self, KernelError> {
-        Self::spawn_inner(command, lease_secs, None)
-    }
-
     /// spawn + optional stderr capture: a wedged or dying plugin must leave
     /// its stderr somewhere an operator can read (conan-17302, 2026-09-07:
     /// 19 min of silence with stderr wired to /dev/null). Falls back to
     /// Stdio::null when no log path is configured - never pipe: an
     /// undrained pipe is itself a wedge vector.
-    fn spawn_inner(
+    fn spawn(
         command: &[String],
         lease_secs: Option<u64>,
         stderr_log: Option<&std::path::Path>,
@@ -276,7 +272,7 @@ impl PluginSlot {
                 .unwrap_or(0);
             d.join(format!("{}-{}.stderr.log", self.entry.name, nanos))
         });
-        PluginProc::spawn_inner(&self.entry.command, self.entry.lease_secs, log.as_deref())
+        PluginProc::spawn(&self.entry.command, self.entry.lease_secs, log.as_deref())
     }
 
     /// Supervisor contract (phase 1, design D4): every attempt starts by
@@ -382,7 +378,7 @@ impl Kernel {
                 let log = stderr_dir
                     .as_ref()
                     .map(|d| d.join(format!("{}-{}.stderr.log", entry.name, nanos)));
-                let mut p = PluginProc::spawn_inner(&entry.command, entry.lease_secs, log.as_deref())?;
+                let mut p = PluginProc::spawn(&entry.command, entry.lease_secs, log.as_deref())?;
                 let desc = p.call("describe", serde_json::json!({}))?;
                 if desc["name"].as_str() != Some(entry.name.as_str()) {
                     return Err(KernelError::Protocol(format!(
