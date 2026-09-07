@@ -5,6 +5,7 @@
 //! agent finishes. Hard timeout enforced (kill on expiry).
 
 use serde_json::Value;
+use std::os::unix::process::CommandExt;
 use std::process::Stdio;
 use std::time::{Duration, Instant};
 
@@ -20,11 +21,18 @@ pub fn run(workdir: &std::path::Path, command: &str, timeout_secs: u64) -> Value
     if command.trim().is_empty() {
         return serde_json::json!({"$error": "pass command: a bash command line"});
     }
+    // The command runs in its OWN process group: a timeout must kill the
+    // whole tree. Killing only the wrapper leaves orphaned grandchildren
+    // holding the stdout/stderr pipes open, and wait_with_output then
+    // blocks until THEY exit (observed live 2026-09-07: `grep -r X /`
+    // orphaned by a timed-out call burned 30 min per call at 99% CPU while
+    // the mission thread sat in wait_with_output).
     let mut child = match std::process::Command::new("bash")
         .args(["-c", command])
         .current_dir(workdir)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
+        .process_group(0)
         .spawn()
     {
         Ok(c) => c,
@@ -36,6 +44,13 @@ pub fn run(workdir: &std::path::Path, command: &str, timeout_secs: u64) -> Value
             Ok(Some(_)) => break false,
             Ok(None) => {
                 if Instant::now() >= deadline {
+                    // Group kill first (grandchildren release the pipes),
+                    // then the direct child as belt-and-braces. bash's
+                    // builtin kill keeps this dependency-free.
+                    let pgid = child.id();
+                    let _ = std::process::Command::new("bash")
+                        .args(["-c", &format!("kill -KILL -- -{pgid} 2>/dev/null")])
+                        .status();
                     let _ = child.kill();
                     let _ = child.wait();
                     break true;
