@@ -130,6 +130,7 @@ pub fn refute(
         )}),
     ];
     let mut steps: u32 = 0;
+    let mut probes: u32 = 0;
     macro_rules! out {
         ($passed:expr, $reason:expr) => {{
             let (i, o, c) = model.usage();
@@ -165,11 +166,16 @@ pub fn refute(
                 trace.push(json!({"kind": "verdict", "text": text}));
                 match parse_verdict(&text) {
                     Some((true, reason)) => out!(false, format!("critic refuted the submission: {reason}")),
+                    Some((false, _)) if probes == 0 => out!(
+                        false,
+                        "critic returned a clean verdict without a single machine probe - fail-closed".to_string()
+                    ),
                     Some((false, reason)) => out!(true, reason),
                     None => out!(false, "critic verdict unparseable - fail-closed".to_string()),
                 }
             }
             CriticReply::ToolCalls(calls) => {
+                probes += calls.len() as u32;
                 let tcs: Vec<Value> = calls
                     .iter()
                     .map(|(id, cmd)| json!({
@@ -227,7 +233,7 @@ pub fn checker_gate(ws: &Path) -> Value {
     let cfg = RefuteConfig::from_env();
     let mut model: Box<dyn CriticModel> = match ScriptedCritic::from_env() {
         Some(s) => Box::new(s),
-        None => match DeepseekCritic::from_env() {
+        None => match ProviderCritic::from_env() {
             Ok(d) => Box::new(d),
             Err(e) => {
                 return json!({"passed": false, "error": format!("critic gate: no critic model available: {e} - fail-closed")});
@@ -315,13 +321,31 @@ impl CriticModel for ScriptedCritic {
     }
 }
 
+/// Which model family the critic runs on (Eric 2026-09-07: cross-model
+/// critic - same-model author/critic pairs share interpretation errors).
+/// Default deepseek; "glm" selects the z.ai provider. Unknown names are an
+/// error: the gate fails closed, never a silent fallback.
+pub fn provider_for(name: &str) -> Result<crate::realmodel::Provider, String> {
+    match name {
+        "deepseek" => Ok(crate::realmodel::deepseek()),
+        "glm" => Ok(crate::realmodel::glm()),
+        other => Err(format!("unknown critic model {other:?} (known: deepseek, glm)")),
+    }
+}
+
+pub fn provider_from_env() -> Result<crate::realmodel::Provider, String> {
+    let name = std::env::var("HS_CRITIC_MODEL").unwrap_or_else(|_| "deepseek".into());
+    provider_for(&name)
+}
+
 // ---------------------------------------------------------------------------
-// DeepSeek critic: production model. Minimal OpenAI-shaped client with the
+// Provider critic: production model. Minimal OpenAI-shaped client with the
 // realmodel watchdog pattern (thread + recv_timeout: ureq's global timeout
 // does not fire on a stalled body read). Key material is fill-only from the
 // environment and never logged.
 
-pub struct DeepseekCritic {
+pub struct ProviderCritic {
+    name: String,
     url: String,
     model: String,
     key: String,
@@ -333,9 +357,12 @@ pub struct DeepseekCritic {
     out_micros: f64,
 }
 
-impl DeepseekCritic {
+impl ProviderCritic {
     pub fn from_env() -> Result<Self, String> {
-        let p = crate::realmodel::deepseek();
+        Self::for_provider(provider_from_env()?)
+    }
+
+    pub fn for_provider(p: crate::realmodel::Provider) -> Result<Self, String> {
         let key = std::env::var(&p.key_env)
             .ok()
             .filter(|k| !k.trim().is_empty())
@@ -349,6 +376,7 @@ impl DeepseekCritic {
             .ok_or_else(|| format!("neither {} nor {} is set", p.key_env, p.key_file_env))?;
         let envf = |k: &str, d: f64| std::env::var(k).ok().and_then(|v| v.parse().ok()).unwrap_or(d);
         Ok(Self {
+            name: p.name.clone(),
             url: std::env::var(&p.base_url_env).unwrap_or(p.default_base_url),
             model: std::env::var(&p.model_env).unwrap_or(p.default_model),
             key,
@@ -371,18 +399,18 @@ impl DeepseekCritic {
             .header("Authorization", &format!("Bearer {}", self.key))
             .header("Content-Type", "application/json")
             .send_json(body)
-            .map_err(|e| format!("deepseek critic: request failed: {e}"))?;
+            .map_err(|e| format!("{} critic: request failed: {e}", self.name))?;
         let status = resp.status();
         if !status.is_success() {
-            return Err(format!("deepseek critic: HTTP {}", status.as_u16()));
+            return Err(format!("{} critic: HTTP {}", self.name, status.as_u16()));
         }
         resp.body_mut()
             .read_json()
-            .map_err(|e| format!("deepseek critic: unparsable response: {e}"))
+            .map_err(|e| format!("{} critic: unparsable response: {e}", self.name))
     }
 }
 
-impl CriticModel for DeepseekCritic {
+impl CriticModel for ProviderCritic {
     fn step(&mut self, messages: &[Value]) -> Result<CriticReply, String> {
         let tools = json!([{
             "type": "function",
@@ -407,6 +435,7 @@ impl CriticModel for DeepseekCritic {
         // hang the harness (realmodel finding 2026-09-03).
         let (tx, rx) = std::sync::mpsc::channel();
         let me = Self {
+            name: self.name.clone(),
             url: self.url.clone(),
             model: self.model.clone(),
             key: self.key.clone(),
@@ -423,7 +452,7 @@ impl CriticModel for DeepseekCritic {
         });
         let v = match rx.recv_timeout(std::time::Duration::from_secs(crate::realmodel::watchdog_secs())) {
             Ok(r) => r?,
-            Err(_) => return Err("deepseek critic: provider watchdog timeout".into()),
+            Err(_) => return Err(format!("{} critic: provider watchdog timeout", self.name)),
         };
         let usage = &v["usage"];
         let in_tok = usage["prompt_tokens"].as_u64().unwrap_or(0);
@@ -442,15 +471,15 @@ impl CriticModel for DeepseekCritic {
                     let id = tc["id"].as_str().unwrap_or("c0").to_string();
                     let name = tc["function"]["name"].as_str().unwrap_or("");
                     if name != TERM_EXEC_TOOL {
-                        return Err(format!("deepseek critic: unknown tool {name:?}"));
+                        return Err(format!("{} critic: unknown tool {name:?}", self.name));
                     }
                     let args: Value = serde_json::from_str(
                         tc["function"]["arguments"].as_str().unwrap_or("{}"),
                     )
-                    .map_err(|e| format!("deepseek critic: bad tool arguments: {e}"))?;
+                    .map_err(|e| format!("{} critic: bad tool arguments: {e}", self.name))?;
                     let cmd = args["command"]
                         .as_str()
-                        .ok_or("deepseek critic: tool call missing command")?
+                        .ok_or_else(|| format!("{} critic: tool call missing command", self.name))?
                         .to_string();
                     calls.push((id, cmd));
                 }
@@ -459,7 +488,7 @@ impl CriticModel for DeepseekCritic {
         }
         let content = msg["content"]
             .as_str()
-            .ok_or("deepseek critic: completion carried neither tool calls nor content")?;
+            .ok_or_else(|| format!("{} critic: completion carried neither tool calls nor content", self.name))?;
         Ok(CriticReply::Final(content.to_string()))
     }
 

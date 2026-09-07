@@ -45,13 +45,14 @@ fn u1_refuted_fails_with_reason() {
 fn u2_clean_verdict_passes() {
     let dir = tempfile::tempdir().unwrap();
     let mut m = hs_loop::critic::ScriptedCritic::new(vec![
+        hs_loop::critic::CriticReply::ToolCalls(vec![("c1".into(), "true".into())]),
         hs_loop::critic::CriticReply::Final("{\"refuted\": false, \"reason\": \"re-derived all values by independent method; all requirements tested\"}".into()),
     ]);
     let r = hs_loop::critic::refute(
         dir.path(), "Compute the efficiency.", "cat results.txt",
         &hs_loop::critic::RefuteConfig::default(), &mut m,
     );
-    assert!(r.passed, "clean verdict passes: {r:?}");
+    assert!(r.passed, "clean verdict after a real probe passes: {r:?}");
 }
 
 /// U3: the critic's shell probes actually RUN on the workdir and the output
@@ -215,4 +216,85 @@ fn t10_critic_mode_prompt_discloses_critic() {
     assert!(pl.contains("refute"), "names refutation");
     assert!(pl.contains("different method"), "names independent re-derivation");
     assert!(!p.contains("FAIL_TO_PASS"));
+}
+
+/// U7: critic model selection. Default DeepSeek; "glm" selects the z.ai
+/// provider (cross-family critic); unknown names are an error (fail-closed
+/// at the gate, never a silent fallback).
+#[test]
+fn u7_critic_model_selection() {
+    let d = hs_loop::critic::provider_for("deepseek").unwrap();
+    assert!(d.default_base_url.contains("deepseek"), "{d:?}");
+    let g = hs_loop::critic::provider_for("glm").unwrap();
+    assert!(g.default_base_url.contains("z.ai"), "{g:?}");
+    assert!(g.default_model.contains("glm"), "{g:?}");
+    assert!(hs_loop::critic::provider_for("bogus").is_err());
+}
+
+/// U8: a CLEAN verdict with zero machine probes is fail-closed - the critic
+/// must have actually touched the machine before clearing a submission.
+#[test]
+fn u8_clean_verdict_without_probes_fails_closed() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut m = hs_loop::critic::ScriptedCritic::new(vec![
+        hs_loop::critic::CriticReply::Final("{\"refuted\": false, \"reason\": \"trust me\"}".into()),
+    ]);
+    let r = hs_loop::critic::refute(
+        dir.path(), "Do x.", "true",
+        &hs_loop::critic::RefuteConfig::default(), &mut m,
+    );
+    assert!(!r.passed, "probe-less clean verdict must fail closed: {r:?}");
+    assert!(r.reason.to_lowercase().contains("probe"), "says why: {r:?}");
+}
+
+/// U9: a REFUTED verdict needs no probes to count - refutation is the
+/// fail-closed direction already.
+#[test]
+fn u9_refuted_verdict_without_probes_still_fails() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut m = hs_loop::critic::ScriptedCritic::new(vec![
+        hs_loop::critic::CriticReply::Final("{\"refuted\": true, \"reason\": \"results.txt missing\"}".into()),
+    ]);
+    let r = hs_loop::critic::refute(
+        dir.path(), "Do x.", "true",
+        &hs_loop::critic::RefuteConfig::default(), &mut m,
+    );
+    assert!(!r.passed, "{r:?}");
+    assert!(r.reason.contains("results.txt missing"), "{r:?}");
+}
+
+/// T11: cross-model wiring - the scripted seam still wins (no network in
+/// tests), and an unknown critic model fails the gate closed.
+#[test]
+fn t11_critic_model_env_selection() {
+    // unknown model, no script: the gate must fail closed
+    let dir = tempfile::tempdir().unwrap();
+    let (run_dir, ws) = fixture(dir.path());
+    let inst = dir.path().join("instruction.md");
+    std::fs::write(&inst, "Make code.txt contain the word fixed.\n").unwrap();
+    let out = Command::new(DRIVER)
+        .args([
+            "--instruction", &inst.display().to_string(),
+            "--task-id", "fixture__critic11",
+            "--model", "swemodel",
+            "--feedback", "on",
+            "--critic", "on",
+            "--budget-micros", "100000",
+            "--max-steps", "6",
+            "--run-dir", &run_dir.display().to_string(),
+            "--workdir", &ws.display().to_string(),
+        ])
+        .env("HS_CRITIC_MODEL", "bogus")
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "driver: {}", String::from_utf8_lossy(&out.stderr));
+    let result: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(run_dir.join("result.json")).unwrap()).unwrap();
+    assert_eq!(result["passed"], false, "unknown critic model must fail closed: {result}");
+
+    // glm selected + script seam: the script wins (no network), mission passes
+    let dir2 = tempfile::tempdir().unwrap();
+    let (run_dir2, ws2) = fixture(dir2.path());
+    let result2 = run_driver(&run_dir2, &ws2, &inst, "tool:cat code.txt|clean");
+    assert_eq!(result2["passed"], true, "{result2}");
 }
