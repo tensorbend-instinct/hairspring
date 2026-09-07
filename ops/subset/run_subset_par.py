@@ -170,6 +170,35 @@ def parse_exec_counts(out):
             counts[k] = counts.get(k, 0) + int(v)
     return counts
 
+
+def test_patch_files(test_patch):
+    import re as _re
+    return set(_re.findall(r"^diff --git a/(\S+)", test_patch, _re.M))
+
+
+def errors_are_testpatch_intrinsic(out, test_patch):
+    """pdm-3374 (2026-09-07): when the test patch's own conftest fixtures
+    require the gold feature (3374's conftest.py:123 calls
+    get_auth_info.cache_clear(), a method only the gold patch adds), F2P
+    tests ERROR at base BY DESIGN - and the ERROR node lines name arbitrary
+    test files that merely USE the fixture (test_publish.py is not in the
+    test patch at all). The signal is WHERE the exception terminates:
+    accept only when every terminal traceback frame (path.py:NNN: XxxError)
+    lands in a test_patch-touched file. A terminal frame in a base file,
+    site-packages, or a missing traceback at all means environment breakage
+    and still refuses (8619/8725 protections). Collection-phase errors are
+    refused earlier and never reach here."""
+    frames = set()
+    import re as _re
+    for line in out.splitlines():
+        m = _re.match(r"^([\w./-]+\.py):(\d+):\s*\w*Error", line.strip())
+        if m:
+            frames.add(m.group(1))
+    if not frames:
+        return False
+    tp = test_patch_files(test_patch)
+    return all(f in tp for f in frames)
+
 IMPORT_PKG = {"cfn-lint": "cfnlint"}  # slug -> top-level import name (default: slug)
 
 def preflight_gate(m, ws, venv_python, nodes):
@@ -213,7 +242,8 @@ def preflight_gate(m, ws, venv_python, nodes):
     counts = parse_exec_counts(out)
     executed = counts.get("passed", 0) + counts.get("failed", 0)
     if counts.get("error", 0):
-        return fail(f"{counts['error']} ERROR(s) at execute: {out[-300:]}")
+        if not errors_are_testpatch_intrinsic(out, m.get("test_patch", "")):
+            return fail(f"{counts['error']} ERROR(s) at execute: {out[-300:]}")
     if executed < 1 or "found no collectors" in out or "no tests ran" in out:
         return fail(f"zero tests executed: {out[-300:]}")
     return None
