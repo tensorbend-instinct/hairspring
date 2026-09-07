@@ -300,13 +300,25 @@ pub fn apply_model_patch(workspace: &Path, patch: &str) -> Result<ApplyResult, B
     if patch.trim().is_empty() {
         return Ok(ApplyResult::NoApply("empty patch".into()));
     }
-    let patch_path = workspace.join(".hs-eval.patch");
+    // The temp patch file is harness machinery: it must live OUTSIDE the
+    // agent-visible workspace (a crash mid-cleanup once stranded it in-tree,
+    // where agents saw it and the candidate diff grew a bogus deletion hunk).
+    let patch_path = std::env::temp_dir().join(format!(
+        ".hs-eval-{}-{}.patch",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0)
+    ));
     std::fs::write(&patch_path, patch)?;
     let out = Command::new("git")
         .args(["apply", "--whitespace=nowarn"])
         .arg(&patch_path)
         .current_dir(workspace)
-        .output()?;
+        .output();
+    let _ = std::fs::remove_file(&patch_path);
+    let out = out?;
     if out.status.success() {
         Ok(ApplyResult::Applied)
     } else {
