@@ -15,6 +15,7 @@ pub mod mcpbridge;
 pub mod msgfmt;
 pub mod realmodel;
 pub mod repexec;
+pub mod repl;
 pub mod repotools;
 pub mod sweprompt;
 pub mod toolschema;
@@ -30,6 +31,9 @@ pub enum LoopError {
     Log(LogError),
     ModelOutput(String),
     Io(std::io::Error),
+    /// require_visibility refused the run: kernel has no log root (the
+    /// production startup gate - no blind runs).
+    Visibility(String),
 }
 impl From<std::io::Error> for LoopError {
     fn from(e: std::io::Error) -> Self {
@@ -53,6 +57,7 @@ impl std::fmt::Display for LoopError {
             Self::Log(e) => write!(f, "log: {e}"),
             Self::ModelOutput(e) => write!(f, "model output: {e}"),
             Self::Io(e) => write!(f, "io: {e}"),
+            Self::Visibility(e) => write!(f, "visibility: {e}"),
         }
     }
 }
