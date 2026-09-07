@@ -448,13 +448,17 @@ impl Scorer {
     }
 
     fn emit(&mut self, kind: EventKind, body: &str) -> Event {
-        let hash = hs_log::write_blob(&self.log_root, body.as_bytes()).unwrap();
+        // Fail-stop by design: the canonical log is the scorer's evidence
+        // base, and continuing past a failed write would let a verdict rest
+        // on silently incomplete evidence. Abort loudly instead.
+        let hash = hs_log::write_blob(&self.log_root, body.as_bytes())
+            .expect("canonical log write must succeed: partial evidence is worse than a halt");
         self.writer
             .append(EventBuilder::new(kind).payload(Payload::BlobRef {
                 hash,
                 len: body.len() as u64,
             }))
-            .unwrap()
+            .expect("canonical log append must succeed: partial evidence is worse than a halt")
     }
 
     /// GATE 9c (spec v5): evidence state, projected from the canonical log.
@@ -463,7 +467,8 @@ impl Scorer {
     /// artifacts: what is verified, what is failing, what regressed.
     pub fn evidence_state(&self) -> Vec<EvidenceClaim> {
         let events = self.log_events();
-        let reader = StreamReader::open(&self.log_root, self.stream).unwrap();
+        let reader = StreamReader::open(&self.log_root, self.stream)
+            .expect("reading the canonical log this scorer wrote");
         evidence::project(&events, &|e| {
             reader
                 .resolve_payload(e)
@@ -511,7 +516,8 @@ impl Scorer {
     /// same substrate, same bindings, evolved policy.
     pub fn fitness_deltas(&self) -> Vec<attribution::FitnessDeltaRec> {
         let events = self.log_events();
-        let reader = StreamReader::open(&self.log_root, self.stream).unwrap();
+        let reader = StreamReader::open(&self.log_root, self.stream)
+            .expect("reading the canonical log this scorer wrote");
         attribution::project(&events, &|e| {
             reader
                 .resolve_payload(e)
@@ -526,7 +532,8 @@ impl Scorer {
     /// counted as evolved improvement.
     pub fn capability_attributed(&self) -> Vec<attribution::AttributedDelta> {
         let events = self.log_events();
-        let reader = StreamReader::open(&self.log_root, self.stream).unwrap();
+        let reader = StreamReader::open(&self.log_root, self.stream)
+            .expect("reading the canonical log this scorer wrote");
         attribution::project(&events, &|e| {
             reader
                 .resolve_payload(e)
