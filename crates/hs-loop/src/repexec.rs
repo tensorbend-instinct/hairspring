@@ -89,7 +89,10 @@ pub fn extract_diff(raw: &str) -> Option<String> {
     if let Some(p) = hs_bench::extract_patch(raw) {
         return Some(p);
     }
-    let t = raw.trim();
+    // trim_end_matches('\n'), never trim(): a hunk's final context line can
+    // be a single space (blank source line) and trimming it corrupts the
+    // hunk ("error: corrupt patch at line N", octodns-1298 2026-09-07).
+    let t = raw.trim_start().trim_end_matches('\n');
     // git apply rejects a patch whose last hunk line lacks the trailing
     // newline ("corrupt patch at line N") - always re-terminate.
     (t.starts_with("diff --git") || t.starts_with("--- ")).then(|| format!("{t}\n"))

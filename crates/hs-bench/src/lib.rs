@@ -360,6 +360,15 @@ pub fn run_tests(
 /// body starts with a diff header, or a bare diff in the text. Prose-only
 /// completions yield None (the runner treats that as NoApply - we never
 /// invent a patch).
+/// Terminate an extracted diff WITHOUT trimming trailing whitespace lines:
+/// a hunk's final context line can be a single space (a blank source line)
+/// and trimming it corrupts the hunk ("error: corrupt patch at line N",
+/// octodns-1298 2026-09-07). Strip only leading whitespace and the trailing
+/// newline run, then re-terminate exactly once.
+fn terminate_diff(body: &str) -> String {
+    format!("{}\n", body.trim_start().trim_end_matches('\n'))
+}
+
 pub fn extract_patch(completion: &str) -> Option<String> {
     // 1. fenced blocks, preferring ```diff
     let mut fences: Vec<&str> = vec![];
@@ -376,22 +385,22 @@ pub fn extract_patch(completion: &str) -> Option<String> {
         let lang = after_tick[..after_tick.find('\n').unwrap()].trim();
         let body = &body_and_on[..end];
         if lang == "diff" {
-            return Some(format!("{}\n", body.trim()));
+            return Some(terminate_diff(body));
         }
         fences.push(body);
         rest = &body_and_on[end + 3..];
     }
     for body in fences {
         if body.trim_start().starts_with("--- a/") || body.trim_start().starts_with("diff --git") {
-            return Some(format!("{}\n", body.trim()));
+            return Some(terminate_diff(body));
         }
     }
     // 2. bare diff anywhere in the text: from the first "--- a/" line to the end
     if let Some(pos) = completion.find("\n--- a/") {
-        return Some(format!("{}\n", completion[pos + 1..].trim()));
+        return Some(terminate_diff(&completion[pos + 1..]));
     }
     if completion.trim_start().starts_with("--- a/") {
-        return Some(format!("{}\n", completion.trim()));
+        return Some(terminate_diff(completion));
     }
     None
 }
