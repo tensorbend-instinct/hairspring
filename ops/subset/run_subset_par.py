@@ -350,6 +350,13 @@ def run_task(wid, m):
     print(f"[w{wid}] {iid} passed={res.get('passed')} steps={res.get('steps',0)} cost=${res.get('cost_micros',0)/1e6:.3f} {note}", flush=True)
     shutil.rmtree(os.path.join(CLAIMS, iid), ignore_errors=True)
 
+
+def missions_remaining(manifest):
+    """Manifest missions with no result.json yet (includes ones siblings are
+    running right now)."""
+    return [m for m in manifest
+            if not os.path.exists(os.path.join(S50, "runs", m["instance_id"], "result.json"))]
+
 def worker(wid):
     while True:
         claimed = None
@@ -364,7 +371,13 @@ def worker(wid):
             except FileExistsError:
                 continue
         if claimed is None:
-            return
+            # 2026-09-07 tail-starvation fix: nothing claimable RIGHT NOW only
+            # means siblings hold the remaining claims. Exit only when every
+            # manifest mission has a result; otherwise wait and rescan.
+            if not missions_remaining(MANIFEST):
+                return
+            time.sleep(5)
+            continue
         with _lock:
             if spend_micros(MANIFEST) > GUARDRAIL:
                 write_status(MANIFEST, "STOPPED spend guardrail $50")
