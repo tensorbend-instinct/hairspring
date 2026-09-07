@@ -154,13 +154,16 @@ fn feedback_leads_artifact_in_tail() {
     let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let (ev, _d, _l) = refute_then_doom("task-43");
     let prompts = prompts_of(&ev);
+    // 2026-09-07: the artifact line is now labeled ("ARTIFACT (the graded
+    // answer file ...):") - the load-bearing property is FEEDBACK *before*
+    // ARTIFACT, not the bare literal.
     let post_veto: Vec<&String> = prompts.iter()
-        .filter(|p| p.contains("VERIFIER REFUTED") && p.contains("ARTIFACT:"))
+        .filter(|p| p.contains("VERIFIER REFUTED") && p.contains("ARTIFACT"))
         .collect();
     assert!(!post_veto.is_empty(), "a post-veto prompt with an artifact exists");
     for p in post_veto {
         let f = p.find("FEEDBACK:").unwrap();
-        let a = p.find("ARTIFACT:").unwrap();
+        let a = p.find("ARTIFACT").unwrap();
         assert!(f < a, "feedback must lead, not trail the artifact: FEEDBACK@{f} ARTIFACT@{a}");
     }
 }

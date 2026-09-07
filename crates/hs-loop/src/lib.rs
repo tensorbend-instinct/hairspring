@@ -378,15 +378,7 @@ impl InnerLoop {
                 }
                 injected = true;
             }
-            volatile.push_str(&format!(
-                "\nANSWER_PATH: {}\nARTIFACT: {}\n",
-                answer_path.display(),
-                if artifact.is_empty() {
-                    "<none>"
-                } else {
-                    artifact.trim()
-                }
-            ));
+            volatile.push_str(&artifact_section(&answer_path, &artifact));
             // Fix 5: convergence pressure (ab2: three wall-killed missions
             // ran 19-25 steps with zero model-initiated verification). At
             // 50% and 75% of the step budget, when the model has never run
@@ -1112,4 +1104,26 @@ pub fn require_visibility(k: &hs_kernel::Kernel) -> Result<(), String> {
     } else {
         Err("kernel has no log root: visibility wiring inactive (dispatch records, stderr capture dead) - refusing to run blind".into())
     }
+}
+
+
+/// Render the volatile ARTIFACT block (octodns-1298, 2026-09-07): this is
+/// the answer FILE as it stands on disk - the exact bytes the checker
+/// grades - updated ONLY by answer.submit. It is NOT live candidate state;
+/// the old bare "ARTIFACT:" label led the model to read it as the current
+/// candidate and loop on phantom stale versions after edit.patch reset +
+/// re-apply. The label now says what it is and what writes it. Content is
+/// shown untrimmed except for the trailing newline run: structural
+/// whitespace (a blank context line) is load-bearing in diffs.
+pub fn artifact_section(answer_path: &std::path::Path, artifact: &str) -> String {
+    let shown = if artifact.is_empty() {
+        "<none>".to_string()
+    } else {
+        artifact.trim_end_matches('\n').to_string()
+    };
+    format!(
+        "\nANSWER_PATH: {}\nARTIFACT (the graded answer file on disk - updated ONLY by answer.submit; NOT live candidate state):\n{}\n",
+        answer_path.display(),
+        shown
+    )
 }
