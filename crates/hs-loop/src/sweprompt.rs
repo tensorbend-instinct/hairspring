@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 pub const SWE_MISSION_TEMPLATE: &str = "You are fixing a real bug in the repository checked out at {ws} (base commit, failing tests already added). repo.exec sees the repo at /ws; every tool takes repo-relative paths.\n\
 MACHINE: you are on a real Linux box as root, not a toy sandbox. {network_line} System roots are writable - apt-get/pip/cargo/npm all work. Host-only paths stay hidden (/home, /mnt). Detected tooling: {orientation}\n\
 PROBLEM STATEMENT (from the issue tracker):\n{problem_statement}\n\n\
-The checker will apply your patch and run: {fail_to_pass}\n\
+The checker applies your patch, then runs the FAIL_TO_PASS tests. Run them yourself inside repo.exec with EXACTLY this command (the interpreter is on PATH): {fail_to_pass}\n\
 It also runs a set of PASS_TO_PASS regression tests; do not break existing behavior.\n\n\
 Repo files (partial listing):\n{repo_layout}\n\
 TOOLS: your tools arrive through the native tool-calling API - call exactly one per reply, no prose.\n\

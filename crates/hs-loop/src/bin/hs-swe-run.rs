@@ -172,7 +172,21 @@ fn main() {
         &hs_loop::sweprompt::PromptArgs {
             ws: ws.display().to_string(),
             problem_statement: inst.problem_statement.clone(),
-            fail_to_pass: if !goal_cmds.is_empty() { goal_cmds.clone() } else { f2p.clone() },
+            // Prompt carries the SANDBOX-resolved FAIL_TO_PASS command
+            // (octodns-1298, 2026-09-07): the host f2p.sh path is hidden
+            // from the repo.exec sandbox and the model burned steps hunting
+            // the filesystem for it. Runner override: HS_SWE_F2P_DISPLAY.
+            // Default: pytest node ids run with python3 (the mission venv
+            // is first on the sandbox PATH).
+            fail_to_pass: std::env::var("HS_SWE_F2P_DISPLAY")
+                .map(|d| vec![d])
+                .unwrap_or_else(|_| {
+                    if !f2p.is_empty() {
+                        vec![format!("python3 -m pytest {} -x -q", f2p.join(" "))]
+                    } else {
+                        goal_cmds.clone()
+                    }
+                }),
             repo_layout: layout.clone(),
             nudge: std::env::var("HS_SWE_PROMPT_NUDGE").unwrap_or_default(),
             answer_path: answer_path.display().to_string(),
