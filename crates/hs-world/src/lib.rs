@@ -100,18 +100,33 @@ impl Effect {
 impl World {
     /// Mark a stream as a quarantined self-modification fork.
     pub fn quarantine(&self, stream: uuid::Uuid) {
-        self.state.lock().unwrap().quarantined.insert(stream);
+        self.state
+            .lock()
+            .expect("world state mutex poisoned")
+            .quarantined
+            .insert(stream);
     }
     /// Lift quarantine (promotion or rewind ends the fork's session).
     pub fn lift_quarantine(&self, stream: uuid::Uuid) {
-        self.state.lock().unwrap().quarantined.remove(&stream);
+        self.state
+            .lock()
+            .expect("world state mutex poisoned")
+            .quarantined
+            .remove(&stream);
     }
     /// The world service is the single authority on side effects: a
     /// quarantined fork may NOT cause external effects (spec fig 5). The
     /// rejection is stream-scoped, not blanket: once the fork's lineage is
     /// promoted and quarantine lifts, the same effect class is authorized.
     pub fn authorize_effect(&self, stream: uuid::Uuid, effect: Effect) -> Result<(), WorldError> {
-        if effect.is_external() && self.state.lock().unwrap().quarantined.contains(&stream) {
+        if effect.is_external()
+            && self
+                .state
+                .lock()
+                .expect("world state mutex poisoned")
+                .quarantined
+                .contains(&stream)
+        {
             return Err(WorldError::Rejected(format!(
                 "quarantined stream {stream} may not cause external effect {effect:?}"
             )));
@@ -156,12 +171,13 @@ impl World {
     fn consequence(&self, a: &Artifact) -> Result<(), WorldError> {
         let mut w = StreamWriter::resume(&self.log_root, self.world_stream)?.writer;
         w.append(
-            EventBuilder::new(EventKind::Consequence)
-                .payload(Payload::Inline(serde_json::to_vec(a).unwrap())),
+            EventBuilder::new(EventKind::Consequence).payload(Payload::Inline(
+                serde_json::to_vec(a).expect("artifacts serialize"),
+            )),
         )?;
         self.state
             .lock()
-            .unwrap()
+            .expect("world state mutex poisoned")
             .artifacts
             .insert((a.artifact_id, a.version), a.clone());
         Ok(())
@@ -175,8 +191,9 @@ impl World {
         // consequences, but proposals are theirs
         let mut w = StreamWriter::resume(&self.log_root, self.world_stream)?.writer;
         w.append(
-            EventBuilder::new(EventKind::Proposal)
-                .payload(Payload::Inline(serde_json::to_vec(&artifact).unwrap())),
+            EventBuilder::new(EventKind::Proposal).payload(Payload::Inline(
+                serde_json::to_vec(&artifact).expect("artifacts serialize"),
+            )),
         )?;
 
         if artifact.status != ArtifactStatus::Proposed {
@@ -196,7 +213,7 @@ impl World {
         if self
             .state
             .lock()
-            .unwrap()
+            .expect("world state mutex poisoned")
             .artifacts
             .contains_key(&(artifact.artifact_id, artifact.version))
         {
@@ -237,7 +254,7 @@ impl World {
         let targets: Vec<Artifact> = self
             .state
             .lock()
-            .unwrap()
+            .expect("world state mutex poisoned")
             .artifacts
             .values()
             .filter(|a| {
@@ -262,7 +279,7 @@ impl World {
         Ok(self
             .state
             .lock()
-            .unwrap()
+            .expect("world state mutex poisoned")
             .artifacts
             .values()
             .filter(|a| {
@@ -282,7 +299,7 @@ impl World {
         let controllers: Vec<Artifact> = self
             .state
             .lock()
-            .unwrap()
+            .expect("world state mutex poisoned")
             .artifacts
             .values()
             .filter(|a| a.status == ArtifactStatus::Installed && a.kind == ArtifactKind::Controller)
@@ -326,7 +343,7 @@ impl World {
     fn latest(&self, artifact_id: uuid::Uuid) -> Result<Artifact, WorldError> {
         self.state
             .lock()
-            .unwrap()
+            .expect("world state mutex poisoned")
             .artifacts
             .values()
             .filter(|a| a.artifact_id == artifact_id)
@@ -420,7 +437,7 @@ fn walk_tree(root: &Path) -> Result<TreeWalk, WorldError> {
             let p = dir.join(&name);
             let rel = p
                 .strip_prefix(root)
-                .unwrap()
+                .expect("walk entries are under root")
                 .to_string_lossy()
                 .replace(std::path::MAIN_SEPARATOR, "/");
             let md = std::fs::symlink_metadata(&p)
@@ -453,7 +470,7 @@ fn walk_tree(root: &Path) -> Result<TreeWalk, WorldError> {
 fn manifest_bytes(m: &SnapshotManifest) -> Vec<u8> {
     // Canonical: the walk is path-sorted and serde_json emits struct fields
     // in declaration order, so the encoding is deterministic.
-    serde_json::to_vec(m).unwrap()
+    serde_json::to_vec(m).expect("world event bodies serialize")
 }
 
 impl World {
@@ -507,8 +524,9 @@ impl World {
         };
         let mut w = StreamWriter::resume(&self.log_root, self.world_stream)?.writer;
         w.append(
-            EventBuilder::new(EventKind::SnapshotRef)
-                .payload(Payload::Inline(serde_json::to_vec(&rep).unwrap())),
+            EventBuilder::new(EventKind::SnapshotRef).payload(Payload::Inline(
+                serde_json::to_vec(&rep).expect("world event bodies serialize"),
+            )),
         )?;
         Ok(rep)
     }
