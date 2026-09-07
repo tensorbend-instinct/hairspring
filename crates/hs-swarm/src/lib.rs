@@ -120,7 +120,7 @@ impl Spawner {
     /// Drive a child to completion on this thread (parallel = N threads,
     /// one Spawner clone per thread via `new`).
     pub fn run_to_completion(&self, child: &Child) -> Result<ChildReport, SpawnError> {
-        let kernel = hs_kernel::Kernel::load(&self.kernel_config)?;
+        let kernel = hs_kernel::Kernel::load_with_log(&self.kernel_config, &self.log_root)?;
         let mut l = hs_loop::InnerLoop::with_stream(
             kernel,
             &self.log_root,

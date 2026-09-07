@@ -1087,3 +1087,29 @@ fn build_verifier_prompt(
 
     p
 }
+
+/// The kernel constructor every production SWE runner path must use
+/// (hs-swe-run, swarm children). 2026-09-07 wiring gap: hs-swe-run built its
+/// kernel with Kernel::load (no log root), which silently disabled the
+/// af5f7b57 wedge-visibility records and stderr capture on the live path
+/// while the RED test proved them under load_with_log. One constructor keeps
+/// the log root non-optional on the run path.
+pub fn swe_kernel(
+    config: &std::path::Path,
+    log_root: &std::path::Path,
+) -> Result<hs_kernel::Kernel, hs_kernel::KernelError> {
+    hs_kernel::Kernel::load_with_log(config, log_root)
+}
+
+/// Startup gate for every production runner: refuse to run blind.
+/// 2026-09-07: hs-swe-run ran the 17302 audit with a log-root-less kernel
+/// and emitted zero dispatch records - the wedge-visibility fix was compiled
+/// in but dead. A kernel without a log root must stop the run, not silently
+/// disable observability.
+pub fn require_visibility(k: &hs_kernel::Kernel) -> Result<(), String> {
+    if k.has_log_root() {
+        Ok(())
+    } else {
+        Err("kernel has no log root: visibility wiring inactive (dispatch records, stderr capture dead) - refusing to run blind".into())
+    }
+}

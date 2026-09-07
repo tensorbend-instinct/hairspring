@@ -346,6 +346,12 @@ impl Kernel {
         Self::load_inner(config, None)
     }
 
+    /// True when this kernel was built with a log root (load_with_log):
+    /// dispatch records and plugin stderr capture are active only then.
+    pub fn has_log_root(&self) -> bool {
+        self.log_root.is_some()
+    }
+
     /// Load and record every tool/model call to a fresh stream in `log_root`.
     pub fn load_with_log(config: &Path, log_root: &Path) -> Result<Self, KernelError> {
         Self::load_inner(config, Some(log_root))

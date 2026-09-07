@@ -260,7 +260,11 @@ default = true
     // notes.scratch storage: per-mission, inherited by tool processes
     unsafe { std::env::set_var("HS_SCRATCH_FILE", work_dir.join("notes.md")) };
 
-    let kernel = hs_kernel::Kernel::load(&config).expect("kernel load");
+    let kernel = hs_loop::swe_kernel(&config, &log_root).expect("kernel load");
+    hs_loop::require_visibility(&kernel).unwrap_or_else(|m| {
+        eprintln!("STARTUP REFUSED: {m}");
+        std::process::exit(2);
+    });
     let mut l = hs_loop::InnerLoop::new(kernel, &log_root, feedback, max_steps).expect("loop");
     l.set_budget_micros(budget_micros);
     l.set_tools(serde_json::Value::Array(native_tools));

@@ -189,6 +189,23 @@ fn driver_mission_uses_repotools_through_synthesized_config() {
 /// unit-test-only components). sweexec writes a corrupt patch, pre-flights it
 /// with repo.exec (must come back applied=false with the git error), then
 /// writes the gold patch and passes. Asserts on the event stream itself.
+
+/// Read every payload from EVERY stream under run_dir/log. Post-af5f7b57 the
+/// log holds two streams (kernel dispatch + loop results); single-stream
+/// reads silently pick one and miss the other.
+fn all_payloads(run_dir: &std::path::Path) -> Vec<String> {
+    let streams_dir = run_dir.join("log").join("streams");
+    let mut out = vec![];
+    for s in std::fs::read_dir(&streams_dir).unwrap() {
+        let sid = uuid::Uuid::parse_str(s.unwrap().file_name().to_str().unwrap()).unwrap();
+        let reader = hs_log::StreamReader::open(&run_dir.join("log"), sid).unwrap();
+        for e in reader.events().unwrap() {
+            out.push(String::from_utf8_lossy(&reader.resolve_payload(&e).unwrap()).to_string());
+        }
+    }
+    out
+}
+
 #[test]
 fn driver_mission_preflights_with_repoexec() {
     let dir = tempfile::tempdir().unwrap();
@@ -245,15 +262,10 @@ fn driver_mission_preflights_with_repoexec() {
 
     // the stream proves the real path: a repo.exec ToolCall whose result is
     // the free apply-error feedback (corrupt patch), on the audit log
-    let streams_dir = run_dir.join("log").join("streams");
-    let sid = std::fs::read_dir(&streams_dir).unwrap().next().unwrap().unwrap();
-    let sid = uuid::Uuid::parse_str(sid.file_name().to_str().unwrap()).unwrap();
-    let reader = hs_log::StreamReader::open(&run_dir.join("log"), sid).unwrap();
-    let events = reader.events().unwrap();
-    let exec_call = events.iter().find_map(|e| {
-        let p = String::from_utf8_lossy(&reader.resolve_payload(e).unwrap()).to_string();
-        (p.contains("\"plugin\":\"repo.exec\"")).then_some(p)
-    }).expect("a repo.exec ToolCall event must be on the stream");
+    let payloads = all_payloads(&run_dir);
+    let exec_call = payloads.iter().find(|p| {
+        p.contains("\"plugin\":\"repo.exec\"") && p.contains("\"applied\":false")
+    }).expect("a repo.exec ToolCall result must be on the stream");
     assert!(exec_call.contains("\"applied\":false"), "corrupt patch pre-flight feedback: {exec_call}");
     assert!(exec_call.contains("apply_error"), "names the git error: {exec_call}");
     // and the live workspace was never mutated by the exec pre-flight
@@ -379,16 +391,12 @@ fn driver_mission_calls_mcp_tool() {
 
     // the stream proves the real path: an mcp.fixture.echo ToolCall whose
     // result carries the echo payload
-    let streams_dir = run_dir.join("log").join("streams");
-    let sid = std::fs::read_dir(&streams_dir).unwrap().next().unwrap().unwrap();
-    let sid = uuid::Uuid::parse_str(sid.file_name().to_str().unwrap()).unwrap();
-    let reader = hs_log::StreamReader::open(&run_dir.join("log"), sid).unwrap();
-    let events = reader.events().unwrap();
-    let mcp_call = events.iter().find_map(|e| {
-        let p = String::from_utf8_lossy(&reader.resolve_payload(e).unwrap()).to_string();
+    let payloads = all_payloads(&run_dir);
+    let mcp_call = payloads.iter().find(|p| {
+        let p = p.as_str();
         // must be the SUCCESS event: an error payload would also contain the
         // args text, which previously let a dead MCP path pass this test
-        (p.contains("\"plugin\":\"mcp.fixture.echo\"") && p.contains("\"result\"") && !p.contains("\"error\"")).then_some(p)
+        (p.contains("\"plugin\":\"mcp.fixture.echo\"") && p.contains("\"result\"") && !p.contains("\"error\""))
     }).expect("a successful mcp.fixture.echo ToolCall event must be on the stream");
     assert!(mcp_call.contains("hello-via-mcp"), "echo payload on stream: {mcp_call}");
 }
@@ -466,17 +474,12 @@ fn driver_mission_uses_d5_tools() {
 
     // the stream proves both tools really ran: notes read returned the
     // content, edit.apply returned a cumulative diff
-    let streams_dir = run_dir.join("log").join("streams");
-    let sid = std::fs::read_dir(&streams_dir).unwrap().next().unwrap().unwrap();
-    let sid = uuid::Uuid::parse_str(sid.file_name().to_str().unwrap()).unwrap();
-    let reader = hs_log::StreamReader::open(&run_dir.join("log"), sid).unwrap();
-    let events = reader.events().unwrap();
-    let payloads: Vec<String> = events.iter()
-        .map(|e| String::from_utf8_lossy(&reader.resolve_payload(e).unwrap()).to_string())
-        .collect();
-    let notes_call = payloads.iter().find(|p| p.contains("\"plugin\":\"notes.scratch\"") && p.contains("\"content\"") && p.contains("hypothesis"))
+    // post-af5f7b57 the log holds TWO streams: the kernel dispatch stream
+    // (in-flight visibility records) and the loop stream (call results).
+    // Scan every stream; a result payload is identified by carrying ok/result.
+    let payloads = all_payloads(&run_dir);
+    payloads.iter().find(|p| p.contains("\"plugin\":\"notes.scratch\"") && p.contains("\"content\"") && p.contains("hypothesis") && p.contains("\"ok\":true"))
         .expect("a notes.scratch result carrying the note must be on the stream");
-    assert!(notes_call.contains("\"ok\":true"), "{notes_call}");
     let edit_call = payloads.iter().find(|p| p.contains("\"plugin\":\"edit.patch\"") && p.contains("cumulative_diff"))
         .expect("an edit.patch result with cumulative_diff must be on the stream");
     assert!(edit_call.contains("+fixed"), "cumulative diff carries the patch: {edit_call}");
