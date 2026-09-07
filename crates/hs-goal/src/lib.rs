@@ -145,7 +145,9 @@ impl OuterLoop {
     ) -> Result<(), GoalError> {
         self.writer.append(
             EventBuilder::new(kind)
-                .payload(Payload::Inline(serde_json::to_vec(&body).unwrap()))
+                .payload(Payload::Inline(
+                    serde_json::to_vec(&body).expect("goal event bodies serialize"),
+                ))
                 .latency_ms(latency_ms)
                 .cost_usd_micros(cost),
         )?;
@@ -215,7 +217,11 @@ impl OuterLoop {
             }
 
             let answer_path = self.log_root.join("work").join(&spec).join("answer.txt");
-            std::fs::create_dir_all(answer_path.parent().unwrap())?;
+            std::fs::create_dir_all(
+                answer_path
+                    .parent()
+                    .expect("joined path always has a parent"),
+            )?;
             let artifact_before = std::fs::read_to_string(&answer_path).unwrap_or_default();
             let ctx = format!(
                 "SPEC: {spec}\nATTEMPT: {attempt}\nANSWER_PATH: {}\nARTIFACT: {}\n",
