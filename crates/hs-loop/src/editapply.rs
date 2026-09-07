@@ -38,13 +38,18 @@ fn ensure_candidate(ws: &Path) -> Result<PathBuf, Value> {
 }
 
 fn read_cumulative(cand: &Path) -> Result<String, Value> {
-    // the apply helper drops .hs-eval.patch in the tree; never stage it
-    let _ = std::fs::remove_file(cand.join(".hs-eval.patch"));
-    let out = git(cand, &["add", "-A"]);
+    // .hs-eval.patch is harness eval machinery, never task content. Bases
+    // contaminated by the pre-6398fc8f eval flow carry it COMMITTED in the
+    // ws HEAD (conan-17302), so the candidate worktree tracks it: restore
+    // the tracked copy (no-op + error when untracked at HEAD - ignored) and
+    // exclude the path from staging and from the cumulative diff itself, so
+    // neither the file nor its deletion can ever leak into the graded patch.
+    let _ = git(cand, &["checkout", "HEAD", "--", ".hs-eval.patch"]);
+    let out = git(cand, &["add", "-A", "--", ".", ":(exclude).hs-eval.patch"]);
     if !out.status.success() {
         return Err(json!({"$error": format!("candidate stage: {}", String::from_utf8_lossy(&out.stderr))}));
     }
-    let diff = git(cand, &["diff", "--cached", "HEAD"]);
+    let diff = git(cand, &["diff", "--cached", "HEAD", "--", ".", ":(exclude).hs-eval.patch"]);
     if !diff.status.success() {
         return Err(json!({"$error": format!("candidate diff: {}", String::from_utf8_lossy(&diff.stderr))}));
     }
@@ -65,15 +70,12 @@ pub fn apply(ws: &Path, diff: &str) -> Value {
     match hs_bench::apply_model_patch(&cand, &patch) {
         Ok(hs_bench::ApplyResult::Applied) => {}
         Ok(hs_bench::ApplyResult::NoApply(msg)) => {
-            let _ = std::fs::remove_file(cand.join(".hs-eval.patch"));
             return json!({"applied": false, "apply_error": msg});
         }
         Err(e) => {
-            let _ = std::fs::remove_file(cand.join(".hs-eval.patch"));
             return json!({"$error": format!("apply machinery: {e:?}")});
         }
     }
-    let _ = std::fs::remove_file(cand.join(".hs-eval.patch"));
     match read_cumulative(&cand) {
         Ok(cd) => {
             let files: Vec<&str> = cd.lines()
