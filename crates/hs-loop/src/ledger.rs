@@ -151,6 +151,24 @@ impl Ledger {
                     self.edits.push((seq, p.to_string()));
                 }
             }
+            "term.exec" => {
+                // tb mode: term.exec is the model's ONLY verification
+                // channel (and its edit channel). Every completed run is
+                // evidence; without this branch the model can never become
+                // verified and every submission is refuted as unverifiable
+                // (smoke run 2026-09-07: 33 calls, empty ledger, eternal
+                // blocking=unverifiable).
+                if result["exit_code"].as_i64().is_some() {
+                    let cmd = args["command"]
+                        .as_str()
+                        .unwrap_or("")
+                        .chars()
+                        .take(60)
+                        .collect();
+                    let ok = result["exit_code"].as_i64() == Some(0);
+                    self.test_runs.push((seq, cmd, ok, output_tail(result)));
+                }
+            }
             "repo.exec" => {
                 if result["applied"].as_bool() == Some(true) {
                     let cmd = args["command"]

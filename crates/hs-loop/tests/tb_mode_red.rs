@@ -148,3 +148,40 @@ fn t5_tb_mission_with_failing_checks_does_not_pass() {
     .unwrap();
     assert_eq!(result["passed"], false, "failing self-checks cannot pass: {result}");
 }
+
+/// T6 (RED): term.exec calls must land in the evidence ledger exactly like
+/// repo.exec runs do - in tb mode term.exec is BOTH the edit channel and
+/// the only verification channel. Without this the model can never become
+/// "verified" and every submission is refuted as unverifiable forever
+/// (observed live: smoke run 2026-09-07, 33 calls, ledger empty,
+/// VERIFIER REFUTED blocking=unverifiable on every submit).
+#[test]
+fn t6_term_exec_feeds_evidence_ledger() {
+    let mut ledger = hs_loop::ledger::Ledger::default();
+    assert!(!ledger.model_verified());
+    ledger.apply_tool_call(
+        1,
+        "term.exec",
+        &serde_json::json!({"command": "bash /app/.hs/checks"}),
+        &serde_json::json!({"exit_code": 0, "stdout": "ALL_PASS\n", "stderr": "", "timed_out": false}),
+    );
+    assert!(
+        ledger.model_verified(),
+        "a successful term.exec run is model verification evidence"
+    );
+    let rendered = ledger.summary();
+    assert!(
+        rendered.contains("bash /app/.hs/checks"),
+        "ledger must show the term.exec command, got: {rendered}"
+    );
+    // failing runs are recorded too (audit trail), still count as the model
+    // having run its checks
+    ledger.apply_tool_call(
+        2,
+        "term.exec",
+        &serde_json::json!({"command": "sh check.sh"}),
+        &serde_json::json!({"exit_code": 1, "stdout": "FAIL\n", "stderr": "", "timed_out": false}),
+    );
+    let rendered = ledger.summary();
+    assert!(rendered.contains("sh check.sh"), "got: {rendered}");
+}
