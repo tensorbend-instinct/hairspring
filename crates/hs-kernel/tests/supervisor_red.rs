@@ -32,7 +32,9 @@ subjects = ["*"]
         ),
     );
     let k = Kernel::load(&path).unwrap();
-    let out = k.call_tool("anyone", "flaky", serde_json::json!({})).unwrap();
+    let out = k
+        .call_tool("anyone", "flaky", serde_json::json!({}))
+        .unwrap();
     assert_eq!(out.output["output"], "flaky-ok");
 }
 
@@ -132,7 +134,10 @@ lease_secs = 1
         "3 strikes at 1s lease must finish in seconds, took {elapsed:?}"
     );
     let msg = format!("{err:?}");
-    assert!(msg.contains("PluginDead"), "want PluginDead after strikes: {msg}");
+    assert!(
+        msg.contains("PluginDead"),
+        "want PluginDead after strikes: {msg}"
+    );
 }
 
 /// Exploration is never punished (Eric 2026-09-05, ab2/17123): a
@@ -181,6 +186,9 @@ subjects = ["*"]
         .collect();
     let spawns = lines.iter().filter(|l| *l == "spawn").count();
     let calls = lines.iter().filter(|l| *l == "call").count();
-    assert_eq!(spawns, 1, "app errors must never kill the process; spawns: {lines:?}");
+    assert_eq!(
+        spawns, 1,
+        "app errors must never kill the process; spawns: {lines:?}"
+    );
     assert_eq!(calls, 5, "every call reached the live process: {lines:?}");
 }

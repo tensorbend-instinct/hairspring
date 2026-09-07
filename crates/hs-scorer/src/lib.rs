@@ -65,8 +65,10 @@ impl TaskSuite {
 
 // ------------------------------------------------------------ artifacts ---
 
+type AnswerRule = Rc<dyn Fn(&Task) -> Option<String>>;
+
 enum Answerer {
-    Rule(Rc<dyn Fn(&Task) -> Option<String>>),
+    Rule(AnswerRule),
     Table(BTreeMap<String, String>),
 }
 
@@ -487,10 +489,11 @@ impl Scorer {
     pub fn verified_claims(&self) -> Vec<EvidenceClaim> {
         self.evidence_state()
             .into_iter()
-            .filter(|c| c.kind == ClaimKind::VerifiedClaim && c.status == evidence::ClaimStatus::Open)
+            .filter(|c| {
+                c.kind == ClaimKind::VerifiedClaim && c.status == evidence::ClaimStatus::Open
+            })
             .collect()
     }
-
 
     /// GATE 9e (spec v5): record a capability swap as a first-class
     /// capability_change event on this stream. Single-writer discipline:

@@ -8,7 +8,6 @@
 
 use hs_loop::*;
 
-const ANSWER: &str = env!("CARGO_BIN_EXE_hs-plugin-answer");
 const SWECHECK: &str = env!("CARGO_BIN_EXE_hs-plugin-swecheck");
 const SWEMODEL: &str = env!("CARGO_BIN_EXE_hs-plugin-swemodel");
 const ANSWERSUBMIT: &str = env!("CARGO_BIN_EXE_hs-plugin-answersubmit");
@@ -89,10 +88,16 @@ default = true
         Err(e) => panic!("mission errored: {e:?}"),
     };
     assert!(r.passed, "SWE mission must pass after feedback repair");
-    assert_eq!(r.steps, 3, "empty-submit steering error, edit.patch, answer.submit");
+    assert_eq!(
+        r.steps, 3,
+        "empty-submit steering error, edit.patch, answer.submit"
+    );
     assert!(!r.budget_killed);
     // the workspace carries the applied patch
-    assert_eq!(std::fs::read_to_string(ws.join("code.txt")).unwrap(), "fixed\n");
+    assert_eq!(
+        std::fs::read_to_string(ws.join("code.txt")).unwrap(),
+        "fixed\n"
+    );
 }
 
 /// Fix 2 (Eric, 2026-09-05): every mission prompt opens with an orientation
@@ -110,15 +115,31 @@ fn mission_prompt_opens_with_machine_orientation() {
         nudge: String::new(),
         answer_path: "/tmp/answer.txt".into(),
         orientation: hs_loop::sweprompt::probe_orientation(),
-            mcp_tools: String::new(),
-        };
+        mcp_tools: String::new(),
+    };
     let prompt = hs_loop::sweprompt::build_mission_prompt(None, &args);
-    assert!(prompt.contains("MACHINE:"), "orientation block present: {}", &prompt[..prompt.len().min(600)]);
-    assert!(prompt.contains("Network: ON"), "network state stated: {prompt}");
+    assert!(
+        prompt.contains("MACHINE:"),
+        "orientation block present: {}",
+        &prompt[..prompt.len().min(600)]
+    );
+    assert!(
+        prompt.contains("Network: ON"),
+        "network state stated: {prompt}"
+    );
     assert!(prompt.contains("root"), "identity stated: {prompt}");
-    assert!(prompt.contains("Detected tooling:"), "probed tooling line: {prompt}");
-    assert!(prompt.contains("python3"), "python3 detected on this box: {prompt}");
-    assert!(!prompt.contains("no network, no host fs"), "stale jail description removed: {prompt}");
+    assert!(
+        prompt.contains("Detected tooling:"),
+        "probed tooling line: {prompt}"
+    );
+    assert!(
+        prompt.contains("python3"),
+        "python3 detected on this box: {prompt}"
+    );
+    assert!(
+        !prompt.contains("no network, no host fs"),
+        "stale jail description removed: {prompt}"
+    );
 }
 
 /// Verifier-policy item 1 (Eric, 2026-09-05): the mission template carries
@@ -134,14 +155,23 @@ fn mission_prompt_carries_work_policy_discipline() {
         nudge: String::new(),
         answer_path: "/tmp/answer.txt".into(),
         orientation: String::new(),
-            mcp_tools: String::new(),
-        };
+        mcp_tools: String::new(),
+    };
     let prompt = hs_loop::sweprompt::build_mission_prompt(None, &args);
-    assert!(prompt.contains("WORK POLICY:"), "policy block present: {prompt}");
-    assert!(prompt.contains("only when tool output supports the claim"),
-        "claim discipline: {prompt}");
-    assert!(prompt.contains("say so plainly rather than quietly dropping it"),
-        "blocked discipline: {prompt}");
-    assert!(prompt.contains("current step instead of ending with an offer"),
-        "action-now discipline: {prompt}");
+    assert!(
+        prompt.contains("WORK POLICY:"),
+        "policy block present: {prompt}"
+    );
+    assert!(
+        prompt.contains("only when tool output supports the claim"),
+        "claim discipline: {prompt}"
+    );
+    assert!(
+        prompt.contains("say so plainly rather than quietly dropping it"),
+        "blocked discipline: {prompt}"
+    );
+    assert!(
+        prompt.contains("current step instead of ending with an offer"),
+        "action-now discipline: {prompt}"
+    );
 }

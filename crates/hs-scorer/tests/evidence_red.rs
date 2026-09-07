@@ -20,7 +20,9 @@ use hs_scorer::*;
 fn suite() -> TaskSuite {
     TaskSuite::new(
         "tokens",
-        (0..3).map(|i| Task::new(format!("T{i}"), format!("S{i}"))).collect(),
+        (0..3)
+            .map(|i| Task::new(format!("T{i}"), format!("S{i}")))
+            .collect(),
     )
 }
 
@@ -39,7 +41,9 @@ fn verified_then_failed_is_a_tracked_regression_pointing_at_both_events() {
     assert_eq!(ev[0].subject, "cand");
     assert_eq!(ev[0].kind, ClaimKind::VerifiedClaim);
     assert_eq!(ev[0].status, ClaimStatus::Open);
-    let n = ev[0].verified_at.expect("verified claim carries its event ref");
+    let n = ev[0]
+        .verified_at
+        .expect("verified claim carries its event ref");
 
     // same subject later fails the same suite: regression, tracked
     let broken = Artifact::by_rule(|_| None);
@@ -47,10 +51,24 @@ fn verified_then_failed_is_a_tracked_regression_pointing_at_both_events() {
         .tier01_execution(&Candidate::new("cand", broken), &suite())
         .unwrap();
     let ev = scorer.evidence_state();
-    assert_eq!(ev.len(), 1, "still one claim - tracked, not duplicated: {ev:?}");
-    assert_eq!(ev[0].kind, ClaimKind::Regression, "verified-then-failed = regression");
-    assert_eq!(ev[0].verified_at, Some(n), "regression keeps the verify ref");
-    let m = ev[0].regressed_at.expect("regression carries the failing event ref");
+    assert_eq!(
+        ev.len(),
+        1,
+        "still one claim - tracked, not duplicated: {ev:?}"
+    );
+    assert_eq!(
+        ev[0].kind,
+        ClaimKind::Regression,
+        "verified-then-failed = regression"
+    );
+    assert_eq!(
+        ev[0].verified_at,
+        Some(n),
+        "regression keeps the verify ref"
+    );
+    let m = ev[0]
+        .regressed_at
+        .expect("regression carries the failing event ref");
     assert_ne!(n, m, "two distinct events");
 
     // the regression is ON THE LOG as a regression event naming both refs
@@ -64,7 +82,11 @@ fn verified_then_failed_is_a_tracked_regression_pointing_at_both_events() {
     // the proposer's read: what is verified, what is failing, what regressed
     assert!(scorer.open_failures().is_empty());
     assert_eq!(scorer.regressions().len(), 1);
-    assert_eq!(scorer.verified_claims().len(), 0, "regressed is no longer verified");
+    assert_eq!(
+        scorer.verified_claims().len(),
+        0,
+        "regressed is no longer verified"
+    );
 }
 
 #[test]
@@ -78,5 +100,9 @@ fn a_fresh_failure_without_prior_verification_is_an_open_failure() {
     let ev = scorer.evidence_state();
     assert_eq!(ev[0].kind, ClaimKind::OpenFailure);
     assert_eq!(scorer.open_failures().len(), 1);
-    assert_eq!(scorer.regressions().len(), 0, "nothing verified before: no regression");
+    assert_eq!(
+        scorer.regressions().len(),
+        0,
+        "nothing verified before: no regression"
+    );
 }

@@ -19,7 +19,6 @@ pub struct GoalSpec {
     pub timeout_secs: u64,
 }
 
-
 /// Post-A7: the stop signal is richer than green/red. An f2p run that
 /// fails because the exec sandbox lacks the tool (exit 127, "command not
 /// found") is ENV-LIMITED - the evaluator cannot judge, and the verdict

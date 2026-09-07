@@ -323,10 +323,7 @@ fn gate7_proof_3_best_of_n_envelope_published() {
     assert!(published.contains("best-of-N"));
     assert!(published.contains("envelope_pass_rate"));
     assert!(published.contains("candidate_pass_rate"));
-    assert_eq!(
-        cmp.envelope_pass_rate() + cmp.candidate_pass_rate() >= 0.0,
-        true
-    );
+    assert!(cmp.envelope_pass_rate() + cmp.candidate_pass_rate() >= 0.0);
 
     // matched search: envelope pass rate is the endpoint-wise max over
     // isolates, not the sum - independent search gets N independent tries

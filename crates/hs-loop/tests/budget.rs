@@ -64,9 +64,25 @@ fn mission_under_budget_runs_normally() {
     let ws = dir.path().join("ws");
     std::fs::create_dir_all(&ws).unwrap();
     std::fs::write(ws.join("code.txt"), "broken\n").unwrap();
-    let cmds: [&[&str]; 3] = [&["init", "-q"], &["add", "."], &["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"]];
+    let cmds: [&[&str]; 3] = [
+        &["init", "-q"],
+        &["add", "."],
+        &[
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-qm",
+            "init",
+        ],
+    ];
     for args in cmds {
-        let st = std::process::Command::new("git").args(args).current_dir(&ws).status().unwrap();
+        let st = std::process::Command::new("git")
+            .args(args)
+            .current_dir(&ws)
+            .status()
+            .unwrap();
         assert!(st.success());
     }
     std::env::set_var("HS_SWE_WORKSPACE", &ws);

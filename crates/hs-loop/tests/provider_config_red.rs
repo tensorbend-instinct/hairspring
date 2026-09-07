@@ -77,7 +77,10 @@ fn toml_provider_becomes_working_provider_and_env_wins() {
     // TOML values land on the provider
     assert_eq!(p.name, "glm");
     assert_eq!(p.default_model, "glm-5.3");
-    assert_eq!(p.default_base_url, "https://api.z.ai/api/coding/paas/v4/chat/completions");
+    assert_eq!(
+        p.default_base_url,
+        "https://api.z.ai/api/coding/paas/v4/chat/completions"
+    );
     // env override still beats the TOML value (ops override without a redeploy)
     std::env::set_var("HS_GLM_BASE_URL", "http://127.0.0.1:1/override");
     let p2 = provider_from_config(glm_cfg).unwrap();
@@ -117,7 +120,9 @@ fn extra_body_json_from_toml_reaches_the_request() {
             let mut line = String::new();
             reader.read_line(&mut line).unwrap();
             let t = line.trim();
-            if t.is_empty() { break; }
+            if t.is_empty() {
+                break;
+            }
             if let Some(v) = t.to_ascii_lowercase().strip_prefix("content-length:") {
                 len = v.trim().parse().unwrap();
             }

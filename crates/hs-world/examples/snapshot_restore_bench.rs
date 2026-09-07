@@ -25,17 +25,29 @@ fn tree_diff(a: &Path, b: &Path) -> Vec<String> {
     let mut diffs = Vec::new();
     let mut stack = vec![(a.to_path_buf(), b.to_path_buf())];
     while let Some((pa, pb)) = stack.pop() {
-        let mut ea: Vec<_> = std::fs::read_dir(&pa).unwrap().map(|e| e.unwrap().file_name()).collect();
-        let mut eb: Vec<_> = std::fs::read_dir(&pb).unwrap().map(|e| e.unwrap().file_name()).collect();
-        ea.sort(); eb.sort();
-        if ea != eb { diffs.push(format!("entries differ at {}", pa.display())); continue; }
+        let mut ea: Vec<_> = std::fs::read_dir(&pa)
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        let mut eb: Vec<_> = std::fs::read_dir(&pb)
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        ea.sort();
+        eb.sort();
+        if ea != eb {
+            diffs.push(format!("entries differ at {}", pa.display()));
+            continue;
+        }
         for name in ea {
-            let fa = pa.join(&name); let fb = pb.join(&name);
+            let fa = pa.join(&name);
+            let fb = pb.join(&name);
             let mda = std::fs::symlink_metadata(&fa).unwrap();
             let mdb = std::fs::symlink_metadata(&fb).unwrap();
             if mda.file_type().is_symlink() || mdb.file_type().is_symlink() {
                 if !(mda.file_type().is_symlink() && mdb.file_type().is_symlink())
-                    || std::fs::read_link(&fa).unwrap() != std::fs::read_link(&fb).unwrap() {
+                    || std::fs::read_link(&fa).unwrap() != std::fs::read_link(&fb).unwrap()
+                {
                     diffs.push(format!("symlink differs: {}", fa.display()));
                 }
             } else if mda.is_dir() {
@@ -54,21 +66,36 @@ fn main() {
     let ws = PathBuf::from(&args[2]);
     let world = hs_world::World::open(&log_root).unwrap();
     let snap = world.snapshot(&ws).unwrap();
-    println!("SNAPSHOT id={} files={} bytes={} took_ms={}", snap.snapshot_id, snap.files, snap.bytes, snap.took_ms);
+    println!(
+        "SNAPSHOT id={} files={} bytes={} took_ms={}",
+        snap.snapshot_id, snap.files, snap.bytes, snap.took_ms
+    );
     let ref_ws = ws.with_extension("ref");
-    if ref_ws.exists() { std::fs::remove_dir_all(&ref_ws).unwrap(); }
+    if ref_ws.exists() {
+        std::fs::remove_dir_all(&ref_ws).unwrap();
+    }
     let t = std::time::Instant::now();
     copy_tree(&ws, &ref_ws);
     println!("REF_COPY took_ms={}", t.elapsed().as_millis());
     std::fs::remove_dir_all(&ws).unwrap();
     println!("DESTROYED {}", ws.display());
     let rest = world.restore(&snap.snapshot_id, &ws).unwrap();
-    println!("RESTORE id={} files={} bytes={} took_ms={}", rest.snapshot_id, rest.files, rest.bytes, rest.took_ms);
+    println!(
+        "RESTORE id={} files={} bytes={} took_ms={}",
+        rest.snapshot_id, rest.files, rest.bytes, rest.took_ms
+    );
     let diffs = tree_diff(&ref_ws, &ws);
     if diffs.is_empty() {
-        println!("RESULT PASS byte-exact restore of {} files / {} bytes", rest.files, rest.bytes);
+        println!(
+            "RESULT PASS byte-exact restore of {} files / {} bytes",
+            rest.files, rest.bytes
+        );
     } else {
-        println!("RESULT FAIL {} diffs: {:?}", diffs.len(), &diffs[..diffs.len().min(5)]);
+        println!(
+            "RESULT FAIL {} diffs: {:?}",
+            diffs.len(),
+            &diffs[..diffs.len().min(5)]
+        );
         std::process::exit(1);
     }
 }

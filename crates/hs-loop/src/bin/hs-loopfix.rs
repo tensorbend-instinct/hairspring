@@ -3,7 +3,9 @@
 use std::io::{BufRead, BufReader, Write};
 
 fn main() {
-    let name = std::env::args().nth(1).unwrap_or_else(|| "zombie".to_string());
+    let name = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "zombie".to_string());
     if let Some(state) = std::env::args().nth(2) {
         let mut f = std::fs::OpenOptions::new()
             .create(true)

@@ -107,7 +107,9 @@ pub fn search_repo(ws: &Path, pattern: &str) -> Result<serde_json::Value, String
     if pattern.is_empty() {
         return Err("empty pattern".to_string());
     }
-    let ws_canon = ws.canonicalize().map_err(|e| format!("workspace broken: {e}"))?;
+    let ws_canon = ws
+        .canonicalize()
+        .map_err(|e| format!("workspace broken: {e}"))?;
     // Honor the workspace ignore files (ripgrep precedence: .gitignore first,
     // .ignore overrides it - so `!graft/` + `graft/.cache/` keeps graft cards
     // greppable while cache/graph state stays out). Found live 2026-09-05:
@@ -131,7 +133,10 @@ pub fn search_repo(ws: &Path, pattern: &str) -> Result<serde_json::Value, String
             if name == ".git" || name == "target" || name == "node_modules" {
                 continue;
             }
-            if ig.matched(&path, ent.file_type().map(|t| t.is_dir()).unwrap_or(false)).is_ignore() {
+            if ig
+                .matched(&path, ent.file_type().map(|t| t.is_dir()).unwrap_or(false))
+                .is_ignore()
+            {
                 continue;
             }
             let ft = match ent.file_type() {

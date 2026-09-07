@@ -19,7 +19,9 @@ use hs_scorer::*;
 fn suite4() -> TaskSuite {
     TaskSuite::new(
         "tokens",
-        (0..4).map(|i| Task::new(format!("T{i}"), format!("S{i}"))).collect(),
+        (0..4)
+            .map(|i| Task::new(format!("T{i}"), format!("S{i}")))
+            .collect(),
     )
 }
 

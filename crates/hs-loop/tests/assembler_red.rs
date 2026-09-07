@@ -11,10 +11,8 @@
 //! T8 ledger_bounded: the ledger summary stays under 2k tokens (8000 chars)
 //!    at step 50, 100, 200.
 
-use hs_core::{EventKind, Payload};
+use hs_core::EventKind;
 use hs_loop::*;
-use std::io::Write;
-use std::process::{Command, Stdio};
 
 // HS_SEQMODEL_SCRIPT is process-global: serialize the mission tests.
 static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -59,7 +57,15 @@ default = true
 
 fn write_script(dir: &std::path::Path, lines: &[serde_json::Value]) -> std::path::PathBuf {
     let p = dir.join("script.jsonl");
-    std::fs::write(&p, lines.iter().map(|l| l.to_string()).collect::<Vec<_>>().join("\n")).unwrap();
+    std::fs::write(
+        &p,
+        lines
+            .iter()
+            .map(|l| l.to_string())
+            .collect::<Vec<_>>()
+            .join("\n"),
+    )
+    .unwrap();
     p
 }
 
@@ -70,7 +76,8 @@ fn stream_events(log: &std::path::Path, stream: uuid::Uuid) -> Vec<(EventKind, S
         .unwrap()
         .iter()
         .map(|e| {
-            let body = reader.resolve_payload(e)
+            let body = reader
+                .resolve_payload(e)
                 .map(|b| String::from_utf8_lossy(&b).into_owned())
                 .unwrap_or_default();
             (e.kind, body)
@@ -99,18 +106,28 @@ fn t1_no_context_wipe_50_steps() {
     assert_eq!(r.steps, 50, "mission runs all 50 steps: {r:?}");
 
     let events = stream_events(log.path(), stream);
-    let pressure: Vec<&String> = events.iter()
+    let pressure: Vec<&String> = events
+        .iter()
         .filter(|(k, b)| *k == EventKind::ContextInject && b.contains("why=pressure"))
         .map(|(_, b)| b)
         .collect();
-    assert!(pressure.is_empty(), "zero context wipes under budget, got {}: {pressure:?}", pressure.len());
+    assert!(
+        pressure.is_empty(),
+        "zero context wipes under budget, got {}: {pressure:?}",
+        pressure.len()
+    );
 
     // transcript honesty: the FINAL prompt still carries the first read
-    let last_prompt = events.iter().rev()
+    let last_prompt = events
+        .iter()
+        .rev()
         .find(|(k, _)| *k == EventKind::ModelCall)
         .map(|(_, b)| b.clone())
         .expect("a ModelCall event");
-    assert!(last_prompt.contains("PAGE-1 "), "step-50 prompt still holds the first tool result verbatim");
+    assert!(
+        last_prompt.contains("PAGE-1 "),
+        "step-50 prompt still holds the first tool result verbatim"
+    );
 }
 
 #[test]
@@ -135,18 +152,26 @@ fn t2_dup_read_flagged_with_prior_seq() {
 
     let events = stream_events(log.path(), stream);
     // a Feedback event flags the duplicate, naming the earlier seq
-    let flag = events.iter()
+    let flag = events
+        .iter()
         .find(|(k, b)| *k == EventKind::Feedback && b.contains("duplicate") && b.contains("seq"))
         .map(|(_, b)| b.clone())
         .expect("a Feedback event flagging the duplicate call with its prior seq");
     // and the model actually SEES the flag in a later prompt
-    let later_prompt = events.iter()
+    let later_prompt = events
+        .iter()
         .skip_while(|(k, b)| !(*k == EventKind::Feedback && b.contains("duplicate")))
         .find(|(k, _)| *k == EventKind::ModelCall)
         .map(|(_, b)| b.clone())
         .expect("a ModelCall after the dup flag");
-    assert!(later_prompt.contains("duplicate"), "dup flag reaches the model: {flag}");
-    assert!(later_prompt.contains("already "), "names the prior call: {flag}");
+    assert!(
+        later_prompt.contains("duplicate"),
+        "dup flag reaches the model: {flag}"
+    );
+    assert!(
+        later_prompt.contains("already "),
+        "names the prior call: {flag}"
+    );
 }
 
 #[test]
@@ -154,24 +179,37 @@ fn t8_ledger_summary_bounded_at_200_steps() {
     let mut ledger = ledger::Ledger::default();
     for seq in 1..=200u64 {
         let path = format!("src/file_{}.rs", seq % 37);
-        ledger.apply_tool_call(seq, "repo.read",
+        ledger.apply_tool_call(
+            seq,
+            "repo.read",
             &serde_json::json!({"path": path, "start_line": (seq % 9) * 100 + 1, "max_lines": 100}),
-            &serde_json::json!({"content": "x", "total_lines": 1000}));
+            &serde_json::json!({"content": "x", "total_lines": 1000}),
+        );
         if seq % 5 == 0 {
-            ledger.apply_tool_call(seq, "edit.apply",
+            ledger.apply_tool_call(
+                seq,
+                "edit.apply",
                 &serde_json::json!({"diff": "..."}),
-                &serde_json::json!({"applied": true, "files_changed": [path]}));
+                &serde_json::json!({"applied": true, "files_changed": [path]}),
+            );
         }
         if seq % 7 == 0 {
-            ledger.apply_tool_call(seq, "repo.exec",
+            ledger.apply_tool_call(
+                seq,
+                "repo.exec",
                 &serde_json::json!({"command": format!("cargo test --test t{}", seq % 11)}),
-                &serde_json::json!({"applied": true, "exit_code": (seq % 3 == 0) as i32}));
+                &serde_json::json!({"applied": true, "exit_code": (seq % 3 == 0) as i32}),
+            );
         }
         for probe in [50, 100, 200] {
             if seq == probe {
                 let s = ledger.summary();
-                assert!(s.len() <= ledger::LEDGER_SUMMARY_CHARS,
-                    "summary bounded at step {probe}: {} chars > {}", s.len(), ledger::LEDGER_SUMMARY_CHARS);
+                assert!(
+                    s.len() <= ledger::LEDGER_SUMMARY_CHARS,
+                    "summary bounded at step {probe}: {} chars > {}",
+                    s.len(),
+                    ledger::LEDGER_SUMMARY_CHARS
+                );
             }
         }
     }
@@ -204,20 +242,34 @@ fn d1_handoff_summary_four_elements() {
 
     let events = stream_events(log.path(), stream);
     // the distilled summary reaches later prompts with all four elements
-    let last_prompt = events.iter().rev()
+    let last_prompt = events
+        .iter()
+        .rev()
         .find(|(k, _)| *k == EventKind::ModelCall)
         .map(|(_, b)| b.clone())
         .expect("a ModelCall event");
-    for element in ["PROGRESS AND DECISIONS", "CONSTRAINTS AND PREFERENCES", "NEXT STEPS", "CRITICAL DATA"] {
+    for element in [
+        "PROGRESS AND DECISIONS",
+        "CONSTRAINTS AND PREFERENCES",
+        "NEXT STEPS",
+        "CRITICAL DATA",
+    ] {
         assert!(last_prompt.contains(element), "handoff carries {element}");
     }
-    assert!(last_prompt.contains("seq"), "summary links the source event range");
+    assert!(
+        last_prompt.contains("seq"),
+        "summary links the source event range"
+    );
     // the distillation call itself is booked, with cost, marked why=distill
-    let distill = events.iter()
+    let distill = events
+        .iter()
         .find(|(k, b)| *k == EventKind::ModelCall && b.contains("\"why\":\"distill\""))
         .map(|(_, b)| b.clone())
         .expect("a ModelCall event with why=distill");
-    assert!(distill.contains("cost_usd_micros"), "distillation cost booked: {distill}");
+    assert!(
+        distill.contains("cost_usd_micros"),
+        "distillation cost booked: {distill}"
+    );
 }
 
 /// W2: the default context budget comes from the VERIFIED provider context
@@ -225,7 +277,18 @@ fn d1_handoff_summary_four_elements() {
 /// not the 200k estimate; unknown models fall back conservatively.
 #[test]
 fn w2_budget_from_verified_context() {
-    assert_eq!(default_budget_for_model("kimi-k3"), 983_040, "1M context - 64k reserve");
-    assert_eq!(DEFAULT_CONTEXT_BUDGET_TOKENS, default_budget_for_model("kimi-k3"));
-    assert_eq!(default_budget_for_model("unknown-model"), 200_000, "conservative fallback");
+    assert_eq!(
+        default_budget_for_model("kimi-k3"),
+        983_040,
+        "1M context - 64k reserve"
+    );
+    assert_eq!(
+        DEFAULT_CONTEXT_BUDGET_TOKENS,
+        default_budget_for_model("kimi-k3")
+    );
+    assert_eq!(
+        default_budget_for_model("unknown-model"),
+        200_000,
+        "conservative fallback"
+    );
 }

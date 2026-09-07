@@ -22,7 +22,9 @@ fn main() {
             let content = if prompt.contains("EVO-PREFLIGHT-LAW") {
                 // the checker expects TOKEN-<n>-SECRET for task-<n>; the
                 // task id rides in the answer path (.../work/task-N/answer.txt)
-                let n = path.split("/work/task-").nth(1)
+                let n = path
+                    .split("/work/task-")
+                    .nth(1)
                     .and_then(|r| r.split('/').next())
                     .and_then(|s| s.parse::<usize>().ok())
                     .unwrap_or(0);
@@ -30,7 +32,8 @@ fn main() {
             } else {
                 "blind-wrong".to_string()
             };
-            let completion = serde_json::json!({"tool":"answer.write","args":{"path":path,"content":content}});
+            let completion =
+                serde_json::json!({"tool":"answer.write","args":{"path":path,"content":content}});
             serde_json::json!({
                 "completion": completion.to_string(),
                 "input_tokens": prompt.len() / 4 + 1,

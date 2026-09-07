@@ -23,13 +23,13 @@ fn main() {
                             let o = e["old"].as_str();
                             let n = e["new"].as_str();
                             match (p, o, n) {
-                                (Some(p), Some(o), Some(n)) => blocks.push(
-                                    hs_loop::editapply::EditBlock {
+                                (Some(p), Some(o), Some(n)) => {
+                                    blocks.push(hs_loop::editapply::EditBlock {
                                         path: p.to_string(),
                                         old: o.to_string(),
                                         new: n.to_string(),
-                                    },
-                                ),
+                                    })
+                                }
                                 _ => {
                                     return serde_json::json!({"$error": format!("edits[{i}] needs path, old and new strings")});
                                 }

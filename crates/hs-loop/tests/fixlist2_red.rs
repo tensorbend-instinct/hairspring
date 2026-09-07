@@ -56,7 +56,10 @@ fn env_failure_classified_from_exec_result() {
     let r = serde_json::json!({"applied": true, "exit_code": 127,
         "stderr": "bash: pytest: command not found", "stdout": ""});
     let cls = goal::classify_env_failure(&r);
-    assert!(cls.is_some(), "exit 127 + command not found is environmental");
+    assert!(
+        cls.is_some(),
+        "exit 127 + command not found is environmental"
+    );
     assert!(cls.unwrap().contains("pytest"));
 }
 
@@ -80,7 +83,10 @@ fn goal_verdict_enum_covers_env_limited() {
 
 #[test]
 fn violation_classes() {
-    assert_eq!(repexec::violation_class("git apply invocation"), "git_apply");
+    assert_eq!(
+        repexec::violation_class("git apply invocation"),
+        "git_apply"
+    );
     assert_eq!(
         repexec::violation_class("raw diff-file write (> x.diff)"),
         "diff_write"
@@ -94,7 +100,9 @@ fn escalator_silent_on_first_fire_then_escalates() {
         esc.record("git_apply").is_none(),
         "first fire: the gate's own steer speaks"
     );
-    let n2 = esc.record("git_apply").expect("second same-class fire escalates");
+    let n2 = esc
+        .record("git_apply")
+        .expect("second same-class fire escalates");
     assert!(n2.contains("git_apply") && n2.contains('2'), "{n2}");
     assert!(n2.contains("edit.apply"), "{n2}");
     let n3 = esc.record("git_apply").expect("third fire escalates again");
@@ -116,7 +124,10 @@ fn resolve_plugin_bin_sibling_or_loud_error() {
     assert!(err.contains("hs-plugin-mcpcall"), "{err}");
     std::fs::write(dir.path().join("hs-plugin-mcpcall"), b"").unwrap();
     let got = mcpbridge::resolve_plugin_bin(&exe, "hs-plugin-mcpcall").unwrap();
-    assert_eq!(got.file_name().unwrap().to_str().unwrap(), "hs-plugin-mcpcall");
+    assert_eq!(
+        got.file_name().unwrap().to_str().unwrap(),
+        "hs-plugin-mcpcall"
+    );
 }
 
 // ---- 5: steering text quality ----

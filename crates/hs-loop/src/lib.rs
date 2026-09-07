@@ -6,17 +6,17 @@
 //! into the next step's context (recorded as context_inject: what entered
 //! the window, and why). Feedback never costs a model round trip.
 
-pub mod realmodel;
-pub mod mcpbridge;
 pub mod assembler;
-pub mod msgfmt;
 pub mod editapply;
 pub mod evolve;
 pub mod goal;
 pub mod ledger;
+pub mod mcpbridge;
+pub mod msgfmt;
+pub mod realmodel;
 pub mod repexec;
-pub mod sweprompt;
 pub mod repotools;
+pub mod sweprompt;
 pub mod toolschema;
 
 use hs_core::{EventBuilder, EventKind, Payload};
@@ -245,7 +245,11 @@ impl InnerLoop {
     /// D6: acceptance-constrained stopping. The stop decision becomes a
     /// verifiable predicate (patch applies + F2P green in the sandbox).
     pub fn set_goal_evaluator(&mut self, ws: &Path, f2p: Vec<String>) {
-        self.goal = Some(goal::GoalSpec { ws: ws.to_path_buf(), f2p, timeout_secs: 120 });
+        self.goal = Some(goal::GoalSpec {
+            ws: ws.to_path_buf(),
+            f2p,
+            timeout_secs: 120,
+        });
     }
 
     /// D1: size the transcript projection in tokens (4 chars/token proxy).
@@ -274,7 +278,10 @@ impl InnerLoop {
     /// to feedback instead of aborting - the mission continues while the
     /// answer path remains usable.
     fn is_answer_path(tool: &str) -> bool {
-        matches!(tool, "answer.submit" | "edit.patch" | "edit.anchor" | "answer.write" | "edit.apply")
+        matches!(
+            tool,
+            "answer.submit" | "edit.patch" | "edit.anchor" | "answer.write" | "edit.apply"
+        )
     }
 
     /// Abort the mission on a supervisor-declared dead ANSWER-PATH plugin:
@@ -342,15 +349,15 @@ impl InnerLoop {
             // grows monotonically; volatile lines (ATTEMPT/ARTIFACT/FEEDBACK)
             // go last, after the transcript tail.
             let t_assembly = std::time::Instant::now(); // time audit (Eric 2026-09-05)
-            // Structured messages (user directive 2026-09-05: EVERYTHING
-            // native, transcript included - efficiency first). The array is
-            // append-only: [mission][compaction?][history pairs...][state
-            // tail]. Every mutable block (ATTEMPT budget, ANSWER_PATH,
-            // ARTIFACT, FEEDBACK, LEDGER, MEMORY) rides ONLY in the final
-            // tail message, so the provider's cached prefix grows
-            // monotonically and no prior message is ever rewritten between
-            // steps (pre-migration the mutating LEDGER sat BEFORE the
-            // transcript, busting the cache for the whole history).
+                                                        // Structured messages (user directive 2026-09-05: EVERYTHING
+                                                        // native, transcript included - efficiency first). The array is
+                                                        // append-only: [mission][compaction?][history pairs...][state
+                                                        // tail]. Every mutable block (ATTEMPT budget, ANSWER_PATH,
+                                                        // ARTIFACT, FEEDBACK, LEDGER, MEMORY) rides ONLY in the final
+                                                        // tail message, so the provider's cached prefix grows
+                                                        // monotonically and no prior message is ever rewritten between
+                                                        // steps (pre-migration the mutating LEDGER sat BEFORE the
+                                                        // transcript, busting the cache for the whole history).
             let mut messages: Vec<serde_json::Value> = vec![serde_json::json!({
                 "role": "user",
                 "content": format!("MISSION: {prompt}"),
@@ -418,17 +425,27 @@ impl InnerLoop {
                                         let line = format!(
                                             "- [{} seqs:{}] {}\n",
                                             r.kind,
-                                            r.source_seqs.iter().map(u64::to_string).collect::<Vec<_>>().join(","),
+                                            r.source_seqs
+                                                .iter()
+                                                .map(u64::to_string)
+                                                .collect::<Vec<_>>()
+                                                .join(","),
                                             r.content
                                         );
-                                        if line.len() > budget { break; }
+                                        if line.len() > budget {
+                                            break;
+                                        }
                                         budget -= line.len();
                                         volatile.push_str(&line);
                                     }
                                 }
                             }
                         }
-                        let mut asm = assembler::assemble_messages(&reader, &events, self.context_budget_chars);
+                        let mut asm = assembler::assemble_messages(
+                            &reader,
+                            &events,
+                            self.context_budget_chars,
+                        );
                         if let Some(c) = &asm.compressed {
                             // D1: distill the oldest events into the Codex
                             // four-element handoff contract via the model;
@@ -440,11 +457,12 @@ impl InnerLoop {
                                 c.lines.join("\n")
                             );
                             let mut distilled: Option<String> = None;
-                            match self.kernel.call_model("operator", None, &distill_prompt) {
-                                Ok(out) => {
-                                    model_calls += 1;
-                                    self.cost_total_micros += out.cost_usd_micros.max(0) as u64;
-                                    let _ = self.writer.append(
+                            if let Ok(out) =
+                                self.kernel.call_model("operator", None, &distill_prompt)
+                            {
+                                model_calls += 1;
+                                self.cost_total_micros += out.cost_usd_micros.max(0) as u64;
+                                let _ = self.writer.append(
                                         EventBuilder::new(EventKind::ModelCall)
                                             .payload(Payload::Inline(
                                                 serde_json::to_vec(&serde_json::json!({
@@ -462,9 +480,7 @@ impl InnerLoop {
                                             .latency_ms(out.latency_ms)
                                             .cost_usd_micros(out.cost_usd_micros),
                                     );
-                                    distilled = Some(out.completion);
-                                }
-                                Err(_) => {}
+                                distilled = Some(out.completion);
                             }
                             let did_distill = distilled.is_some();
                             if let Some(summary) = distilled {
@@ -500,13 +516,24 @@ impl InnerLoop {
             let messages = serde_json::Value::Array(messages);
 
             // the only model round trip in the step
-            let out = match self.kernel.call_model_messages("operator", None, &messages, self.tools.as_ref()) {
+            let out = match self.kernel.call_model_messages(
+                "operator",
+                None,
+                &messages,
+                self.tools.as_ref(),
+            ) {
                 Ok(o) => o,
                 Err(e @ KernelError::PluginApp { .. }) => {
                     // persistent provider failure (the plugin already burned
                     // its own retries): book it, don't strike-loop
                     self.checkpoint(steps, model_calls);
-                    return self.abort_harness(mission, &answer_path, steps, model_calls, e.to_string());
+                    return self.abort_harness(
+                        mission,
+                        &answer_path,
+                        steps,
+                        model_calls,
+                        e.to_string(),
+                    );
                 }
                 Err(e @ KernelError::PluginDead { .. }) => {
                     self.checkpoint(steps, model_calls);
@@ -863,9 +890,19 @@ impl InnerLoop {
                     self.verifier_rounds += 1;
                     let round = self.verifier_rounds;
                     let answer_text = std::fs::read_to_string(&answer_path).unwrap_or_default();
-                    let vprompt = build_verifier_prompt(mission, &answer_text, &self.ledger, &self.prior_gaps);
+                    let vprompt = build_verifier_prompt(
+                        mission,
+                        &answer_text,
+                        &self.ledger,
+                        &self.prior_gaps,
+                    );
                     let verdict_tools = serde_json::json!([crate::toolschema::verdict_tool()]);
-                    match self.kernel.call_model_with("operator", None, &vprompt, Some(&verdict_tools)) {
+                    match self.kernel.call_model_with(
+                        "operator",
+                        None,
+                        &vprompt,
+                        Some(&verdict_tools),
+                    ) {
                         Ok(vout) => {
                             model_calls += 1;
                             self.cost_total_micros += vout.cost_usd_micros.max(0) as u64;
@@ -886,10 +923,11 @@ impl InnerLoop {
                             // the completion is a verdict.submit tool call;
                             // prose or wrong-tool replies are verifier
                             // errors, never parsed verdicts.
-                            let verdict_args = serde_json::from_str::<serde_json::Value>(vout.completion.trim())
-                                .ok()
-                                .filter(|env| env["tool"].as_str() == Some("verdict.submit"))
-                                .map(|env| env["args"].clone());
+                            let verdict_args =
+                                serde_json::from_str::<serde_json::Value>(vout.completion.trim())
+                                    .ok()
+                                    .filter(|env| env["tool"].as_str() == Some("verdict.submit"))
+                                    .map(|env| env["args"].clone());
                             match verdict_args {
                                 Some(v) => match v["refuted"].as_bool() {
                                     Some(false) => {
@@ -908,11 +946,14 @@ impl InnerLoop {
                                             .as_array()
                                             .map(|a| {
                                                 a.iter()
-                                                    .filter_map(|f| f["detail"].as_str().map(String::from))
+                                                    .filter_map(|f| {
+                                                        f["detail"].as_str().map(String::from)
+                                                    })
                                                     .collect()
                                             })
                                             .unwrap_or_default();
-                                        let blocking = v["blocking"].as_str().unwrap_or("none").to_string();
+                                        let blocking =
+                                            v["blocking"].as_str().unwrap_or("none").to_string();
                                         self.prior_gaps = findings.clone();
                                         self.writer.append(
                                             EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
@@ -1022,7 +1063,6 @@ impl InnerLoop {
     }
 }
 
-
 /// Book a wall-clock kill from a loop checkpoint (phase 1, T5): the run
 /// did real work up to `steps`, so the result row must carry it - the old
 /// runner wrote steps:0 on timeout, which both hid progress and poisoned
@@ -1073,7 +1113,10 @@ fn build_verifier_prompt(
     p.push_str("You are not the agent that did this work. Default to refuted when uncertain a required criterion holds; never invent requirements. Audit the RECORDED evidence only - a prose claim of test output with no recorded run is fabricated: refute. On a re-verification round (PRIOR_GAPS non-empty), check that each prior gap is genuinely fixed plus demonstrable defects; a fresh stylistic objection a prior round implicitly accepted is out of scope - when every prior gap is fixed and the objective holds, return refuted false.\n");
     p.push_str(&format!("OBJECTIVE: {mission}\n"));
     p.push_str(&format!("ANSWER:\n{answer}\n"));
-    p.push_str(&format!("LEDGER (recorded evidence):\n{}\n", ledger.summary()));
+    p.push_str(&format!(
+        "LEDGER (recorded evidence):\n{}\n",
+        ledger.summary()
+    ));
     p.push_str(&format!("PRIOR_GAPS:\n{gaps}\n"));
     p.push_str("Submit the verdict by calling the verdict.submit tool exactly once - never prose, never bare JSON.");
 
@@ -1105,7 +1148,6 @@ pub fn require_visibility(k: &hs_kernel::Kernel) -> Result<(), String> {
         Err("kernel has no log root: visibility wiring inactive (dispatch records, stderr capture dead) - refusing to run blind".into())
     }
 }
-
 
 /// Render the volatile ARTIFACT block (octodns-1298, 2026-09-07): this is
 /// the answer FILE as it stands on disk - the exact bytes the checker

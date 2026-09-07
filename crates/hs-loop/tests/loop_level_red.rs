@@ -67,8 +67,12 @@ default = true
     let kernel = hs_kernel::Kernel::load(&config).unwrap();
     let mut l = InnerLoop::new(kernel, log.path(), true, 10).unwrap();
     let r = l.run_mission("task-0").unwrap();
-    assert_eq!(r.passed, false);
-    assert_eq!(r.steps, 1, "abort on the failing step, not the cap: {:?}", r.steps);
+    assert!(!r.passed);
+    assert_eq!(
+        r.steps, 1,
+        "abort on the failing step, not the cap: {:?}",
+        r.steps
+    );
     assert!(
         r.harness_error.is_some(),
         "answer-path death must abort as harness_error, got: {r:?}"
@@ -84,7 +88,10 @@ default = true
             s.contains("harness_error") && s.contains("answer.write")
         }
     });
-    assert!(booked, "harness_error abort must be booked as a Feedback event");
+    assert!(
+        booked,
+        "harness_error abort must be booked as a Feedback event"
+    );
 }
 
 /// T3b (ab2/17123): death of a NON-answer tool degrades gracefully - the
@@ -207,7 +214,10 @@ default = true
     let kernel = hs_kernel::Kernel::load(&config).unwrap();
     let mut l = InnerLoop::new(kernel, log.path(), true, 10).unwrap();
     let r = l.run_mission("task-0").unwrap();
-    assert!(r.passed, "mission recovers after the dead-tool detour: {r:?}");
+    assert!(
+        r.passed,
+        "mission recovers after the dead-tool detour: {r:?}"
+    );
     assert_eq!(r.steps, 3);
     let spawns = std::fs::read_to_string(&state).unwrap().lines().count();
     assert_eq!(
@@ -303,7 +313,11 @@ default = true
     assert_eq!(r.steps, 3);
     let v: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&progress).unwrap()).unwrap();
-    assert_eq!(v["steps"].as_u64().unwrap(), 3, "every step checkpoints, answer or not");
+    assert_eq!(
+        v["steps"].as_u64().unwrap(),
+        3,
+        "every step checkpoints, answer or not"
+    );
     assert_eq!(v["model_calls"].as_u64().unwrap(), 3);
 }
 
@@ -382,14 +396,26 @@ default = true
         .map(|e| {
             let b = reader.resolve_payload(e).unwrap();
             let v: serde_json::Value = serde_json::from_slice(&b).unwrap();
-hs_loop::msgfmt::prompt_view(&v)
+            hs_loop::msgfmt::prompt_view(&v)
         })
         .collect();
     assert_eq!(prompts.len(), 2, "scripted mission ran 2 steps: {r:?}");
     let p2 = &prompts[1];
-    assert!(p2.contains("step 2 of 3"), "step N of MAX: {}", &p2[..p2.len().min(400)]);
-    assert!(p2.contains("T-minus"), "wall remaining: {}", &p2[..p2.len().min(400)]);
-    assert!(p2.contains("of $10.00 spent"), "cost vs budget: {}", &p2[..p2.len().min(400)]);
+    assert!(
+        p2.contains("step 2 of 3"),
+        "step N of MAX: {}",
+        &p2[..p2.len().min(400)]
+    );
+    assert!(
+        p2.contains("T-minus"),
+        "wall remaining: {}",
+        &p2[..p2.len().min(400)]
+    );
+    assert!(
+        p2.contains("of $10.00 spent"),
+        "cost vs budget: {}",
+        &p2[..p2.len().min(400)]
+    );
 }
 
 /// Fix 5 (ab2: three wall-killed missions ran 19-25 steps with ZERO
@@ -441,7 +467,10 @@ default = true
     let kernel = hs_kernel::Kernel::load(&config).unwrap();
     let mut l = InnerLoop::new(kernel, log.path(), true, 4).unwrap();
     let r = l.run_mission("task-20").unwrap();
-    assert!(!r.passed, "a wrong answer the model never re-verifies cannot pass: {r:?}");
+    assert!(
+        !r.passed,
+        "a wrong answer the model never re-verifies cannot pass: {r:?}"
+    );
     let reader = hs_log::StreamReader::open(log.path(), r.stream_id).unwrap();
     let prompts: Vec<String> = reader
         .events()
@@ -451,7 +480,7 @@ default = true
         .map(|e| {
             let b = reader.resolve_payload(e).unwrap();
             let v: serde_json::Value = serde_json::from_slice(&b).unwrap();
-hs_loop::msgfmt::prompt_view(&v)
+            hs_loop::msgfmt::prompt_view(&v)
         })
         .collect();
     assert_eq!(prompts.len(), 4, "mission ran to the 4-step cap: {r:?}");
@@ -460,7 +489,10 @@ hs_loop::msgfmt::prompt_view(&v)
         "no nudge before the halfway mark: {}",
         &prompts[0][..prompts[0].len().min(400)]
     );
-    for (i, label) in [(1usize, "halfway (step 2 of 4)"), (2usize, "three-quarter (step 3 of 4)")] {
+    for (i, label) in [
+        (1usize, "halfway (step 2 of 4)"),
+        (2usize, "three-quarter (step 3 of 4)"),
+    ] {
         assert!(
             prompts[i].contains("CONVERGENCE:"),
             "convergence nudge at {label}: {}",
@@ -487,9 +519,25 @@ fn answer_write_rejected_until_the_model_has_verified() {
     let ws = dir.path().join("ws");
     std::fs::create_dir_all(&ws).unwrap();
     std::fs::write(ws.join("code.txt"), "broken\n").unwrap();
-    let cmds: [&[&str]; 3] = [&["init", "-q"], &["add", "."], &["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"]];
+    let cmds: [&[&str]; 3] = [
+        &["init", "-q"],
+        &["add", "."],
+        &[
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-qm",
+            "init",
+        ],
+    ];
     for args in cmds {
-        let st = std::process::Command::new("git").args(args).current_dir(&ws).status().unwrap();
+        let st = std::process::Command::new("git")
+            .args(args)
+            .current_dir(&ws)
+            .status()
+            .unwrap();
         assert!(st.success());
     }
     std::env::set_var("HS_SWE_WORKSPACE", &ws);
@@ -536,27 +584,39 @@ default = true
     let kernel = hs_kernel::Kernel::load(&config).unwrap();
     let mut l = InnerLoop::new(kernel, log.path(), true, 5).unwrap();
     let r = l.run_mission("task-21").unwrap();
-    assert!(r.passed, "mission passes once the model verifies and resubmits: {r:?}");
-    assert_eq!(r.steps, 3, "reject at step 1, verify at 2, submit at 3: {r:?}");
+    assert!(
+        r.passed,
+        "mission passes once the model verifies and resubmits: {r:?}"
+    );
+    assert_eq!(
+        r.steps, 3,
+        "reject at step 1, verify at 2, submit at 3: {r:?}"
+    );
     let reader = hs_log::StreamReader::open(log.path(), r.stream_id).unwrap();
     let events = reader.events().unwrap();
     let rejected = events.iter().any(|e| {
-        if e.kind != hs_core::EventKind::ToolCall { return false; }
+        if e.kind != hs_core::EventKind::ToolCall {
+            return false;
+        }
         let p = String::from_utf8_lossy(&reader.resolve_payload(e).unwrap()).to_string();
         p.contains("answer.write") && p.contains("REJECTED")
     });
     assert!(rejected, "the rejection is booked on the audit stream");
     // the feedback reaches the very next prompt
-    let prompts: Vec<String> = events.iter()
+    let prompts: Vec<String> = events
+        .iter()
         .filter(|e| e.kind == hs_core::EventKind::ModelCall)
         .map(|e| {
             let b = reader.resolve_payload(e).unwrap();
             let v: serde_json::Value = serde_json::from_slice(&b).unwrap();
-hs_loop::msgfmt::prompt_view(&v)
+            hs_loop::msgfmt::prompt_view(&v)
         })
         .collect();
-    assert!(prompts.len() >= 2 && prompts[1].contains("REJECTED"),
-        "rejection feedback in the step-2 prompt: {}", prompts.get(1).map(|p| &p[..p.len().min(500)]).unwrap_or(""));
+    assert!(
+        prompts.len() >= 2 && prompts[1].contains("REJECTED"),
+        "rejection feedback in the step-2 prompt: {}",
+        prompts.get(1).map(|p| &p[..p.len().min(500)]).unwrap_or("")
+    );
     std::env::remove_var("HS_SWE_WORKSPACE");
 }
 
@@ -600,7 +660,10 @@ default = true
     let kernel = hs_kernel::Kernel::load(&config).unwrap();
     let mut l = InnerLoop::new(kernel, log.path(), true, 1).unwrap();
     let r = l.run_mission("task-22").unwrap();
-    assert!(r.passed, "a one-step mission's only submission must go through: {r:?}");
+    assert!(
+        r.passed,
+        "a one-step mission's only submission must go through: {r:?}"
+    );
 }
 
 /// Item 4 (Eric's verifier slate, Grok doom_loop_telemetry adapted): a model
@@ -656,12 +719,13 @@ default = true
     let r = l.run_mission("task-23").unwrap();
     let reader = hs_log::StreamReader::open(log.path(), r.stream_id).unwrap();
     let events = reader.events().unwrap();
-    let prompts: Vec<String> = events.iter()
+    let prompts: Vec<String> = events
+        .iter()
         .filter(|e| e.kind == hs_core::EventKind::ModelCall)
         .map(|e| {
             let b = reader.resolve_payload(e).unwrap();
             let v: serde_json::Value = serde_json::from_slice(&b).unwrap();
-hs_loop::msgfmt::prompt_view(&v)
+            hs_loop::msgfmt::prompt_view(&v)
         })
         .collect();
     // step 3's call is the third repeat: the nudge lands in step 4's prompt
@@ -674,13 +738,18 @@ hs_loop::msgfmt::prompt_view(&v)
         "doom-loop nudge after the third identical call: {}",
         &prompts[3][..prompts[3].len().min(500)]
     );
-    let nudges: Vec<String> = events.iter()
+    let nudges: Vec<String> = events
+        .iter()
         .filter(|e| e.kind == hs_core::EventKind::ContextInject)
         .map(|e| String::from_utf8_lossy(&reader.resolve_payload(e).unwrap()).into_owned())
         .filter(|p| p.contains("doom_loop"))
         .collect();
     // fires at count 3, suppressed at 4, refires at 5 (escalation +2): 2 total
-    assert_eq!(nudges.len(), 2, "fire at threshold, suppress, escalate: {nudges:?}");
+    assert_eq!(
+        nudges.len(),
+        2,
+        "fire at threshold, suppress, escalate: {nudges:?}"
+    );
     // control: distinct calls never nudge
     let dir2 = tempfile::tempdir().unwrap();
     let log2 = tempfile::tempdir().unwrap();
@@ -694,7 +763,10 @@ hs_loop::msgfmt::prompt_view(&v)
     let mut l2 = InnerLoop::new(kernel2, log2.path(), true, 3).unwrap();
     let r2 = l2.run_mission("task-23").unwrap();
     let reader2 = hs_log::StreamReader::open(log2.path(), r2.stream_id).unwrap();
-    let nudges2 = reader2.events().unwrap().iter()
+    let nudges2 = reader2
+        .events()
+        .unwrap()
+        .iter()
         .filter(|e| e.kind == hs_core::EventKind::ContextInject)
         .map(|e| String::from_utf8_lossy(&reader2.resolve_payload(e).unwrap()).into_owned())
         .filter(|p| p.contains("doom_loop"))

@@ -82,10 +82,8 @@ fn main() {
                         if !setup.trim().is_empty() {
                             let (ok, log) = run_cmd(&ws, &setup);
                             if !ok {
-                                failures.push(format!(
-                                    "setup failed: {}",
-                                    &log[..log.len().min(400)]
-                                ));
+                                failures
+                                    .push(format!("setup failed: {}", &log[..log.len().min(400)]));
                             }
                         }
                     }
@@ -114,7 +112,6 @@ fn main() {
                     // a patch that fails tests must not linger in the tree:
                     // the next attempt starts from the base commit state
                     if !failures.is_empty() {
-
                         reset_to_base(&ws);
                         serde_json::json!({"passed": false,
                             "error": failures.join("\n---\n")})

@@ -4,8 +4,8 @@
 //! prior seq, converting silent re-read loops into an explicit signal (P3).
 
 use serde_json::Value;
-use std::collections::{BTreeMap, VecDeque};
 use std::collections::hash_map::DefaultHasher;
+use std::collections::{BTreeMap, VecDeque};
 use std::hash::Hasher;
 
 /// Hard cap on the rendered summary: ~2k tokens at 4 chars/token (T8).
@@ -101,7 +101,13 @@ fn output_tail(result: &Value) -> String {
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ");
-    flat.chars().rev().take(160).collect::<Vec<_>>().into_iter().rev().collect()
+    flat.chars()
+        .rev()
+        .take(160)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect()
 }
 
 impl Ledger {
@@ -110,7 +116,12 @@ impl Ledger {
         if self.last_calls.len() >= LAST_CALLS_CAP {
             self.last_calls.pop_front();
         }
-        self.last_calls.push_back((plugin.to_string(), args_hash(args), args_hash_normalized(args), seq));
+        self.last_calls.push_back((
+            plugin.to_string(),
+            args_hash(args),
+            args_hash_normalized(args),
+            seq,
+        ));
 
         match plugin {
             "repo.read" => {
@@ -142,18 +153,25 @@ impl Ledger {
             }
             "repo.exec" => {
                 if result["applied"].as_bool() == Some(true) {
-                    let cmd = args["command"].as_str().unwrap_or("").chars().take(60).collect();
+                    let cmd = args["command"]
+                        .as_str()
+                        .unwrap_or("")
+                        .chars()
+                        .take(60)
+                        .collect();
                     let ok = result["exit_code"].as_i64() == Some(0);
                     self.test_runs.push((seq, cmd, ok, output_tail(result)));
                 }
             }
             "checker.run" => {
                 let ok = result["passed"].as_bool().unwrap_or(false);
-                self.test_runs.push((seq, "checker".to_string(), ok, String::new()));
+                self.test_runs
+                    .push((seq, "checker".to_string(), ok, String::new()));
             }
             "notes.scratch" => {
                 if matches!(args["op"].as_str(), Some("write") | Some("append")) {
-                    if let Some(line) = args["content"].as_str()
+                    if let Some(line) = args["content"]
+                        .as_str()
                         .and_then(|c| c.lines().find(|l| !l.trim().is_empty()))
                     {
                         self.open_threads.push(line.chars().take(80).collect());
@@ -256,15 +274,28 @@ impl Ledger {
             s.push('\n');
         }
         if !self.model_verified() && (!self.files_read.is_empty() || !self.edits.is_empty()) {
-            s.push_str("tests: NO TEST RUN YET - you have not verified anything yourself this mission
-");
+            s.push_str(
+                "tests: NO TEST RUN YET - you have not verified anything yourself this mission
+",
+            );
         }
         if !self.test_runs.is_empty() {
             s.push_str("tests: ");
             for (seq, cmd, ok, tail) in self.test_runs.iter().rev().take(TESTS_SHOWN).rev() {
-                let stale = if self.restored_before.map(|r| *seq <= r).unwrap_or(false) { "(pre-restore)" } else { "" };
-                let ev_tail = if tail.is_empty() { String::new() } else { format!(" [{tail}]") };
-                s.push_str(&format!("\"{cmd}\" {}@seq{seq}{stale}{ev_tail}; ", if *ok { "PASS" } else { "FAIL" }));
+                let stale = if self.restored_before.map(|r| *seq <= r).unwrap_or(false) {
+                    "(pre-restore)"
+                } else {
+                    ""
+                };
+                let ev_tail = if tail.is_empty() {
+                    String::new()
+                } else {
+                    format!(" [{tail}]")
+                };
+                s.push_str(&format!(
+                    "\"{cmd}\" {}@seq{seq}{stale}{ev_tail}; ",
+                    if *ok { "PASS" } else { "FAIL" }
+                ));
             }
             s.push('\n');
         }

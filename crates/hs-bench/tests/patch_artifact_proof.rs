@@ -36,7 +36,18 @@ fn make_ws() -> std::path::PathBuf {
     std::fs::write(ws.join("code.txt"), "broken\n").unwrap();
     git(&ws, &["init", "-q"]);
     git(&ws, &["add", "-A"]);
-    git(&ws, &["-c", "user.email=b@b", "-c", "user.name=b", "commit", "-qm", "base"]);
+    git(
+        &ws,
+        &[
+            "-c",
+            "user.email=b@b",
+            "-c",
+            "user.name=b",
+            "commit",
+            "-qm",
+            "base",
+        ],
+    );
     ws
 }
 
@@ -45,7 +56,10 @@ fn apply_leaves_no_artifact_in_workspace() {
     let ws = make_ws();
     let patch = "--- a/code.txt\n+++ b/code.txt\n@@ -1 +1 @@\n-broken\n+fixed\n";
     let res = apply_model_patch(&ws, patch).expect("apply machinery works");
-    assert!(matches!(res, hs_bench::ApplyResult::Applied), "valid patch applies");
+    assert!(
+        matches!(res, hs_bench::ApplyResult::Applied),
+        "valid patch applies"
+    );
     assert_eq!(
         std::fs::read_to_string(ws.join("code.txt")).unwrap(),
         "fixed\n",

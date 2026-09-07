@@ -390,6 +390,8 @@ fn build_snippet(
     parts.join("\n")
 }
 /// Resolve a single `HashlineOp` into a `ResolvedOp`, validating anchors.
+// See the note at `validate_anchor`: vendored error type kept upstream-shaped.
+#[allow(clippy::result_large_err)]
 fn resolve_op(
     op: &HashlineOp,
     original_idx: usize,
@@ -531,6 +533,9 @@ fn recover_anchor_by_suffix(
 
 /// Validate an anchor string against file content.
 /// Returns the 0-based line index on success, or a structured error.
+// Vendored anchor engine: its error type is intentionally kept structurally
+// identical to upstream; boxing the Err would ripple through 40 internal sites.
+#[allow(clippy::result_large_err)]
 fn validate_anchor(
     anchor_str: &str,
     lines: &[&str],
@@ -2096,12 +2101,12 @@ mod tests {
         assert!(validate_anchor(&padded, &lines, &scheme).is_err());
 
         // Stale anchor with arrow reports the stripped anchor in error metadata.
-        let stale = format!("2:zzz:zzz\u{2192}content");
-        let err = validate_anchor(&stale, &lines, &scheme).unwrap_err();
+        let stale = "2:zzz:zzz\u{2192}content";
+        let err = validate_anchor(stale, &lines, &scheme).unwrap_err();
         assert_eq!(err.requested_anchor.as_deref(), Some("2:zzz:zzz"));
 
-        let stale_ascii = format!("2:zzz:zzz->content");
-        let err = validate_anchor(&stale_ascii, &lines, &scheme).unwrap_err();
+        let stale_ascii = "2:zzz:zzz->content";
+        let err = validate_anchor(stale_ascii, &lines, &scheme).unwrap_err();
         assert_eq!(err.requested_anchor.as_deref(), Some("2:zzz:zzz"));
     }
 

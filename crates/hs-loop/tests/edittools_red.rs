@@ -18,10 +18,16 @@ fn mk_ws() -> tempfile::TempDir {
     std::fs::write(ws.join("app.py"), "x = 1\n").unwrap();
     std::fs::write(ws.join("lib.py"), "def f():\n    return 1\n").unwrap();
     let git = |args: &[&str]| {
-        assert!(Command::new("git").args(args).current_dir(ws)
-            .env("GIT_AUTHOR_NAME", "t").env("GIT_AUTHOR_EMAIL", "t@t")
-            .env("GIT_COMMITTER_NAME", "t").env("GIT_COMMITTER_EMAIL", "t@t")
-            .status().unwrap().success());
+        assert!(Command::new("git")
+            .args(args)
+            .current_dir(ws)
+            .env("GIT_AUTHOR_NAME", "t")
+            .env("GIT_AUTHOR_EMAIL", "t@t")
+            .env("GIT_COMMITTER_NAME", "t")
+            .env("GIT_COMMITTER_EMAIL", "t@t")
+            .status()
+            .unwrap()
+            .success());
     };
     git(&["init", "-q"]);
     git(&["add", "."]);
@@ -29,7 +35,8 @@ fn mk_ws() -> tempfile::TempDir {
     dir
 }
 
-const D1: &str = "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-x = 1\n+x = 2\n";
+const D1: &str =
+    "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-x = 1\n+x = 2\n";
 const D2: &str = "diff --git a/lib.py b/lib.py\n--- a/lib.py\n+++ b/lib.py\n@@ -1,2 +1,2 @@\n def f():\n-    return 1\n+    return 2\n";
 
 #[test]
@@ -39,7 +46,10 @@ fn edit_apply_returns_cumulative_diff_and_live_ws_untouched() {
     assert_eq!(r["applied"], true, "{r}");
     let cd = r["cumulative_diff"].as_str().unwrap();
     assert!(cd.contains("+x = 2"), "{cd}");
-    assert_eq!(std::fs::read_to_string(d.path().join("app.py")).unwrap(), "x = 1\n");
+    assert_eq!(
+        std::fs::read_to_string(d.path().join("app.py")).unwrap(),
+        "x = 1\n"
+    );
     hs_loop::editapply::reset(d.path());
 }
 
@@ -52,11 +62,17 @@ fn edit_apply_accumulates_across_calls_and_survives_reentry() {
     let r2 = hs_loop::editapply::apply(d.path(), D2);
     assert_eq!(r2["applied"], true, "{r2}");
     let cd = r2["cumulative_diff"].as_str().unwrap();
-    assert!(cd.contains("+x = 2") && cd.contains("+    return 2"), "cumulative: {cd}");
+    assert!(
+        cd.contains("+x = 2") && cd.contains("+    return 2"),
+        "cumulative: {cd}"
+    );
     // cumulative_diff is also readable without a new apply
     let only = hs_loop::editapply::cumulative_diff(d.path());
     assert_eq!(only["has_candidate"], true, "{only}");
-    assert!(only["cumulative_diff"].as_str().unwrap().contains("+x = 2"), "{only}");
+    assert!(
+        only["cumulative_diff"].as_str().unwrap().contains("+x = 2"),
+        "{only}"
+    );
     hs_loop::editapply::reset(d.path());
     let gone = hs_loop::editapply::cumulative_diff(d.path());
     assert_eq!(gone["has_candidate"], false, "{gone}");
@@ -72,20 +88,38 @@ fn edit_apply_bad_diff_is_clean_feedback_and_candidate_unchanged() {
     assert!(r2.get("apply_error").is_some(), "{r2}");
     // earlier good work survives the failed apply
     let cd = hs_loop::editapply::cumulative_diff(d.path());
-    assert!(cd["cumulative_diff"].as_str().unwrap().contains("+x = 2"), "{cd}");
+    assert!(
+        cd["cumulative_diff"].as_str().unwrap().contains("+x = 2"),
+        "{cd}"
+    );
     hs_loop::editapply::reset(d.path());
 }
 
-fn serve_roundtrip(bin: &str, envs: &[(&str, &std::path::Path)], reqs: &str) -> Vec<serde_json::Value> {
+fn serve_roundtrip(
+    bin: &str,
+    envs: &[(&str, &std::path::Path)],
+    reqs: &str,
+) -> Vec<serde_json::Value> {
     let mut c = Command::new(bin);
-    for (k, v) in envs { c.env(k, v); }
-    let mut p = c.stdin(Stdio::piped()).stdout(Stdio::piped()).spawn().unwrap();
+    for (k, v) in envs {
+        c.env(k, v);
+    }
+    let mut p = c
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
     let mut stdin = p.stdin.take().unwrap();
     let reqs = reqs.to_string();
-    std::thread::spawn(move || { stdin.write_all(reqs.as_bytes()).unwrap(); drop(stdin); });
+    std::thread::spawn(move || {
+        stdin.write_all(reqs.as_bytes()).unwrap();
+        drop(stdin);
+    });
     let out = p.wait_with_output().unwrap();
-    String::from_utf8_lossy(&out.stdout).lines()
-        .map(|l| serde_json::from_str(l).unwrap()).collect()
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect()
 }
 
 #[test]
@@ -107,8 +141,11 @@ fn notes_scratch_write_append_read_across_restarts() {
     assert!(body.contains("test: cargo test -p parser"), "{body}");
     // read on empty notes is clean feedback, not an error
     let notes2 = dir.path().join("empty.md");
-    let r = serve_roundtrip(bin, &[("HS_SCRATCH_FILE", notes2.as_path())],
-        "{\"id\":1,\"method\":\"tool.call\",\"params\":{\"args\":{\"op\":\"read\"}}}\n");
+    let r = serve_roundtrip(
+        bin,
+        &[("HS_SCRATCH_FILE", notes2.as_path())],
+        "{\"id\":1,\"method\":\"tool.call\",\"params\":{\"args\":{\"op\":\"read\"}}}\n",
+    );
     assert!(r[0]["result"].get("$error").is_none(), "{r:?}");
     assert_eq!(r[0]["result"]["content"].as_str().unwrap(), "");
 }

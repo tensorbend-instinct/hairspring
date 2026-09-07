@@ -52,4 +52,3 @@ pub fn format_hashline_content(
 
     (output, raw_output)
 }
-

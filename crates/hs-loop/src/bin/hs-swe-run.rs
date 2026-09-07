@@ -23,9 +23,7 @@ struct Instance {
 }
 
 fn arg(args: &[String], name: &str) -> Option<String> {
-    args.windows(2)
-        .find(|w| w[0] == name)
-        .map(|w| w[1].clone())
+    args.windows(2).find(|w| w[0] == name).map(|w| w[1].clone())
 }
 
 fn bin(name: &str) -> String {
@@ -45,7 +43,10 @@ fn main() {
         .expect("--budget-micros")
         .parse()
         .unwrap();
-    let max_steps: u32 = arg(&args, "--max-steps").unwrap_or("25".into()).parse().unwrap();
+    let max_steps: u32 = arg(&args, "--max-steps")
+        .unwrap_or("25".into())
+        .parse()
+        .unwrap();
     let wall_secs: Option<u64> = arg(&args, "--wall-secs")
         .or_else(|| std::env::var("HS_SUBSET_WALL_SECS").ok())
         .and_then(|v| v.parse().ok());
@@ -67,7 +68,12 @@ fn main() {
     // ran as shell -> exit 127 -> env_limited in 100% of sessions).
     let goal_cmds: Vec<String> = std::env::var("HS_SWE_F2P")
         .ok()
-        .map(|s| s.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect())
+        .map(|s| {
+            s.split(',')
+                .map(|x| x.trim().to_string())
+                .filter(|x| !x.is_empty())
+                .collect()
+        })
         .unwrap_or_default();
 
     // bake-off (2026-09-06): HS_SWE_EDIT_PATH=applypatch|anchor selects the
@@ -83,9 +89,16 @@ fn main() {
     }
 
     let ws = run_dir.join("ws");
-    assert!(ws.join(".git").exists(), "workspace not prepped: {}", ws.display());
+    assert!(
+        ws.join(".git").exists(),
+        "workspace not prepped: {}",
+        ws.display()
+    );
     let log_root = run_dir.join("log");
-    let answer_path = log_root.join("work").join(&inst.instance_id).join("answer.txt");
+    let answer_path = log_root
+        .join("work")
+        .join(&inst.instance_id)
+        .join("answer.txt");
 
     // repo layout for grounding (paths the model may touch)
     let listing = std::process::Command::new("git")
@@ -105,11 +118,10 @@ fn main() {
 
     let policy = match std::env::var("HS_POLICY_TOML") {
         Ok(p) => Some(
-            hs_loop::sweprompt::load_policy_overlay(std::path::Path::new(&p))
-                .unwrap_or_else(|e| {
-                    eprintln!("hs-swe-run: {e}");
-                    std::process::exit(2);
-                }),
+            hs_loop::sweprompt::load_policy_overlay(std::path::Path::new(&p)).unwrap_or_else(|e| {
+                eprintln!("hs-swe-run: {e}");
+                std::process::exit(2);
+            }),
         ),
         Err(_) => None,
     };
@@ -128,14 +140,24 @@ fn main() {
             });
         for s in &servers {
             let out = std::process::Command::new(bin("hs-plugin-mcpcall"))
-                .args(["--config", &servers_toml, "--server", &s.name, "--list", "--list-verbose"])
+                .args([
+                    "--config",
+                    &servers_toml,
+                    "--server",
+                    &s.name,
+                    "--list",
+                    "--list-verbose",
+                ])
                 .output()
                 .unwrap_or_else(|e| {
                     eprintln!("hs-swe-run: mcp discovery spawn: {e}");
                     std::process::exit(2);
                 });
             if !out.status.success() {
-                eprintln!("hs-swe-run: mcp discovery: {}", String::from_utf8_lossy(&out.stderr));
+                eprintln!(
+                    "hs-swe-run: mcp discovery: {}",
+                    String::from_utf8_lossy(&out.stderr)
+                );
                 std::process::exit(2);
             }
             let discovered: Vec<serde_json::Value> = serde_json::from_slice(&out.stdout)
@@ -259,8 +281,16 @@ default = true
             reposearch = bin("hs-plugin-reposearch"),
             repoexec = bin("hs-plugin-repoexec"),
             policy = bin("hs-plugin-policy"),
-            editpatch = bin(if edit_path == "anchor" { "hs-plugin-editanchor" } else { "hs-plugin-applypatch" }),
-            edittoolname = if edit_path == "anchor" { "edit.anchor" } else { "edit.patch" },
+            editpatch = bin(if edit_path == "anchor" {
+                "hs-plugin-editanchor"
+            } else {
+                "hs-plugin-applypatch"
+            }),
+            edittoolname = if edit_path == "anchor" {
+                "edit.anchor"
+            } else {
+                "edit.patch"
+            },
             notescratch = bin("hs-plugin-notescratch"),
             model = model,
             model_bin = bin(&format!("hs-plugin-{model}")),
@@ -307,8 +337,14 @@ default = true
     let cost = l.total_cost_micros();
 
     if let Some(db) = &memory_db {
-        if let Ok(store) = hs_memory::sqlite::SqliteMemoryStore::open(db).map_err(|e| e.to_string()) {
-            for rec in hs_memory::extract::extract_stream(&log_root, r.stream_id, &inst.instance_id, "operator") {
+        if let Ok(store) = hs_memory::sqlite::SqliteMemoryStore::open(db).map_err(|e| e.to_string())
+        {
+            for rec in hs_memory::extract::extract_stream(
+                &log_root,
+                r.stream_id,
+                &inst.instance_id,
+                "operator",
+            ) {
                 if let Err(e) = store.put(rec) {
                     eprintln!("memory extract: {e}");
                 }

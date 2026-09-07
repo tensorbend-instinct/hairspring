@@ -85,7 +85,9 @@ pub fn project(
     for e in events {
         match e.kind {
             EventKind::CapabilityChange => {
-                let binding = resolve(e).and_then(|b| parse_binding(&b)).unwrap_or_default();
+                let binding = resolve(e)
+                    .and_then(|b| parse_binding(&b))
+                    .unwrap_or_default();
                 last_cc = Some((e.seq, e.event_id, binding));
             }
             EventKind::Score => {

@@ -10,7 +10,6 @@ const FIXTURE: &str = env!("CARGO_BIN_EXE_hs-fixture-plugin");
 /// (observed 2026-09-05: interleaved rail-log lines, order assert flake).
 static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-
 fn write_config(dir: &std::path::Path, body: &str) -> std::path::PathBuf {
     let p = dir.join("hairspring.toml");
     std::fs::write(&p, body).unwrap();

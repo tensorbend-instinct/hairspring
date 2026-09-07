@@ -29,12 +29,18 @@ fn repoexec_description_states_fresh_sandbox_semantics() {
         desc.contains("nothing persists"),
         "must state non-persistence plainly: {desc}"
     );
-    assert!(desc.contains("python3"), "must name the interpreter: {desc}");
+    assert!(
+        desc.contains("python3"),
+        "must name the interpreter: {desc}"
+    );
 }
 
 #[test]
 fn artifact_section_is_labeled_as_the_graded_answer_file() {
-    let s = hs_loop::artifact_section(std::path::Path::new("/x/answer.txt"), "diff --git a/f b/f\n");
+    let s = hs_loop::artifact_section(
+        std::path::Path::new("/x/answer.txt"),
+        "diff --git a/f b/f\n",
+    );
     assert!(
         s.contains("answer.submit"),
         "label must name the only writer so the model stops reading it as live candidate state: {s}"
@@ -44,7 +50,10 @@ fn artifact_section_is_labeled_as_the_graded_answer_file() {
         "content must be shown: {s}"
     );
     let empty = hs_loop::artifact_section(std::path::Path::new("/x/answer.txt"), "");
-    assert!(empty.contains("<none>"), "empty artifact marker kept: {empty}");
+    assert!(
+        empty.contains("<none>"),
+        "empty artifact marker kept: {empty}"
+    );
 }
 
 #[test]

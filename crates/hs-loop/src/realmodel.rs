@@ -124,12 +124,18 @@ pub fn load_providers_toml(path: &std::path::Path) -> Result<Vec<ProviderConfig>
     let f: ProvidersFile =
         toml::from_str(&text).map_err(|e| format!("providers TOML {}: {e}", path.display()))?;
     if f.providers.is_empty() {
-        return Err(format!("providers TOML {}: no [[providers]] entries", path.display()));
+        return Err(format!(
+            "providers TOML {}: no [[providers]] entries",
+            path.display()
+        ));
     }
     Ok(f.providers)
 }
 
-pub fn find_provider<'a>(cfgs: &'a [ProviderConfig], name: &str) -> Result<&'a ProviderConfig, String> {
+pub fn find_provider<'a>(
+    cfgs: &'a [ProviderConfig],
+    name: &str,
+) -> Result<&'a ProviderConfig, String> {
     cfgs.iter()
         .find(|c| c.name == name)
         .ok_or_else(|| format!("unknown provider '{name}' (not in providers TOML)"))
@@ -147,7 +153,10 @@ pub fn provider_from_config(c: &ProviderConfig) -> Result<Provider, String> {
         default_base_url,
         model_env: format!("HS_{up}_MODEL"),
         default_model: c.model.clone(),
-        key_env: c.key_env.clone().unwrap_or_else(|| format!("HS_{up}_API_KEY")),
+        key_env: c
+            .key_env
+            .clone()
+            .unwrap_or_else(|| format!("HS_{up}_API_KEY")),
         key_file_env: format!("HS_{up}_API_KEY_FILE"),
         price_in_env: format!("HS_{up}_PRICE_IN_MICROS"),
         default_in_micros: c.price_in_micros.unwrap_or(0.0),
@@ -278,7 +287,11 @@ pub fn build_body(
     if let Some(t) = tools {
         // provider name-charset constraint: dots are not wire-legal
         body["tools"] = crate::toolschema::to_wire(t);
-        body["tool_choice"] = json!(if tool_choice_required { "required" } else { "auto" });
+        body["tool_choice"] = json!(if tool_choice_required {
+            "required"
+        } else {
+            "auto"
+        });
     }
     if let (Some(b), Some(x)) = (body.as_object_mut(), extra.and_then(|e| e.as_object())) {
         for (k, v) in x {
@@ -287,7 +300,6 @@ pub fn build_body(
     }
     body
 }
-
 
 /// The request body for a caller-supplied messages array (structured
 /// history, user directive 2026-09-05): messages pass through verbatim
@@ -313,7 +325,11 @@ pub fn build_body_messages(
     if let Some(t) = tools {
         // provider name-charset constraint: dots are not wire-legal
         body["tools"] = crate::toolschema::to_wire(t);
-        body["tool_choice"] = json!(if tool_choice_required { "required" } else { "auto" });
+        body["tool_choice"] = json!(if tool_choice_required {
+            "required"
+        } else {
+            "auto"
+        });
     }
     if let (Some(b), Some(x)) = (body.as_object_mut(), extra.and_then(|e| e.as_object())) {
         for (k, v) in x {
@@ -395,11 +411,19 @@ fn parse_response_legacy(p: &Provider, v: &serde_json::Value) -> Result<ParsedCa
         .to_string();
     let raw = v["choices"][0]["message"]["content"]
         .as_str()
-        .ok_or_else(|| format!("{}: no choices[0].message.content (finish_reason={})", p.name, fr))?;
+        .ok_or_else(|| {
+            format!(
+                "{}: no choices[0].message.content (finish_reason={})",
+                p.name, fr
+            )
+        })?;
     let completion = extract_json_object(raw)
         .map(|s| s.to_string())
         .unwrap_or_else(|| raw.to_string());
-    let reasoning_content = v["choices"][0]["message"]["reasoning_content"].as_str().unwrap_or("").to_string();
+    let reasoning_content = v["choices"][0]["message"]["reasoning_content"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
     let (input_tokens, output_tokens, cached_tokens, reasoning_tokens, cost) =
         usage_cost(p, &v["usage"]);
     Ok(ParsedCall {
@@ -440,10 +464,9 @@ fn attempt(
             msg: format!("{}: HTTP {} from provider", p.name, status.as_u16()),
         });
     }
-    let v: serde_json::Value = resp
-        .body_mut()
-        .read_json()
-        .map_err(|e| AttemptError::Other(format!("{}: unparsable provider response: {e}", p.name)))?;
+    let v: serde_json::Value = resp.body_mut().read_json().map_err(|e| {
+        AttemptError::Other(format!("{}: unparsable provider response: {e}", p.name))
+    })?;
     let r = if native {
         parse_response(p, &v)
     } else {
@@ -545,10 +568,11 @@ fn extra_body(p: &Provider) -> Result<Option<serde_json::Value>, String> {
         .ok()
         .or_else(|| p.default_extra_body_json.clone());
     match extra_src {
-        Some(x) => Ok(Some(
-            serde_json::from_str(&x)
-                .map_err(|e| format!("{}: bad extra_body_json: {e}", p.name))?,
-        )),
+        Some(x) => {
+            Ok(Some(serde_json::from_str(&x).map_err(|e| {
+                format!("{}: bad extra_body_json: {e}", p.name)
+            })?))
+        }
         None => Ok(None),
     }
 }
@@ -603,7 +627,12 @@ fn call_with_body(
                 }))
             }
             Ok(Err(e)) => {
-                eprintln!("realmodel {} attempt {} failed: {}", p.name, attempt_no, e.msg());
+                eprintln!(
+                    "realmodel {} attempt {} failed: {}",
+                    p.name,
+                    attempt_no,
+                    e.msg()
+                );
                 if !e.retryable() {
                     return Err(e.msg());
                 }
@@ -639,9 +668,20 @@ pub fn call(
     tools: Option<&serde_json::Value>,
 ) -> Result<serde_json::Value, String> {
     let (_, _, model) = wire(p)?;
-    let system = if tools.is_some() { SYSTEM_NATIVE } else { SYSTEM };
+    let system = if tools.is_some() {
+        SYSTEM_NATIVE
+    } else {
+        SYSTEM
+    };
     let extra = extra_body(p)?;
-    let body = build_body(&model, system, prompt, tools, extra.as_ref(), p.tool_choice_required);
+    let body = build_body(
+        &model,
+        system,
+        prompt,
+        tools,
+        extra.as_ref(),
+        p.tool_choice_required,
+    );
     call_with_body(p, &model, &body, tools.is_some())
 }
 
@@ -654,8 +694,19 @@ pub fn call_messages(
     tools: Option<&serde_json::Value>,
 ) -> Result<serde_json::Value, String> {
     let (_, _, model) = wire(p)?;
-    let system = if tools.is_some() { SYSTEM_NATIVE } else { SYSTEM };
+    let system = if tools.is_some() {
+        SYSTEM_NATIVE
+    } else {
+        SYSTEM
+    };
     let extra = extra_body(p)?;
-    let body = build_body_messages(&model, system, messages, tools, extra.as_ref(), p.tool_choice_required);
+    let body = build_body_messages(
+        &model,
+        system,
+        messages,
+        tools,
+        extra.as_ref(),
+        p.tool_choice_required,
+    );
     call_with_body(p, &model, &body, tools.is_some())
 }

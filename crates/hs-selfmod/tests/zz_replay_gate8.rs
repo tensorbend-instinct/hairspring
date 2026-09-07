@@ -108,7 +108,9 @@ fn fresh_loop(root: &std::path::Path, soak: Duration) -> SelfModLoop {
 // ---------------------------------------------------------------------------
 #[test]
 fn gate8_proof_1_good_mutation_promotes_after_soak_with_lineage_record() {
-    let tmp = std::path::PathBuf::from("/mnt/instinct-nvme/swbench/replay-check/gate8-case1"); let _ = std::fs::remove_dir_all(&tmp); std::fs::create_dir_all(&tmp).unwrap();
+    let tmp = std::path::PathBuf::from("/mnt/instinct-nvme/swbench/replay-check/gate8-case1");
+    let _ = std::fs::remove_dir_all(&tmp);
+    std::fs::create_dir_all(&tmp).unwrap();
     let mut sm = fresh_loop(tmp.as_path(), Duration::from_millis(20));
 
     let mut fork = sm.fork();
@@ -178,7 +180,9 @@ fn gate8_proof_1_good_mutation_promotes_after_soak_with_lineage_record() {
 // ---------------------------------------------------------------------------
 #[test]
 fn gate8_proof_2_bad_mutation_assay_catches_and_rewinds_to_known_good() {
-    let tmp = std::path::PathBuf::from("/mnt/instinct-nvme/swbench/replay-check/gate8-case2"); let _ = std::fs::remove_dir_all(&tmp); std::fs::create_dir_all(&tmp).unwrap();
+    let tmp = std::path::PathBuf::from("/mnt/instinct-nvme/swbench/replay-check/gate8-case2");
+    let _ = std::fs::remove_dir_all(&tmp);
+    std::fs::create_dir_all(&tmp).unwrap();
     let mut sm = fresh_loop(tmp.as_path(), Duration::from_millis(0));
     let known_good = sm.current_policy().clone();
 
@@ -222,7 +226,9 @@ fn gate8_proof_2_bad_mutation_assay_catches_and_rewinds_to_known_good() {
 // ---------------------------------------------------------------------------
 #[test]
 fn gate8_proof_3_quarantine_world_service_rejects_external_effects() {
-    let tmp = std::path::PathBuf::from("/mnt/instinct-nvme/swbench/replay-check/gate8-case3"); let _ = std::fs::remove_dir_all(&tmp); std::fs::create_dir_all(&tmp).unwrap();
+    let tmp = std::path::PathBuf::from("/mnt/instinct-nvme/swbench/replay-check/gate8-case3");
+    let _ = std::fs::remove_dir_all(&tmp);
+    std::fs::create_dir_all(&tmp).unwrap();
     let mut sm = fresh_loop(tmp.as_path(), Duration::from_millis(0));
 
     let fork = sm.fork();
@@ -259,7 +265,9 @@ fn gate8_proof_3_quarantine_world_service_rejects_external_effects() {
 // ---------------------------------------------------------------------------
 #[test]
 fn gate8_proof_4_promotion_is_replayable() {
-    let tmp = std::path::PathBuf::from("/mnt/instinct-nvme/swbench/replay-check/gate8-case4"); let _ = std::fs::remove_dir_all(&tmp); std::fs::create_dir_all(&tmp).unwrap();
+    let tmp = std::path::PathBuf::from("/mnt/instinct-nvme/swbench/replay-check/gate8-case4");
+    let _ = std::fs::remove_dir_all(&tmp);
+    std::fs::create_dir_all(&tmp).unwrap();
     let mut sm = fresh_loop(tmp.as_path(), Duration::from_millis(0));
 
     let mut fork = sm.fork();

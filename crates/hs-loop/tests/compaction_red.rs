@@ -96,7 +96,10 @@ fn pressure_compacts_oldest_with_audit_refs_and_records_context_inject() {
     let stream = l.stream_id();
     // recmodel writes the secret ONLY after a prompt carries COMPACTED
     let r = l.run_mission("task-0").unwrap();
-    assert!(r.passed, "mission passes only if the compacted summary reached the window");
+    assert!(
+        r.passed,
+        "mission passes only if the compacted summary reached the window"
+    );
 
     let prompts = std::fs::read_to_string(&dump).unwrap();
     let summary = prompts

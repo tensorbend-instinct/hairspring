@@ -9,8 +9,12 @@ use std::process::Command;
 
 /// Run a probe command inside the real sandbox and return its stdout.
 fn probe(scratch: &Path, cmd: &str) -> String {
-    let argv = hs_loop::repexec::sandbox_argv(scratch, Path::new("/tmp/o"), Path::new("/tmp/e"), cmd);
-    let out = Command::new(&argv[0]).args(&argv[1..]).output().expect("sandbox spawn");
+    let argv =
+        hs_loop::repexec::sandbox_argv(scratch, Path::new("/tmp/o"), Path::new("/tmp/e"), cmd);
+    let out = Command::new(&argv[0])
+        .args(&argv[1..])
+        .output()
+        .expect("sandbox spawn");
     let so = String::from_utf8_lossy(&out.stdout);
     // sandbox_argv redirects to /ws/.repexec-out; read it back from the scratch
     let captured = std::fs::read_to_string(scratch.join(".repexec-out")).unwrap_or_default();
@@ -28,12 +32,25 @@ fn run_dir_and_instance_material_unreachable_inside_sandbox() {
     let d = mkscratch();
     // Create decoy "gold" material at the kinds of host paths missions use.
     let fake_run = tempfile::tempdir().unwrap();
-    std::fs::write(fake_run.path().join("test_patch.diff"), "diff --git GOLD ANSWER\n").unwrap();
+    std::fs::write(
+        fake_run.path().join("test_patch.diff"),
+        "diff --git GOLD ANSWER\n",
+    )
+    .unwrap();
     let out = probe(d.path(), "ls /mnt /home 2>&1; echo ---; find / -name 'test_patch.diff' -o -name '*.bench-*' 2>/dev/null | head");
-    assert!(!out.contains("GOLD ANSWER"), "gold material leaked into sandbox: {out}");
-    assert!(!out.contains("test_patch.diff"), "test_patch.diff reachable inside sandbox: {out}");
+    assert!(
+        !out.contains("GOLD ANSWER"),
+        "gold material leaked into sandbox: {out}"
+    );
+    assert!(
+        !out.contains("test_patch.diff"),
+        "test_patch.diff reachable inside sandbox: {out}"
+    );
     for banned in ["/mnt/instinct-nvme", "/home/sandbox", ".hs-eval.patch"] {
-        assert!(!out.contains(banned), "harness path visible inside sandbox: {banned} in {out}");
+        assert!(
+            !out.contains(banned),
+            "harness path visible inside sandbox: {banned} in {out}"
+        );
     }
 }
 
@@ -41,11 +58,17 @@ fn run_dir_and_instance_material_unreachable_inside_sandbox() {
 fn no_hs_env_leaks_into_sandbox() {
     let d = mkscratch();
     std::env::set_var("HS_SWE_F2P", "bash /secret/f2p.sh");
-    std::env::set_var("HS_DEEPSEEK_API_KEY_FILE", "/home/sandbox/.keys/deepseek.key");
+    std::env::set_var(
+        "HS_DEEPSEEK_API_KEY_FILE",
+        "/home/sandbox/.keys/deepseek.key",
+    );
     let out = probe(d.path(), "env");
     std::env::remove_var("HS_SWE_F2P");
     std::env::remove_var("HS_DEEPSEEK_API_KEY_FILE");
-    assert!(!out.contains("HS_"), "harness env leaked into sandbox: {out}");
+    assert!(
+        !out.contains("HS_"),
+        "harness env leaked into sandbox: {out}"
+    );
     assert!(!out.contains("deepseek.key"), "key path leaked: {out}");
 }
 
@@ -65,7 +88,13 @@ fn prompt_states_sandbox_ws_path() {
         mcp_tools: String::new(),
     };
     let p = hs_loop::sweprompt::build_mission_prompt(None, &args);
-    assert!(!p.contains("/ws "), "test must not self-satisfy via the ws path");
-    assert!(p.contains("repo.exec sees the repo at /ws"),
-        "prompt must name the in-sandbox repo path: {}", &p[..p.len().min(400)]);
+    assert!(
+        !p.contains("/ws "),
+        "test must not self-satisfy via the ws path"
+    );
+    assert!(
+        p.contains("repo.exec sees the repo at /ws"),
+        "prompt must name the in-sandbox repo path: {}",
+        &p[..p.len().min(400)]
+    );
 }

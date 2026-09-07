@@ -14,10 +14,17 @@ fn assembly_cost_vs_transcript_growth() {
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let script = dir.path().join("script.jsonl");
-    std::fs::write(&script, "{\"tool\":\"bigread.read\",\"args\":{\"path\":\"x\"}}\n".repeat(30)).unwrap();
+    std::fs::write(
+        &script,
+        "{\"tool\":\"bigread.read\",\"args\":{\"path\":\"x\"}}\n".repeat(30),
+    )
+    .unwrap();
     std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
     let config = dir.path().join("hairspring.toml");
-    std::fs::write(&config, format!(r#"
+    std::fs::write(
+        &config,
+        format!(
+            r#"
 [[tools]]
 name = "bigread.read"
 command = ["{BIGREAD}"]
@@ -37,18 +44,29 @@ subjects = ["*"]
 name = "scripted"
 command = ["{SCRIPTED}"]
 default = true
-"#)).unwrap();
+"#
+        ),
+    )
+    .unwrap();
     let kernel = hs_kernel::Kernel::load(&config).unwrap();
     let mut l = InnerLoop::new(kernel, log.path(), true, 30).unwrap();
     let r = l.run_mission("task-0").unwrap();
     let reader = hs_log::StreamReader::open(log.path(), r.stream_id).unwrap();
     let mut rows: Vec<(u64, u64, u64)> = vec![]; // (seq, prompt bytes, assembly_ms)
     for e in reader.events().unwrap() {
-        if e.kind != EventKind::ModelCall { continue; }
+        if e.kind != EventKind::ModelCall {
+            continue;
+        }
         let b = reader.resolve_payload(&e).unwrap();
         let v: serde_json::Value = serde_json::from_slice(&b).unwrap();
-        if v["role"].as_str() == Some("verifier") { continue; }
-        rows.push((e.seq, hs_loop::msgfmt::prompt_view(&v).len() as u64, v["assembly_ms"].as_u64().unwrap_or(0)));
+        if v["role"].as_str() == Some("verifier") {
+            continue;
+        }
+        rows.push((
+            e.seq,
+            hs_loop::msgfmt::prompt_view(&v).len() as u64,
+            v["assembly_ms"].as_u64().unwrap_or(0),
+        ));
     }
     eprintln!("seq,prompt_bytes,assembly_ms");
     for (s, p, a) in &rows {

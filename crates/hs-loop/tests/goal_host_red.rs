@@ -20,8 +20,17 @@ fn fixture() -> (PathBuf, PathBuf) {
     let ws = std::env::temp_dir().join(&uniq);
     std::fs::create_dir_all(&ws).unwrap();
     let git = |args: &[&str]| {
-        let o = Command::new("git").args(args).current_dir(&ws).output().unwrap();
-        assert!(o.status.success(), "git {:?}: {}", args, String::from_utf8_lossy(&o.stderr));
+        let o = Command::new("git")
+            .args(args)
+            .current_dir(&ws)
+            .output()
+            .unwrap();
+        assert!(
+            o.status.success(),
+            "git {:?}: {}",
+            args,
+            String::from_utf8_lossy(&o.stderr)
+        );
     };
     git(&["init", "-q"]);
     git(&["config", "user.email", "t@t"]);
@@ -32,7 +41,11 @@ fn fixture() -> (PathBuf, PathBuf) {
     // the fix artifact: evidence.txt, diffed by GIT (never hand-written)
     std::fs::write(ws.join("evidence.txt"), "proof\n").unwrap();
     git(&["add", "-N", "evidence.txt"]);
-    let diff = Command::new("git").args(["diff"]).current_dir(&ws).output().unwrap();
+    let diff = Command::new("git")
+        .args(["diff"])
+        .current_dir(&ws)
+        .output()
+        .unwrap();
     let answer = std::env::temp_dir().join(format!("{uniq}.answer"));
     std::fs::write(&answer, String::from_utf8_lossy(&diff.stdout).to_string()).unwrap();
     git(&["reset", "-q"]);
@@ -43,14 +56,22 @@ fn fixture() -> (PathBuf, PathBuf) {
 #[test]
 fn goal_passes_when_acceptance_command_exits_zero() {
     let (ws, answer) = fixture();
-    let g = GoalSpec { ws: ws.clone(), f2p: vec!["test -f evidence.txt".into()], timeout_secs: 60 };
+    let g = GoalSpec {
+        ws: ws.clone(),
+        f2p: vec!["test -f evidence.txt".into()],
+        timeout_secs: 60,
+    };
     assert_eq!(verify_verdict(&g, &answer), GoalVerdict::Pass);
 }
 
 #[test]
 fn goal_fails_red_not_env_limited_when_acceptance_command_fails() {
     let (ws, answer) = fixture();
-    let g = GoalSpec { ws: ws.clone(), f2p: vec!["test -f absent.txt".into()], timeout_secs: 60 };
+    let g = GoalSpec {
+        ws: ws.clone(),
+        f2p: vec!["test -f absent.txt".into()],
+        timeout_secs: 60,
+    };
     assert_eq!(verify_verdict(&g, &answer), GoalVerdict::Fail);
 }
 
@@ -65,8 +86,16 @@ fn goal_runs_command_whose_interpreter_lives_under_home() {
     std::fs::write(&probe, "#!/bin/sh\nexit 0\n").unwrap();
     let _ = Command::new("chmod").args(["+x"]).arg(&probe).status();
     let (ws, answer) = fixture();
-    let g = GoalSpec { ws: ws.clone(), f2p: vec![probe.to_string_lossy().to_string()], timeout_secs: 60 };
+    let g = GoalSpec {
+        ws: ws.clone(),
+        f2p: vec![probe.to_string_lossy().to_string()],
+        timeout_secs: 60,
+    };
     let v = verify_verdict(&g, &answer);
     let _ = std::fs::remove_dir_all("/home/sandbox/.hs-goalfixture");
-    assert_eq!(v, GoalVerdict::Pass, "venv-under-home command must run at the goal evaluator's exec location");
+    assert_eq!(
+        v,
+        GoalVerdict::Pass,
+        "venv-under-home command must run at the goal evaluator's exec location"
+    );
 }

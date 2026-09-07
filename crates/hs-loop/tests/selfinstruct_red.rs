@@ -23,12 +23,18 @@ fn args() -> PromptArgs {
 #[test]
 fn default_template_when_no_policy_overlay() {
     let p = build_mission_prompt(None, &args());
-    assert!(p.contains("You are fixing a real bug"), "builtin template: {p}");
+    assert!(
+        p.contains("You are fixing a real bug"),
+        "builtin template: {p}"
+    );
     assert!(p.contains("bug: stack mishandled"));
     // native tool delivery (2026-09-05): the prompt points at the API tools
     // parameter instead of hand-listing the surface; the schemas themselves
     // live in toolschema and reach the model out-of-band.
-    assert!(p.contains("native tool-calling API"), "native delivery note: {p}");
+    assert!(
+        p.contains("native tool-calling API"),
+        "native delivery note: {p}"
+    );
     assert!(!p.contains("\"tool\":"), "no hand-rolled tool markup: {p}");
     // allowlist scaffold was deleted per Eric's ruling - no list in the prompt
     assert!(!p.contains("Allowed:"), "no allowlist mention: {p}");
@@ -45,7 +51,10 @@ swe-mission = "CUSTOM POLICY PROMPT for {ws} about {problem_statement}"
     std::fs::write(f.path(), overlay).unwrap();
     let pol = load_policy_overlay(f.path()).unwrap();
     let p = build_mission_prompt(Some(&pol), &args());
-    assert!(p.starts_with("CUSTOM POLICY PROMPT for /tmp/ws"), "overlay used: {p}");
+    assert!(
+        p.starts_with("CUSTOM POLICY PROMPT for /tmp/ws"),
+        "overlay used: {p}"
+    );
     assert!(p.contains("bug: stack mishandled"));
     assert!(!p.contains("You are fixing a real bug"), "builtin replaced");
 }
@@ -82,7 +91,10 @@ fn proposal_is_recorded_versioned_and_does_not_mutate_running_prompt() {
     let log = std::fs::read_to_string(dir.path().join("policy_proposals.jsonl")).unwrap();
     assert_eq!(log.lines().count(), 2);
     assert!(log.contains("always repo.exec first"));
-    assert!(log.contains("\"status\":\"proposed\""), "gated, not applied: {log}");
+    assert!(
+        log.contains("\"status\":\"proposed\""),
+        "gated, not applied: {log}"
+    );
     // the running mission's prompt is untouched (quarantine)
     let after = build_mission_prompt(None, &args());
     assert_eq!(before, after);

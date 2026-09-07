@@ -107,7 +107,9 @@ subjects = ["*"]
         ),
     );
     let k = hs_kernel::Kernel::load_with_log(&cfg, &log_root).unwrap();
-    let out = k.call_tool("anyone", "spew", serde_json::json!({})).unwrap();
+    let out = k
+        .call_tool("anyone", "spew", serde_json::json!({}))
+        .unwrap();
     assert_eq!(out.output["output"], "spew-ok");
     let text = slurp(&log_root.join("stderr"));
     assert!(

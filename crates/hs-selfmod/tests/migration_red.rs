@@ -73,7 +73,14 @@ fn happy_path_swap_is_a_logged_transaction_with_single_promotion_point() {
         .collect();
     assert_eq!(
         steps,
-        ["quiesce", "checkpoint", "validate", "bind", "rehydrate", "resume"]
+        [
+            "quiesce",
+            "checkpoint",
+            "validate",
+            "bind",
+            "rehydrate",
+            "resume"
+        ]
     );
 }
 
@@ -97,8 +104,12 @@ fn failed_validation_leaves_old_variant_in_authority() {
     // the abort is on the log - a swap is never invisible to the scorer
     let steps: Vec<String> = cc_events(dir.path(), stream)
         .iter()
-        .map(|p| serde_json::from_str::<serde_json::Value>(p).unwrap()["step"]
-            .as_str().unwrap().to_string())
+        .map(|p| {
+            serde_json::from_str::<serde_json::Value>(p).unwrap()["step"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        })
         .collect();
     assert_eq!(steps, ["quiesce", "checkpoint", "validate_failed", "abort"]);
 }
@@ -133,7 +144,7 @@ fn recovery_rebuilds_transaction_and_authority_from_the_log_alone() {
 
     let recovered = Migration::recover(dir.path(), stream).expect("an in-flight txn must recover");
     assert_eq!(recovered.old(), &model("glm-5.3"));
-    assert_eq!(recovered.new(), &model("glm-5.4"));
+    assert_eq!(recovered.new_binding(), &model("glm-5.4"));
     assert_eq!(recovered.step(), MigrationStep::Bind);
     // recovery resumes the protocol where the log left off
     let mut auth2 = ContinuityAuthority::new();
@@ -142,11 +153,22 @@ fn recovery_rebuilds_transaction_and_authority_from_the_log_alone() {
     txn.resume_with(&mut auth2).unwrap();
     let steps: Vec<String> = cc_events(dir.path(), stream)
         .iter()
-        .map(|p| serde_json::from_str::<serde_json::Value>(p).unwrap()["step"]
-            .as_str().unwrap().to_string())
+        .map(|p| {
+            serde_json::from_str::<serde_json::Value>(p).unwrap()["step"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        })
         .collect();
     assert_eq!(
         steps,
-        ["quiesce", "checkpoint", "validate", "bind", "rehydrate", "resume"]
+        [
+            "quiesce",
+            "checkpoint",
+            "validate",
+            "bind",
+            "rehydrate",
+            "resume"
+        ]
     );
 }

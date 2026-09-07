@@ -51,7 +51,8 @@ fn scripted_server(responses: Vec<String>, hits: Arc<AtomicUsize>) -> String {
 
 const R429_RA1: &str =
     "HTTP/1.1 429 Too Many Requests\r\nRetry-After: 1\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
-const R429: &str = "HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+const R429: &str =
+    "HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
 const R400: &str = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
 fn r200() -> String {
     let body = r#"{"choices":[{"message":{"content":"ok"}}],"usage":{"prompt_tokens":1,"completion_tokens":1}}"#;
@@ -121,7 +122,10 @@ fn max_attempts_env_bounds_retries() {
     std::env::set_var("HS_REALMODEL_BACKOFF_BASE_SECS", "0");
     std::env::set_var("HS_RT429_API_KEY", "k");
     let hits = Arc::new(AtomicUsize::new(0));
-    let url = scripted_server(vec![R429.into(), R429.into(), R429.into(), r200()], hits.clone());
+    let url = scripted_server(
+        vec![R429.into(), R429.into(), R429.into(), r200()],
+        hits.clone(),
+    );
     let p = test_provider(&url);
     let err = call(&p, "MISSION: t", None).expect_err("budget exhausted");
     assert!(err.contains("429"), "final error names the status: {err}");
@@ -150,5 +154,8 @@ fn exponential_backoff_without_retry_after() {
 
 #[test]
 fn generous_default_attempt_budget() {
-    assert!(max_attempts() >= 8, "a 429 should nearly never kill a mission");
+    assert!(
+        max_attempts() >= 8,
+        "a 429 should nearly never kill a mission"
+    );
 }

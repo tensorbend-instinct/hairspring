@@ -5,7 +5,11 @@ use std::fs;
 fn ws() -> tempfile::TempDir {
     let d = tempfile::tempdir().unwrap();
     fs::create_dir_all(d.path().join("src/pkg")).unwrap();
-    fs::write(d.path().join("src/pkg/mod.rs"), "fn answer() -> u32 { 42 }\nfn helper() {}\n").unwrap();
+    fs::write(
+        d.path().join("src/pkg/mod.rs"),
+        "fn answer() -> u32 { 42 }\nfn helper() {}\n",
+    )
+    .unwrap();
     fs::write(d.path().join("README.md"), "readme body\nanswer here too\n").unwrap();
     fs::write(d.path().join("big.txt"), "x".repeat(200_000)).unwrap();
     d
@@ -16,7 +20,7 @@ fn reads_a_file_inside_the_workspace() {
     let d = ws();
     let v = hs_loop::repotools::read_repo_file(d.path(), "src/pkg/mod.rs").unwrap();
     assert!(v["content"].as_str().unwrap().contains("fn answer"));
-    assert_eq!(v["truncated"].as_bool().unwrap(), false);
+    assert!(!v["truncated"].as_bool().unwrap());
 }
 
 #[test]
@@ -38,14 +42,20 @@ fn symlink_escape_is_rejected() {
     let d = ws();
     std::os::unix::fs::symlink("/etc/hostname", d.path().join("link")).unwrap();
     let e = hs_loop::repotools::read_repo_file(d.path(), "link").unwrap_err();
-    assert!(e.contains("escape"), "symlink out of workspace rejected: {e}");
+    assert!(
+        e.contains("escape"),
+        "symlink out of workspace rejected: {e}"
+    );
 }
 
 #[test]
 fn missing_file_is_a_clean_error() {
     let d = ws();
     let e = hs_loop::repotools::read_repo_file(d.path(), "src/nope.rs").unwrap_err();
-    assert!(e.contains("not found") || e.contains("no such"), "error: {e}");
+    assert!(
+        e.contains("not found") || e.contains("no such"),
+        "error: {e}"
+    );
 }
 
 #[test]
@@ -53,7 +63,7 @@ fn large_files_are_capped_and_marked() {
     let d = ws();
     let v = hs_loop::repotools::read_repo_file(d.path(), "big.txt").unwrap();
     assert!(v["content"].as_str().unwrap().len() <= 41_000);
-    assert_eq!(v["truncated"].as_bool().unwrap(), true);
+    assert!(v["truncated"].as_bool().unwrap());
     assert_eq!(v["total_bytes"].as_u64().unwrap(), 200_000);
 }
 
@@ -62,7 +72,9 @@ fn search_finds_matches_with_locations() {
     let d = ws();
     let v = hs_loop::repotools::search_repo(d.path(), "answer").unwrap();
     let m = v["matches"].as_array().unwrap();
-    assert!(m.iter().any(|x| x["path"] == "src/pkg/mod.rs" && x["line"] == 1));
+    assert!(m
+        .iter()
+        .any(|x| x["path"] == "src/pkg/mod.rs" && x["line"] == 1));
     assert!(m.iter().any(|x| x["path"] == "README.md" && x["line"] == 2));
 }
 
@@ -83,9 +95,11 @@ fn search_skips_git_dir_and_caps_results() {
     }
     let v = hs_loop::repotools::search_repo(d.path(), "answer").unwrap();
     let m = v["matches"].as_array().unwrap();
-    assert!(m.iter().all(|x| !x["path"].as_str().unwrap().starts_with(".git")));
+    assert!(m
+        .iter()
+        .all(|x| !x["path"].as_str().unwrap().starts_with(".git")));
     assert!(m.len() <= 100, "capped at 100, got {}", m.len());
-    assert_eq!(v["capped"].as_bool().unwrap(), true);
+    assert!(v["capped"].as_bool().unwrap());
 }
 
 #[test]
@@ -102,22 +116,24 @@ fn windowed_read_returns_requested_lines() {
     let d = tempfile::tempdir().unwrap();
     let body: String = (1..=200).map(|i| format!("line {i}\n")).collect();
     std::fs::write(d.path().join("big.txt"), body).unwrap();
-    let v = hs_loop::repotools::read_repo_window(d.path(), "big.txt", Some(50), Some(10))
-        .unwrap();
+    let v = hs_loop::repotools::read_repo_window(d.path(), "big.txt", Some(50), Some(10)).unwrap();
     assert_eq!(v["start_line"], 50);
     assert_eq!(v["end_line"], 59);
     assert_eq!(v["total_lines"], 200);
     assert_eq!(v["truncated"], true, "more content beyond the window");
     let c = v["content"].as_str().unwrap();
-    assert!(c.starts_with("line 50\n") && c.ends_with("line 59\n"), "got: {c}");
+    assert!(
+        c.starts_with("line 50\n") && c.ends_with("line 59\n"),
+        "got: {c}"
+    );
 }
 
 #[test]
 fn windowed_read_past_end_is_empty_not_an_error() {
     let d = tempfile::tempdir().unwrap();
     std::fs::write(d.path().join("small.txt"), "a\nb\n").unwrap();
-    let v = hs_loop::repotools::read_repo_window(d.path(), "small.txt", Some(500), Some(10))
-        .unwrap();
+    let v =
+        hs_loop::repotools::read_repo_window(d.path(), "small.txt", Some(500), Some(10)).unwrap();
     assert_eq!(v["content"], "");
     assert_eq!(v["total_lines"], 2);
     assert_eq!(v["truncated"], false);
@@ -128,8 +144,7 @@ fn windowed_read_last_page_is_not_truncated() {
     let d = tempfile::tempdir().unwrap();
     let body: String = (1..=200).map(|i| format!("line {i}\n")).collect();
     std::fs::write(d.path().join("big.txt"), body).unwrap();
-    let v = hs_loop::repotools::read_repo_window(d.path(), "big.txt", Some(195), Some(50))
-        .unwrap();
+    let v = hs_loop::repotools::read_repo_window(d.path(), "big.txt", Some(195), Some(50)).unwrap();
     assert_eq!(v["end_line"], 200);
     assert_eq!(v["truncated"], false, "no content beyond the file end");
 }

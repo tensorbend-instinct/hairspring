@@ -6,10 +6,7 @@ fn main() {
         "tool.call" => {
             let pat = params["args"]["pattern"].as_str().unwrap_or("");
             match std::env::var("HS_SWE_WORKSPACE") {
-                Ok(ws) => match hs_loop::repotools::search_repo(
-                    std::path::Path::new(&ws),
-                    pat,
-                ) {
+                Ok(ws) => match hs_loop::repotools::search_repo(std::path::Path::new(&ws), pat) {
                     Ok(v) => v,
                     Err(e) => serde_json::json!({"$error": e}),
                 },

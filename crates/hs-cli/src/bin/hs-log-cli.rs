@@ -3,8 +3,8 @@
 //!   hs-log-cli dump  --dir D     print one line per event
 //!   hs-log-cli trace --dir D [--follow]  print ModelCall reasoning traces (live with --follow)
 
-use hs_log::*;
 use hs_core::Payload;
+use hs_log::*;
 use std::path::PathBuf;
 use uuid::Uuid;
 

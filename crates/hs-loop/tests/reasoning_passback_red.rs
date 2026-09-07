@@ -20,9 +20,7 @@ fn stream_with(
     let mut w = hs_log::StreamWriter::create(log, stream).unwrap();
     for (kind, payload) in events {
         w.append(
-            EventBuilder::new(*kind).payload(Payload::Inline(
-                serde_json::to_vec(payload).unwrap(),
-            )),
+            EventBuilder::new(*kind).payload(Payload::Inline(serde_json::to_vec(payload).unwrap())),
         )
         .unwrap();
     }

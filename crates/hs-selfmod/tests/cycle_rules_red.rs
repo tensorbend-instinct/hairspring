@@ -13,9 +13,9 @@
 //! a mismatched verdict is refused at promote.
 
 use hs_scorer::{Artifact, Candidate, ScorerConfig, Task, TaskSuite};
+use hs_scorer::{Lineage, Scorer};
 use hs_selfmod::cycle::*;
 use hs_selfmod::*;
-use hs_scorer::{Lineage, Scorer};
 use hs_world::World;
 use std::collections::BTreeMap;
 use std::time::Duration;
@@ -39,7 +39,9 @@ fn fresh_loop(root: &std::path::Path) -> SelfModLoop {
 fn heldout() -> TaskSuite {
     TaskSuite::new(
         "token-heldout",
-        (0..3).map(|i| Task::new(format!("H{i}"), format!("HIDDEN-{i}"))).collect(),
+        (0..3)
+            .map(|i| Task::new(format!("H{i}"), format!("HIDDEN-{i}")))
+            .collect(),
     )
 }
 
@@ -61,7 +63,10 @@ fn per_cycle_balance_rule_is_enforced_before_the_fork_exists() {
         adds_capability: None,
         mutation: Mutation::new(vec![]),
     });
-    assert!(matches!(r, Err(SelfModError::UnbalancedCycle(_))), "repair-only");
+    assert!(
+        matches!(r, Err(SelfModError::UnbalancedCycle(_))),
+        "repair-only"
+    );
 
     // capability-only: refused while a failure stands open
     let r = sm.fork_cycle(&CycleProposal {
@@ -69,7 +74,10 @@ fn per_cycle_balance_rule_is_enforced_before_the_fork_exists() {
         adds_capability: Some("bounded: add repo lint prompt".into()),
         mutation: Mutation::new(vec![]),
     });
-    assert!(matches!(r, Err(SelfModError::UnbalancedCycle(_))), "capability-only");
+    assert!(
+        matches!(r, Err(SelfModError::UnbalancedCycle(_))),
+        "capability-only"
+    );
 
     // dangling failure ref: refused
     let r = sm.fork_cycle(&CycleProposal {
@@ -77,7 +85,10 @@ fn per_cycle_balance_rule_is_enforced_before_the_fork_exists() {
         adds_capability: Some("bounded: add repo lint prompt".into()),
         mutation: Mutation::new(vec![]),
     });
-    assert!(matches!(r, Err(SelfModError::EvidenceMismatch(_))), "dangling ref");
+    assert!(
+        matches!(r, Err(SelfModError::EvidenceMismatch(_))),
+        "dangling ref"
+    );
 
     // unbounded capability text: refused (one BOUNDED capability)
     let r = sm.fork_cycle(&CycleProposal {
@@ -85,7 +96,10 @@ fn per_cycle_balance_rule_is_enforced_before_the_fork_exists() {
         adds_capability: Some("x".repeat(400)),
         mutation: Mutation::new(vec![]),
     });
-    assert!(matches!(r, Err(SelfModError::UnbalancedCycle(_))), "unbounded");
+    assert!(
+        matches!(r, Err(SelfModError::UnbalancedCycle(_))),
+        "unbounded"
+    );
 
     // balanced: accepted, fork exists
     let r = sm.fork_cycle(&CycleProposal {
@@ -104,10 +118,13 @@ fn promote_rejects_a_verdict_that_is_not_the_frozen_candidate() {
 
     let fork = sm.fork();
     // a verdict computed on some OTHER candidate ("the producer's account")
-    let other = Candidate::new("someone-else", Artifact::by_rule(|t: &Task| {
-        let i: usize = t.id[1..].parse().unwrap();
-        Some(format!("HIDDEN-{i}"))
-    }));
+    let other = Candidate::new(
+        "someone-else",
+        Artifact::by_rule(|t: &Task| {
+            let i: usize = t.id[1..].parse().unwrap();
+            Some(format!("HIDDEN-{i}"))
+        }),
+    );
     let verdict = sm
         .scorer_mut()
         .held_out_assay(&other, &heldout(), &pin)

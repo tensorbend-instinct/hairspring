@@ -7,28 +7,32 @@
 include!("shared/sdk.rs");
 
 fn main() {
-    serve("policy.propose_prompt", "tool", &mut |method, params| match method {
-        "policy.propose_prompt" => {
-            let dir = match std::env::var("HS_RUN_DIR") {
-                Ok(d) => d,
-                Err(_) => return serde_json::json!({"$error": "HS_RUN_DIR not set"}),
-            };
-            let name = params["name"].as_str().unwrap_or("swe-mission");
-            let text = params["text"].as_str().unwrap_or("");
-            if text.trim().is_empty() {
-                return serde_json::json!({"$error": "empty proposal text"});
+    serve(
+        "policy.propose_prompt",
+        "tool",
+        &mut |method, params| match method {
+            "policy.propose_prompt" => {
+                let dir = match std::env::var("HS_RUN_DIR") {
+                    Ok(d) => d,
+                    Err(_) => return serde_json::json!({"$error": "HS_RUN_DIR not set"}),
+                };
+                let name = params["name"].as_str().unwrap_or("swe-mission");
+                let text = params["text"].as_str().unwrap_or("");
+                if text.trim().is_empty() {
+                    return serde_json::json!({"$error": "empty proposal text"});
+                }
+                match hs_loop::sweprompt::propose_prompt(std::path::Path::new(&dir), name, text) {
+                    Ok(rec) => serde_json::json!({
+                        "recorded": true,
+                        "version": rec.version,
+                        "hash": rec.hash,
+                        "status": rec.status,
+                        "note": "Recorded for gated review; this mission's prompt is unchanged.",
+                    }),
+                    Err(e) => serde_json::json!({"$error": e}),
+                }
             }
-            match hs_loop::sweprompt::propose_prompt(std::path::Path::new(&dir), name, text) {
-                Ok(rec) => serde_json::json!({
-                    "recorded": true,
-                    "version": rec.version,
-                    "hash": rec.hash,
-                    "status": rec.status,
-                    "note": "Recorded for gated review; this mission's prompt is unchanged.",
-                }),
-                Err(e) => serde_json::json!({"$error": e}),
-            }
-        }
-        _ => serde_json::json!({"$error": "unknown method"}),
-    });
+            _ => serde_json::json!({"$error": "unknown method"}),
+        },
+    );
 }

@@ -7,9 +7,8 @@
 //! the secret when the mission prompt carries the marker line, so a prompt
 //! candidate's worth is measurable through real mission outcomes.
 
-use hs_loop::*;
 use hs_loop::sweprompt::PromptArgs;
-
+use hs_loop::*;
 
 static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
@@ -68,12 +67,27 @@ fn d7_promote_only_verified_winners_reject_losers_rewind_restores() {
         let mut l = rig(&dir, &log, 3);
         let stream = l.stream_id();
         let prompt = match template {
-            Some(t) => t.replace("{answer_path}", &log.join("work").join(task).join("answer.txt").display().to_string()),
+            Some(t) => t.replace(
+                "{answer_path}",
+                &log.join("work")
+                    .join(task)
+                    .join("answer.txt")
+                    .display()
+                    .to_string(),
+            ),
             None => {
                 let args = PromptArgs {
-                    ws: ".".into(), problem_statement: "p".into(), fail_to_pass: vec![],
-                    repo_layout: "".into(), nudge: "".into(),
-                    answer_path: log.join("work").join(task).join("answer.txt").display().to_string(),
+                    ws: ".".into(),
+                    problem_statement: "p".into(),
+                    fail_to_pass: vec![],
+                    repo_layout: "".into(),
+                    nudge: "".into(),
+                    answer_path: log
+                        .join("work")
+                        .join(task)
+                        .join("answer.txt")
+                        .display()
+                        .to_string(),
                     orientation: String::new(),
                     mcp_tools: String::new(),
                 };
@@ -81,7 +95,13 @@ fn d7_promote_only_verified_winners_reject_losers_rewind_restores() {
             }
         };
         let r = l.run_mission_full(task, &prompt).unwrap();
-        evolve::BenchOutcome { task: task.into(), passed: r.passed, steps: r.steps, cost_micros: 0, stream_id: stream }
+        evolve::BenchOutcome {
+            task: task.into(),
+            passed: r.passed,
+            steps: r.steps,
+            cost_micros: 0,
+            stream_id: stream,
+        }
     };
 
     let parent: Option<String> = None; // builtin template (no marker)
@@ -93,30 +113,64 @@ fn d7_promote_only_verified_winners_reject_losers_rewind_restores() {
 
     // 1. loser: ties the parent (both fail) -> REJECTED with a reason
     let d1 = evolve::evaluate_candidate(
-        &runner, parent.clone(), loser.clone(), &bench, &held_out, &overlay, &journal,
+        &runner,
+        parent.clone(),
+        loser.clone(),
+        &bench,
+        &held_out,
+        &overlay,
+        &journal,
     );
-    assert!(matches!(d1.decision, evolve::Decision::Rejected(_)), "loser rejected: {d1:?}");
+    assert!(
+        matches!(d1.decision, evolve::Decision::Rejected(_)),
+        "loser rejected: {d1:?}"
+    );
     assert!(!overlay.exists(), "rejection never touches the overlay");
     let j = std::fs::read_to_string(&journal).unwrap();
-    assert!(j.contains("rejected") && j.contains("reason"), "rejection recorded with reason: {j}");
+    assert!(
+        j.contains("rejected") && j.contains("reason"),
+        "rejection recorded with reason: {j}"
+    );
 
     // 2. winner: passes everywhere the parent fails -> PROMOTED, lineage booked
     let d2 = evolve::evaluate_candidate(
-        &runner, parent.clone(), winner.clone(), &bench, &held_out, &overlay, &journal,
+        &runner,
+        parent.clone(),
+        winner.clone(),
+        &bench,
+        &held_out,
+        &overlay,
+        &journal,
     );
-    assert!(matches!(d2.decision, evolve::Decision::Promoted), "winner promoted: {d2:?}");
+    assert!(
+        matches!(d2.decision, evolve::Decision::Promoted),
+        "winner promoted: {d2:?}"
+    );
     let ov = std::fs::read_to_string(&overlay).unwrap();
-    assert!(ov.contains(MARKER), "overlay now carries the candidate: {ov}");
+    assert!(
+        ov.contains(MARKER),
+        "overlay now carries the candidate: {ov}"
+    );
     let j = std::fs::read_to_string(&journal).unwrap();
-    assert!(j.contains("promoted") && j.contains("parent_hash"), "lineage refs the parent: {j}");
+    assert!(
+        j.contains("promoted") && j.contains("parent_hash"),
+        "lineage refs the parent: {j}"
+    );
     // chain-verified traces: the journal names the bench mission streams
     for b in d2.bench.iter().chain(d2.held_out_candidate.iter()) {
-        assert!(j.contains(&b.stream_id.to_string()), "journal refs trace {}", b.stream_id);
+        assert!(
+            j.contains(&b.stream_id.to_string()),
+            "journal refs trace {}",
+            b.stream_id
+        );
     }
 
     // 3. rewind: the parent template is restored (exo rollback)
     evolve::rewind(&journal, &overlay).unwrap();
-    assert!(!overlay.exists(), "rewind to a builtin parent removes the overlay");
+    assert!(
+        !overlay.exists(),
+        "rewind to a builtin parent removes the overlay"
+    );
     let j = std::fs::read_to_string(&journal).unwrap();
     assert!(j.contains("rewound"), "rewind recorded: {j}");
     // and behavior reverts: the marker is gone, gatemodel fails again

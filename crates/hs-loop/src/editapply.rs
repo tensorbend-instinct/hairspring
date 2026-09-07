@@ -18,7 +18,10 @@ fn candidate_dir(ws: &Path) -> PathBuf {
 }
 
 fn git(ws: &Path, args: &[&str]) -> std::process::Output {
-    Command::new("git").args(args).current_dir(ws).output()
+    Command::new("git")
+        .args(args)
+        .current_dir(ws)
+        .output()
         .unwrap_or_else(|e| panic!("git spawn: {e}"))
 }
 
@@ -28,11 +31,25 @@ fn ensure_candidate(ws: &Path) -> Result<PathBuf, Value> {
         return Ok(cand);
     }
     // stale metadata from a prior crashed run must not block re-creation
-    let _ = git(ws, &["worktree", "remove", "--force", &cand.to_string_lossy()]);
+    let _ = git(
+        ws,
+        &["worktree", "remove", "--force", &cand.to_string_lossy()],
+    );
     let _ = std::fs::remove_dir_all(&cand);
-    let out = git(ws, &["worktree", "add", "--detach", &cand.to_string_lossy(), "HEAD"]);
+    let out = git(
+        ws,
+        &[
+            "worktree",
+            "add",
+            "--detach",
+            &cand.to_string_lossy(),
+            "HEAD",
+        ],
+    );
     if !out.status.success() {
-        return Err(json!({"$error": format!("candidate worktree: {}", String::from_utf8_lossy(&out.stderr))}));
+        return Err(
+            json!({"$error": format!("candidate worktree: {}", String::from_utf8_lossy(&out.stderr))}),
+        );
     }
     Ok(cand)
 }
@@ -47,11 +64,25 @@ fn read_cumulative(cand: &Path) -> Result<String, Value> {
     let _ = git(cand, &["checkout", "HEAD", "--", ".hs-eval.patch"]);
     let out = git(cand, &["add", "-A", "--", ".", ":(exclude).hs-eval.patch"]);
     if !out.status.success() {
-        return Err(json!({"$error": format!("candidate stage: {}", String::from_utf8_lossy(&out.stderr))}));
+        return Err(
+            json!({"$error": format!("candidate stage: {}", String::from_utf8_lossy(&out.stderr))}),
+        );
     }
-    let diff = git(cand, &["diff", "--cached", "HEAD", "--", ".", ":(exclude).hs-eval.patch"]);
+    let diff = git(
+        cand,
+        &[
+            "diff",
+            "--cached",
+            "HEAD",
+            "--",
+            ".",
+            ":(exclude).hs-eval.patch",
+        ],
+    );
     if !diff.status.success() {
-        return Err(json!({"$error": format!("candidate diff: {}", String::from_utf8_lossy(&diff.stderr))}));
+        return Err(
+            json!({"$error": format!("candidate diff: {}", String::from_utf8_lossy(&diff.stderr))}),
+        );
     }
     Ok(String::from_utf8_lossy(&diff.stdout).to_string())
 }
@@ -78,7 +109,8 @@ pub fn apply(ws: &Path, diff: &str) -> Value {
     }
     match read_cumulative(&cand) {
         Ok(cd) => {
-            let files: Vec<&str> = cd.lines()
+            let files: Vec<&str> = cd
+                .lines()
                 .filter(|l| l.starts_with("diff --git"))
                 .filter_map(|l| l.split(" b/").last())
                 .collect();
@@ -87,7 +119,6 @@ pub fn apply(ws: &Path, diff: &str) -> Value {
         Err(e) => e,
     }
 }
-
 
 /// One search/replace block: replace `old` with `new` in the file at `path`.
 #[derive(Clone, Debug)]
@@ -234,7 +265,10 @@ pub fn cumulative_diff(ws: &Path) -> Value {
 /// Discard the candidate (fresh start) and prune worktree metadata.
 pub fn reset(ws: &Path) -> Value {
     let cand = candidate_dir(ws);
-    let _ = git(ws, &["worktree", "remove", "--force", &cand.to_string_lossy()]);
+    let _ = git(
+        ws,
+        &["worktree", "remove", "--force", &cand.to_string_lossy()],
+    );
     let _ = std::fs::remove_dir_all(&cand);
     let _ = git(ws, &["worktree", "prune"]);
     json!({"ok": true})
@@ -252,11 +286,15 @@ pub fn reset(ws: &Path) -> Value {
 /// only writable scope for model edits.
 fn safe_join(base: &Path, rel: &Path) -> Result<PathBuf, Value> {
     if rel.is_absolute() {
-        return Err(json!({"applied": false, "$error": format!("path must be repo-relative: {}", rel.display())}));
+        return Err(
+            json!({"applied": false, "$error": format!("path must be repo-relative: {}", rel.display())}),
+        );
     }
     for c in rel.components() {
         if !matches!(c, std::path::Component::Normal(_)) {
-            return Err(json!({"applied": false, "$error": format!("path escapes the candidate: {}", rel.display())}));
+            return Err(
+                json!({"applied": false, "$error": format!("path escapes the candidate: {}", rel.display())}),
+            );
         }
     }
     Ok(base.join(rel))
@@ -286,28 +324,45 @@ pub fn apply_codex_patch(ws: &Path, patch_text: &str) -> Value {
     for h in &parsed.hunks {
         match h {
             Hunk::AddFile { path, contents } => {
-                let dest = match safe_join(&cand, path) { Ok(d) => d, Err(e) => return e };
+                let dest = match safe_join(&cand, path) {
+                    Ok(d) => d,
+                    Err(e) => return e,
+                };
                 if dest.exists() {
                     return json!({"applied": false, "$error": format!("{}: already exists in the candidate - use Update File", path.display())});
                 }
                 writes.push(Write::Set(dest, contents.clone()));
             }
             Hunk::DeleteFile { path } => {
-                let dest = match safe_join(&cand, path) { Ok(d) => d, Err(e) => return e };
+                let dest = match safe_join(&cand, path) {
+                    Ok(d) => d,
+                    Err(e) => return e,
+                };
                 if !dest.exists() {
                     return json!({"applied": false, "$error": format!("{}: no such file in the candidate", path.display())});
                 }
                 writes.push(Write::Del(dest));
             }
-            Hunk::UpdateFile { path, move_path, chunks } => {
-                let src = match safe_join(&cand, path) { Ok(d) => d, Err(e) => return e };
+            Hunk::UpdateFile {
+                path,
+                move_path,
+                chunks,
+            } => {
+                let src = match safe_join(&cand, path) {
+                    Ok(d) => d,
+                    Err(e) => return e,
+                };
                 let original = match std::fs::read_to_string(&src) {
                     Ok(s) => s,
-                    Err(_) => return json!({"applied": false, "$error": format!("{}: no such file in the candidate", path.display())}),
+                    Err(_) => {
+                        return json!({"applied": false, "$error": format!("{}: no such file in the candidate", path.display())})
+                    }
                 };
                 let new = match hs_applypatch::apply::derive_new_contents(&original, path, chunks) {
                     Ok(n) => n,
-                    Err(e) => return json!({"applied": false, "$error": format!("{}: {e} - context must match the CURRENT candidate exactly (repo.read it again, or op=diff to see your cumulative state)", path.display())}),
+                    Err(e) => {
+                        return json!({"applied": false, "$error": format!("{}: {e} - context must match the CURRENT candidate exactly (repo.read it again, or op=diff to see your cumulative state)", path.display())})
+                    }
                 };
                 if let Some(mp) = move_path {
                     match safe_join(&cand, mp) {
@@ -372,7 +427,9 @@ pub fn answer_submit(ws: &Path, answer_path: &Path) -> Value {
         return json!({"$error": "nothing to submit: the candidate has no edits - make your fix with edit.patch first, verify it with repo.exec, then answer.submit"});
     }
     match std::fs::write(answer_path, &diff) {
-        Ok(()) => json!({"written": true, "path": answer_path.to_string_lossy(), "bytes": diff.len()}),
+        Ok(()) => {
+            json!({"written": true, "path": answer_path.to_string_lossy(), "bytes": diff.len()})
+        }
         Err(e) => json!({"$error": e.to_string()}),
     }
 }
@@ -406,7 +463,9 @@ pub fn apply_anchor_edits(ws: &Path, path: &str, edits: Value) -> Value {
         Ok(v) => v,
         Err(_) => match edits.as_str().and_then(|s| serde_json::from_str(s).ok()) {
             Some(v) => v,
-            None => return json!({"applied": false, "$error": "edits must be an array of {op, anchor, content} operations"}),
+            None => {
+                return json!({"applied": false, "$error": "edits must be an array of {op, anchor, content} operations"})
+            }
         },
     };
     let cand = match ensure_candidate(ws) {

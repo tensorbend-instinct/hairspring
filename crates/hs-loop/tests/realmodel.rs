@@ -157,13 +157,11 @@ fn watchdog_cutoff_returns_sentinel_not_hang() {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
     std::thread::spawn(move || {
-        for s in listener.incoming() {
-            if let Ok(s) = s {
-                // hold the connection open, say nothing, for far longer
-                // than the watchdog
-                std::thread::sleep(std::time::Duration::from_secs(30));
-                drop(s);
-            }
+        for s in listener.incoming().flatten() {
+            // hold the connection open, say nothing, for far longer
+            // than the watchdog
+            std::thread::sleep(std::time::Duration::from_secs(30));
+            drop(s);
         }
     });
     std::env::set_var(

@@ -163,7 +163,10 @@ impl<'a> Reader<'a> {
     /// Read exactly N bytes as a fixed-size array. `take` guarantees the
     /// length, so the slice-to-array conversion cannot fail.
     fn arr<const N: usize>(&mut self, at: &'static str) -> Result<[u8; N], DecodeError> {
-        Ok(self.take(N, at)?.try_into().expect("take returns exactly N bytes"))
+        Ok(self
+            .take(N, at)?
+            .try_into()
+            .expect("take returns exactly N bytes"))
     }
     fn u32(&mut self, at: &'static str) -> Result<u32, DecodeError> {
         Ok(u32::from_le_bytes(self.arr(at)?))

@@ -63,20 +63,31 @@ fn read_journal(path: &Path) -> Vec<JournalRecord> {
 
 fn append_journal(path: &Path, rec: &JournalRecord) {
     use std::io::Write;
-    let mut f = std::fs::OpenOptions::new().create(true).append(true).open(path)
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
         .expect("journal open");
     writeln!(f, "{}", serde_json::to_string(rec).unwrap()).expect("journal write");
 }
 
 fn fitness(outcomes: &[BenchOutcome]) -> (u32, u64) {
     // (passes, total steps): passes dominate, fewer steps break ties
-    (outcomes.iter().filter(|o| o.passed).count() as u32,
-     outcomes.iter().map(|o| o.steps as u64).sum())
+    (
+        outcomes.iter().filter(|o| o.passed).count() as u32,
+        outcomes.iter().map(|o| o.steps as u64).sum(),
+    )
 }
 
 fn write_overlay(path: &Path, template: &str) {
-    std::fs::write(path, format!("[prompts]\nswe-mission = {}\n", toml::Value::String(template.to_string())))
-        .expect("overlay write");
+    std::fs::write(
+        path,
+        format!(
+            "[prompts]\nswe-mission = {}\n",
+            toml::Value::String(template.to_string())
+        ),
+    )
+    .expect("overlay write");
 }
 
 /// Run parent and candidate through the bench subset, decide on held-out.
@@ -92,42 +103,68 @@ pub fn evaluate_candidate(
     overlay_path: &Path,
     journal_path: &Path,
 ) -> Evaluation {
-    let parent_hash = parent_text.as_deref()
+    let parent_hash = parent_text
+        .as_deref()
         .map(crate::sweprompt::content_hash)
         .unwrap_or_else(|| "builtin".to_string());
     let candidate_hash = crate::sweprompt::content_hash(&candidate_text);
 
-    let bench_out: Vec<BenchOutcome> = bench.iter()
+    let bench_out: Vec<BenchOutcome> = bench
+        .iter()
         .map(|t| runner(Some(&candidate_text), t))
         .collect();
-    let ho_parent: Vec<BenchOutcome> = held_out.iter().map(|t| runner(parent_text.as_deref(), t)).collect();
-    let ho_candidate: Vec<BenchOutcome> = held_out.iter().map(|t| runner(Some(&candidate_text), t)).collect();
+    let ho_parent: Vec<BenchOutcome> = held_out
+        .iter()
+        .map(|t| runner(parent_text.as_deref(), t))
+        .collect();
+    let ho_candidate: Vec<BenchOutcome> = held_out
+        .iter()
+        .map(|t| runner(Some(&candidate_text), t))
+        .collect();
 
     let (pp, ps) = fitness(&ho_parent);
     let (cp, cs) = fitness(&ho_candidate);
     let beats = cp > pp || (cp == pp && cs < ps);
-    let traces: Vec<String> = bench_out.iter().chain(&ho_parent).chain(&ho_candidate)
-        .map(|o| o.stream_id.to_string()).collect();
+    let traces: Vec<String> = bench_out
+        .iter()
+        .chain(&ho_parent)
+        .chain(&ho_candidate)
+        .map(|o| o.stream_id.to_string())
+        .collect();
 
     let version = read_journal(journal_path).len() as u64 + 1;
     let (decision, reason) = if beats {
         write_overlay(overlay_path, &candidate_text);
-        (Decision::Promoted, format!("candidate beats parent on held-out: passes {cp} vs {pp}, steps {cs} vs {ps}"))
+        (
+            Decision::Promoted,
+            format!("candidate beats parent on held-out: passes {cp} vs {pp}, steps {cs} vs {ps}"),
+        )
     } else {
         (Decision::Rejected(format!("candidate does not beat parent on held-out: passes {cp} vs {pp}, steps {cs} vs {ps}")),
          format!("candidate does not beat parent on held-out: passes {cp} vs {pp}, steps {cs} vs {ps}"))
     };
-    append_journal(journal_path, &JournalRecord {
-        version,
-        decision: if beats { "promoted".into() } else { "rejected".into() },
-        reason,
-        parent_hash: parent_hash.clone(),
-        candidate_hash: candidate_hash.clone(),
-        parent_text: parent_text.clone(),
-        candidate_text: if beats { Some(candidate_text.clone()) } else { None },
-        trace_streams: traces,
-        ts_ms: now_ms(),
-    });
+    append_journal(
+        journal_path,
+        &JournalRecord {
+            version,
+            decision: if beats {
+                "promoted".into()
+            } else {
+                "rejected".into()
+            },
+            reason,
+            parent_hash: parent_hash.clone(),
+            candidate_hash: candidate_hash.clone(),
+            parent_text: parent_text.clone(),
+            candidate_text: if beats {
+                Some(candidate_text.clone())
+            } else {
+                None
+            },
+            trace_streams: traces,
+            ts_ms: now_ms(),
+        },
+    );
     Evaluation {
         decision,
         parent_hash,
@@ -142,7 +179,10 @@ pub fn evaluate_candidate(
 /// overlay when the parent was the builtin). Recorded in the journal.
 pub fn rewind(journal_path: &Path, overlay_path: &Path) -> Result<(), String> {
     let journal = read_journal(journal_path);
-    let last_promotion = journal.iter().rev().find(|r| r.decision == "promoted")
+    let last_promotion = journal
+        .iter()
+        .rev()
+        .find(|r| r.decision == "promoted")
         .ok_or("no promotion to rewind")?;
     match &last_promotion.parent_text {
         Some(t) => write_overlay(overlay_path, t),
@@ -152,16 +192,22 @@ pub fn rewind(journal_path: &Path, overlay_path: &Path) -> Result<(), String> {
             }
         }
     }
-    append_journal(journal_path, &JournalRecord {
-        version: journal.len() as u64 + 1,
-        decision: "rewound".into(),
-        reason: format!("rewind promotion of candidate {}", last_promotion.candidate_hash),
-        parent_hash: last_promotion.parent_hash.clone(),
-        candidate_hash: String::new(),
-        parent_text: last_promotion.parent_text.clone(),
-        candidate_text: None,
-        trace_streams: vec![],
-        ts_ms: now_ms(),
-    });
+    append_journal(
+        journal_path,
+        &JournalRecord {
+            version: journal.len() as u64 + 1,
+            decision: "rewound".into(),
+            reason: format!(
+                "rewind promotion of candidate {}",
+                last_promotion.candidate_hash
+            ),
+            parent_hash: last_promotion.parent_hash.clone(),
+            candidate_hash: String::new(),
+            parent_text: last_promotion.parent_text.clone(),
+            candidate_text: None,
+            trace_streams: vec![],
+            ts_ms: now_ms(),
+        },
+    );
     Ok(())
 }

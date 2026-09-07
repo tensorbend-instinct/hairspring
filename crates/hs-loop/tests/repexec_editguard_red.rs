@@ -7,6 +7,7 @@
 //! - `git apply` invocations are rejected (the whole class: --check too)
 //! - raw diff-file WRITES are rejected (>, >>, tee, cp/mv/install targets
 //!   ending .diff/.patch)
+//!
 //! Both return applied:false + a steering error naming edit.apply, and the
 //! command must NOT execute. Reads of .diff files, git diff output to
 //! stdout, and every other shell command stay allowed.
@@ -81,7 +82,10 @@ fn gate_flags_raw_diff_file_writes() {
     ] {
         let v = hs_loop::repexec::edit_path_violation(cmd);
         assert!(v.is_some(), "must forbid: {cmd}");
-        assert!(v.unwrap().contains("diff-file"), "reason names the class: {cmd}");
+        assert!(
+            v.unwrap().contains("diff-file"),
+            "reason names the class: {cmd}"
+        );
     }
 }
 
@@ -152,7 +156,10 @@ fn diff_mode_and_answer_mode_are_gated_too() {
     );
     assert_eq!(r["applied"], false, "{r}");
     assert_eq!(r["exit_code"], -1, "command must NOT execute: {r}");
-    assert!(r["error"].as_str().unwrap_or("").contains("edit.apply"), "{r}");
+    assert!(
+        r["error"].as_str().unwrap_or("").contains("edit.apply"),
+        "{r}"
+    );
 }
 
 #[test]
@@ -166,7 +173,10 @@ fn allowed_command_still_executes_end_to_end() {
     );
     assert_eq!(r["exit_code"], 0, "allowed shell runs: {r}");
     assert!(r["stdout"].as_str().unwrap().contains("init"), "{r}");
-    assert!(r.get("error").is_none(), "no steering error on allowed commands: {r}");
+    assert!(
+        r.get("error").is_none(),
+        "no steering error on allowed commands: {r}"
+    );
 }
 
 #[test]
@@ -193,22 +203,44 @@ fn prompt_steers_edits_only_via_edit_apply() {
     };
     std::env::remove_var("HS_SWE_EDIT_PATH");
     let p_default = hs_loop::sweprompt::build_mission_prompt(None, &args);
-    assert!(p_default.contains("edit.patch"), "default arm renders edit.patch");
-    assert!(!p_default.contains("edit.anchor"), "default arm never names edit.anchor");
+    assert!(
+        p_default.contains("edit.patch"),
+        "default arm renders edit.patch"
+    );
+    assert!(
+        !p_default.contains("edit.anchor"),
+        "default arm never names edit.anchor"
+    );
     std::env::set_var("HS_SWE_EDIT_PATH", "anchor");
     let p_anchor = hs_loop::sweprompt::build_mission_prompt(None, &args);
     std::env::remove_var("HS_SWE_EDIT_PATH");
-    assert!(p_anchor.contains("edit.anchor"), "anchor arm renders edit.anchor");
-    assert!(!p_anchor.contains("edit.patch"), "anchor arm never names edit.patch: {}",
-        p_anchor.lines().filter(|l| l.contains("edit.patch")).collect::<Vec<_>>().join(" || "));
+    assert!(
+        p_anchor.contains("edit.anchor"),
+        "anchor arm renders edit.anchor"
+    );
+    assert!(
+        !p_anchor.contains("edit.patch"),
+        "anchor arm never names edit.patch: {}",
+        p_anchor
+            .lines()
+            .filter(|l| l.contains("edit.patch"))
+            .collect::<Vec<_>>()
+            .join(" || ")
+    );
     let tools = hs_loop::toolschema::builtin_tools();
     let exec = tools
         .iter()
         .find(|t| t["function"]["name"] == "repo.exec")
         .expect("repo.exec schema");
     let desc = exec["function"]["description"].as_str().unwrap();
-    assert!(desc.contains("edit.patch"), "repo.exec description steers to edit.patch: {desc}");
-    assert!(desc.contains("git apply"), "repo.exec description names the forbidden class: {desc}");
+    assert!(
+        desc.contains("edit.patch"),
+        "repo.exec description steers to edit.patch: {desc}"
+    );
+    assert!(
+        desc.contains("git apply"),
+        "repo.exec description names the forbidden class: {desc}"
+    );
 }
 
 /// Mission level: B7's failure shape, replayed through the real
@@ -265,10 +297,17 @@ default = true
     let kernel = hs_kernel::Kernel::load(&config).unwrap();
     let mut l = InnerLoop::new(kernel, log.path(), true, 8).unwrap();
     let r = l.run_mission("task-0").unwrap();
-    assert!(r.passed, "guardrail steers without dooming the mission: {r:?}");
+    assert!(
+        r.passed,
+        "guardrail steers without dooming the mission: {r:?}"
+    );
 
     let streams = log.path().join("streams");
-    let sid = std::fs::read_dir(&streams).unwrap().next().unwrap().unwrap();
+    let sid = std::fs::read_dir(&streams)
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap();
     let sid = uuid::Uuid::parse_str(sid.file_name().to_str().unwrap()).unwrap();
     let reader = hs_log::StreamReader::open(log.path(), sid).unwrap();
     let events = reader.events().unwrap();
@@ -276,7 +315,9 @@ default = true
         let p = String::from_utf8_lossy(&reader.resolve_payload(e).unwrap()).to_string();
         p.contains("\"plugin\":\"repo.exec\"").then_some(p)
     });
-    let forbidden = exec_results.next().expect("first repo.exec result on the stream");
+    let forbidden = exec_results
+        .next()
+        .expect("first repo.exec result on the stream");
     assert!(
         forbidden.contains("\"applied\":false"),
         "git-apply payload not applied: {forbidden}"
@@ -289,7 +330,9 @@ default = true
         forbidden.contains("edit.apply"),
         "result steers to edit.apply: {forbidden}"
     );
-    let allowed = exec_results.next().expect("second repo.exec result on the stream");
+    let allowed = exec_results
+        .next()
+        .expect("second repo.exec result on the stream");
     assert!(
         allowed.contains("\"exit_code\":0"),
         "normal shell still runs after a steered call: {allowed}"

@@ -21,17 +21,38 @@ fn build_body_honors_tool_choice_contract() {
     let tools = serde_json::json!([{"type":"function","function":{"name":"repo.search","description":"d","parameters":{"type":"object","properties":{"pattern":{"type":"string"}},"required":["pattern"]}}}]);
     let req = hs_loop::realmodel::build_body("kimi-k3", "sys", "p", Some(&tools), None, true);
     assert_eq!(req["tool_choice"], "required", "required-capable provider");
-    let auto = hs_loop::realmodel::build_body("deepseek-v4-pro", "sys", "p", Some(&tools), None, false);
-    assert_eq!(auto["tool_choice"], "auto", "thinking-mode provider falls to auto");
-    assert_eq!(auto["tools"][0]["function"]["name"], "repo__search", "wire mapping unchanged");
+    let auto =
+        hs_loop::realmodel::build_body("deepseek-v4-pro", "sys", "p", Some(&tools), None, false);
+    assert_eq!(
+        auto["tool_choice"], "auto",
+        "thinking-mode provider falls to auto"
+    );
+    assert_eq!(
+        auto["tools"][0]["function"]["name"], "repo__search",
+        "wire mapping unchanged"
+    );
 }
 
 #[test]
 fn build_body_messages_honors_tool_choice_contract() {
     let tools = serde_json::json!([{"type":"function","function":{"name":"repo.search","description":"d","parameters":{"type":"object","properties":{}}}}]);
     let messages = serde_json::json!([{"role":"user","content":"MISSION: task-x"}]);
-    let auto = hs_loop::realmodel::build_body_messages("deepseek-v4-pro", "sys", &messages, Some(&tools), None, false);
+    let auto = hs_loop::realmodel::build_body_messages(
+        "deepseek-v4-pro",
+        "sys",
+        &messages,
+        Some(&tools),
+        None,
+        false,
+    );
     assert_eq!(auto["tool_choice"], "auto");
-    let req = hs_loop::realmodel::build_body_messages("kimi-k3", "sys", &messages, Some(&tools), None, true);
+    let req = hs_loop::realmodel::build_body_messages(
+        "kimi-k3",
+        "sys",
+        &messages,
+        Some(&tools),
+        None,
+        true,
+    );
     assert_eq!(req["tool_choice"], "required");
 }

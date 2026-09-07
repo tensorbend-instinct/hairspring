@@ -25,12 +25,25 @@ fn config() -> tempfile::NamedTempFile {
 fn list_discovers_namespaced_tools() {
     let cfg = config();
     let out = Command::new(BIN)
-        .args(["--config", cfg.path().to_str().unwrap(), "--server", "fixture", "--list"])
+        .args([
+            "--config",
+            cfg.path().to_str().unwrap(),
+            "--server",
+            "fixture",
+            "--list",
+        ])
         .output()
         .unwrap();
-    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     let tools: Vec<String> = serde_json::from_slice(&out.stdout).unwrap();
-    assert!(tools.contains(&"mcp.fixture.echo".to_string()), "got {tools:?}");
+    assert!(
+        tools.contains(&"mcp.fixture.echo".to_string()),
+        "got {tools:?}"
+    );
 }
 
 #[test]
@@ -38,14 +51,22 @@ fn call_round_trips_through_real_mcp_protocol() {
     let cfg = config();
     let out = Command::new(BIN)
         .args([
-            "--config", cfg.path().to_str().unwrap(),
-            "--server", "fixture",
-            "--call", "echo",
-            "--args", "{\"text\":\"hello-mcp\"}",
+            "--config",
+            cfg.path().to_str().unwrap(),
+            "--server",
+            "fixture",
+            "--call",
+            "echo",
+            "--args",
+            "{\"text\":\"hello-mcp\"}",
         ])
         .output()
         .unwrap();
-    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
     let s = serde_json::to_string(&v).unwrap();
     assert!(s.contains("hello-mcp"), "echo payload: {s}");
@@ -55,15 +76,27 @@ fn call_round_trips_through_real_mcp_protocol() {
 fn unknown_server_and_unknown_tool_error_cleanly() {
     let cfg = config();
     let out = Command::new(BIN)
-        .args(["--config", cfg.path().to_str().unwrap(), "--server", "nope", "--list"])
+        .args([
+            "--config",
+            cfg.path().to_str().unwrap(),
+            "--server",
+            "nope",
+            "--list",
+        ])
         .output()
         .unwrap();
     assert!(!out.status.success());
     assert!(String::from_utf8_lossy(&out.stderr).contains("nope"));
     let out = Command::new(BIN)
         .args([
-            "--config", cfg.path().to_str().unwrap(),
-            "--server", "fixture", "--call", "nonexistent", "--args", "{}",
+            "--config",
+            cfg.path().to_str().unwrap(),
+            "--server",
+            "fixture",
+            "--call",
+            "nonexistent",
+            "--args",
+            "{}",
         ])
         .output()
         .unwrap();
@@ -75,11 +108,16 @@ fn path_args_outside_allowed_roots_are_rejected_before_spawning() {
     let cfg = config();
     let out = Command::new(BIN)
         .args([
-            "--config", cfg.path().to_str().unwrap(),
-            "--server", "fixture",
-            "--call", "echo",
-            "--args", "{\"text\":\"/etc/passwd\"}",
-            "--path-args", "text",
+            "--config",
+            cfg.path().to_str().unwrap(),
+            "--server",
+            "fixture",
+            "--call",
+            "echo",
+            "--args",
+            "{\"text\":\"/etc/passwd\"}",
+            "--path-args",
+            "text",
         ])
         .output()
         .unwrap();

@@ -73,7 +73,10 @@ fn builtin_tool_schemas_cover_the_mission_surface() {
         .iter()
         .find(|t| t["function"]["name"] == "repo.search")
         .unwrap();
-    assert_eq!(search["function"]["parameters"]["required"], json!(["pattern"]));
+    assert_eq!(
+        search["function"]["parameters"]["required"],
+        json!(["pattern"])
+    );
     let submit = tools
         .iter()
         .find(|t| t["function"]["name"] == "answer.submit")
@@ -96,7 +99,10 @@ fn request_body_carries_native_tools() {
         "wire name mapped: {}",
         body["tools"][0]["function"]["name"]
     );
-    assert_eq!(body["tools"][0]["function"]["parameters"], tools[0]["function"]["parameters"]);
+    assert_eq!(
+        body["tools"][0]["function"]["parameters"],
+        tools[0]["function"]["parameters"]
+    );
     assert_eq!(
         body["tool_choice"].as_str(),
         Some("required"),
@@ -119,10 +125,16 @@ fn native_tool_call_roundtrip_parses() {
     let p = hs_loop::realmodel::glm();
     let out = hs_loop::realmodel::parse_response(&p, &resp).expect("native tool call parses");
     let completion: serde_json::Value = serde_json::from_str(&out.completion).unwrap();
-    assert_eq!(completion, json!({"tool": "repo.read", "args": {"path": "a.py"}}));
+    assert_eq!(
+        completion,
+        json!({"tool": "repo.read", "args": {"path": "a.py"}})
+    );
     assert_eq!(out.input_tokens, 10);
     assert_eq!(out.output_tokens, 20);
-    assert_eq!(out.reasoning_tokens, 15, "reasoning usage surfaced for the log");
+    assert_eq!(
+        out.reasoning_tokens, 15,
+        "reasoning usage surfaced for the log"
+    );
 }
 
 #[test]
@@ -176,13 +188,17 @@ fn wire_names_are_provider_legal_and_round_trip() {
         let n = t["function"]["name"].as_str().unwrap();
         let w = hs_loop::toolschema::wire_name(n);
         assert!(
-            w.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-'),
+            w.chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-'),
             "wire-legal charset: {w}"
         );
         assert_eq!(hs_loop::toolschema::internal_name(&w), n, "round trip: {n}");
     }
     let dotted = "mcp.graft.graft_repo_map";
-    assert_eq!(hs_loop::toolschema::wire_name(dotted), "mcp__graft__graft_repo_map");
+    assert_eq!(
+        hs_loop::toolschema::wire_name(dotted),
+        "mcp__graft__graft_repo_map"
+    );
     assert_eq!(
         hs_loop::toolschema::internal_name("mcp__graft__graft_repo_map"),
         dotted

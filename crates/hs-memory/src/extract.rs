@@ -26,8 +26,12 @@ pub fn extract_stream(
     let mut passed = false;
     let mut tool_calls = 0u32;
     for e in &events {
-        let Ok(bytes) = reader.resolve_payload(e) else { continue };
-        let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes) else { continue };
+        let Ok(bytes) = reader.resolve_payload(e) else {
+            continue;
+        };
+        let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+            continue;
+        };
         match e.kind {
             EventKind::ToolCall => {
                 tool_calls += 1;
@@ -38,16 +42,14 @@ pub fn extract_stream(
                     }
                 }
             }
-            EventKind::Feedback => {
-                if v["checker"].is_string() {
-                    verdict_seqs.push(e.seq);
-                    if v["passed"].as_bool() == Some(true) {
-                        passed = true;
-                    } else {
-                        let err = v["error"].as_str().unwrap_or("unknown").to_string();
-                        if !err.is_empty() {
-                            failures.push((e.seq, err));
-                        }
+            EventKind::Feedback if v["checker"].is_string() => {
+                verdict_seqs.push(e.seq);
+                if v["passed"].as_bool() == Some(true) {
+                    passed = true;
+                } else {
+                    let err = v["error"].as_str().unwrap_or("unknown").to_string();
+                    if !err.is_empty() {
+                        failures.push((e.seq, err));
                     }
                 }
             }
@@ -61,11 +63,19 @@ pub fn extract_stream(
     let mut seqs = edit_seqs.clone();
     seqs.extend(verdict_seqs.iter());
     seqs.sort_unstable();
-    let edits_s = if edits.is_empty() { "none".into() } else { edits.join(", ") };
+    let edits_s = if edits.is_empty() {
+        "none".into()
+    } else {
+        edits.join(", ")
+    };
     let fails_s = if failures.is_empty() {
         "none".into()
     } else {
-        failures.iter().map(|(_, e)| e.as_str()).collect::<Vec<_>>().join(" | ")
+        failures
+            .iter()
+            .map(|(_, e)| e.as_str())
+            .collect::<Vec<_>>()
+            .join(" | ")
     };
     out.push(NewMemoryRecord {
         agent_id: agent_id.to_string(),

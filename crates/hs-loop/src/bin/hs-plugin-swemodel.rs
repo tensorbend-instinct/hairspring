@@ -37,12 +37,15 @@ fn main() {
                 .ok()
                 .and_then(|f| std::fs::read_to_string(f).ok())
                 .unwrap_or_default();
-            let codex_gold = "*** Begin Patch\n*** Update File: code.txt\n@@\n-broken\n+fixed\n*** End Patch\n";
+            let codex_gold =
+                "*** Begin Patch\n*** Update File: code.txt\n@@\n-broken\n+fixed\n*** End Patch\n";
             let completion = match attempt {
                 1 => serde_json::json!({"tool":"answer.submit","args":{"path":path}}),
                 2 => serde_json::json!({"tool":"edit.patch","args":{"patch":codex_gold}}),
                 3 => serde_json::json!({"tool":"answer.submit","args":{"path":path}}),
-                4 => serde_json::json!({"tool":"repo.exec","args":{"command":"sh check.sh","diff":gold}}),
+                4 => {
+                    serde_json::json!({"tool":"repo.exec","args":{"command":"sh check.sh","diff":gold}})
+                }
                 _ => serde_json::json!({"tool":"answer.submit","args":{"path":path}}),
             };
             serde_json::json!({

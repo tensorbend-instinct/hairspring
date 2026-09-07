@@ -55,11 +55,17 @@ fn scratch_shell_runs_general_commands_against_pristine_clone() {
     assert_eq!(r["applied"], false, "no patch applied in scratch mode: {r}");
     assert_eq!(r["scratch"], true, "result must label scratch mode: {r}");
     let out = r["stdout"].as_str().unwrap();
-    assert!(out.contains("init"), "git log works inside the sandbox (self-contained clone): {out}");
+    assert!(
+        out.contains("init"),
+        "git log works inside the sandbox (self-contained clone): {out}"
+    );
     assert!(out.contains("1"), "grep sees HEAD content: {out}");
     assert!(r.get("$error").is_none(), "no contract error: {r}");
     // live workspace untouched
-    assert_eq!(std::fs::read_to_string(ws.path().join("code.txt")).unwrap(), "broken\n");
+    assert_eq!(
+        std::fs::read_to_string(ws.path().join("code.txt")).unwrap(),
+        "broken\n"
+    );
 }
 
 #[test]
@@ -132,7 +138,11 @@ default = true
     assert!(r.passed, "verify-then-write flow passes: {r:?}");
 
     let streams = log.path().join("streams");
-    let sid = std::fs::read_dir(&streams).unwrap().next().unwrap().unwrap();
+    let sid = std::fs::read_dir(&streams)
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap();
     let sid = uuid::Uuid::parse_str(sid.file_name().to_str().unwrap()).unwrap();
     let reader = hs_log::StreamReader::open(log.path(), sid).unwrap();
     let events = reader.events().unwrap();
@@ -140,7 +150,9 @@ default = true
         let p = String::from_utf8_lossy(&reader.resolve_payload(e).unwrap()).to_string();
         p.contains("\"plugin\":\"repo.exec\"").then_some(p)
     });
-    let scratch_call = exec_results.next().expect("first repo.exec ToolCall on the stream");
+    let scratch_call = exec_results
+        .next()
+        .expect("first repo.exec ToolCall on the stream");
     assert!(
         !scratch_call.contains("$error"),
         "bare shell command must NOT hit the no-answer-path contract error: {scratch_call}"

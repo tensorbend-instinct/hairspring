@@ -1,10 +1,9 @@
 //! In-tree MCP fixture server (rmcp over stdio) for bridge contract tests.
 //! One tool: fixture.echo {text} -> text. Not shipped config; test-only.
 use rmcp::{
-    ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{ServerCapabilities, ServerInfo},
-    schemars, tool, tool_handler, tool_router,
+    schemars, tool, tool_handler, tool_router, ServerHandler,
 };
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -40,7 +39,9 @@ impl ServerHandler for Fixture {
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let server = rmcp::serve_server(
-        Fixture { tool_router: Fixture::tool_router() },
+        Fixture {
+            tool_router: Fixture::tool_router(),
+        },
         rmcp::transport::stdio(),
     )
     .await?;

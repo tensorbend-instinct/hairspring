@@ -11,10 +11,16 @@ fn mk_ws() -> tempfile::TempDir {
     let ws = dir.path();
     std::fs::write(ws.join("app.py"), "x = 1\n").unwrap();
     let git = |args: &[&str]| {
-        assert!(Command::new("git").args(args).current_dir(ws)
-            .env("GIT_AUTHOR_NAME", "t").env("GIT_AUTHOR_EMAIL", "t@t")
-            .env("GIT_COMMITTER_NAME", "t").env("GIT_COMMITTER_EMAIL", "t@t")
-            .status().unwrap().success());
+        assert!(Command::new("git")
+            .args(args)
+            .current_dir(ws)
+            .env("GIT_AUTHOR_NAME", "t")
+            .env("GIT_AUTHOR_EMAIL", "t@t")
+            .env("GIT_COMMITTER_NAME", "t")
+            .env("GIT_COMMITTER_EMAIL", "t@t")
+            .status()
+            .unwrap()
+            .success());
     };
     git(&["init", "-q"]);
     git(&["add", "."]);
@@ -34,13 +40,20 @@ fn ws_with_answer() -> tempfile::TempDir {
 fn sandbox_runs_any_command_open_shell() {
     let d = ws_with_answer();
     // a command no coding-allowlist would ever name: the point is it RUNS
-    let r = hs_loop::repexec::run_sandboxed(d.path(), &d.path().join("answer.txt"),
-        "cat app.py | rev | rev", 30);
+    let r = hs_loop::repexec::run_sandboxed(
+        d.path(),
+        &d.path().join("answer.txt"),
+        "cat app.py | rev | rev",
+        30,
+    );
     assert_eq!(r["applied"], true, "{r}");
     assert_eq!(r["exit_code"], 0, "{r}");
     assert!(r["stdout"].as_str().unwrap().contains("x = 2"), "{r}");
     // live ws untouched
-    assert_eq!(std::fs::read_to_string(d.path().join("app.py")).unwrap(), "x = 1\n");
+    assert_eq!(
+        std::fs::read_to_string(d.path().join("app.py")).unwrap(),
+        "x = 1\n"
+    );
 }
 
 #[test]
@@ -54,16 +67,37 @@ fn sandbox_hides_host_filesystem_secrets_and_live_ws() {
         // NOTE: asserts are capture-safe (markers, not substring bans) - the
         // pre-fix redirect swallowed all but the last command's output
         "ls /home 2>/dev/null; echo LS-EXIT=$?; test -r /home/sandbox/.keys/glm.key && echo KEY-READABLE || echo KEY-ABSENT; hostname", 30);
-    let out = format!("{}{}", r["stdout"].as_str().unwrap(), r["stderr"].as_str().unwrap());
+    let out = format!(
+        "{}{}",
+        r["stdout"].as_str().unwrap(),
+        r["stderr"].as_str().unwrap()
+    );
     assert!(!out.contains("TOPSECRET"), "{out}");
-    assert!(!out.contains("LS-EXIT=0"), "/home must not list inside: {out}");
-    assert!(out.contains("KEY-ABSENT"), "glm.key must not be readable: {out}");
+    assert!(
+        !out.contains("LS-EXIT=0"),
+        "/home must not list inside: {out}"
+    );
+    assert!(
+        out.contains("KEY-ABSENT"),
+        "glm.key must not be readable: {out}"
+    );
     assert!(!out.contains("KEY-READABLE"), "{out}");
     // and nothing under the scratch leaks the host run dir
-    let r2 = hs_loop::repexec::run_sandboxed(d.path(), &d.path().join("answer.txt"),
-        &format!("cat {} 2>&1", secret.display()), 30);
-    let out2 = format!("{}{}", r2["stdout"].as_str().unwrap(), r2["stderr"].as_str().unwrap());
-    assert!(!out2.contains("TOPSECRET"), "host path must not resolve: {out2}");
+    let r2 = hs_loop::repexec::run_sandboxed(
+        d.path(),
+        &d.path().join("answer.txt"),
+        &format!("cat {} 2>&1", secret.display()),
+        30,
+    );
+    let out2 = format!(
+        "{}{}",
+        r2["stdout"].as_str().unwrap(),
+        r2["stderr"].as_str().unwrap()
+    );
+    assert!(
+        !out2.contains("TOPSECRET"),
+        "host path must not resolve: {out2}"
+    );
 }
 
 /// Fix 1 (Eric, 2026-09-05): the mission sandbox is a full machine floor -
@@ -78,8 +112,15 @@ fn sandbox_network_is_on_for_missions() {
     let r = hs_loop::repexec::run_sandboxed(d.path(), &d.path().join("answer.txt"),
         "cd /ws && (python3 -m http.server 8873 --bind 127.0.0.1 >/dev/null 2>&1 &) && sleep 1 && curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8873/",
         30);
-    let out = format!("{}{}", r["stdout"].as_str().unwrap(), r["stderr"].as_str().unwrap());
-    assert!(out.contains("200"), "loopback http must work with network on: {out}");
+    let out = format!(
+        "{}{}",
+        r["stdout"].as_str().unwrap(),
+        r["stderr"].as_str().unwrap()
+    );
+    assert!(
+        out.contains("200"),
+        "loopback http must work with network on: {out}"
+    );
 }
 
 #[test]
@@ -88,10 +129,20 @@ fn sandbox_is_a_full_machine_floor() {
     let r = hs_loop::repexec::run_sandboxed(d.path(), &d.path().join("answer.txt"),
         "echo UID=$(id -u); touch /usr/local/.hs-floor-probe && rm /usr/local/.hs-floor-probe && echo USRLOCAL-RW; for t in python3 apt-get; do command -v $t >/dev/null 2>&1 && echo HAVE-$t; done; echo HOME=$HOME; echo PATH=$PATH",
         30);
-    let out = format!("{}{}", r["stdout"].as_str().unwrap(), r["stderr"].as_str().unwrap());
+    let out = format!(
+        "{}{}",
+        r["stdout"].as_str().unwrap(),
+        r["stderr"].as_str().unwrap()
+    );
     assert_eq!(r["exit_code"], 0, "{out}");
-    assert!(out.contains("UID=0"), "missions run as root on the machine floor: {out}");
-    assert!(out.contains("USRLOCAL-RW"), "system roots are writable: {out}");
+    assert!(
+        out.contains("UID=0"),
+        "missions run as root on the machine floor: {out}"
+    );
+    assert!(
+        out.contains("USRLOCAL-RW"),
+        "system roots are writable: {out}"
+    );
     assert!(out.contains("HAVE-python3"), "python3 on the floor: {out}");
     assert!(out.contains("HAVE-apt-get"), "apt-get on the floor: {out}");
     assert!(out.contains("HOME=/root"), "root's home: {out}");
@@ -103,14 +154,33 @@ fn sandbox_still_hides_host_secrets() {
     let d = ws_with_answer();
     // the floor is the whole machine EXCEPT host secret material: /home
     // (glm.key), /mnt (ledger/bundle), /root/.ssh, /root/.git-credentials
-    let r = hs_loop::repexec::run_sandboxed(d.path(), &d.path().join("answer.txt"),
+    let r = hs_loop::repexec::run_sandboxed(
+        d.path(),
+        &d.path().join("answer.txt"),
         "ls /home 2>&1; ls /mnt 2>&1; ls -a /root/.ssh 2>&1; wc -c /root/.git-credentials 2>&1",
-        30);
-    let out = format!("{}{}", r["stdout"].as_str().unwrap(), r["stderr"].as_str().unwrap());
-    assert!(out.contains("No such file or directory"), "/home must not exist inside: {out}");
-    assert!(!out.contains("instinct-nvme"), "/mnt must not exist inside: {out}");
-    assert!(!out.contains("authorized_keys"), "ssh keys must not be readable: {out}");
-    assert!(out.contains("0 /root/.git-credentials"), "git-credentials masked to zero bytes: {out}");
+        30,
+    );
+    let out = format!(
+        "{}{}",
+        r["stdout"].as_str().unwrap(),
+        r["stderr"].as_str().unwrap()
+    );
+    assert!(
+        out.contains("No such file or directory"),
+        "/home must not exist inside: {out}"
+    );
+    assert!(
+        !out.contains("instinct-nvme"),
+        "/mnt must not exist inside: {out}"
+    );
+    assert!(
+        !out.contains("authorized_keys"),
+        "ssh keys must not be readable: {out}"
+    );
+    assert!(
+        out.contains("0 /root/.git-credentials"),
+        "git-credentials masked to zero bytes: {out}"
+    );
 }
 
 #[test]
@@ -126,11 +196,20 @@ fn sandbox_env_is_scrubbed() {
 fn sandbox_kills_memory_bombs() {
     let d = ws_with_answer();
     let t0 = std::time::Instant::now();
-    let r = hs_loop::repexec::run_sandboxed(d.path(), &d.path().join("answer.txt"),
-        "tail /dev/zero", 30);
-    assert!(t0.elapsed().as_secs() < 30, "rlimit must kill, not the caller's patience");
-    assert!(r["exit_code"].as_i64().unwrap_or(0) != 0 || r["timed_out"] == true,
-        "bomber must not exit 0: {r}");
+    let r = hs_loop::repexec::run_sandboxed(
+        d.path(),
+        &d.path().join("answer.txt"),
+        "tail /dev/zero",
+        30,
+    );
+    assert!(
+        t0.elapsed().as_secs() < 30,
+        "rlimit must kill, not the caller's patience"
+    );
+    assert!(
+        r["exit_code"].as_i64().unwrap_or(0) != 0 || r["timed_out"] == true,
+        "bomber must not exit 0: {r}"
+    );
 }
 
 #[test]
@@ -140,8 +219,16 @@ fn sandbox_timeout_and_cleanup_still_hold() {
     let r = hs_loop::repexec::run_sandboxed(d.path(), &d.path().join("answer.txt"), "sleep 30", 2);
     assert!(t0.elapsed().as_secs() < 15);
     assert_eq!(r["timed_out"], true, "{r}");
-    let wt = Command::new("git").args(["worktree", "list", "--porcelain"])
-        .current_dir(d.path()).output().unwrap();
-    assert_eq!(String::from_utf8_lossy(&wt.stdout).matches("worktree ").count(), 1,
-        "scratch removed after timeout");
+    let wt = Command::new("git")
+        .args(["worktree", "list", "--porcelain"])
+        .current_dir(d.path())
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8_lossy(&wt.stdout)
+            .matches("worktree ")
+            .count(),
+        1,
+        "scratch removed after timeout"
+    );
 }

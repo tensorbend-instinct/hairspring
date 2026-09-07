@@ -101,7 +101,11 @@ default = true
     );
 
     let streams = log.path().join("streams");
-    let sid = std::fs::read_dir(&streams).unwrap().next().unwrap().unwrap();
+    let sid = std::fs::read_dir(&streams)
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap();
     let sid = uuid::Uuid::parse_str(sid.file_name().to_str().unwrap()).unwrap();
     let reader = hs_log::StreamReader::open(log.path(), sid).unwrap();
     let events = reader.events().unwrap();

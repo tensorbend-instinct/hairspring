@@ -42,16 +42,28 @@ pub enum BindingKind {
 
 impl Binding {
     pub fn model(reference: &str) -> Self {
-        Self { kind: BindingKind::Model, reference: reference.into() }
+        Self {
+            kind: BindingKind::Model,
+            reference: reference.into(),
+        }
     }
     pub fn harness(reference: &str) -> Self {
-        Self { kind: BindingKind::Harness, reference: reference.into() }
+        Self {
+            kind: BindingKind::Harness,
+            reference: reference.into(),
+        }
     }
     pub fn executor(reference: &str) -> Self {
-        Self { kind: BindingKind::Executor, reference: reference.into() }
+        Self {
+            kind: BindingKind::Executor,
+            reference: reference.into(),
+        }
     }
     pub fn host(reference: &str) -> Self {
-        Self { kind: BindingKind::Host, reference: reference.into() }
+        Self {
+            kind: BindingKind::Host,
+            reference: reference.into(),
+        }
     }
 }
 
@@ -204,7 +216,7 @@ impl Migration {
     pub fn old(&self) -> &Binding {
         &self.old
     }
-    pub fn new(&self) -> &Binding {
+    pub fn new_binding(&self) -> &Binding {
         &self.new
     }
     pub fn step(&self) -> MigrationStep {
@@ -219,7 +231,8 @@ impl Migration {
             step.as_str()
         );
         self.writer.append(
-            EventBuilder::new(EventKind::CapabilityChange).payload(Payload::Inline(body.into_bytes())),
+            EventBuilder::new(EventKind::CapabilityChange)
+                .payload(Payload::Inline(body.into_bytes())),
         )?;
         self.step = step;
         Ok(())
@@ -229,9 +242,7 @@ impl Migration {
         if self.step != from {
             return Err(MigrationError::InvalidTransition(format!(
                 "{} requires state {:?}, at {:?}",
-                to,
-                from,
-                self.step
+                to, from, self.step
             )));
         }
         Ok(())
@@ -330,7 +341,9 @@ impl Migration {
     /// when no transaction is open (none started, or the last reached a
     /// terminal step). Memory is a read path over the log: no side store.
     pub fn recover(log_root: &Path, stream: Uuid) -> Option<Self> {
-        let events = StreamReader::open(log_root, stream).and_then(|r| r.events()).ok()?;
+        let events = StreamReader::open(log_root, stream)
+            .and_then(|r| r.events())
+            .ok()?;
         let mut old: Option<Binding> = None;
         let mut new: Option<Binding> = None;
         let mut last: Option<MigrationStep> = None;
@@ -338,7 +351,9 @@ impl Migration {
             if e.kind != EventKind::CapabilityChange {
                 continue;
             }
-            let Payload::Inline(b) = &e.payload else { continue };
+            let Payload::Inline(b) = &e.payload else {
+                continue;
+            };
             let v: serde_json::Value = serde_json::from_slice(b).ok()?;
             // a fresh quiesce opens a new transaction; later steps extend it
             let step = MigrationStep::from_str(v["step"].as_str()?)?;
@@ -359,8 +374,7 @@ impl Migration {
             new: new?,
             step: last,
             writer,
-            bound: last == MigrationStep::Bind
-                || last == MigrationStep::Rehydrate,
+            bound: last == MigrationStep::Bind || last == MigrationStep::Rehydrate,
         })
     }
 }

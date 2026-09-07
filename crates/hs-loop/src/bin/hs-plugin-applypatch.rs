@@ -17,7 +17,9 @@ fn main() {
                 Some(other) => serde_json::json!({"$error": format!("unknown op '{other}'")}),
                 None => match params["args"]["patch"].as_str() {
                     Some(p) => hs_loop::editapply::apply_codex_patch(&ws, p),
-                    None => serde_json::json!({"$error": "pass patch: one apply_patch text (*** Begin Patch ... *** End Patch)"}),
+                    None => {
+                        serde_json::json!({"$error": "pass patch: one apply_patch text (*** Begin Patch ... *** End Patch)"})
+                    }
                 },
             }
         }

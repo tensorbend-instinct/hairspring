@@ -35,7 +35,9 @@ impl SqliteMemoryStore {
               PRIMARY KEY (from_id, to_id, rel)
             );",
         )?;
-        Ok(Self { conn: Mutex::new(conn) })
+        Ok(Self {
+            conn: Mutex::new(conn),
+        })
     }
 }
 

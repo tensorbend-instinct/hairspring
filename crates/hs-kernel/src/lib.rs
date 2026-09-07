@@ -23,14 +23,20 @@ pub enum KernelError {
     Protocol(String),
     UnknownTool(String),
     UnknownModel(String),
-    Gated { name: String, subject: String },
+    Gated {
+        name: String,
+        subject: String,
+    },
     Plugin(String),
     /// Application-level error from a HEALTHY plugin process (a well-formed
     /// {"error": ...} response): usage mistakes, bad args, provider errors
     /// after the plugin's own retries. NOT a supervisor strike - the process
     /// stays up and keeps serving (Eric 2026-09-05: exploration is never
     /// punished; ab2/17123 died when a usage error counted as strike 3).
-    PluginApp { name: String, detail: String },
+    PluginApp {
+        name: String,
+        detail: String,
+    },
     /// Supervisor terminal state: the plugin failed `strikes` consecutive
     /// call attempts (crash, spawn failure, or lease expiry). `detail` is
     /// the most recent REAL failure - never a stale earlier error.
@@ -596,16 +602,13 @@ impl Kernel {
         let t0 = Instant::now();
         let result = {
             let mut models = self.models.borrow_mut();
-            models
-                .get_mut(&name)
-                .unwrap()
-                .call(
-                    "model.call",
-                    match tools {
-                        Some(t) => serde_json::json!({"prompt": prompt, "tools": t}),
-                        None => serde_json::json!({"prompt": prompt}),
-                    },
-                )
+            models.get_mut(&name).unwrap().call(
+                "model.call",
+                match tools {
+                    Some(t) => serde_json::json!({"prompt": prompt, "tools": t}),
+                    None => serde_json::json!({"prompt": prompt}),
+                },
+            )
         };
         let latency_ms = t0.elapsed().as_millis() as u32;
         let r = result?;
@@ -688,16 +691,13 @@ impl Kernel {
         let t0 = Instant::now();
         let result = {
             let mut models = self.models.borrow_mut();
-            models
-                .get_mut(&name)
-                .unwrap()
-                .call(
-                    "model.call",
-                    match tools {
-                        Some(t) => serde_json::json!({"messages": messages, "tools": t}),
-                        None => serde_json::json!({"messages": messages}),
-                    },
-                )
+            models.get_mut(&name).unwrap().call(
+                "model.call",
+                match tools {
+                    Some(t) => serde_json::json!({"messages": messages, "tools": t}),
+                    None => serde_json::json!({"messages": messages}),
+                },
+            )
         };
         let latency_ms = t0.elapsed().as_millis() as u32;
         let r = result?;

@@ -25,7 +25,11 @@ fn empty_repo() -> std::path::PathBuf {
             .as_nanos()
     ));
     std::fs::create_dir_all(&d).unwrap();
-    let o = Command::new("git").args(["init", "-q"]).current_dir(&d).output().unwrap();
+    let o = Command::new("git")
+        .args(["init", "-q"])
+        .current_dir(&d)
+        .output()
+        .unwrap();
     assert!(o.status.success());
     d
 }
@@ -75,7 +79,10 @@ fn replay_8609_empty_fence_is_unsubmittable_on_new_path() {
     // burned a checker cycle ("empty patch"). new path: no candidate edits
     // -> steering error, no answer file - the class cannot occur.
     let raw = include_str!("fixtures/replay/haystack8609_empty_fence.txt");
-    assert_eq!(raw, "```diff\n```\n", "fixture is the verbatim trace payload");
+    assert_eq!(
+        raw, "```diff\n```\n",
+        "fixture is the verbatim trace payload"
+    );
     let ws = empty_repo();
     let answer = ws.join("answer.diff");
     let v = hs_loop::editapply::answer_submit(&ws, &answer);

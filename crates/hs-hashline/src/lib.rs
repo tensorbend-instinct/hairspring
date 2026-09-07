@@ -5,7 +5,7 @@
 pub mod anchor;
 pub mod config;
 pub mod edit;
-pub mod render;
 pub mod hash;
 pub mod mutate;
+pub mod render;
 pub mod scheme;

@@ -23,10 +23,18 @@ fn ctx_layout_keeps_stable_prefix_first() {
     let ws = dir.path().join("ws");
     std::fs::create_dir_all(&ws).unwrap();
     std::fs::write(ws.join("code.txt"), "broken\n").unwrap();
-    std::fs::write(ws.join("check.sh"), "#!/bin/sh\ngrep -q '^fixed$' code.txt\n").unwrap();
+    std::fs::write(
+        ws.join("check.sh"),
+        "#!/bin/sh\ngrep -q '^fixed$' code.txt\n",
+    )
+    .unwrap();
     let git = |args: &[&str]| {
         assert!(std::process::Command::new("git")
-            .args(args).current_dir(&ws).status().unwrap().success());
+            .args(args)
+            .current_dir(&ws)
+            .status()
+            .unwrap()
+            .success());
     };
     git(&["init", "-q"]);
     git(&["config", "user.email", "t@t"]);
@@ -110,12 +118,12 @@ default = true
         step2.contains("- answer.submit("),
         "step 2 must carry the history pair: {step2}"
     );
-    let pos = |needle: &str| step2.find(needle).unwrap_or_else(|| panic!("{needle} missing: {step2}"));
-    let (m, t, a) = (
-        pos("MISSION:"),
-        pos("- answer.submit("),
-        pos("ATTEMPT:"),
-    );
+    let pos = |needle: &str| {
+        step2
+            .find(needle)
+            .unwrap_or_else(|| panic!("{needle} missing: {step2}"))
+    };
+    let (m, t, a) = (pos("MISSION:"), pos("- answer.submit("), pos("ATTEMPT:"));
     assert!(
         m < t && t < a,
         "stable prefix must come first: MISSION({m}) < history({t}) < state tail({a})"

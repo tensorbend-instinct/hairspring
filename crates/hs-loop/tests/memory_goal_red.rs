@@ -11,7 +11,7 @@
 //!    old lie-checker refusal was retired by user directive; the conflict
 //!    path is covered by tests/stop_on_pass_red.rs.)
 
-use hs_core::{EventKind, Payload};
+use hs_core::EventKind;
 use hs_loop::*;
 use hs_memory::MemoryStore;
 use std::process::Command;
@@ -53,7 +53,15 @@ default = true
 
 fn write_script(dir: &std::path::Path, lines: &[serde_json::Value]) -> std::path::PathBuf {
     let p = dir.join("script.jsonl");
-    std::fs::write(&p, lines.iter().map(|l| l.to_string()).collect::<Vec<_>>().join("\n")).unwrap();
+    std::fs::write(
+        &p,
+        lines
+            .iter()
+            .map(|l| l.to_string())
+            .collect::<Vec<_>>()
+            .join("\n"),
+    )
+    .unwrap();
     p
 }
 
@@ -76,8 +84,11 @@ fn t6_memory_roundtrip_across_missions() {
     let dir_a = tempfile::tempdir().unwrap();
     let log_a = tempfile::tempdir().unwrap();
     let answer_a = log_a.path().join("work").join("task-0").join("answer.txt");
-    let script = write_script(dir_a.path(), &[serde_json::json!(
-        {"tool":"answer.write","args":{"path":answer_a.display().to_string(),"content":"TOKEN-0-SECRET"}})]);
+    let script = write_script(
+        dir_a.path(),
+        &[serde_json::json!(
+        {"tool":"answer.write","args":{"path":answer_a.display().to_string(),"content":"TOKEN-0-SECRET"}})],
+    );
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let mut la = rig(dir_a.path(), log_a.path(), CHECKER, 4);
     let stream_a = la.stream_id();
@@ -87,8 +98,14 @@ fn t6_memory_roundtrip_across_missions() {
     // --- post-mission extraction (D3): trajectory -> typed records ---
     let records = hs_memory::extract::extract_stream(log_a.path(), stream_a, "task-0", "operator");
     assert!(!records.is_empty(), "extraction yields records");
-    assert!(records.iter().all(|r| !r.source_seqs.is_empty()), "provenance mandatory: {records:?}");
-    assert!(records.iter().any(|r| r.kind == "episodic"), "an episodic record: {records:?}");
+    assert!(
+        records.iter().all(|r| !r.source_seqs.is_empty()),
+        "provenance mandatory: {records:?}"
+    );
+    assert!(
+        records.iter().any(|r| r.kind == "episodic"),
+        "an episodic record: {records:?}"
+    );
 
     let db = tempfile::tempdir().unwrap().keep().join("memory.db");
     let store = hs_memory::sqlite::SqliteMemoryStore::open(&db).unwrap();
@@ -100,8 +117,11 @@ fn t6_memory_roundtrip_across_missions() {
     let dir_b = tempfile::tempdir().unwrap();
     let log_b = tempfile::tempdir().unwrap();
     let answer_b = log_b.path().join("work").join("task-0").join("answer.txt");
-    let script = write_script(dir_b.path(), &[serde_json::json!(
-        {"tool":"answer.write","args":{"path":answer_b.display().to_string(),"content":"blind"}})]);
+    let script = write_script(
+        dir_b.path(),
+        &[serde_json::json!(
+        {"tool":"answer.write","args":{"path":answer_b.display().to_string(),"content":"blind"}})],
+    );
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let mut lb = rig(dir_b.path(), log_b.path(), CHECKER, 2);
     lb.set_memory_db(&db);
@@ -110,24 +130,56 @@ fn t6_memory_roundtrip_across_missions() {
 
     let prompts = model_prompts(log_b.path(), stream_b);
     let p = prompts.last().expect("a prompt in mission B");
-    assert!(p.contains("MEMORY (earlier missions)"), "memory block assembled: {p}");
-    assert!(p.contains("task-0"), "mission A's record content retrieved: {p}");
+    assert!(
+        p.contains("MEMORY (earlier missions)"),
+        "memory block assembled: {p}"
+    );
+    assert!(
+        p.contains("task-0"),
+        "mission A's record content retrieved: {p}"
+    );
     // provenance rides along: the seq refs from mission A's log
-    let first = store.top_k("operator", 5).unwrap().into_iter().next().unwrap();
-    let seqref = format!("seqs:{}", first.source_seqs.iter().map(|s| s.to_string()).collect::<Vec<_>>().join(","));
-    assert!(p.contains(&seqref), "source_seqs intact in the prompt: {seqref} in {p}");
+    let first = store
+        .top_k("operator", 5)
+        .unwrap()
+        .into_iter()
+        .next()
+        .unwrap();
+    let seqref = format!(
+        "seqs:{}",
+        first
+            .source_seqs
+            .iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>()
+            .join(",")
+    );
+    assert!(
+        p.contains(&seqref),
+        "source_seqs intact in the prompt: {seqref} in {p}"
+    );
 }
 
 fn mk_ws(dir: &std::path::Path) -> std::path::PathBuf {
     let ws = dir.join("ws");
     std::fs::create_dir_all(&ws).unwrap();
     std::fs::write(ws.join("code.txt"), "broken\n").unwrap();
-    std::fs::write(ws.join("check.sh"), "#!/bin/sh\ngrep -q '^fixed$' code.txt\n").unwrap();
+    std::fs::write(
+        ws.join("check.sh"),
+        "#!/bin/sh\ngrep -q '^fixed$' code.txt\n",
+    )
+    .unwrap();
     let git = |args: &[&str]| {
-        assert!(Command::new("git").args(args).current_dir(&ws)
-            .env("GIT_AUTHOR_NAME", "t").env("GIT_AUTHOR_EMAIL", "t@t")
-            .env("GIT_COMMITTER_NAME", "t").env("GIT_COMMITTER_EMAIL", "t@t")
-            .status().unwrap().success());
+        assert!(Command::new("git")
+            .args(args)
+            .current_dir(&ws)
+            .env("GIT_AUTHOR_NAME", "t")
+            .env("GIT_AUTHOR_EMAIL", "t@t")
+            .env("GIT_COMMITTER_NAME", "t")
+            .env("GIT_COMMITTER_EMAIL", "t@t")
+            .status()
+            .unwrap()
+            .success());
     };
     git(&["init", "-q"]);
     git(&["add", "."]);
@@ -150,18 +202,27 @@ fn t7_goal_evaluator_stops_green_refuses_red() {
     // now overrides goal red - see stop_on_pass_red.rs.)
     let log_r = tempfile::tempdir().unwrap();
     let answer_r = log_r.path().join("work").join("task-0").join("answer.txt");
-    let script = write_script(dir.path(), &[serde_json::json!(
-        {"tool":"answer.write","args":{"path":answer_r.display().to_string(),"content":wrong}})]);
+    let script = write_script(
+        dir.path(),
+        &[serde_json::json!(
+        {"tool":"answer.write","args":{"path":answer_r.display().to_string(),"content":wrong}})],
+    );
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let dir_r = tempfile::tempdir().unwrap();
     let mut lr = rig(dir_r.path(), log_r.path(), CHECKER, 3);
     lr.set_goal_evaluator(&ws, vec!["sh check.sh".to_string()]);
     let stream_r = lr.stream_id();
     let rr = lr.run_mission("task-0").unwrap();
-    assert!(!rr.passed, "refuses to stop when both gates are red: {rr:?}");
+    assert!(
+        !rr.passed,
+        "refuses to stop when both gates are red: {rr:?}"
+    );
     assert_eq!(rr.steps, 3, "burns to the cap still working: {rr:?}");
     let reader = hs_log::StreamReader::open(log_r.path(), stream_r).unwrap();
-    let goal_note = reader.events().unwrap().iter()
+    let goal_note = reader
+        .events()
+        .unwrap()
+        .iter()
         .filter(|e| e.kind == EventKind::Feedback)
         .filter_map(|e| reader.resolve_payload(e).ok())
         .map(|b| String::from_utf8_lossy(&b).into_owned())
@@ -171,13 +232,19 @@ fn t7_goal_evaluator_stops_green_refuses_red() {
     // GREEN half: the fixing patch stops the mission at step 1.
     let log_g = tempfile::tempdir().unwrap();
     let answer_g = log_g.path().join("work").join("task-0").join("answer.txt");
-    let script = write_script(dir.path(), &[serde_json::json!(
-        {"tool":"answer.write","args":{"path":answer_g.display().to_string(),"content":fix}})]);
+    let script = write_script(
+        dir.path(),
+        &[serde_json::json!(
+        {"tool":"answer.write","args":{"path":answer_g.display().to_string(),"content":fix}})],
+    );
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let dir_g = tempfile::tempdir().unwrap();
     let mut lg = rig(dir_g.path(), log_g.path(), LIECHECKER, 3);
     lg.set_goal_evaluator(&ws, vec!["sh check.sh".to_string()]);
     let rg = lg.run_mission("task-0").unwrap();
-    assert!(rg.passed, "stops when acceptance is verifiably green: {rg:?} (note: {goal_note})");
+    assert!(
+        rg.passed,
+        "stops when acceptance is verifiably green: {rg:?} (note: {goal_note})"
+    );
     assert_eq!(rg.steps, 1, "stops at the first green, not the cap: {rg:?}");
 }

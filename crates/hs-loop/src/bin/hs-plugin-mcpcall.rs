@@ -11,7 +11,7 @@
 //! allowed_roots check before the server is even spawned (deny by default).
 
 use hs_loop::mcpbridge::*;
-use rmcp::{ServiceExt, model::CallToolRequestParam, transport::TokioChildProcess};
+use rmcp::{model::CallToolRequestParam, transport::TokioChildProcess, ServiceExt};
 
 fn has_flag(args: &[String], flag: &str) -> bool {
     args.iter().any(|a| a == flag)
@@ -74,10 +74,10 @@ async fn mcp_call(
         .clone();
     let mut cmd = tokio::process::Command::new(&cfg.command[0]);
     cmd.args(&cfg.command[1..]);
-    let service = ()
-        .serve(TokioChildProcess::new(cmd).map_err(|e| format!("spawn: {e}"))?)
-        .await
-        .map_err(|e| format!("mcp handshake: {e}"))?;
+    let service =
+        ().serve(TokioChildProcess::new(cmd).map_err(|e| format!("spawn: {e}"))?)
+            .await
+            .map_err(|e| format!("mcp handshake: {e}"))?;
     let obj = args.as_object().cloned().unwrap_or_default();
     let result = service
         .call_tool(CallToolRequestParam {
@@ -112,7 +112,11 @@ fn real_main() {
     let cfg = servers
         .iter()
         .find(|s| s.name == server_name)
-        .unwrap_or_else(|| fail(format!("unknown server '{server_name}' (not in {cfg_path})")))
+        .unwrap_or_else(|| {
+            fail(format!(
+                "unknown server '{server_name}' (not in {cfg_path})"
+            ))
+        })
         .clone();
 
     // path-arg enforcement BEFORE spawning the server (defense in depth)
@@ -140,10 +144,10 @@ fn real_main() {
 async fn cli_main(argv: Vec<String>, cfg: McpServerConfig) {
     let mut cmd = tokio::process::Command::new(&cfg.command[0]);
     cmd.args(&cfg.command[1..]);
-    let service = ()
-        .serve(TokioChildProcess::new(cmd).unwrap_or_else(|e| fail(format!("spawn: {e}"))))
-        .await
-        .unwrap_or_else(|e| fail(format!("mcp handshake: {e}")));
+    let service =
+        ().serve(TokioChildProcess::new(cmd).unwrap_or_else(|e| fail(format!("spawn: {e}"))))
+            .await
+            .unwrap_or_else(|e| fail(format!("mcp handshake: {e}")));
 
     if has_flag(&argv, "--list") {
         let tools = service
@@ -154,14 +158,16 @@ async fn cli_main(argv: Vec<String>, cfg: McpServerConfig) {
         if verbose {
             let full: Vec<serde_json::Value> = tools
                 .iter()
-                .map(|t| serde_json::json!({
-                    "name": namespaced_tool(&cfg.name, &t.name),
-                    "description": t.description.as_deref().unwrap_or(""),
-                    // native tool delivery: the server's own input schema,
-                    // verbatim from tools/list
-                    "input_schema": serde_json::to_value(&t.input_schema)
-                        .unwrap_or(serde_json::json!({"type":"object","properties":{}})),
-                }))
+                .map(|t| {
+                    serde_json::json!({
+                        "name": namespaced_tool(&cfg.name, &t.name),
+                        "description": t.description.as_deref().unwrap_or(""),
+                        // native tool delivery: the server's own input schema,
+                        // verbatim from tools/list
+                        "input_schema": serde_json::to_value(&t.input_schema)
+                            .unwrap_or(serde_json::json!({"type":"object","properties":{}})),
+                    })
+                })
                 .collect();
             println!("{}", serde_json::to_string(&full).unwrap());
         } else {

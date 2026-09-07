@@ -23,7 +23,11 @@ pub struct Assembly {
 
 /// Build the transcript block from the stream's ToolCall events.
 /// `budget_chars` = context_budget_tokens * 4 (the loop owns the token config).
-pub fn assemble(reader: &hs_log::StreamReader, events: &[hs_core::Event], budget_chars: usize) -> Assembly {
+pub fn assemble(
+    reader: &hs_log::StreamReader,
+    events: &[hs_core::Event],
+    budget_chars: usize,
+) -> Assembly {
     const LINE_CAP: usize = 20_000;
     let mut lines: Vec<(u64, uuid::Uuid, String)> = vec![];
     for e in events.iter().rev() {
@@ -61,7 +65,10 @@ pub fn assemble(reader: &hs_log::StreamReader, events: &[hs_core::Event], budget
             entries.push(line);
         }
         entries.reverse();
-        return Assembly { entries, compressed: None };
+        return Assembly {
+            entries,
+            compressed: None,
+        };
     }
     // over budget: recent tail verbatim (60% of budget), oldest compressed
     // into a ledger pointer with audit refs - content-preserving via D2
@@ -95,7 +102,10 @@ pub fn assemble(reader: &hs_log::StreamReader, events: &[hs_core::Event], budget
     }
     kept.reverse();
     entries.extend(kept);
-    Assembly { entries, compressed }
+    Assembly {
+        entries,
+        compressed,
+    }
 }
 
 /// Native-messages variant of the transcript projection (structured-
@@ -129,9 +139,9 @@ pub fn assemble_messages(
 ) -> AssemblyMessages {
     const CONTENT_CAP: usize = 20_000;
     const PAIR_OVERHEAD: usize = 64; // role/id/type framing, chars
-    // Chronological pre-pass: pair each ToolCall with the reasoning of
-    // the ModelCall that produced it (nearest preceding ModelCall - the
-    // one-tool-call-per-reply protocol makes that exact).
+                                     // Chronological pre-pass: pair each ToolCall with the reasoning of
+                                     // the ModelCall that produced it (nearest preceding ModelCall - the
+                                     // one-tool-call-per-reply protocol makes that exact).
     let mut reasoning_by_tc: std::collections::HashMap<u64, String> =
         std::collections::HashMap::new();
     let mut last_reasoning = String::new();
@@ -140,15 +150,12 @@ pub fn assemble_messages(
             EventKind::ModelCall => {
                 if let Ok(bytes) = reader.resolve_payload(e) {
                     if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes) {
-                        last_reasoning =
-                            v["reasoning_content"].as_str().unwrap_or("").to_string();
+                        last_reasoning = v["reasoning_content"].as_str().unwrap_or("").to_string();
                     }
                 }
             }
-            EventKind::ToolCall => {
-                if !last_reasoning.is_empty() {
-                    reasoning_by_tc.insert(e.seq, last_reasoning.clone());
-                }
+            EventKind::ToolCall if !last_reasoning.is_empty() => {
+                reasoning_by_tc.insert(e.seq, last_reasoning.clone());
             }
             _ => {}
         }
@@ -179,12 +186,21 @@ pub fn assemble_messages(
                 }
                 let line = format!("{}({}) => {}", plugin, v["args"], content);
                 let reasoning = reasoning_by_tc.get(&e.seq).cloned().unwrap_or_default();
-                exch.push(Exchange { seq: e.seq, id: e.event_id, plugin, args, content, line, reasoning });
+                exch.push(Exchange {
+                    seq: e.seq,
+                    id: e.event_id,
+                    plugin,
+                    args,
+                    content,
+                    line,
+                    reasoning,
+                });
             }
         }
     }
-    let cost =
-        |x: &Exchange| x.args.to_string().len() + x.content.len() + x.reasoning.len() + PAIR_OVERHEAD;
+    let cost = |x: &Exchange| {
+        x.args.to_string().len() + x.content.len() + x.reasoning.len() + PAIR_OVERHEAD
+    };
     let total: usize = exch.iter().map(&cost).sum();
     let mut messages: Vec<serde_json::Value> = vec![];
     if total <= budget_chars {
@@ -205,7 +221,10 @@ pub fn assemble_messages(
             messages.push(a);
             messages.push(t);
         }
-        return AssemblyMessages { messages, compressed: None };
+        return AssemblyMessages {
+            messages,
+            compressed: None,
+        };
     }
     // over budget: recent tail verbatim (60%), oldest into a compaction
     // handoff message with audit refs (content-preserving via D2)
@@ -247,5 +266,8 @@ pub fn assemble_messages(
         messages.push(a);
         messages.push(t);
     }
-    AssemblyMessages { messages, compressed }
+    AssemblyMessages {
+        messages,
+        compressed,
+    }
 }

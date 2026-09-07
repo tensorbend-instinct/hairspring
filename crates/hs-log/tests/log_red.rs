@@ -1,4 +1,3 @@
-
 #[test]
 fn write_blobs_bulk_roundtrips_and_dedups() {
     let dir = tempfile::tempdir().unwrap();
@@ -13,5 +12,7 @@ fn write_blobs_bulk_roundtrips_and_dedups() {
     let hashes2 = hs_log::write_blobs_bulk(dir.path(), &refs).unwrap();
     assert_eq!(hashes, hashes2);
     // empty batch is valid
-    assert!(hs_log::write_blobs_bulk(dir.path(), &[]).unwrap().is_empty());
+    assert!(hs_log::write_blobs_bulk(dir.path(), &[])
+        .unwrap()
+        .is_empty());
 }

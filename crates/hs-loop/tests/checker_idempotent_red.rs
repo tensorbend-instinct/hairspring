@@ -61,7 +61,12 @@ impl Checker {
             .expect("spawn swecheck");
         let stdin = child.stdin.take().unwrap();
         let stdout = BufReader::new(child.stdout.take().unwrap());
-        Checker { child, stdin, stdout, next_id: 0 }
+        Checker {
+            child,
+            stdin,
+            stdout,
+            next_id: 0,
+        }
     }
 
     fn judge(&mut self, answer_path: &Path) -> serde_json::Value {
@@ -92,7 +97,8 @@ fn write_answer(dir: &Path, name: &str, diff_body: &str) -> std::path::PathBuf {
     p
 }
 
-const PATCH_X2: &str = "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-x = 1\n+x = 2";
+const PATCH_X2: &str =
+    "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-x = 1\n+x = 2";
 
 /// 3862: re-judging the SAME checker-green answer must stay green.
 #[test]

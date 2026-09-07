@@ -1,10 +1,11 @@
 //! Test model "sweexec": drives repo.exec through the real loop, post-gate.
-//! Attempt 1: repo.exec a deliberately corrupt INLINE patch (bad framing)
-//!   - the free apply-error feedback path, booked on the audit stream.
-//! Attempt 2: repo.exec the gold INLINE patch - the honest pre-submit
+//!
+//! - Attempt 1: repo.exec a deliberately corrupt INLINE patch (bad framing) -
+//!   the free apply-error feedback path, booked on the audit stream.
+//! - Attempt 2: repo.exec the gold INLINE patch - the honest pre-submit
 //!   verification the hard answer.write gate requires.
-//! Attempt 3: edit.patch the fix (Codex grammar).
-//! Attempt 4: answer.submit (accepted, checker passes).
+//! - Attempt 3: edit.patch the fix (Codex grammar).
+//! - Attempt 4: answer.submit (accepted, checker passes).
 include!("shared/sdk.rs");
 fn main() {
     serve("sweexec", "model", &mut |method, params| match method {

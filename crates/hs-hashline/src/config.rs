@@ -44,7 +44,6 @@ fn default_chunk_size() -> usize {
     8
 }
 
-
 impl Default for HashlineSchemeParams {
     fn default() -> Self {
         Self {
@@ -114,7 +113,6 @@ impl HashlineSchemeParams {
     /// Build a `ToolDefinition` with scheme-aware description rendering.
     ///
     /// Shared by all 3 hashline tools' `versioned_definition` overrides.
-
     pub fn build_scheme(&self) -> Result<Box<dyn AnchorScheme>, String> {
         self.validate()?;
         Ok(match self.scheme.as_str() {
@@ -126,7 +124,6 @@ impl HashlineSchemeParams {
         })
     }
 }
-
 
 #[cfg(test)]
 mod tests {

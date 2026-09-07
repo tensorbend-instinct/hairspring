@@ -43,14 +43,7 @@ fn operator_message_payloads(ev: &[(EventKind, String)]) -> Vec<Vec<serde_json::
         .filter(|(k, p)| *k == EventKind::ModelCall && p.contains("\"messages\""))
         .filter_map(|(_, p)| serde_json::from_str::<serde_json::Value>(p).ok())
         .filter(|v| v["messages"].is_array())
-        .map(|v| {
-            v["messages"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .cloned()
-                .collect::<Vec<_>>()
-        })
+        .map(|v| v["messages"].as_array().unwrap().to_vec())
         .collect()
 }
 
@@ -109,7 +102,10 @@ default = true
     let ev = events_of(log.path(), r.stream_id);
     // no operator ModelCall payload may carry the old text blob field
     for (k, p) in &ev {
-        if *k == EventKind::ModelCall && !p.contains("ADVERSARIAL VERIFIER") && !p.contains("DISTILL") {
+        if *k == EventKind::ModelCall
+            && !p.contains("ADVERSARIAL VERIFIER")
+            && !p.contains("DISTILL")
+        {
             let v: serde_json::Value = serde_json::from_str(p).unwrap();
             assert!(
                 v.get("prompt").is_none() || v["prompt"].is_null(),
@@ -118,21 +114,38 @@ default = true
         }
     }
     let steps = operator_message_payloads(&ev);
-    assert_eq!(steps.len(), 3, "three operator calls carry messages: {}", ev.len());
+    assert_eq!(
+        steps.len(),
+        3,
+        "three operator calls carry messages: {}",
+        ev.len()
+    );
 
     // step 1: mission message + state tail only
     let s1 = &steps[0];
     assert_eq!(s1.len(), 2, "first step: mission + state tail: {s1:?}");
     assert_eq!(s1[0]["role"], "user");
     assert!(
-        s1[0]["content"].as_str().unwrap_or("").starts_with("MISSION: task-0"),
+        s1[0]["content"]
+            .as_str()
+            .unwrap_or("")
+            .starts_with("MISSION: task-0"),
         "mission message first: {}",
         s1[0]
     );
-    assert_eq!(s1[1]["role"], "user", "state tail is the final user message");
+    assert_eq!(
+        s1[1]["role"], "user",
+        "state tail is the final user message"
+    );
     let tail1 = s1[1]["content"].as_str().unwrap_or("");
-    assert!(tail1.contains("ATTEMPT: step 1 of 10"), "budget line in tail: {tail1}");
-    assert!(tail1.contains("ANSWER_PATH: "), "answer path in tail: {tail1}");
+    assert!(
+        tail1.contains("ATTEMPT: step 1 of 10"),
+        "budget line in tail: {tail1}"
+    );
+    assert!(
+        tail1.contains("ANSWER_PATH: "),
+        "answer path in tail: {tail1}"
+    );
     assert!(tail1.contains("LEDGER ("), "ledger in tail: {tail1}");
 
     // step 2: one history pair appeared between mission and tail
@@ -145,14 +158,24 @@ default = true
     let name = tcs[0]["function"]["name"].as_str().unwrap_or("");
     assert!(!name.contains('.'), "wire names are dot-free: {name}");
     assert_eq!(name, "probe__read");
-    assert!(tcs[0]["function"]["arguments"].is_string(), "arguments is a JSON string");
+    assert!(
+        tcs[0]["function"]["arguments"].is_string(),
+        "arguments is a JSON string"
+    );
     let id = tcs[0]["id"].as_str().unwrap_or("");
     assert!(!id.is_empty(), "tool_call id present");
     let toolmsg = &s2[2];
     assert_eq!(toolmsg["role"], "tool");
-    assert_eq!(toolmsg["tool_call_id"].as_str().unwrap_or(""), id, "tool result pairs with the call id");
+    assert_eq!(
+        toolmsg["tool_call_id"].as_str().unwrap_or(""),
+        id,
+        "tool result pairs with the call id"
+    );
     assert!(
-        toolmsg["content"].as_str().unwrap_or("").contains("MARKER-777"),
+        toolmsg["content"]
+            .as_str()
+            .unwrap_or("")
+            .contains("MARKER-777"),
         "tool result content is the real output: {}",
         toolmsg["content"]
     );
@@ -169,11 +192,7 @@ default = true
         &s2[..s2.len() - 1],
         "history prefix must be byte-identical across steps (append-only)"
     );
-    assert_eq!(
-        &s2[..1],
-        &s1[..1],
-        "the mission message never mutates"
-    );
+    assert_eq!(&s2[..1], &s1[..1], "the mission message never mutates");
 
     // no hand-rendered transcript markup survives anywhere
     let flat = ev
@@ -250,7 +269,12 @@ default = true
     // everything fits: one pair per operator ToolCall event, seq order
     let asm = assembler::assemble_messages(&reader, &events, 1_000_000);
     assert!(asm.compressed.is_none(), "no compaction under budget");
-    assert_eq!(asm.messages.len(), 6, "3 exchanges = 3 pairs: {:?}", asm.messages);
+    assert_eq!(
+        asm.messages.len(),
+        6,
+        "3 exchanges = 3 pairs: {:?}",
+        asm.messages
+    );
     assert_eq!(asm.messages[0]["role"], "assistant");
     assert_eq!(asm.messages[1]["role"], "tool");
     assert_eq!(
@@ -264,7 +288,10 @@ default = true
     assert!(c.count >= 1, "at least the oldest exchange compacted");
     assert_eq!(asm2.messages[0]["role"], "user");
     assert!(
-        asm2.messages[0]["content"].as_str().unwrap_or("").starts_with("COMPACTED "),
+        asm2.messages[0]["content"]
+            .as_str()
+            .unwrap_or("")
+            .starts_with("COMPACTED "),
         "compaction is a user handoff message: {}",
         asm2.messages[0]["content"]
     );
@@ -281,8 +308,25 @@ fn verifier_verdict_is_a_native_tool_call() {
     let ws = dir.path().join("ws");
     std::fs::create_dir_all(&ws).unwrap();
     std::fs::write(ws.join("code.txt"), "broken\n").unwrap();
-    for args in [&["init", "-q"][..], &["add", "."][..], &["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"][..]] {
-        assert!(std::process::Command::new("git").args(args).current_dir(&ws).status().unwrap().success());
+    for args in [
+        &["init", "-q"][..],
+        &["add", "."][..],
+        &[
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-qm",
+            "init",
+        ][..],
+    ] {
+        assert!(std::process::Command::new("git")
+            .args(args)
+            .current_dir(&ws)
+            .status()
+            .unwrap()
+            .success());
     }
     std::env::set_var("HS_SWE_WORKSPACE", &ws);
     let answer = log.path().join("work").join("task-21").join("answer.txt");
@@ -331,16 +375,28 @@ default = true
         .collect();
     assert_eq!(vcalls.len(), 1, "one verifier round: {}", vcalls.len());
     let payload: serde_json::Value = serde_json::from_str(&vcalls[0].1).unwrap();
-    let tools = payload["tools"].as_array().expect("verifier call carries native tools");
+    let tools = payload["tools"]
+        .as_array()
+        .expect("verifier call carries native tools");
     assert!(
-        tools.iter().any(|t| t["function"]["name"] == "verdict.submit"),
+        tools
+            .iter()
+            .any(|t| t["function"]["name"] == "verdict.submit"),
         "the verdict.submit schema is delivered: {tools:?}"
     );
-    let completion: serde_json::Value = serde_json::from_str(payload["completion"].as_str().unwrap()).unwrap();
-    assert_eq!(completion["tool"], "verdict.submit", "verdict arrives as a tool call: {completion}");
-    assert_eq!(completion["args"]["refuted"], false, "clean verdict in args: {completion}");
+    let completion: serde_json::Value =
+        serde_json::from_str(payload["completion"].as_str().unwrap()).unwrap();
+    assert_eq!(
+        completion["tool"], "verdict.submit",
+        "verdict arrives as a tool call: {completion}"
+    );
+    assert_eq!(
+        completion["args"]["refuted"], false,
+        "clean verdict in args: {completion}"
+    );
     assert!(
-        ev.iter().any(|(k, p)| *k == EventKind::Feedback && p.contains("not_refuted")),
+        ev.iter()
+            .any(|(k, p)| *k == EventKind::Feedback && p.contains("not_refuted")),
         "not_refuted verdict booked"
     );
 }
@@ -386,15 +442,20 @@ default = true
     let kernel = hs_kernel::Kernel::load(&config).unwrap();
     let mut l = InnerLoop::new(kernel, log.path(), true, 4).unwrap();
     let r = l.run_mission("task-22").unwrap();
-    assert!(r.passed, "a malformed verdict never blocks the mission: {r:?}");
+    assert!(
+        r.passed,
+        "a malformed verdict never blocks the mission: {r:?}"
+    );
     assert_eq!(r.steps, 1, "no refuted round burns steps: {r:?}");
     let ev = events_of(log.path(), r.stream_id);
     assert!(
-        ev.iter().any(|(k, p)| *k == EventKind::Feedback && p.contains("verifier_error")),
+        ev.iter()
+            .any(|(k, p)| *k == EventKind::Feedback && p.contains("verifier_error")),
         "prose verdict books verifier_error: {ev:?}"
     );
     assert!(
-        !ev.iter().any(|(k, p)| *k == EventKind::Feedback && p.contains("\"verdict\": \"refuted\"")),
+        !ev.iter()
+            .any(|(k, p)| *k == EventKind::Feedback && p.contains("\"verdict\": \"refuted\"")),
         "a prose verdict is never honored as refuted"
     );
 }
@@ -411,13 +472,24 @@ fn build_body_messages_shape() {
         {"role":"tool","tool_call_id":"call_3","content":"src/foo.rs:12: foo"},
         {"role":"user","content":"ATTEMPT: step 2 of 10"}
     ]);
-    let body = realmodel::build_body_messages("kimi-k3", "sys", &messages, Some(&tools), None, true);
-    assert_eq!(body["messages"].as_array().unwrap().len(), 5, "system + 4 messages");
+    let body =
+        realmodel::build_body_messages("kimi-k3", "sys", &messages, Some(&tools), None, true);
+    assert_eq!(
+        body["messages"].as_array().unwrap().len(),
+        5,
+        "system + 4 messages"
+    );
     assert_eq!(body["messages"][0]["role"], "system");
-    assert_eq!(body["messages"][1]["content"], "MISSION: task-x", "verbatim pass-through");
+    assert_eq!(
+        body["messages"][1]["content"], "MISSION: task-x",
+        "verbatim pass-through"
+    );
     assert_eq!(body["messages"][2]["tool_calls"][0]["id"], "call_3");
     assert_eq!(body["tool_choice"], "required");
-    assert_eq!(body["tools"][0]["function"]["name"], "repo__search", "wire-mapped names");
+    assert_eq!(
+        body["tools"][0]["function"]["name"], "repo__search",
+        "wire-mapped names"
+    );
 }
 
 /// cached_tokens pass-through (cache-win observability): the provider's

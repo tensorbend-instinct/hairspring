@@ -15,25 +15,26 @@ fn main() {
                     std::process::exit(2);
                 });
             hs_loop::realmodel::provider_from_config(
-                hs_loop::realmodel::find_provider(&cfgs, &provider)
-                    .unwrap_or_else(|e| {
-                        eprintln!("hs-plugin-model: {e}");
-                        std::process::exit(2);
-                    }),
+                hs_loop::realmodel::find_provider(&cfgs, &provider).unwrap_or_else(|e| {
+                    eprintln!("hs-plugin-model: {e}");
+                    std::process::exit(2);
+                }),
             )
             .unwrap_or_else(|e| {
                 eprintln!("hs-plugin-model: {e}");
                 std::process::exit(2);
             })
         }
-        Err(_) => match provider.as_str() {
-            "glm" => hs_loop::realmodel::glm(),
-            "deepseek" => hs_loop::realmodel::deepseek(),
-            other => {
-                eprintln!("hs-plugin-model: unknown builtin provider '{other}' (set HS_PROVIDERS_TOML)");
-                std::process::exit(2);
+        Err(_) => {
+            match provider.as_str() {
+                "glm" => hs_loop::realmodel::glm(),
+                "deepseek" => hs_loop::realmodel::deepseek(),
+                other => {
+                    eprintln!("hs-plugin-model: unknown builtin provider '{other}' (set HS_PROVIDERS_TOML)");
+                    std::process::exit(2);
+                }
             }
-        },
+        }
     };
     serve("model", "model", &mut move |method, params| match method {
         "model.call" => {

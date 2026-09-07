@@ -74,10 +74,21 @@ fn preserves_trailing_blank_context_line() {
     // a single space, the exact line trim() destroys
     std::fs::write(ws.join("code.txt"), "a\nb\nX\n\n").unwrap();
     git(&["add", "-A"]);
-    git(&["-c", "user.email=b@b", "-c", "user.name=b", "commit", "-qm", "base"]);
+    git(&[
+        "-c",
+        "user.email=b@b",
+        "-c",
+        "user.name=b",
+        "commit",
+        "-qm",
+        "base",
+    ]);
     std::fs::write(ws.join("code.txt"), "a\nb\nY\n\n").unwrap();
     let raw = String::from_utf8(git(&["diff"]).stdout).unwrap();
-    assert!(raw.ends_with(" \n"), "fixture sanity: git diff ends in a blank context line");
+    assert!(
+        raw.ends_with(" \n"),
+        "fixture sanity: git diff ends in a blank context line"
+    );
 
     let extracted = extract_patch(&raw).expect("bare git diff must extract");
     assert!(

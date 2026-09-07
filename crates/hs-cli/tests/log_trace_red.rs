@@ -32,18 +32,23 @@ fn seed_log(dir: &std::path::Path) -> Uuid {
     let stream = Uuid::new_v4();
     let mut w = StreamWriter::create(dir, stream).unwrap();
     w.append(
-        EventBuilder::new(EventKind::ModelCall)
-            .payload(Payload::Inline(model_payload("thinking about step one", "{\"tool\":\"repo.search\"}"))),
+        EventBuilder::new(EventKind::ModelCall).payload(Payload::Inline(model_payload(
+            "thinking about step one",
+            "{\"tool\":\"repo.search\"}",
+        ))),
     )
     .unwrap();
     w.append(
-        EventBuilder::new(EventKind::ToolCall)
-            .payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({"tool": "repo.search", "args": {}})).unwrap())),
+        EventBuilder::new(EventKind::ToolCall).payload(Payload::Inline(
+            serde_json::to_vec(&serde_json::json!({"tool": "repo.search", "args": {}})).unwrap(),
+        )),
     )
     .unwrap();
     w.append(
-        EventBuilder::new(EventKind::ModelCall)
-            .payload(Payload::Inline(model_payload("thinking about step two", "{\"tool\":\"repo.read\"}"))),
+        EventBuilder::new(EventKind::ModelCall).payload(Payload::Inline(model_payload(
+            "thinking about step two",
+            "{\"tool\":\"repo.read\"}",
+        ))),
     )
     .unwrap();
     stream
@@ -66,8 +71,12 @@ fn trace_replay_prints_reasoning_in_order_and_skips_non_model_events() {
         String::from_utf8_lossy(&out.stderr)
     );
     let s = String::from_utf8_lossy(&out.stdout);
-    let one = s.find("thinking about step one").unwrap_or_else(|| panic!("missing trace one in:\n{s}"));
-    let two = s.find("thinking about step two").unwrap_or_else(|| panic!("missing trace two in:\n{s}"));
+    let one = s
+        .find("thinking about step one")
+        .unwrap_or_else(|| panic!("missing trace one in:\n{s}"));
+    let two = s
+        .find("thinking about step two")
+        .unwrap_or_else(|| panic!("missing trace two in:\n{s}"));
     assert!(one < two, "traces out of order:\n{s}");
     // Exactly two trace bodies: the ToolCall event must not be printed as a trace.
     assert_eq!(
@@ -108,8 +117,10 @@ fn trace_follow_emits_events_appended_after_start() {
     {
         let mut w = StreamWriter::resume(tmp.path(), stream).unwrap().writer;
         w.append(
-            EventBuilder::new(EventKind::ModelCall)
-                .payload(Payload::Inline(model_payload("thinking about step three", "{\"tool\":\"submit\"}"))),
+            EventBuilder::new(EventKind::ModelCall).payload(Payload::Inline(model_payload(
+                "thinking about step three",
+                "{\"tool\":\"submit\"}",
+            ))),
         )
         .unwrap();
     }
@@ -121,5 +132,9 @@ fn trace_follow_emits_events_appended_after_start() {
         }
     }
     let _ = child.kill();
-    assert!(saw_three, "follow mode did not emit the post-start trace within 5s");
+    let _ = child.wait();
+    assert!(
+        saw_three,
+        "follow mode did not emit the post-start trace within 5s"
+    );
 }

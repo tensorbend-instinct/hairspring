@@ -15,7 +15,11 @@ use std::path::Path;
 use std::process::Command;
 
 fn git(dir: &Path, args: &[&str]) {
-    let out = Command::new("git").args(args).current_dir(dir).output().unwrap();
+    let out = Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .unwrap();
     assert!(
         out.status.success(),
         "git {args:?}: {}",
@@ -23,7 +27,8 @@ fn git(dir: &Path, args: &[&str]) {
     );
 }
 
-const EDIT: &str = "diff --git a/real.py b/real.py\n--- a/real.py\n+++ b/real.py\n@@ -1 +1 @@\n-x = 1\n+x = 2\n";
+const EDIT: &str =
+    "diff --git a/real.py b/real.py\n--- a/real.py\n+++ b/real.py\n@@ -1 +1 @@\n-x = 1\n+x = 2\n";
 
 /// A workspace whose HEAD carries the stranded harness artifact, committed
 /// (the conan-17302 contamination shape left by the old eval flow).
@@ -45,7 +50,10 @@ fn cumulative_diff_never_contains_eval_artifact() {
     let r = hs_loop::editapply::apply(ws.path(), EDIT);
     assert_eq!(r["applied"], true, "apply failed: {r}");
     let cd = r["cumulative_diff"].as_str().unwrap();
-    assert!(cd.contains("+x = 2"), "real change missing from cumulative diff:\n{cd}");
+    assert!(
+        cd.contains("+x = 2"),
+        "real change missing from cumulative diff:\n{cd}"
+    );
     assert!(
         !cd.contains("hs-eval"),
         "harness artifact leaked into cumulative diff:\n{cd}"

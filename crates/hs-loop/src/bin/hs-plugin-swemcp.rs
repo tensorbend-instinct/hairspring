@@ -37,7 +37,9 @@ fn main() {
                 .unwrap_or_default();
             let completion = match attempt {
                 1 => serde_json::json!({"tool":"mcp.fixture.echo","args":{"text":"hello-via-mcp"}}),
-                2 => serde_json::json!({"tool":"repo.exec","args":{"command":"sh check.sh","diff":gold}}),
+                2 => {
+                    serde_json::json!({"tool":"repo.exec","args":{"command":"sh check.sh","diff":gold}})
+                }
                 3 => serde_json::json!({"tool":"edit.patch","args":{"patch":
                     "*** Begin Patch\n*** Update File: code.txt\n@@\n-broken\n+fixed\n*** End Patch\n"}}),
                 _ => serde_json::json!({"tool":"answer.submit","args":{"path":path}}),

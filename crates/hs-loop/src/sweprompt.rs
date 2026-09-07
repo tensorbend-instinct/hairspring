@@ -50,7 +50,9 @@ pub struct PromptArgs {
 /// sandbox binds the real system roots, so host detection IS sandbox
 /// detection.
 pub fn probe_orientation() -> String {
-    let tools = ["python3", "pip3", "cargo", "npm", "node", "apt-get", "git", "curl"];
+    let tools = [
+        "python3", "pip3", "cargo", "npm", "node", "apt-get", "git", "curl",
+    ];
     let mut have: Vec<&str> = vec![];
     for t in tools {
         let ok = std::process::Command::new("sh")
@@ -91,8 +93,22 @@ fn substitute(template: &str, args: &PromptArgs) -> String {
         ("{problem_statement}", args.problem_statement.trim()),
         ("{fail_to_pass}", f2p.as_str()),
         ("{edit_policy}", editpol.as_str()),
-        ("{network_line}", if crate::repexec::egress_off() { "Network: OFF (egress blocked - no package installs, no fetches; the repo, the venv, and system tooling are all you have)." } else { "Network: ON (outbound and loopback; package installs fine)." }),
-        ("{edit_tool}", if std::env::var("HS_SWE_EDIT_PATH").as_deref() == Ok("anchor") { "edit.anchor" } else { "edit.patch" }),
+        (
+            "{network_line}",
+            if crate::repexec::egress_off() {
+                "Network: OFF (egress blocked - no package installs, no fetches; the repo, the venv, and system tooling are all you have)."
+            } else {
+                "Network: ON (outbound and loopback; package installs fine)."
+            },
+        ),
+        (
+            "{edit_tool}",
+            if std::env::var("HS_SWE_EDIT_PATH").as_deref() == Ok("anchor") {
+                "edit.anchor"
+            } else {
+                "edit.patch"
+            },
+        ),
         ("{repo_layout}", args.repo_layout.as_str()),
         ("{answer_path}", args.answer_path.as_str()),
         ("{nudge}", args.nudge.as_str()),

@@ -78,10 +78,9 @@ fn driver_runs_a_full_mission_and_writes_all_artifacts() {
         String::from_utf8_lossy(&out.stderr)
     );
 
-    let result: serde_json::Value = serde_json::from_str(
-        &std::fs::read_to_string(run_dir.join("result.json")).unwrap(),
-    )
-    .unwrap();
+    let result: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(run_dir.join("result.json")).unwrap())
+            .unwrap();
     assert_eq!(result["instance_id"], "fixture__git-1");
     assert_eq!(result["passed"], true, "fixture mission must pass");
     assert_eq!(result["budget_killed"], false);
@@ -103,7 +102,10 @@ fn driver_runs_a_full_mission_and_writes_all_artifacts() {
     assert!(run_dir.join("mission_prompt.txt").exists());
 
     // workspace carries the applied patch
-    assert_eq!(std::fs::read_to_string(ws.join("code.txt")).unwrap(), "fixed\n");
+    assert_eq!(
+        std::fs::read_to_string(ws.join("code.txt")).unwrap(),
+        "fixed\n"
+    );
 }
 
 /// Seam C3: the driver-synthesized config wires repo.read/repo.search
@@ -177,18 +179,17 @@ fn driver_mission_uses_repotools_through_synthesized_config() {
         out.status,
         String::from_utf8_lossy(&out.stderr)
     );
-    let result: serde_json::Value = serde_json::from_str(
-        &std::fs::read_to_string(run_dir.join("result.json")).unwrap(),
-    )
-    .unwrap();
+    let result: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(run_dir.join("result.json")).unwrap())
+            .unwrap();
     assert_eq!(result["passed"], true);
     assert_eq!(result["steps"], 4, "read via repo.read, verify via repo.exec, edit.patch, then answer.submit (hard answer gate)");
 }
 
-/// Seam: repo.exec through the real driver/kernel/loop path (parent bar: no
-/// unit-test-only components). sweexec writes a corrupt patch, pre-flights it
-/// with repo.exec (must come back applied=false with the git error), then
-/// writes the gold patch and passes. Asserts on the event stream itself.
+// Seam: repo.exec through the real driver/kernel/loop path (parent bar: no
+// unit-test-only components). sweexec writes a corrupt patch, pre-flights it
+// with repo.exec (must come back applied=false with the git error), then
+// writes the gold patch and passes. Asserts on the event stream itself.
 
 /// Read every payload from EVERY stream under run_dir/log. Post-af5f7b57 the
 /// log holds two streams (kernel dispatch + loop results); single-stream
@@ -213,9 +214,18 @@ fn driver_mission_preflights_with_repoexec() {
     let ws = run_dir.join("ws");
     std::fs::create_dir_all(&ws).unwrap();
     std::fs::write(ws.join("code.txt"), "broken\n").unwrap();
-    std::fs::write(ws.join("check.sh"), "#!/bin/sh\ngrep -q '^fixed$' code.txt\n").unwrap();
+    std::fs::write(
+        ws.join("check.sh"),
+        "#!/bin/sh\ngrep -q '^fixed$' code.txt\n",
+    )
+    .unwrap();
     let git = |args: &[&str]| {
-        assert!(Command::new("git").args(args).current_dir(&ws).status().unwrap().success());
+        assert!(Command::new("git")
+            .args(args)
+            .current_dir(&ws)
+            .status()
+            .unwrap()
+            .success());
     };
     git(&["init", "-q"]);
     git(&["config", "user.email", "t@t"]);
@@ -240,12 +250,18 @@ fn driver_mission_preflights_with_repoexec() {
 
     let out = Command::new(DRIVER)
         .args([
-            "--instance", &dir.path().join("instance.json").display().to_string(),
-            "--model", "sweexec",
-            "--feedback", "on",
-            "--budget-micros", "100000",
-            "--max-steps", "8",
-            "--run-dir", &run_dir.display().to_string(),
+            "--instance",
+            &dir.path().join("instance.json").display().to_string(),
+            "--model",
+            "sweexec",
+            "--feedback",
+            "on",
+            "--budget-micros",
+            "100000",
+            "--max-steps",
+            "8",
+            "--run-dir",
+            &run_dir.display().to_string(),
         ])
         .env("HS_SWE_WORKSPACE", &ws)
         .env("HS_SWE_F2P", "sh check.sh")
@@ -254,23 +270,40 @@ fn driver_mission_preflights_with_repoexec() {
         .env("HS_SWE_GOLD_PATCH_FILE", dir.path().join("gold.patch"))
         .output()
         .unwrap();
-    assert!(out.status.success(), "driver: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "driver: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     let result: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(run_dir.join("result.json")).unwrap())
             .unwrap();
-    assert_eq!(result["passed"], true, "mission must pass after the pre-flight repair: {result}");
+    assert_eq!(
+        result["passed"], true,
+        "mission must pass after the pre-flight repair: {result}"
+    );
 
     // the stream proves the real path: a repo.exec ToolCall whose result is
     // the free apply-error feedback (corrupt patch), on the audit log
     let payloads = all_payloads(&run_dir);
-    let exec_call = payloads.iter().find(|p| {
-        p.contains("\"plugin\":\"repo.exec\"") && p.contains("\"applied\":false")
-    }).expect("a repo.exec ToolCall result must be on the stream");
-    assert!(exec_call.contains("\"applied\":false"), "corrupt patch pre-flight feedback: {exec_call}");
-    assert!(exec_call.contains("apply_error"), "names the git error: {exec_call}");
+    let exec_call = payloads
+        .iter()
+        .find(|p| p.contains("\"plugin\":\"repo.exec\"") && p.contains("\"applied\":false"))
+        .expect("a repo.exec ToolCall result must be on the stream");
+    assert!(
+        exec_call.contains("\"applied\":false"),
+        "corrupt patch pre-flight feedback: {exec_call}"
+    );
+    assert!(
+        exec_call.contains("apply_error"),
+        "names the git error: {exec_call}"
+    );
     // and the live workspace was never mutated by the exec pre-flight
     // (final state carries the gold patch applied by the CHECKER, post-pass)
-    assert_eq!(std::fs::read_to_string(ws.join("code.txt")).unwrap(), "fixed\n");
+    assert_eq!(
+        std::fs::read_to_string(ws.join("code.txt")).unwrap(),
+        "fixed\n"
+    );
 }
 
 /// Seam: an MCP-discovered tool callable through the real driver/kernel/loop
@@ -285,9 +318,18 @@ fn driver_mission_calls_mcp_tool() {
     let ws = run_dir.join("ws");
     std::fs::create_dir_all(&ws).unwrap();
     std::fs::write(ws.join("code.txt"), "broken\n").unwrap();
-    std::fs::write(ws.join("check.sh"), "#!/bin/sh\ngrep -q '^fixed$' code.txt\n").unwrap();
+    std::fs::write(
+        ws.join("check.sh"),
+        "#!/bin/sh\ngrep -q '^fixed$' code.txt\n",
+    )
+    .unwrap();
     let git = |args: &[&str]| {
-        assert!(Command::new("git").args(args).current_dir(&ws).status().unwrap().success());
+        assert!(Command::new("git")
+            .args(args)
+            .current_dir(&ws)
+            .status()
+            .unwrap()
+            .success());
     };
     git(&["init", "-q"]);
     git(&["config", "user.email", "t@t"]);
@@ -322,12 +364,18 @@ fn driver_mission_calls_mcp_tool() {
 
     let out = Command::new(DRIVER)
         .args([
-            "--instance", &dir.path().join("instance.json").display().to_string(),
-            "--model", "swemcp",
-            "--feedback", "on",
-            "--budget-micros", "100000",
-            "--max-steps", "8",
-            "--run-dir", &run_dir.display().to_string(),
+            "--instance",
+            &dir.path().join("instance.json").display().to_string(),
+            "--model",
+            "swemcp",
+            "--feedback",
+            "on",
+            "--budget-micros",
+            "100000",
+            "--max-steps",
+            "8",
+            "--run-dir",
+            &run_dir.display().to_string(),
         ])
         .env("HS_SWE_WORKSPACE", &ws)
         .env("HS_SWE_F2P", "sh check.sh")
@@ -336,7 +384,11 @@ fn driver_mission_calls_mcp_tool() {
         .env("HS_SWE_GOLD_PATCH_FILE", dir.path().join("gold.patch"))
         .output()
         .unwrap();
-    assert!(out.status.success(), "driver: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "driver: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     // Native tool delivery (Eric 2026-09-05): tools reach the model via the
     // provider API's tools parameter, NEVER hand-rendered prompt text. The
     // seam artifact is tools.json: every registered MCP tool must be there
@@ -387,18 +439,29 @@ fn driver_mission_calls_mcp_tool() {
 
     // the generated config registered the discovered tool
     let cfg = std::fs::read_to_string(run_dir.join("hairspring.toml")).unwrap();
-    assert!(cfg.contains("mcp.fixture.echo"), "namespaced tool registered: {cfg}");
+    assert!(
+        cfg.contains("mcp.fixture.echo"),
+        "namespaced tool registered: {cfg}"
+    );
 
     // the stream proves the real path: an mcp.fixture.echo ToolCall whose
     // result carries the echo payload
     let payloads = all_payloads(&run_dir);
-    let mcp_call = payloads.iter().find(|p| {
-        let p = p.as_str();
-        // must be the SUCCESS event: an error payload would also contain the
-        // args text, which previously let a dead MCP path pass this test
-        (p.contains("\"plugin\":\"mcp.fixture.echo\"") && p.contains("\"result\"") && !p.contains("\"error\""))
-    }).expect("a successful mcp.fixture.echo ToolCall event must be on the stream");
-    assert!(mcp_call.contains("hello-via-mcp"), "echo payload on stream: {mcp_call}");
+    let mcp_call = payloads
+        .iter()
+        .find(|p| {
+            let p = p.as_str();
+            // must be the SUCCESS event: an error payload would also contain the
+            // args text, which previously let a dead MCP path pass this test
+            p.contains("\"plugin\":\"mcp.fixture.echo\"")
+                && p.contains("\"result\"")
+                && !p.contains("\"error\"")
+        })
+        .expect("a successful mcp.fixture.echo ToolCall event must be on the stream");
+    assert!(
+        mcp_call.contains("hello-via-mcp"),
+        "echo payload on stream: {mcp_call}"
+    );
 }
 
 /// Seam: the D5 tools (edit.patch, notes.scratch) are wired into every SWE
@@ -411,9 +474,18 @@ fn driver_mission_uses_d5_tools() {
     let ws = run_dir.join("ws");
     std::fs::create_dir_all(&ws).unwrap();
     std::fs::write(ws.join("code.txt"), "broken\n").unwrap();
-    std::fs::write(ws.join("check.sh"), "#!/bin/sh\ngrep -q '^fixed$' code.txt\n").unwrap();
+    std::fs::write(
+        ws.join("check.sh"),
+        "#!/bin/sh\ngrep -q '^fixed$' code.txt\n",
+    )
+    .unwrap();
     let git = |args: &[&str]| {
-        assert!(Command::new("git").args(args).current_dir(&ws).status().unwrap().success());
+        assert!(Command::new("git")
+            .args(args)
+            .current_dir(&ws)
+            .status()
+            .unwrap()
+            .success());
     };
     git(&["init", "-q"]);
     git(&["config", "user.email", "t@t"]);
@@ -431,7 +503,11 @@ fn driver_mission_uses_d5_tools() {
         .unwrap(),
     )
     .unwrap();
-    let answer_path = run_dir.join("log").join("work").join("fixture__git-5").join("answer.txt");
+    let answer_path = run_dir
+        .join("log")
+        .join("work")
+        .join("fixture__git-5")
+        .join("answer.txt");
     let script = [
         serde_json::json!({"tool":"notes.scratch","args":{"op":"write","content":"hypothesis: code.txt holds the wrong word\n"}}).to_string(),
         serde_json::json!({"tool":"notes.scratch","args":{"op":"read"}}).to_string(),
@@ -443,12 +519,18 @@ fn driver_mission_uses_d5_tools() {
 
     let out = Command::new(DRIVER)
         .args([
-            "--instance", &dir.path().join("instance.json").display().to_string(),
-            "--model", "scripted",
-            "--feedback", "on",
-            "--budget-micros", "100000",
-            "--max-steps", "8",
-            "--run-dir", &run_dir.display().to_string(),
+            "--instance",
+            &dir.path().join("instance.json").display().to_string(),
+            "--model",
+            "scripted",
+            "--feedback",
+            "on",
+            "--budget-micros",
+            "100000",
+            "--max-steps",
+            "8",
+            "--run-dir",
+            &run_dir.display().to_string(),
         ])
         .env("HS_SWE_WORKSPACE", &ws)
         .env("HS_SWE_F2P", "sh check.sh")
@@ -456,7 +538,11 @@ fn driver_mission_uses_d5_tools() {
         .env("HS_SEQMODEL_SCRIPT", dir.path().join("script.jsonl"))
         .output()
         .unwrap();
-    assert!(out.status.success(), "driver: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "driver: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     let result: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(run_dir.join("result.json")).unwrap())
             .unwrap();
@@ -465,12 +551,24 @@ fn driver_mission_uses_d5_tools() {
     // both D5 tools registered in the generated config
     let cfg = std::fs::read_to_string(run_dir.join("hairspring.toml")).unwrap();
     assert!(cfg.contains("edit.patch"), "edit.patch registered: {cfg}");
-    assert!(cfg.contains("notes.scratch"), "notes.scratch registered: {cfg}");
+    assert!(
+        cfg.contains("notes.scratch"),
+        "notes.scratch registered: {cfg}"
+    );
 
     // notes persisted at the mission work dir
-    let notes = run_dir.join("log").join("work").join("fixture__git-5").join("notes.md");
-    assert!(std::fs::read_to_string(&notes).unwrap().contains("hypothesis: code.txt holds the wrong word"),
-        "notes file at {}", notes.display());
+    let notes = run_dir
+        .join("log")
+        .join("work")
+        .join("fixture__git-5")
+        .join("notes.md");
+    assert!(
+        std::fs::read_to_string(&notes)
+            .unwrap()
+            .contains("hypothesis: code.txt holds the wrong word"),
+        "notes file at {}",
+        notes.display()
+    );
 
     // the stream proves both tools really ran: notes read returned the
     // content, edit.apply returned a cumulative diff
@@ -478,9 +576,21 @@ fn driver_mission_uses_d5_tools() {
     // (in-flight visibility records) and the loop stream (call results).
     // Scan every stream; a result payload is identified by carrying ok/result.
     let payloads = all_payloads(&run_dir);
-    payloads.iter().find(|p| p.contains("\"plugin\":\"notes.scratch\"") && p.contains("\"content\"") && p.contains("hypothesis") && p.contains("\"ok\":true"))
+    payloads
+        .iter()
+        .find(|p| {
+            p.contains("\"plugin\":\"notes.scratch\"")
+                && p.contains("\"content\"")
+                && p.contains("hypothesis")
+                && p.contains("\"ok\":true")
+        })
         .expect("a notes.scratch result carrying the note must be on the stream");
-    let edit_call = payloads.iter().find(|p| p.contains("\"plugin\":\"edit.patch\"") && p.contains("cumulative_diff"))
+    let edit_call = payloads
+        .iter()
+        .find(|p| p.contains("\"plugin\":\"edit.patch\"") && p.contains("cumulative_diff"))
         .expect("an edit.patch result with cumulative_diff must be on the stream");
-    assert!(edit_call.contains("+fixed"), "cumulative diff carries the patch: {edit_call}");
+    assert!(
+        edit_call.contains("+fixed"),
+        "cumulative diff carries the patch: {edit_call}"
+    );
 }

@@ -39,10 +39,14 @@ pub enum MemoryError {
     Io(std::io::Error),
 }
 impl From<rusqlite::Error> for MemoryError {
-    fn from(e: rusqlite::Error) -> Self { MemoryError::Sqlite(e) }
+    fn from(e: rusqlite::Error) -> Self {
+        MemoryError::Sqlite(e)
+    }
 }
 impl From<std::io::Error> for MemoryError {
-    fn from(e: std::io::Error) -> Self { MemoryError::Io(e) }
+    fn from(e: std::io::Error) -> Self {
+        MemoryError::Io(e)
+    }
 }
 impl std::fmt::Display for MemoryError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

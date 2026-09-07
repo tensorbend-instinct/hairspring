@@ -154,7 +154,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
-    use crate::parser::{Hunk, parse_patch};
+    use crate::parser::{parse_patch, Hunk};
 
     /// Helper to construct a patch string with the given body.
     fn wrap_patch(body: &str) -> String {

@@ -35,12 +35,28 @@ pub fn sandbox_argv(scratch: &Path, _out_f: &Path, _err_f: &Path, cmd: &str) -> 
     // command, which used to silently lose every earlier command's output
     // (they went to the null'd child stdout). Compound commands are the
     // common case for real shells.
-    let script = format!("{{ {cmd}
-}} >/ws/.repexec-out 2>/ws/.repexec-err");
+    let script = format!(
+        "{{ {cmd}
+}} >/ws/.repexec-out 2>/ws/.repexec-err"
+    );
     let mut v: Vec<String> = [
-        "prlimit", "--as=8589934592", "--nproc=512", "--fsize=8589934592", "--nofile=4096",
-        "--", "bwrap", "--unshare-pid", "--unshare-ipc", "--die-with-parent", "--clearenv",
-        "--bind", "/usr", "/usr", "--bind", "/bin", "/bin",
+        "prlimit",
+        "--as=8589934592",
+        "--nproc=512",
+        "--fsize=8589934592",
+        "--nofile=4096",
+        "--",
+        "bwrap",
+        "--unshare-pid",
+        "--unshare-ipc",
+        "--die-with-parent",
+        "--clearenv",
+        "--bind",
+        "/usr",
+        "/usr",
+        "--bind",
+        "/bin",
+        "/bin",
     ]
     .iter()
     .map(|s| s.to_string())
@@ -64,21 +80,41 @@ pub fn sandbox_argv(scratch: &Path, _out_f: &Path, _err_f: &Path, cmd: &str) -> 
     let mask = scratch.join(".repexec-mask");
     let _ = std::fs::write(&mask, b"");
     if Path::new("/root/.git-credentials").exists() {
-        v.extend(["--ro-bind".into(), mask.display().to_string(), "/root/.git-credentials".into()]);
+        v.extend([
+            "--ro-bind".into(),
+            mask.display().to_string(),
+            "/root/.git-credentials".into(),
+        ]);
     }
     if Path::new("/root/.ssh").exists() {
         v.extend(["--tmpfs".into(), "/root/.ssh".into()]);
     }
     v.extend([
-        "--dev-bind".into(), "/dev".into(), "/dev".into(),
-        "--proc".into(), "/proc".into(),
-        "--bind".into(), scratch.display().to_string(), "/ws".into(),
-        "--tmpfs".into(), "/tmp".into(),
-        "--chdir".into(), "/ws".into(),
-        "--setenv".into(), "PATH".into(), "/root/.cargo/bin:/usr/local/cargo/bin:/usr/local/bin:/usr/bin:/bin".into(),
-        "--setenv".into(), "HOME".into(), "/root".into(),
-        "--setenv".into(), "LANG".into(), "C.UTF-8".into(),
-        "--".into(), "sh".into(), "-c".into(), script,
+        "--dev-bind".into(),
+        "/dev".into(),
+        "/dev".into(),
+        "--proc".into(),
+        "/proc".into(),
+        "--bind".into(),
+        scratch.display().to_string(),
+        "/ws".into(),
+        "--tmpfs".into(),
+        "/tmp".into(),
+        "--chdir".into(),
+        "/ws".into(),
+        "--setenv".into(),
+        "PATH".into(),
+        "/root/.cargo/bin:/usr/local/cargo/bin:/usr/local/bin:/usr/bin:/bin".into(),
+        "--setenv".into(),
+        "HOME".into(),
+        "/root".into(),
+        "--setenv".into(),
+        "LANG".into(),
+        "C.UTF-8".into(),
+        "--".into(),
+        "sh".into(),
+        "-c".into(),
+        script,
     ]);
     v
 }
@@ -105,11 +141,15 @@ fn prep(ws: &Path, answer_path: &Path) -> Result<Option<PathBuf>, Value> {
     let raw = match std::fs::read_to_string(answer_path) {
         Ok(s) => s,
         Err(_) => {
-            return Err(json!({"applied": false, "note": "no patch to test yet - build your fix first (edit.patch), then exec (or pass args.diff inline)"}));
+            return Err(
+                json!({"applied": false, "note": "no patch to test yet - build your fix first (edit.patch), then exec (or pass args.diff inline)"}),
+            );
         }
     };
     let Some(patch) = extract_diff(&raw) else {
-        return Err(json!({"applied": false, "note": "no diff found in the current answer - wrap one unified diff in a ```diff fence"}));
+        return Err(
+            json!({"applied": false, "note": "no diff found in the current answer - wrap one unified diff in a ```diff fence"}),
+        );
     };
     prep_diff(ws, &patch)
 }
@@ -136,7 +176,9 @@ fn prep_diff(ws: &Path, patch: &str) -> Result<Option<PathBuf>, Value> {
     {
         Ok(o) if o.status.success() => {}
         Ok(o) => {
-            return Err(json!({"$error": format!("scratch worktree: {}", String::from_utf8_lossy(&o.stderr))}));
+            return Err(
+                json!({"$error": format!("scratch worktree: {}", String::from_utf8_lossy(&o.stderr))}),
+            );
         }
         Err(e) => return Err(json!({"$error": format!("scratch worktree: {e}")})),
     }
@@ -173,7 +215,6 @@ fn cleanup_scratch(ws: &Path, scratch: &Path, worktree: bool) {
     }
 }
 
-
 /// Edit-path guardrail (post-B7, 2026-09-05): repo.exec is build/test ONLY -
 /// every source edit goes through edit.apply. B7's model bypassed the splice
 /// path by hand-writing raw diffs and git-applying them through this shell,
@@ -190,13 +231,15 @@ pub fn edit_path_violation(command: &str) -> Option<String> {
     };
     // Per simple-command segment (split on shell operators) so arguments of
     // one command are never attributed to another.
-    for segment in command.split(|c| c == '|' || c == ';' || c == '&' || c == '(' || c == ')') {
+    for segment in command.split(['|', ';', '&', '(', ')']) {
         let mut toks: Vec<String> = Vec::new();
         for raw in segment.split_whitespace() {
             // split attached redirections: ">f", "2>f", "2>>f", "2>f" style
             if let Some(pos) = raw.find(['>', '<']) {
                 let (op, target) = raw.split_at(pos + 1);
-                let ok = op.chars().all(|c| c == '>' || c == '<' || c.is_ascii_digit())
+                let ok = op
+                    .chars()
+                    .all(|c| c == '>' || c == '<' || c.is_ascii_digit())
                     && (op.contains('>') || op.contains('<'));
                 if ok && !target.is_empty() {
                     toks.push(op.to_string());
@@ -212,7 +255,10 @@ pub fn edit_path_violation(command: &str) -> Option<String> {
                 let mut j = i + 1;
                 while j < toks.len() {
                     let g = toks[j].as_str();
-                    if matches!(g, "-C" | "-c" | "--git-dir" | "--work-tree" | "--namespace" | "--exec-path") {
+                    if matches!(
+                        g,
+                        "-C" | "-c" | "--git-dir" | "--work-tree" | "--namespace" | "--exec-path"
+                    ) {
                         j += 2;
                     } else if g.starts_with('-') {
                         j += 1;
@@ -227,9 +273,7 @@ pub fn edit_path_violation(command: &str) -> Option<String> {
         }
         // redirection writes to .diff/.patch
         for (i, t) in toks.iter().enumerate() {
-            if t.contains('>')
-                && t.chars().all(|c| c == '>' || c.is_ascii_digit())
-            {
+            if t.contains('>') && t.chars().all(|c| c == '>' || c.is_ascii_digit()) {
                 if let Some(target) = toks.get(i + 1) {
                     if is_diff_target(target) {
                         return Some(format!("raw diff-file write ({t} {target})"));
@@ -249,8 +293,11 @@ pub fn edit_path_violation(command: &str) -> Option<String> {
             }
         }
         // cp / mv / install: destination is the last operand
-        if let Some(i) = toks.iter().position(|t| matches!(t.as_str(), "cp" | "mv" | "install")) {
-            if let Some(dst) = toks[i + 1..].iter().filter(|a| !a.starts_with('-')).last() {
+        if let Some(i) = toks
+            .iter()
+            .position(|t| matches!(t.as_str(), "cp" | "mv" | "install"))
+        {
+            if let Some(dst) = toks[i + 1..].iter().rfind(|a| !a.starts_with('-')) {
                 if is_diff_target(dst) {
                     return Some(format!("raw diff-file write ({} {dst})", toks[i]));
                 }
@@ -302,7 +349,13 @@ pub fn run_sandboxed_no_patch(ws: &Path, command: &str, timeout_secs: u64) -> Va
     if let Some(v) = edit_gate(command, false) {
         return v;
     }
-    run_with_prep(scratch_clone(ws).map(Some), ws, command, timeout_secs, false)
+    run_with_prep(
+        scratch_clone(ws).map(Some),
+        ws,
+        command,
+        timeout_secs,
+        false,
+    )
 }
 
 /// Self-contained scratch copy for scratch-shell mode: `git clone --local`
@@ -322,12 +375,20 @@ fn scratch_clone(ws: &Path) -> Result<PathBuf, Value> {
         .output()
     {
         Ok(o) if o.status.success() => Ok(scratch),
-        Ok(o) => Err(json!({"$error": format!("scratch clone: {}", String::from_utf8_lossy(&o.stderr))})),
+        Ok(o) => {
+            Err(json!({"$error": format!("scratch clone: {}", String::from_utf8_lossy(&o.stderr))}))
+        }
         Err(e) => Err(json!({"$error": format!("scratch clone: {e}")})),
     }
 }
 
-fn run_with_prep(prepped: Result<Option<PathBuf>, Value>, ws: &Path, command: &str, timeout_secs: u64, patch_mode: bool) -> Value {
+fn run_with_prep(
+    prepped: Result<Option<PathBuf>, Value>,
+    ws: &Path,
+    command: &str,
+    timeout_secs: u64,
+    patch_mode: bool,
+) -> Value {
     let scratch = match prepped {
         Ok(Some(s)) => s,
         Ok(None) => unreachable!(),
@@ -378,7 +439,6 @@ fn run_with_prep(prepped: Result<Option<PathBuf>, Value>, ws: &Path, command: &s
            "stdout": stdout, "stderr": stderr})
 }
 
-
 /// Host-side exec for harness-generated acceptance commands (the goal
 /// evaluator's f2p). The bwrap sandbox exists to contain MODEL commands;
 /// the goal evaluator runs harness-fixed commands, and mission venvs live
@@ -414,7 +474,12 @@ pub fn run_host(ws: &Path, answer_path: &Path, command: &str, timeout_secs: u64)
     };
     let out_f = scratch.join(".repexec-out");
     let err_f = scratch.join(".repexec-err");
-    let wrapped = format!("{} >'{}' 2>'{}'", host_command_wrapper(command.trim()), out_f.display(), err_f.display());
+    let wrapped = format!(
+        "{} >'{}' 2>'{}'",
+        host_command_wrapper(command.trim()),
+        out_f.display(),
+        err_f.display()
+    );
     let child = Command::new("sh")
         .arg("-c")
         .arg(&wrapped)

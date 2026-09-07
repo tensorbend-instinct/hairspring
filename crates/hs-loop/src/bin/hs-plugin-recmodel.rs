@@ -17,7 +17,11 @@ fn main() {
             };
             if let Ok(dump) = std::env::var("REC_DUMP") {
                 use std::io::Write;
-                let mut f = std::fs::OpenOptions::new().create(true).append(true).open(dump).unwrap();
+                let mut f = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(dump)
+                    .unwrap();
                 writeln!(f, "===PROMPT===\n{prompt}").unwrap();
             }
             let mode = std::env::var("REC_MODE").unwrap_or_else(|_| "pressure".into());

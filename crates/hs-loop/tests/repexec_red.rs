@@ -12,9 +12,6 @@
 //! - timeout is enforced and reported.
 //! - no answer yet: clean "no patch to test" feedback, not an error.
 
-use std::io::Write;
-use std::path::Path;
-
 /// Minimal git workspace: one file, one commit.
 fn mk_ws() -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
@@ -48,9 +45,15 @@ fn exec_applies_patch_in_scratch_and_runs_command() {
     let r = hs_loop::repexec::run_sandboxed(ws.path(), &ans, "cat app.py", 30);
     assert_eq!(r["applied"], true, "patch should apply: {r}");
     assert_eq!(r["exit_code"], 0);
-    assert!(r["stdout"].as_str().unwrap().contains("x = 2"), "scratch sees the patch: {r}");
+    assert!(
+        r["stdout"].as_str().unwrap().contains("x = 2"),
+        "scratch sees the patch: {r}"
+    );
     // live workspace untouched
-    assert_eq!(std::fs::read_to_string(ws.path().join("app.py")).unwrap(), "x = 1\n");
+    assert_eq!(
+        std::fs::read_to_string(ws.path().join("app.py")).unwrap(),
+        "x = 1\n"
+    );
 }
 
 #[test]
@@ -60,10 +63,15 @@ fn exec_preflight_reports_unappliable_patch_without_running() {
     std::fs::write(&ans, PATCH_BAD).unwrap();
     let r = hs_loop::repexec::run_sandboxed(ws.path(), &ans, "cat app.py", 30);
     assert_eq!(r["applied"], false);
-    assert!(r["apply_error"].as_str().unwrap().len() > 3, "names the apply failure: {r}");
-    assert!(r.get("exit_code").is_none() || r["exit_code"].is_null(), "command must not run");
+    assert!(
+        r["apply_error"].as_str().unwrap().len() > 3,
+        "names the apply failure: {r}"
+    );
+    assert!(
+        r.get("exit_code").is_none() || r["exit_code"].is_null(),
+        "command must not run"
+    );
 }
-
 
 #[test]
 fn exec_enforces_timeout() {
@@ -97,6 +105,13 @@ fn exec_cleans_up_scratch() {
         .current_dir(ws.path())
         .output()
         .unwrap();
-    let n = String::from_utf8_lossy(&wt.stdout).matches("worktree ").count();
-    assert_eq!(n, 1, "scratch worktree must be removed: {}", String::from_utf8_lossy(&wt.stdout));
+    let n = String::from_utf8_lossy(&wt.stdout)
+        .matches("worktree ")
+        .count();
+    assert_eq!(
+        n,
+        1,
+        "scratch worktree must be removed: {}",
+        String::from_utf8_lossy(&wt.stdout)
+    );
 }

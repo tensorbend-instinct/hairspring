@@ -401,9 +401,10 @@ fn parse_hex32(s: &str) -> Result<[u8; 32], WorldError> {
 /// Deterministic full-tree walk: sorted relative dir paths + file bytes.
 /// (dirs, symlinks, files). symlink_metadata: links are recorded, never
 /// followed - a dangling link must not kill the snapshot.
-fn walk_tree(
-    root: &Path,
-) -> Result<(Vec<String>, Vec<SymlinkEntry>, Vec<(String, Vec<u8>)>), WorldError> {
+/// (dirs, symlinks, files) collected by `walk_tree`.
+type TreeWalk = (Vec<String>, Vec<SymlinkEntry>, Vec<(String, Vec<u8>)>);
+
+fn walk_tree(root: &Path) -> Result<TreeWalk, WorldError> {
     let mut dirs: Vec<String> = Vec::new();
     let mut links: Vec<SymlinkEntry> = Vec::new();
     let mut out: Vec<(String, Vec<u8>)> = Vec::new();
@@ -491,7 +492,11 @@ impl World {
             }
             i = j;
         }
-        let manifest = SnapshotManifest { dirs, files: manifest_files, symlinks };
+        let manifest = SnapshotManifest {
+            dirs,
+            files: manifest_files,
+            symlinks,
+        };
         let manifest_hash = hs_log::write_blob(&self.log_root, &manifest_bytes(&manifest))?;
         let snapshot_id = hex32(&manifest_hash);
         let rep = SnapshotReport {
@@ -513,9 +518,8 @@ impl World {
     pub fn restore(&self, snapshot_id: &str, dest: &Path) -> Result<SnapshotReport, WorldError> {
         let t0 = std::time::Instant::now();
         let manifest_hash = parse_hex32(snapshot_id)?;
-        let mbytes = hs_log::read_blob(&self.log_root, &manifest_hash).map_err(|_| {
-            WorldError::Rejected(format!("unknown snapshot id {snapshot_id}"))
-        })?;
+        let mbytes = hs_log::read_blob(&self.log_root, &manifest_hash)
+            .map_err(|_| WorldError::Rejected(format!("unknown snapshot id {snapshot_id}")))?;
         let manifest: SnapshotManifest = serde_json::from_slice(&mbytes)
             .map_err(|e| WorldError::Rejected(format!("corrupt manifest: {e}")))?;
         std::fs::create_dir_all(dest)
@@ -523,11 +527,15 @@ impl World {
         for l in &manifest.symlinks {
             let lp = dest.join(&l.path);
             if !lp.starts_with(dest) {
-                return Err(WorldError::Rejected(format!("manifest link escapes dest: {}", l.path)));
+                return Err(WorldError::Rejected(format!(
+                    "manifest link escapes dest: {}",
+                    l.path
+                )));
             }
             if let Some(parent) = lp.parent() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|e| WorldError::Rejected(format!("mkdir {}: {e}", parent.display())))?;
+                std::fs::create_dir_all(parent).map_err(|e| {
+                    WorldError::Rejected(format!("mkdir {}: {e}", parent.display()))
+                })?;
             }
             std::os::unix::fs::symlink(&l.target, &lp)
                 .map_err(|e| WorldError::Rejected(format!("symlink {}: {e}", lp.display())))?;
@@ -535,7 +543,9 @@ impl World {
         for d in &manifest.dirs {
             let dp = dest.join(d);
             if !dp.starts_with(dest) {
-                return Err(WorldError::Rejected(format!("manifest dir escapes dest: {d}")));
+                return Err(WorldError::Rejected(format!(
+                    "manifest dir escapes dest: {d}"
+                )));
             }
             std::fs::create_dir_all(&dp)
                 .map_err(|e| WorldError::Rejected(format!("mkdir {}: {e}", dp.display())))?;
@@ -543,19 +553,27 @@ impl World {
         let mut bytes = 0u64;
         for e in &manifest.files {
             let hash = parse_hex32(&e.hash)?;
-            let data = hs_log::read_blob(&self.log_root, &hash)
-                .map_err(|_| WorldError::Rejected(format!("missing blob {} for {}", e.hash, e.path)))?;
+            let data = hs_log::read_blob(&self.log_root, &hash).map_err(|_| {
+                WorldError::Rejected(format!("missing blob {} for {}", e.hash, e.path))
+            })?;
             if data.len() as u64 != e.len {
-                return Err(WorldError::Rejected(format!("length mismatch on {}", e.path)));
+                return Err(WorldError::Rejected(format!(
+                    "length mismatch on {}",
+                    e.path
+                )));
             }
             let dest_p = dest.join(&e.path);
             // path-escape guard: a forged manifest must not write outside dest
             if !dest_p.starts_with(dest) {
-                return Err(WorldError::Rejected(format!("manifest path escapes dest: {}", e.path)));
+                return Err(WorldError::Rejected(format!(
+                    "manifest path escapes dest: {}",
+                    e.path
+                )));
             }
             if let Some(parent) = dest_p.parent() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|e2| WorldError::Rejected(format!("mkdir {}: {e2}", parent.display())))?;
+                std::fs::create_dir_all(parent).map_err(|e2| {
+                    WorldError::Rejected(format!("mkdir {}: {e2}", parent.display()))
+                })?;
             }
             std::fs::write(&dest_p, &data)
                 .map_err(|e2| WorldError::Rejected(format!("write {}: {e2}", dest_p.display())))?;
@@ -574,12 +592,17 @@ impl World {
                 }
             })
             .collect();
-        let rebuilt = SnapshotManifest { dirs: rdirs, files: rfiles, symlinks: rlinks };
+        let rebuilt = SnapshotManifest {
+            dirs: rdirs,
+            files: rfiles,
+            symlinks: rlinks,
+        };
         let rebuilt_bytes = manifest_bytes(&rebuilt);
         let rebuilt_hash: [u8; 32] = sha2::Sha256::digest(&rebuilt_bytes).into();
         if rebuilt_hash != manifest_hash {
             return Err(WorldError::Rejected(
-                "restore verification failed: rehydrated tree does not match the snapshot manifest".into(),
+                "restore verification failed: rehydrated tree does not match the snapshot manifest"
+                    .into(),
             ));
         }
         Ok(SnapshotReport {
