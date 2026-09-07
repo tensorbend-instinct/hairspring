@@ -27,7 +27,8 @@ MAX_STEPS = os.environ.get("HS_SUBSET_MAX_STEPS", "100000")  # Eric 2026-09-05: 
 PAR = int(os.environ.get("PAR", "4"))
 EXTRA_DEPS = {"haystack": "ddtrace opentelemetry-sdk flaky python-docx pypdf azure-ai-formrecognizer",
               "streamlink": "freezegun requests-mock versioningit setuptools",
-              "pdm": "pytest-mock hishel==0.1.5"}  # gate-audit 2026-09-06: 10/10 gates collect+execute at base; == pin, never < (shell redirection bug)
+              "pdm": "pytest-mock hishel==0.1.5",
+              "authlib": "flask flask-sqlalchemy pytest-env pytest-asyncio"}  # authlib-802 preflight 2026-09-07: flask/oauth2 F2P nodes need flask group + pytest-env/pytest-asyncio ini plugins  # gate-audit 2026-09-06: 10/10 gates collect+execute at base; == pin, never < (shell redirection bug)
 _lock = threading.Lock()
 
 def sh(cmd, cwd=None, timeout=None, env=None):
