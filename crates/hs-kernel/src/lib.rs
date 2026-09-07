@@ -175,8 +175,8 @@ impl PluginProc {
             })
             .spawn()
             .map_err(|e| KernelError::Plugin(format!("spawn {}: {e}", command.join(" "))))?;
-        let stdin = child.stdin.take().unwrap();
-        let stdout = BufReader::new(child.stdout.take().unwrap());
+        let stdin = child.stdin.take().expect("spawned with Stdio::piped");
+        let stdout = BufReader::new(child.stdout.take().expect("spawned with Stdio::piped"));
         let (tx, rx) = std::sync::mpsc::channel::<Result<String, String>>();
         std::thread::spawn(move || {
             let mut stdout = stdout;
@@ -509,7 +509,7 @@ impl Kernel {
             let mut tools = self.tools.borrow_mut();
             tools
                 .get_mut(name)
-                .unwrap()
+                .expect("existence checked above via ok_or_else")
                 .call("tool.call", serde_json::json!({"args": args.clone()}))
         };
         let latency_ms = t0.elapsed().as_millis() as u32;
@@ -602,13 +602,16 @@ impl Kernel {
         let t0 = Instant::now();
         let result = {
             let mut models = self.models.borrow_mut();
-            models.get_mut(&name).unwrap().call(
-                "model.call",
-                match tools {
-                    Some(t) => serde_json::json!({"prompt": prompt, "tools": t}),
-                    None => serde_json::json!({"prompt": prompt}),
-                },
-            )
+            models
+                .get_mut(&name)
+                .expect("existence checked above via ok_or_else")
+                .call(
+                    "model.call",
+                    match tools {
+                        Some(t) => serde_json::json!({"prompt": prompt, "tools": t}),
+                        None => serde_json::json!({"prompt": prompt}),
+                    },
+                )
         };
         let latency_ms = t0.elapsed().as_millis() as u32;
         let r = result?;
@@ -691,13 +694,16 @@ impl Kernel {
         let t0 = Instant::now();
         let result = {
             let mut models = self.models.borrow_mut();
-            models.get_mut(&name).unwrap().call(
-                "model.call",
-                match tools {
-                    Some(t) => serde_json::json!({"messages": messages, "tools": t}),
-                    None => serde_json::json!({"messages": messages}),
-                },
-            )
+            models
+                .get_mut(&name)
+                .expect("existence checked above via ok_or_else")
+                .call(
+                    "model.call",
+                    match tools {
+                        Some(t) => serde_json::json!({"messages": messages, "tools": t}),
+                        None => serde_json::json!({"messages": messages}),
+                    },
+                )
         };
         let latency_ms = t0.elapsed().as_millis() as u32;
         let r = result?;
@@ -777,13 +783,18 @@ impl Kernel {
         let mut log = self.log.borrow_mut();
         if log.is_none() {
             let sid = uuid::Uuid::new_v4();
-            *log = Some(StreamWriter::create(self.log_root.as_ref().unwrap(), sid)?);
+            *log = Some(StreamWriter::create(
+                self.log_root.as_ref().expect("set by load_with_log"),
+                sid,
+            )?);
             *self.stream_id.borrow_mut() = Some(sid);
         }
-        let w = log.as_mut().unwrap();
+        let w = log.as_mut().expect("assigned above");
         w.append(
             EventBuilder::new(kind)
-                .payload(Payload::Inline(serde_json::to_vec(&body).unwrap()))
+                .payload(Payload::Inline(
+                    serde_json::to_vec(&body).expect("event bodies serialize"),
+                ))
                 .latency_ms(latency_ms)
                 .cost_usd_micros(cost),
         )?;
