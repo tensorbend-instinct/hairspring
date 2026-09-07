@@ -15,7 +15,7 @@
 //! held-out tier ONLY (no candidate becomes champion on self-adjacent
 //! evidence).
 
-use hs_core::{EventKind, Payload};
+use hs_core::EventKind;
 use hs_scorer::*;
 use std::collections::BTreeMap;
 
