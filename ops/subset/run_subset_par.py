@@ -241,10 +241,16 @@ def preflight_gate(m, ws, venv_python, nodes):
     out = rx.stdout + rx.stderr
     counts = parse_exec_counts(out)
     executed = counts.get("passed", 0) + counts.get("failed", 0)
-    if counts.get("error", 0):
-        if not errors_are_testpatch_intrinsic(out, m.get("test_patch", "")):
-            return fail(f"{counts['error']} ERROR(s) at execute: {out[-300:]}")
-    if executed < 1 or "found no collectors" in out or "no tests ran" in out:
+    intrinsic = bool(counts.get("error", 0)) and errors_are_testpatch_intrinsic(
+        out, m.get("test_patch", ""))
+    if counts.get("error", 0) and not intrinsic:
+        return fail(f"{counts['error']} ERROR(s) at execute: {out[-300:]}")
+    if "found no collectors" in out or "no tests ran" in out:
+        return fail(f"zero tests executed: {out[-300:]}")
+    if executed < 1 and not intrinsic:
+        # pdm-3374: when EVERY test errors at base from a test_patch-intrinsic
+        # fixture, zero executed is by design (the gold feature is what makes
+        # them run). The intrinsic check above has already vetted the frames.
         return fail(f"zero tests executed: {out[-300:]}")
     return None
 

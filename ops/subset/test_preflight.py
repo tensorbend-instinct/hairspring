@@ -88,3 +88,34 @@ def test_bare_file_node_ok(monkeypatch):
     assert R.preflight_gate(M, WS, "/venv/bin/python",
                             ["tests/plugins/test_tf1.py",
                              "tests/plugins/test_tf1.py::TestPluginCanHandleUrlTF1::test_all_matchers_match[stream]"]) is None
+
+
+def test_intrinsic_error_only_mission_passes_gate(monkeypatch):
+    """pdm-3374 (2026-09-07): every F2P node ERRORs at base because the test
+    patch's conftest fixture needs the gold feature (cache_clear). Zero tests
+    executed is BY DESIGN here - the intrinsic-error excuse must also cover
+    the zero-executed check, or the gate still refuses a completable mission."""
+    exec_out = ("tests/cli/conftest.py:123: AttributeError\n"
+                "ERROR tests/cli/test_config.py::test_config_password_save_into_keyring - AttributeError: 'function' object has no attribute 'cache_clear'\n"
+                "3 errors in 0.36s\n")
+    monkeypatch.setattr(R, "sh", mk_sh(
+        collect_out="tests/cli/test_config.py::test_config_password_save_into_keyring\n\n1 test collected\n",
+        exec_out=exec_out, import_path=WS + "/haystack/__init__.py"))
+    m3374 = dict(M, test_patch="diff --git a/tests/cli/conftest.py b/tests/cli/conftest.py\n")
+    assert R.preflight_gate(m3374, WS, "/venv/bin/python",
+                            ["tests/cli/test_config.py::test_config_password_save_into_keyring"]) is None
+
+
+def test_zero_executed_with_base_file_error_still_refuses(monkeypatch):
+    """The excuse dies the moment a terminal frame lands outside the test
+    patch: zero executed + base-file error = environment breakage (8619)."""
+    exec_out = ("src/pdm/models/auth.py:41: AttributeError\n"
+                "ERROR tests/cli/test_config.py::test_config_password_save_into_keyring - AttributeError\n"
+                "1 error in 0.28s\n")
+    monkeypatch.setattr(R, "sh", mk_sh(
+        collect_out="tests/cli/test_config.py::test_config_password_save_into_keyring\n\n1 test collected\n",
+        exec_out=exec_out, import_path=WS + "/haystack/__init__.py"))
+    m3374 = dict(M, test_patch="diff --git a/tests/cli/conftest.py b/tests/cli/conftest.py\n")
+    err = R.preflight_gate(m3374, WS, "/venv/bin/python",
+                           ["tests/cli/test_config.py::test_config_password_save_into_keyring"])
+    assert err and "preflight_gate_invalid" in err
