@@ -74,10 +74,28 @@ pub struct ReplSession {
     inner: InnerLoop,
     used_ids: std::collections::HashSet<String>,
     last_answer_path: Option<PathBuf>,
+    log_root: PathBuf,
     mcp_catalog: String,
 }
 
 impl ReplSession {
+    /// Tool-env wiring (live defect 2026-09-08): hs-tb-run sets
+    /// HS_TERM_WORKDIR/HS_SWE_WORKSPACE for every plugin the kernel
+    /// spawns; hs-repl never did, so term.exec fell back to /app and
+    /// died `spawn: No such file or directory` on any host without one.
+    /// The REPL wires it itself: the session dir IS the working
+    /// directory, stable across missions - the operator exports nothing.
+    /// Plugins are long-lived processes spawned at kernel load, so this
+    /// must run BEFORE swe_kernel.
+    fn wire_tool_env(log_root: &Path) -> Result<(), LoopError> {
+        std::fs::create_dir_all(log_root)?;
+        unsafe {
+            std::env::set_var("HS_TERM_WORKDIR", log_root);
+            std::env::set_var("HS_SWE_WORKSPACE", log_root);
+        }
+        Ok(())
+    }
+
     /// Load the kernel from `config`, gated by require_visibility (the
     /// production startup rule: no blind runs), and build the loop on
     /// `log_root`.
@@ -120,6 +138,7 @@ impl ReplSession {
         } else {
             config
         };
+        Self::wire_tool_env(log_root)?;
         let kernel = swe_kernel(config, log_root)?;
         require_visibility(&kernel).map_err(LoopError::Visibility)?;
         let mut inner = InnerLoop::new(kernel, log_root, feedback, max_steps)?;
@@ -128,6 +147,7 @@ impl ReplSession {
             inner,
             used_ids: std::collections::HashSet::new(),
             last_answer_path: None,
+            log_root: log_root.to_path_buf(),
             mcp_catalog,
         })
     }
@@ -182,6 +202,7 @@ impl ReplSession {
         } else {
             config
         };
+        Self::wire_tool_env(log_root)?;
         let kernel = swe_kernel(config, log_root)?;
         require_visibility(&kernel).map_err(LoopError::Visibility)?;
         let mut inner = InnerLoop::with_stream(kernel, log_root, stream_id, feedback, max_steps)?;
@@ -190,6 +211,7 @@ impl ReplSession {
             inner,
             used_ids: std::collections::HashSet::new(),
             last_answer_path: None,
+            log_root: log_root.to_path_buf(),
             mcp_catalog,
         })
     }
