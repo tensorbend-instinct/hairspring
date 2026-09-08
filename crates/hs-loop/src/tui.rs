@@ -409,6 +409,116 @@ impl EditorState {
     }
 }
 
+/// M6: delegation graph - the loop substrate's Spawn/Message structure
+/// rendered as a first-class surface element. Nodes derive from Spawn
+/// events on the operator stream; completion derives from the child's
+/// own GoalUpdate (done flag).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AgentStatus {
+    Running,
+    Done,
+    Failed,
+}
+
+/// One delegated sub-agent.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AgentNode {
+    pub stream_id: uuid::Uuid,
+    pub mission: String,
+    pub status: AgentStatus,
+}
+
+/// The delegation tree for the current session's stream.
+#[derive(Debug, Clone, Default)]
+pub struct DelegationGraph {
+    nodes: Vec<AgentNode>,
+}
+
+impl DelegationGraph {
+    pub fn new() -> Self {
+        DelegationGraph::default()
+    }
+
+    pub fn nodes(&self) -> &[AgentNode] {
+        &self.nodes
+    }
+
+    /// Record a Spawn: child stream + mission, status Running.
+    pub fn note_spawn(&mut self, child: uuid::Uuid, mission: &str) {
+        if let Some(n) = self.nodes.iter_mut().find(|n| n.stream_id == child) {
+            n.mission = mission.to_string();
+            return;
+        }
+        self.nodes.push(AgentNode {
+            stream_id: child,
+            mission: mission.to_string(),
+            status: AgentStatus::Running,
+        });
+    }
+
+    /// Record a child completion; newest knowledge wins.
+    pub fn note_done(&mut self, child: uuid::Uuid, ok: bool) {
+        if let Some(n) = self.nodes.iter_mut().find(|n| n.stream_id == child) {
+            n.status = if ok { AgentStatus::Done } else { AgentStatus::Failed };
+        }
+    }
+
+    /// Derive the graph from the durable log: Spawn events on the
+    /// operator stream name children; each child's completion comes
+    /// from its own stream's latest GoalUpdate.
+    pub fn scan_stream(
+        log_root: &std::path::Path,
+        stream: uuid::Uuid,
+    ) -> Result<Self, String> {
+        let reader = hs_log::StreamReader::open(log_root, stream)
+            .map_err(|e| format!("open stream {stream}: {e}"))?;
+        let events = reader.events().map_err(|e| format!("read stream: {e}"))?;
+        let mut g = DelegationGraph::new();
+        for ev in &events {
+            if ev.kind != EventKind::Spawn {
+                continue;
+            }
+            let hs_core::Payload::Inline(bytes) = &ev.payload else {
+                continue;
+            };
+            let Ok(v) = serde_json::from_slice::<serde_json::Value>(bytes) else {
+                continue;
+            };
+            let Some(child_s) = v.get("child_stream_id").and_then(|c| c.as_str()) else {
+                continue;
+            };
+            let Ok(child) = uuid::Uuid::parse_str(child_s) else {
+                continue;
+            };
+            let mission = v
+                .get("mission")
+                .and_then(|m| m.as_str())
+                .unwrap_or("(delegation)")
+                .to_string();
+            g.note_spawn(child, &mission);
+            // Completion: the child stream's latest GoalUpdate done flag.
+            if let Ok(cr) = hs_log::StreamReader::open(log_root, child) {
+                if let Ok(cevents) = cr.events() {
+                    for cev in cevents.iter().rev() {
+                        if cev.kind != EventKind::GoalUpdate {
+                            continue;
+                        }
+                        if let hs_core::Payload::Inline(cb) = &cev.payload {
+                            if let Ok(cv) = serde_json::from_slice::<serde_json::Value>(cb) {
+                                if let Some(true) = cv.get("done").and_then(|d| d.as_bool()) {
+                                    g.note_done(child, true);
+                                }
+                            }
+                        }
+                        break; // latest GoalUpdate decides
+                    }
+                }
+            }
+        }
+        Ok(g)
+    }
+}
+
 /// Cost rate mirror of the line-mode metering (micro-dollars per
 /// token). Kept identical to repl.rs vitals accounting: the HUD must
 /// agree with the line-mode status bar.
@@ -448,6 +558,10 @@ pub struct TuiState {
     pub picker: Option<PickerState>,
     /// In-flight streaming answer text; committed per line (M5).
     pub answer_inflight: String,
+    /// Delegation graph for this session (M6).
+    pub agents: DelegationGraph,
+    /// Whether the agents panel overlay is open (M6).
+    pub agents_panel: bool,
     /// Recent stream events, oldest first; the rail ticker shows the tail.
     pub ticker: VecDeque<EventKind>,
     /// HUD vitals.
@@ -468,6 +582,8 @@ impl Default for TuiState {
             transcript_scroll: None,
             picker: None,
             answer_inflight: String::new(),
+            agents: DelegationGraph::new(),
+            agents_panel: false,
             ticker: VecDeque::new(),
             model_label: "hs".to_string(),
             missions_run: 0,
@@ -516,6 +632,14 @@ impl TuiState {
                 self.phase = LoopPhase::Act;
                 self.push_ticker(EventKind::ToolCall);
                 self.push_transcript_line(&format!("\u{25b6} {plugin}  {args_summary}"));
+            }
+            U::SubAgentSpawned { child, mission } => {
+                self.agents.note_spawn(*child, mission);
+                self.push_ticker(EventKind::Spawn);
+            }
+            U::SubAgentFinished { child, ok } => {
+                self.agents.note_done(*child, *ok);
+                self.push_ticker(EventKind::Consequence);
             }
             U::ToolCallEnd {
                 ok,
@@ -569,6 +693,12 @@ impl TuiState {
             *h += lines.len();
         }
         self.transcript.extend(lines);
+    }
+
+    /// Toggle the agents panel overlay (M6). Rendering decides whether
+    /// a non-empty graph exists; an empty graph shows nothing.
+    pub fn toggle_agents_panel(&mut self) {
+        self.agents_panel = !self.agents_panel;
     }
 
     /// Open a picker overlay over the transcript (M4).
@@ -771,6 +901,38 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .title(" resume ");
+        f.render_widget(Paragraph::new(lines).block(block), rect);
+    }
+
+    // M6: the agents panel - delegation graph as a right-docked
+    // overlay, present only when open AND the graph is non-empty (zero
+    // chrome for the single-agent case).
+    if state.agents_panel && !state.agents.nodes().is_empty() {
+        let nodes = state.agents.nodes();
+        let box_w = (area.width * 2 / 3).max(30).min(area.width);
+        let box_h = (nodes.len() as u16 + 2).min(viewport.height.max(3));
+        let rect = Rect::new(area.width - box_w, viewport.y, box_w, box_h);
+        f.render_widget(ratatui::widgets::Clear, rect);
+        let lines: Vec<Line> = nodes
+            .iter()
+            .map(|n| {
+                let (glyph, style) = match n.status {
+                    AgentStatus::Running => ("\u{25b6}", Style::default().fg(Color::Cyan)),
+                    AgentStatus::Done => ("\u{2713}", Style::default().fg(Color::Green)),
+                    AgentStatus::Failed => ("\u{2717}", Style::default().fg(Color::Red)),
+                };
+                let short: String = n.stream_id.to_string().chars().take(8).collect();
+                Line::from(vec![
+                    Span::styled(format!("{glyph} "), style),
+                    Span::styled(short, Style::default().add_modifier(Modifier::DIM)),
+                    Span::raw(format!("  {}", n.mission)),
+                ])
+            })
+            .collect();
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .title(" agents ");
         f.render_widget(Paragraph::new(lines).block(block), rect);
     }
 }

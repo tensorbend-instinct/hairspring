@@ -160,6 +160,13 @@ pub enum UiEvent {
         output_summary: String,
         elapsed_ms: u64,
     },
+    /// UI gap #10 M6: a sub-agent was delegated to (hs-swarm Spawn).
+    SubAgentSpawned {
+        child: uuid::Uuid,
+        mission: String,
+    },
+    /// UI gap #10 M6: a delegated sub-agent finished.
+    SubAgentFinished { child: uuid::Uuid, ok: bool },
 }
 
 /// Sink for mission UI events (mirrors hs_kernel::DeltaSink).
@@ -277,6 +284,28 @@ impl<'a, W: Write> Painter<'a, W> {
                     &dim,
                     &format!("  ↑{input_tokens} ↓{output_tokens}"),
                 );
+                let _ = writeln!(self.out);
+            }
+            UiEvent::SubAgentSpawned { child, mission } => {
+                let dim = self.theme.dim.clone();
+                let tool = self.theme.tool.clone();
+                let short: String = child.to_string().chars().take(8).collect();
+                self.paint(&tool, "\u{2b21} agent ");
+                self.paint(&dim, &short);
+                self.paint(&dim, &format!("  {mission}"));
+                let _ = writeln!(self.out);
+            }
+            UiEvent::SubAgentFinished { child, ok } => {
+                let dim = self.theme.dim.clone();
+                let (code, mark) = if *ok {
+                    (self.theme.ok.clone(), "\u{2713}")
+                } else {
+                    (self.theme.fail.clone(), "\u{2717}")
+                };
+                let short: String = child.to_string().chars().take(8).collect();
+                let _ = write!(self.out, "  ");
+                self.paint(&code, mark);
+                self.paint(&dim, &format!(" agent {short}"));
                 let _ = writeln!(self.out);
             }
         }
