@@ -280,6 +280,7 @@ fn run_fullscreen(
     if opts.resume.as_deref() == Some("") {
         resume_sessions = open_resume_picker(&mut st, current_stream);
     }
+    let mut last_answer: Option<std::path::PathBuf> = None;
     loop {
         terminal.draw(|f| tui::render_skeleton(f, &st))?;
         while let Ok(msg) = rx.try_recv() {
@@ -290,6 +291,7 @@ fn run_fullscreen(
                     running = false;
                     match r {
                         Ok((m, cost_total)) => {
+                            last_answer = Some(m.answer_path.clone());
                             // M13: calls were counted live via
                             // ModelCallEnd; adding m.model_calls here
                             // doubled the HUD count.
@@ -352,8 +354,42 @@ fn run_fullscreen(
                             if t == ":resume" {
                                 resume_sessions = open_resume_picker(&mut st, current_stream);
                             } else if t == ":help" {
-                                for line in hs_loop::repl::REPL_HELP.lines() {
+                                // M26: the surface's OWN help - the
+                                // line-mode REPL_HELP advertised
+                                // commands that were dead ends here.
+                                for line in hs_loop::tui::TUI_HELP.lines() {
                                     st.push_transcript_line(line);
+                                }
+                            } else if t == ":status" {
+                                st.push_transcript_line(&st.status_line());
+                            } else if t == ":history" {
+                                let h = st.editor.history_entries();
+                                if h.is_empty() {
+                                    st.push_transcript_line("(no goals submitted yet)");
+                                } else {
+                                    for e in h {
+                                        st.push_transcript_line(&format!("  {e}"));
+                                    }
+                                }
+                            } else if t == ":last" {
+                                match &last_answer {
+                                    Some(p) => {
+                                        st.push_transcript_line(&format!(
+                                            "\u{203a} {}",
+                                            p.display()
+                                        ));
+                                        match std::fs::read_to_string(p) {
+                                            Ok(body) => {
+                                                let theme = st.theme.clone();
+                                                st.push_transcript_markdown(&body, &theme);
+                                            }
+                                            Err(e) => st.push_transcript_line(&format!(
+                                                "(unreadable: {e})"
+                                            )),
+                                        }
+                                    }
+                                    None => st
+                                        .push_transcript_line("(no mission has finished yet)"),
                                 }
                             } else if let Some(goal) = t.strip_prefix(":") {
                                 st.push_transcript_line(&format!(

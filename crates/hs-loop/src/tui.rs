@@ -85,6 +85,22 @@ pub fn kind_glyph(k: EventKind) -> char {
     }
 }
 
+/// M26: the full-screen surface's OWN help - every command the TUI
+/// actually implements (bin/hs-repl.rs Submit arms + handle_key), no
+/// line-mode leftovers. Pre-M26 the TUI printed the line-mode
+/// REPL_HELP, which advertised :status/:history/:last as dead ends
+/// and never mentioned :resume/:agents.
+pub const TUI_HELP: &str = "hairspring - full-screen surface
+  <text>    run <text> as a goal (mission)
+  :status   model, missions, steps, calls, cost, stream of this session
+  :history  goals you have submitted this session
+  :last     the latest mission's answer artifact
+  :resume   pick a prior session to continue
+  :agents   toggle the delegation graph panel
+  :help     this text
+  :quit     exit (Ctrl+C works too)
+  keys: Enter run - Alt+Enter newline - PgUp/PgDn scroll - wheel scrolls";
+
 /// The four screen regions. The composer and HUD are pinned at the
 /// bottom; the viewport takes everything above the rail.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -260,6 +276,13 @@ pub struct EditorState {
 }
 
 const HISTORY_CAP: usize = 100;
+
+impl EditorState {
+    /// M26: ":history" data - submitted entries, oldest first.
+    pub fn history_entries(&self) -> Vec<String> {
+        self.history.iter().cloned().collect()
+    }
+}
 
 impl EditorState {
     /// Whole buffer, lines joined by newlines.
@@ -1223,6 +1246,15 @@ impl TuiState {
         self.transcript_scroll = None;
     }
 
+    /// M26: ":status" data - the same vitals the HUD paints, plus the
+    /// stream, as one transcript line.
+    pub fn status_line(&self) -> String {
+        // The HUD line already carries the stream when set - compose,
+        // don't repeat (first M26 capture read "... 79adb802 - stream
+        // 79adb802").
+        format!("status: {} \u{00b7} {}", self.model_label, self.hud_line())
+    }
+
     /// M24: pub so the HUD text is test-pinnable (was private until
     /// the pluralization pin needed it).
     pub fn hud_line(&self) -> String {
@@ -1287,6 +1319,24 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
     let composer = Rect::new(0, l.hud.y.saturating_sub(want_h), area.width, want_h);
     let rail = Rect::new(0, composer.y.saturating_sub(1), area.width, composer.y.min(1));
     let viewport = Rect::new(0, 0, area.width, rail.y);
+
+    // M26: a fresh session is not a void - an empty transcript shows
+    // a dim hint naming true next actions (pi/omp boot hints); it
+    // vanishes the moment real content lands.
+    if viewport.height > 0
+        && viewport.width > 0
+        && state.transcript.is_empty()
+        && state.answer_inflight.is_empty()
+    {
+        let hint = "type a goal and press Enter \u{00b7} :help for commands \u{00b7} :resume to pick a session";
+        let hy = viewport.y + viewport.height / 2;
+        let hw = hint.chars().count() as u16;
+        let hx = viewport.x + viewport.width.saturating_sub(hw) / 2;
+        f.render_widget(
+            Paragraph::new(hint).style(Style::default().add_modifier(Modifier::DIM)),
+            Rect::new(hx, hy, hw.min(viewport.width), 1),
+        );
+    }
 
     // Transcript viewport: tail-follows, or pinned at the scrollback
     // window (M3). M23: content word-wraps at the viewport width
