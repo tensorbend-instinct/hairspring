@@ -199,6 +199,30 @@ pub struct ResumeOutcome {
 }
 
 impl StreamWriter {
+    /// Gap #4 (fork): branch a stream. Creates a NEW stream whose log
+    /// carries (1) a lineage event naming the parent, then (2) every parent
+    /// event re-chained into the child (payloads inlined). The child is a
+    /// self-contained, independently verifiable stream; the parent is only
+    /// read, never appended. Fork of a long stream materializes a full copy
+    /// - an interactive-REPL operation, not a hot-path one.
+    pub fn fork(root: &Path, parent: Uuid) -> Result<(Uuid, Self), LogError> {
+        let reader = StreamReader::open(root, parent)?;
+        let parent_events = reader.events()?;
+        let child = Uuid::new_v4();
+        let mut w = Self::create(root, child)?;
+        w.append(
+            EventBuilder::new(hs_core::EventKind::GoalUpdate).payload(Payload::Inline(
+                format!("forked_from={} parent_events={}", parent, parent_events.len())
+                    .into_bytes(),
+            )),
+        )?;
+        for e in &parent_events {
+            let bytes = reader.resolve_payload(e)?;
+            w.append(EventBuilder::new(e.kind).payload(Payload::Inline(bytes)))?;
+        }
+        Ok((child, w))
+    }
+
     pub fn create(root: &Path, stream: Uuid) -> Result<Self, LogError> {
         let dir = stream_dir(root, stream);
         if dir.exists() {

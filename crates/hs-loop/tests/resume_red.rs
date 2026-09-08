@@ -139,3 +139,79 @@ fn resumed_session_continues_stream_and_history() {
         &resumed_prompt[..resumed_prompt.len().min(300)]
     );
 }
+
+/// Gap #4 (fork half): branch a prior stream into a new linked stream
+/// carrying the parent's full transcript, parent untouched.
+#[test]
+fn forked_session_branches_history_and_leaves_parent_intact() {
+    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let dir = tempfile::tempdir().unwrap();
+    let log = tempfile::tempdir().unwrap();
+    let config = write_config(dir.path());
+
+    // parent session: one mission with a distinctive artifact write
+    let answer1 = log.path().join("work").join("task-0").join("answer.txt");
+    let script1 = write_script(
+        dir.path(),
+        "s1.jsonl",
+        &[serde_json::json!({"tool":"answer.write","args":{"path":answer1.display().to_string(),"content":"MARKER-PARENT-9921"}})],
+    );
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script1) };
+    let parent_id = {
+        let mut s1 = ReplSession::load(&config, log.path(), true, 1).unwrap();
+        s1.run_goal("task-0").unwrap();
+        s1.stream_id()
+    };
+    let parent_events_before = hs_log::StreamReader::open(log.path(), parent_id)
+        .unwrap()
+        .events()
+        .unwrap()
+        .len();
+
+    // fork: new linked stream, full transcript aboard
+    let script2 = write_script(
+        dir.path(),
+        "s2.jsonl",
+        &[serde_json::json!({"tool":"answer.write","args":{"path":answer1.display().to_string(),"content":"forked-branch"}})],
+    );
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script2) };
+    let mut s2 = ReplSession::load_fork(&config, log.path(), true, 1, parent_id).unwrap();
+    let fork_id = s2.stream_id();
+    assert_ne!(fork_id, parent_id, "a fork is a new stream");
+    s2.run_goal("task-0").unwrap();
+
+    // (a) the fork records its lineage
+    let fork_reader = hs_log::StreamReader::open(log.path(), fork_id).unwrap();
+    let fork_events = fork_reader.events().unwrap();
+    let lineage = fork_events.iter().any(|e| {
+        let b = fork_reader
+            .resolve_payload(e)
+            .map(|x| String::from_utf8_lossy(&x).into_owned())
+            .unwrap_or_default();
+        b.contains(&parent_id.to_string())
+    });
+    assert!(lineage, "fork stream names its parent stream id");
+
+    // (b) the forked mission's first prompt carries the parent transcript
+    let prompts = model_call_prompts(log.path(), fork_id);
+    assert!(!prompts.is_empty());
+    // NOTE: the fork stream carries the parent's ModelCall events too, so
+    // the forked mission's own first prompt is the LAST model call here.
+    let forked_prompt = prompts.last().unwrap();
+    assert!(
+        forked_prompt.contains("MARKER-PARENT-9921"),
+        "forked mission sees the parent's history: {}",
+        &forked_prompt[..forked_prompt.len().min(300)]
+    );
+
+    // (c) the parent stream is byte-untouched by the fork
+    let parent_events_after = hs_log::StreamReader::open(log.path(), parent_id)
+        .unwrap()
+        .events()
+        .unwrap()
+        .len();
+    assert_eq!(
+        parent_events_before, parent_events_after,
+        "fork never appends to the parent"
+    );
+}

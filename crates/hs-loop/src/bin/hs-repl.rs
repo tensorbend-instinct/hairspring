@@ -27,6 +27,7 @@ struct Opts {
     steering_inbox: Option<PathBuf>,
     interrupt_file: Option<PathBuf>,
     resume: Option<String>,
+    fork: Option<String>,
 }
 
 fn parse_opts(args: &[String]) -> Result<Opts, Box<dyn std::error::Error>> {
@@ -49,6 +50,7 @@ fn parse_opts(args: &[String]) -> Result<Opts, Box<dyn std::error::Error>> {
         steering_inbox: arg(args, "--steering-inbox").map(PathBuf::from),
         interrupt_file: arg(args, "--interrupt-file").map(PathBuf::from),
         resume: arg(args, "--resume"),
+        fork: arg(args, "--fork"),
     })
 }
 
@@ -114,8 +116,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(goal) => {
             // Gap #4: --resume <stream-id> continues a prior session's
             // stream (history replays from the log); default opens fresh.
-            let mut session = match &opts.resume {
-                Some(id) => {
+            let mut session = match (&opts.resume, &opts.fork) {
+                (Some(_), Some(_)) => return Err("--resume and --fork are exclusive".into()),
+                (Some(id), None) => {
                     let stream_id = uuid::Uuid::parse_str(id)
                         .map_err(|e| format!("--resume needs a stream uuid: {e}"))?;
                     ReplSession::load_resume(
@@ -127,8 +130,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     )
                     .map_err(|e| format!("session resume: {e}"))?
                 }
-                None => ReplSession::load(&opts.config, &opts.dir, opts.feedback, opts.max_steps)
-                    .map_err(|e| format!("session load: {e}"))?,
+                (None, Some(id)) => {
+                    let parent = uuid::Uuid::parse_str(id)
+                        .map_err(|e| format!("--fork needs a stream uuid: {e}"))?;
+                    ReplSession::load_fork(
+                        &opts.config,
+                        &opts.dir,
+                        opts.feedback,
+                        opts.max_steps,
+                        parent,
+                    )
+                    .map_err(|e| format!("session fork: {e}"))?
+                }
+                (None, None) => {
+                    ReplSession::load(&opts.config, &opts.dir, opts.feedback, opts.max_steps)
+                        .map_err(|e| format!("session load: {e}"))?
+                }
             };
             apply_guards(&mut session, &opts);
             apply_streaming(&mut session);

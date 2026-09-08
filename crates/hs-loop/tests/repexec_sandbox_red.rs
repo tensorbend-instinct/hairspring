@@ -110,7 +110,7 @@ fn sandbox_network_is_on_for_missions() {
     // serve a file INSIDE the sandbox and curl it from the same child:
     // loopback only works when the net namespace is real
     let r = hs_loop::repexec::run_sandboxed(d.path(), &d.path().join("answer.txt"),
-        "cd /ws && (python3 -m http.server 8873 --bind 127.0.0.1 >/dev/null 2>&1 &) && sleep 1 && curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8873/",
+        "cd /ws && (python3 -m http.server 8873 --bind 127.0.0.1 >/dev/null 2>&1 &) && for i in $(seq 1 100); do curl -s -o /dev/null http://127.0.0.1:8873/ && break; sleep 0.1; done && curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8873/",
         30);
     let out = format!(
         "{}{}",

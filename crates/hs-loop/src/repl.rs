@@ -132,6 +132,21 @@ impl ReplSession {
         })
     }
 
+    /// Gap #4 (fork): branch an existing stream into a new linked stream
+    /// carrying the parent's full transcript (hs_log::StreamWriter::fork),
+    /// then run missions on the branch. The parent stream is untouched.
+    pub fn load_fork(
+        config: &Path,
+        log_root: &Path,
+        feedback: bool,
+        max_steps: u32,
+        parent: uuid::Uuid,
+    ) -> Result<Self, LoopError> {
+        let (child, _w) = hs_log::StreamWriter::fork(log_root, parent)?;
+        drop(_w);
+        Self::load_resume(config, log_root, feedback, max_steps, child)
+    }
+
     /// Gap #4 (resume): adopt an existing stream instead of opening a fresh
     /// one. The substrate (StreamWriter::resume via InnerLoop::with_stream)
     /// recovers sequence + hash-chain state, so new missions append to the
