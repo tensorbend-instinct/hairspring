@@ -1091,6 +1091,19 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
             }
         }
         f.render_widget(Paragraph::new(window), viewport);
+        // M15: a pinned viewport says so - bottom-right, dim, with the
+        // count of lines hidden under the window. Without it a
+        // scrolled-up screen reads as a stale live view (v3 cap4).
+        if hidden > 0 {
+            let marker = format!("\u{25bc} {hidden} below ");
+            let mw = marker.chars().count() as u16;
+            let mx = viewport.x + viewport.width.saturating_sub(mw);
+            let my = viewport.y + viewport.height - 1;
+            f.render_widget(
+                Paragraph::new(marker).style(Style::default().add_modifier(Modifier::DIM)),
+                Rect::new(mx, my, mw.min(viewport.width), 1),
+            );
+        }
     }
 
     // Loop rail: phases on the left (active accented), ticker on the
