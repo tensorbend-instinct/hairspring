@@ -78,7 +78,6 @@ pub struct ReplSession {
     inner: InnerLoop,
     used_ids: std::collections::HashSet<String>,
     last_answer_path: Option<PathBuf>,
-    log_root: PathBuf,
     mcp_catalog: String,
 }
 
@@ -179,7 +178,6 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
             inner,
             used_ids: std::collections::HashSet::new(),
             last_answer_path: None,
-            log_root: log_root.to_path_buf(),
             mcp_catalog,
         })
     }
@@ -246,7 +244,6 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
             inner,
             used_ids: std::collections::HashSet::new(),
             last_answer_path: None,
-            log_root: log_root.to_path_buf(),
             mcp_catalog,
         })
     }
@@ -332,6 +329,11 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
     /// Gap #3: live model-output deltas (hs-repl prints them to stderr).
     pub fn set_delta_sink(&mut self, sink: hs_kernel::DeltaSink) {
         self.inner.set_delta_sink(sink);
+    }
+
+    /// UI batch 1: typed mission UI events for the REPL painter.
+    pub fn set_ui_sink(&mut self, sink: crate::uipaint::UiSink) {
+        self.inner.set_ui_sink(sink);
     }
 }
 
@@ -445,7 +447,7 @@ impl Editor for RustylineEditor {
             Ok(line) => Ok(Some(line)),
             Err(rustyline::error::ReadlineError::Interrupted)
             | Err(rustyline::error::ReadlineError::Eof) => Ok(None),
-            Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+            Err(e) => Err(std::io::Error::other(e)),
         }
     }
     fn add_history(&mut self, line: &str) {

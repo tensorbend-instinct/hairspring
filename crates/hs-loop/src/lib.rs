@@ -22,6 +22,7 @@ pub mod selfcheck;
 pub mod termexec;
 pub mod sweprompt;
 pub mod toolschema;
+pub mod uipaint;
 
 use hs_core::{EventBuilder, EventKind, Payload};
 use hs_kernel::{Kernel, KernelError};
@@ -131,6 +132,9 @@ pub struct InnerLoop {
     /// the operator call (native tool calling; Eric 2026-09-05). None = the
     /// model gets no tools param (legacy/text missions, unit fixtures).
     tools: Option<serde_json::Value>,
+    /// UI batch 1: typed mission UI events for the REPL painter.
+    /// None = silent (old behavior).
+    ui_sink: Option<uipaint::UiSink>,
 }
 
 /// D1/W2: input budget from the VERIFIED provider context, minus an
@@ -180,6 +184,7 @@ impl InnerLoop {
             steering_inbox: None,
             interrupt_file: None,
             mission_started: None,
+            ui_sink: None,
         })
     }
 
@@ -217,6 +222,7 @@ impl InnerLoop {
             steering_inbox: None,
             interrupt_file: None,
             mission_started: None,
+            ui_sink: None,
         })
     }
 
@@ -246,6 +252,11 @@ impl InnerLoop {
     /// output then surfaces incrementally (see hs_kernel::DeltaSink).
     pub fn set_delta_sink(&mut self, sink: hs_kernel::DeltaSink) {
         self.kernel.set_delta_sink(sink);
+    }
+
+    /// UI batch 1: register the typed UI-event sink (REPL painter).
+    pub fn set_ui_sink(&mut self, sink: uipaint::UiSink) {
+        self.ui_sink = Some(sink);
     }
 
     /// Gap #2: point the loop at the operator's steering inbox. Drained at
@@ -819,8 +830,29 @@ impl InnerLoop {
                     )?;
                     Some(msg)
                 }
-                Some((tool, args)) => match self.kernel.call_tool("operator", &tool, args.clone()) {
+                Some((tool, args)) => {
+                    if let Some(sink) = self.ui_sink.as_mut() {
+                        sink(uipaint::UiEvent::ToolCallStart {
+                            plugin: tool.clone(),
+                            args_summary: uipaint::summarize_args(&args),
+                        });
+                    }
+                    match self.kernel.call_tool("operator", &tool, args.clone()) {
                     Ok(tool_out) => {
+                        if let Some(sink) = self.ui_sink.as_mut() {
+                            let ok = tool_out.output.get("error").is_none_or(|e| e.is_null())
+                                && tool_out
+                                    .output
+                                    .get("exit_code")
+                                    .and_then(|c| c.as_i64())
+                                    .is_none_or(|c| c == 0);
+                            sink(uipaint::UiEvent::ToolCallEnd {
+                                plugin: tool.clone(),
+                                ok,
+                                output_summary: uipaint::summarize_output(&tool_out.output),
+                                elapsed_ms: tool_out.latency_ms as u64,
+                            });
+                        }
                         let ev = self.writer.append(
                             EventBuilder::new(EventKind::ToolCall)
                                 .payload(Payload::Inline(
@@ -955,6 +987,7 @@ impl InnerLoop {
                         )?;
                         Some(msg)
                     }
+                }
                 },
             };
             if let Some(msg) = tool_feedback {

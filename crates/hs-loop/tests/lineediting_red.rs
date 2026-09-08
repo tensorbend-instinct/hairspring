@@ -12,8 +12,9 @@
 //!   (up-arrow across restarts);
 //! - piped stdin keeps working (non-TTY fallback), and ALSO records
 //!   history.
-//! Editing proper (cursor movement, kill ring) is rustyline's domain on
-//! a real TTY; what HAIRSPRING must own is the history lifecycle.
+//!
+//! Editing proper (cursor movement, kill ring) is rustyline's domain
+//! on a real TTY; what HAIRSPRING must own is the history lifecycle.
 
 use hs_loop::repl::{Editor, ReplSession, StdinEditor};
 

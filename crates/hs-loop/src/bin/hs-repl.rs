@@ -10,7 +10,6 @@
 //!   One goal per line; :help lists the commands.
 
 use hs_loop::repl::ReplSession;
-use std::io::{BufRead, Write};
 use std::path::PathBuf;
 
 fn arg(args: &[String], name: &str) -> Option<String> {
@@ -52,6 +51,18 @@ fn parse_opts(args: &[String]) -> Result<Opts, Box<dyn std::error::Error>> {
         resume: arg(args, "--resume"),
         fork: arg(args, "--fork"),
     })
+}
+
+fn apply_ui(session: &mut ReplSession) {
+    // UI batch 1: paint typed mission events (tool-call cards) to stderr;
+    // color only on a real terminal, plain when piped.
+    use std::io::IsTerminal;
+    let color = std::io::stderr().is_terminal();
+    session.set_ui_sink(Box::new(move |ev| {
+        let mut err = std::io::stderr();
+        let mut p = hs_loop::uipaint::Painter::new(&mut err, color);
+        p.handle(&ev);
+    }));
 }
 
 fn apply_streaming(session: &mut ReplSession) {
@@ -132,6 +143,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
             apply_guards(&mut session, &opts);
+            apply_ui(&mut session);
             apply_streaming(&mut session);
             let r = session
                 .run_goal(&goal)
@@ -144,6 +156,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ReplSession::load(&opts.config, &opts.dir, opts.feedback, opts.max_steps)
                     .map_err(|e| format!("session load: {e}"))?;
             apply_guards(&mut session, &opts);
+            apply_ui(&mut session);
             apply_streaming(&mut session);
             use std::io::IsTerminal;
             if std::io::stdin().is_terminal() {
