@@ -12,11 +12,12 @@ fn main() {
         .map(|l| l.to_string())
         .collect();
     assert!(!script.is_empty(), "empty seqmodel script");
+    let deltas = std::env::var("HS_SEQMODEL_DELTAS").as_deref() == Ok("1");
     let mut n = 0usize;
-    serve(
+    serve_ext(
         "scripted",
         "model",
-        &mut move |method, params| match method {
+        &mut move |method, params, emit| match method {
             "model.call" => {
                 let __pv;
                 let prompt = match params["prompt"].as_str() {
@@ -37,6 +38,18 @@ fn main() {
                 }
                 let completion = script[n.min(script.len() - 1)].clone();
                 n += 1;
+                // Gap #3 test seam: when the kernel negotiated streaming
+                // (stream_deltas in params) and the fixture is armed, emit
+                // the completion as ordered delta frames first.
+                if deltas && params["stream_deltas"].as_bool() == Some(true) {
+                    let bytes = completion.as_bytes();
+                    let third = bytes.len().div_ceil(3).max(1);
+                    for chunk in bytes.chunks(third) {
+                        emit(serde_json::json!({
+                            "delta": String::from_utf8_lossy(chunk).into_owned()
+                        }));
+                    }
+                }
                 serde_json::json!({
                     "completion": completion,
                     "cached_tokens": 42,

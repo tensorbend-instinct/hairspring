@@ -5,11 +5,28 @@
 include!("shared/sdk.rs");
 
 fn main() {
-    serve("deepseek", "model", &mut |method, params| match method {
+    serve_ext("deepseek", "model", &mut |method, params, emit| match method {
         "model.call" => {
             let tools = params.get("tools");
+            let stream = params["stream_deltas"].as_bool() == Some(true);
             let r = if let Some(msgs) = params.get("messages") {
-                hs_loop::realmodel::call_messages(&hs_loop::realmodel::deepseek(), msgs, tools)
+                if stream {
+                    hs_loop::realmodel::call_messages_streaming(
+                        &hs_loop::realmodel::deepseek(),
+                        msgs,
+                        tools,
+                        &|d| emit(serde_json::json!({"delta": d})),
+                    )
+                } else {
+                    hs_loop::realmodel::call_messages(&hs_loop::realmodel::deepseek(), msgs, tools)
+                }
+            } else if stream {
+                hs_loop::realmodel::call_streaming(
+                    &hs_loop::realmodel::deepseek(),
+                    params["prompt"].as_str().unwrap_or(""),
+                    tools,
+                    &|d| emit(serde_json::json!({"delta": d})),
+                )
             } else {
                 hs_loop::realmodel::call(
                     &hs_loop::realmodel::deepseek(),

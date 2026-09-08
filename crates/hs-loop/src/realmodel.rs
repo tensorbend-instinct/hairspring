@@ -662,6 +662,271 @@ fn call_with_body(
     Err(last_err)
 }
 
+/// Gap #3: streaming call_with_body. Same retry/watchdog policy, but the
+/// worker reads the SSE body line by line: every delta chunk resets the
+/// watchdog (a streaming provider is alive), content and tool-call
+/// argument fragments forward to on_delta as they arrive, and the chunks
+/// assemble into the SAME provider response shape the non-streaming path
+/// parses - finalization goes through parse_response either way, so a
+/// streamed call is behavior-identical to a buffered one.
+fn call_with_body_streaming(
+    p: &Provider,
+    model: &str,
+    body: &serde_json::Value,
+    native: bool,
+    on_delta: &dyn Fn(&str),
+) -> Result<serde_json::Value, String> {
+    let (key, url, _) = wire(p)?;
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_global(Some(Duration::from_secs(1500)))
+        .http_status_as_error(false)
+        .build()
+        .into();
+    let watchdog = watchdog_secs();
+    let attempts = max_attempts();
+    let base = backoff_base_secs();
+    let mut last_err = String::new();
+    let mut pending_sleep = Duration::from_secs(0);
+    let mut attempt_no = 0u64;
+    while attempt_no < attempts {
+        if !pending_sleep.is_zero() {
+            std::thread::sleep(pending_sleep);
+        }
+        attempt_no += 1;
+        enum Msg {
+            Delta(String),
+            Done(Result<ParsedCall, AttemptError>),
+        }
+        let (tx, rx) = std::sync::mpsc::channel::<Msg>();
+        let (a, u, k, b) = (agent.clone(), url.clone(), key.clone(), body.clone());
+        let pt = p.clone();
+        std::thread::spawn(move || {
+            let r = attempt_streaming(&pt, &a, &u, &k, &b, native, &mut |d: &str| {
+                let _ = tx.send(Msg::Delta(d.to_string()));
+            });
+            let _ = tx.send(Msg::Done(r));
+        });
+        let outcome = loop {
+            match rx.recv_timeout(Duration::from_secs(watchdog)) {
+                Ok(Msg::Delta(d)) => on_delta(&d),
+                Ok(Msg::Done(r)) => break r,
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                    break Err(AttemptError::Other(format!(
+                        "{}: no SSE chunk for {}s (stalled stream)",
+                        p.name, watchdog
+                    )));
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                    break Err(AttemptError::Other(format!(
+                        "{}: stream worker died",
+                        p.name
+                    )));
+                }
+            }
+        };
+        match outcome {
+            Ok(out) => {
+                return Ok(json!({
+                    "completion": out.completion,
+                    "input_tokens": out.input_tokens,
+                    "output_tokens": out.output_tokens,
+                    "cached_tokens": out.cached_tokens,
+                    "reasoning_tokens": out.reasoning_tokens,
+                    "reasoning_content": out.reasoning_content,
+                    "cost_usd_micros": out.cost_usd_micros,
+                    "provider_model": model,
+                }))
+            }
+            Err(e) => {
+                eprintln!(
+                    "realmodel {} streaming attempt {} failed: {}",
+                    p.name,
+                    attempt_no,
+                    e.msg()
+                );
+                if !e.retryable() {
+                    return Err(e.msg());
+                }
+                pending_sleep = e.sleep_for(attempt_no, base);
+                last_err = e.msg();
+            }
+        }
+    }
+    Err(last_err)
+}
+
+/// One SSE attempt: POST with stream:true, read data: frames as they
+/// arrive, forward fragments to on_delta, assemble the provider-shaped
+/// response, finalize via the shared parse_response.
+fn attempt_streaming(
+    p: &Provider,
+    agent: &ureq::Agent,
+    url: &str,
+    key: &str,
+    body: &serde_json::Value,
+    native: bool,
+    on_delta: &mut dyn FnMut(&str),
+) -> Result<ParsedCall, AttemptError> {
+    let mut body = body.clone();
+    body["stream"] = serde_json::json!(true);
+    body["stream_options"] = serde_json::json!({"include_usage": true});
+    let mut resp = agent
+        .post(url)
+        .header("Authorization", &format!("Bearer {key}"))
+        .header("Content-Type", "application/json")
+        .send_json(&body)
+        .map_err(|e| AttemptError::Other(format!("{}: request failed: {e}", p.name)))?;
+    let status = resp.status();
+    if !status.is_success() {
+        let retry_after_secs = resp
+            .headers()
+            .get("retry-after")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.trim().parse::<u64>().ok());
+        return Err(AttemptError::Status {
+            code: status.as_u16(),
+            retry_after_secs,
+            msg: format!("{}: HTTP {} from provider", p.name, status.as_u16()),
+        });
+    }
+    use std::io::BufRead;
+    let mut reader = std::io::BufReader::new(resp.body_mut().as_reader());
+    let mut content = String::new();
+    let mut reasoning = String::new();
+    // streamed tool_calls assemble per index: (id, name, arguments)
+    let mut tcs: std::collections::BTreeMap<u64, (String, String, String)> =
+        std::collections::BTreeMap::new();
+    let mut usage = serde_json::Value::Null;
+    let mut finish_reason = String::new();
+    let mut line = String::new();
+    loop {
+        line.clear();
+        let n = reader
+            .read_line(&mut line)
+            .map_err(|e| AttemptError::Other(format!("{}: stream read: {e}", p.name)))?;
+        if n == 0 {
+            break; // EOF without [DONE]: assemble what we have
+        }
+        let data = match line.trim().strip_prefix("data:") {
+            Some(d) => d.trim(),
+            None => continue, // event:/comment/blank lines
+        };
+        if data == "[DONE]" {
+            break;
+        }
+        let Ok(chunk) = serde_json::from_str::<serde_json::Value>(data) else {
+            continue; // a keep-alive or partial frame is not a protocol break
+        };
+        if chunk["usage"].is_object() {
+            usage = chunk["usage"].clone();
+        }
+        let choice = &chunk["choices"][0];
+        if let Some(fr) = choice["finish_reason"].as_str() {
+            finish_reason = fr.to_string();
+        }
+        let delta = &choice["delta"];
+        if let Some(c) = delta["content"].as_str() {
+            if !c.is_empty() {
+                content.push_str(c);
+                on_delta(c);
+            }
+        }
+        if let Some(r) = delta["reasoning_content"].as_str() {
+            reasoning.push_str(r);
+        }
+        if let Some(arr) = delta["tool_calls"].as_array() {
+            for tc in arr {
+                let idx = tc["index"].as_u64().unwrap_or(0);
+                let e = tcs.entry(idx).or_default();
+                if let Some(id) = tc["id"].as_str() {
+                    e.0 = id.to_string();
+                }
+                if let Some(name) = tc["function"]["name"].as_str() {
+                    e.1.push_str(name);
+                }
+                if let Some(args) = tc["function"]["arguments"].as_str() {
+                    e.2.push_str(args);
+                    on_delta(args);
+                }
+            }
+        }
+    }
+    let tool_calls: Vec<serde_json::Value> = tcs
+        .into_values()
+        .map(|(id, name, arguments)| {
+            json!({"id": id, "type": "function", "function": {"name": name, "arguments": arguments}})
+        })
+        .collect();
+    let assembled = json!({
+        "choices": [{
+            "finish_reason": finish_reason,
+            "message": {
+                "role": "assistant",
+                "content": content,
+                "tool_calls": tool_calls,
+                "reasoning_content": reasoning,
+            }
+        }],
+        "usage": usage,
+    });
+    let r = if native {
+        parse_response(p, &assembled)
+    } else {
+        parse_response_legacy(p, &assembled)
+    };
+    r.map_err(AttemptError::Other)
+}
+
+/// Gap #3: streaming entry points - same bodies as call()/call_messages()
+/// plus SSE deltas forwarded to on_delta.
+pub fn call_streaming(
+    p: &Provider,
+    prompt: &str,
+    tools: Option<&serde_json::Value>,
+    on_delta: &dyn Fn(&str),
+) -> Result<serde_json::Value, String> {
+    let (_, _, model) = wire(p)?;
+    let system = if tools.is_some() {
+        SYSTEM_NATIVE
+    } else {
+        SYSTEM
+    };
+    let extra = extra_body(p)?;
+    let body = build_body(
+        &model,
+        system,
+        prompt,
+        tools,
+        extra.as_ref(),
+        p.tool_choice_required,
+    );
+    call_with_body_streaming(p, &model, &body, tools.is_some(), on_delta)
+}
+
+pub fn call_messages_streaming(
+    p: &Provider,
+    messages: &serde_json::Value,
+    tools: Option<&serde_json::Value>,
+    on_delta: &dyn Fn(&str),
+) -> Result<serde_json::Value, String> {
+    let (_, _, model) = wire(p)?;
+    let system = if tools.is_some() {
+        SYSTEM_NATIVE
+    } else {
+        SYSTEM
+    };
+    let extra = extra_body(p)?;
+    let body = build_body_messages(
+        &model,
+        system,
+        messages,
+        tools,
+        extra.as_ref(),
+        p.tool_choice_required,
+    );
+    call_with_body_streaming(p, &model, &body, tools.is_some(), on_delta)
+}
+
 pub fn call(
     p: &Provider,
     prompt: &str,

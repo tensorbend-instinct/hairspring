@@ -36,11 +36,25 @@ fn main() {
             }
         }
     };
-    serve("model", "model", &mut move |method, params| match method {
+    serve_ext("model", "model", &mut move |method, params, emit| match method {
         "model.call" => {
             let tools = params.get("tools");
+            let stream = params["stream_deltas"].as_bool() == Some(true);
             let r = if let Some(msgs) = params.get("messages") {
-                hs_loop::realmodel::call_messages(&p, msgs, tools)
+                if stream {
+                    hs_loop::realmodel::call_messages_streaming(&p, msgs, tools, &|d| {
+                        emit(serde_json::json!({"delta": d}))
+                    })
+                } else {
+                    hs_loop::realmodel::call_messages(&p, msgs, tools)
+                }
+            } else if stream {
+                hs_loop::realmodel::call_streaming(
+                    &p,
+                    params["prompt"].as_str().unwrap_or(""),
+                    tools,
+                    &|d| emit(serde_json::json!({"delta": d})),
+                )
             } else {
                 hs_loop::realmodel::call(&p, params["prompt"].as_str().unwrap_or(""), tools)
             };

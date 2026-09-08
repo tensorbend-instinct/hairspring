@@ -215,6 +215,7 @@ impl PluginProc {
         &mut self,
         method: &str,
         params: serde_json::Value,
+        delta_sink: &mut Option<&mut dyn FnMut(&str)>,
     ) -> Result<serde_json::Value, KernelError> {
         self.next_id += 1;
         let id = self.next_id;
@@ -222,45 +223,64 @@ impl PluginProc {
         writeln!(self.stdin, "{}", req)
             .and_then(|_| self.stdin.flush())
             .map_err(|e| KernelError::Plugin(format!("write: {e}")))?;
-        let line = match self.lines.recv_timeout(self.lease) {
-            Ok(Ok(l)) => l,
-            Ok(Err(e)) => return Err(KernelError::Plugin(e)),
-            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                return Err(KernelError::Plugin(format!(
-                    "lease expired after {}s (plugin hung)",
-                    self.lease.as_secs()
+        // Gap #3: streaming. The response may be preceded by interstitial
+        // {"id":N,"delta":"..."} frames (a streaming model's incremental
+        // output). Each received line - delta or final - resets the lease:
+        // a model streaming for minutes is alive by definition, never hung.
+        // Deltas forward to the sink when one is registered and are skipped
+        // silently otherwise (a plugin must never break an old caller).
+        loop {
+            let line = match self.lines.recv_timeout(self.lease) {
+                Ok(Ok(l)) => l,
+                Ok(Err(e)) => return Err(KernelError::Plugin(e)),
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                    return Err(KernelError::Plugin(format!(
+                        "lease expired after {}s (plugin hung)",
+                        self.lease.as_secs()
+                    )));
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                    return Err(KernelError::Plugin("reader thread gone".into()));
+                }
+            };
+            if line.is_empty() {
+                return Err(KernelError::Plugin("plugin exited (EOF)".into()));
+            }
+            let v: serde_json::Value = serde_json::from_str(&line)
+                .map_err(|e| KernelError::Protocol(format!("bad json from plugin: {e}")))?;
+            if v["id"] != id {
+                return Err(KernelError::Protocol(format!(
+                    "id mismatch: sent {id}, got {}",
+                    v["id"]
                 )));
             }
-            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
-                return Err(KernelError::Plugin("reader thread gone".into()));
+            if let Some(d) = v.get("delta") {
+                if let (Some(sink), Some(text)) = (delta_sink.as_deref_mut(), d.as_str()) {
+                    sink(text);
+                }
+                continue;
             }
-        };
-        if line.is_empty() {
-            return Err(KernelError::Plugin("plugin exited (EOF)".into()));
+            if let Some(err) = v.get("error") {
+                // a well-formed error response from a LIVE process: the caller
+                // (PluginSlot) must not strike or kill for this
+                return Err(KernelError::PluginApp {
+                    name: String::new(),
+                    detail: err.to_string(),
+                });
+            }
+            return Ok(v["result"].clone());
         }
-        let v: serde_json::Value = serde_json::from_str(&line)
-            .map_err(|e| KernelError::Protocol(format!("bad json from plugin: {e}")))?;
-        if v["id"] != id {
-            return Err(KernelError::Protocol(format!(
-                "id mismatch: sent {id}, got {}",
-                v["id"]
-            )));
-        }
-        if let Some(err) = v.get("error") {
-            // a well-formed error response from a LIVE process: the caller
-            // (PluginSlot) must not strike or kill for this
-            return Err(KernelError::PluginApp {
-                name: String::new(),
-                detail: err.to_string(),
-            });
-        }
-        Ok(v["result"].clone())
     }
 }
 
 /// Consecutive call-attempt failures before the slot is declared dead.
 /// Crash, spawn failure, and lease expiry all count as strikes.
 const MAX_STRIKES: u32 = 3;
+
+/// Gap #3: a sink for streaming model-output deltas. Registered on the
+/// Kernel; every interstitial delta frame from a streaming model plugin is
+/// forwarded as it arrives.
+pub type DeltaSink = Box<dyn FnMut(&str) + Send>;
 
 struct PluginSlot {
     entry: PluginEntry,
@@ -291,6 +311,7 @@ impl PluginSlot {
         &mut self,
         method: &str,
         params: serde_json::Value,
+        delta_sink: &mut Option<&mut dyn FnMut(&str)>,
     ) -> Result<serde_json::Value, KernelError> {
         let mut detail = String::new();
         for _ in 0..MAX_STRIKES {
@@ -305,7 +326,7 @@ impl PluginSlot {
                 }
             }
             let mut p = self.proc.take().expect("proc ensured above");
-            match p.call(method, params.clone()) {
+            match p.call(method, params.clone(), delta_sink) {
                 Ok(r) => {
                     self.proc = Some(p);
                     self.strikes = 0;
@@ -345,6 +366,9 @@ pub struct Kernel {
     log: RefCell<Option<StreamWriter>>,
     log_root: Option<PathBuf>,
     stream_id: RefCell<Option<uuid::Uuid>>,
+    /// Gap #3: streaming-delta sink (see DeltaSink). When set, model.call
+    /// params carry "stream_deltas": true.
+    delta_sink: RefCell<Option<DeltaSink>>,
 }
 
 impl Kernel {
@@ -374,6 +398,7 @@ impl Kernel {
             log: RefCell::new(None),
             log_root: log_root.map(|p| p.to_path_buf()),
             stream_id: RefCell::new(None),
+            delta_sink: RefCell::new(None),
         };
         k.apply_config(parsed)?;
         Ok(k)
@@ -391,7 +416,7 @@ impl Kernel {
                     .as_ref()
                     .map(|d| d.join(format!("{}-{}.stderr.log", entry.name, nanos)));
                 let mut p = PluginProc::spawn(&entry.command, entry.lease_secs, log.as_deref())?;
-                let desc = p.call("describe", serde_json::json!({}))?;
+                let desc = p.call("describe", serde_json::json!({}), &mut None)?;
                 if desc["name"].as_str() != Some(entry.name.as_str()) {
                     return Err(KernelError::Protocol(format!(
                         "plugin {} describes itself as {}",
@@ -510,7 +535,7 @@ impl Kernel {
             tools
                 .get_mut(name)
                 .expect("existence checked above via ok_or_else")
-                .call("tool.call", serde_json::json!({"args": args.clone()}))
+                .call("tool.call", serde_json::json!({"args": args.clone()}), &mut None)
         };
         let latency_ms = t0.elapsed().as_millis() as u32;
         match result {
@@ -550,6 +575,13 @@ impl Kernel {
         prompt: &str,
     ) -> Result<ModelOutcome, KernelError> {
         self.call_model_with(subject, model, prompt, None)
+    }
+
+    /// Gap #3: register the streaming-delta sink. From the next model call
+    /// on, params carry "stream_deltas": true and each interstitial delta
+    /// frame is forwarded to the sink as it arrives.
+    pub fn set_delta_sink(&self, sink: DeltaSink) {
+        *self.delta_sink.borrow_mut() = Some(sink);
     }
 
     /// call_model + native tool schemas: tools is passed to the model
@@ -600,18 +632,23 @@ impl Kernel {
             0,
         )?;
         let t0 = Instant::now();
+        let mut sink_guard = self.delta_sink.borrow_mut();
+        let mut params = match tools {
+            Some(t) => serde_json::json!({"prompt": prompt, "tools": t}),
+            None => serde_json::json!({"prompt": prompt}),
+        };
+        if sink_guard.is_some() {
+            params["stream_deltas"] = serde_json::json!(true);
+        }
+        let mut sink_opt = sink_guard
+            .as_mut()
+            .map(|s| &mut **s as &mut dyn FnMut(&str));
         let result = {
             let mut models = self.models.borrow_mut();
             models
                 .get_mut(&name)
                 .expect("existence checked above via ok_or_else")
-                .call(
-                    "model.call",
-                    match tools {
-                        Some(t) => serde_json::json!({"prompt": prompt, "tools": t}),
-                        None => serde_json::json!({"prompt": prompt}),
-                    },
-                )
+                .call("model.call", params, &mut sink_opt)
         };
         let latency_ms = t0.elapsed().as_millis() as u32;
         let r = result?;
@@ -692,18 +729,23 @@ impl Kernel {
             0,
         )?;
         let t0 = Instant::now();
+        let mut sink_guard = self.delta_sink.borrow_mut();
+        let mut params = match tools {
+            Some(t) => serde_json::json!({"messages": messages, "tools": t}),
+            None => serde_json::json!({"messages": messages}),
+        };
+        if sink_guard.is_some() {
+            params["stream_deltas"] = serde_json::json!(true);
+        }
+        let mut sink_opt = sink_guard
+            .as_mut()
+            .map(|s| &mut **s as &mut dyn FnMut(&str));
         let result = {
             let mut models = self.models.borrow_mut();
             models
                 .get_mut(&name)
                 .expect("existence checked above via ok_or_else")
-                .call(
-                    "model.call",
-                    match tools {
-                        Some(t) => serde_json::json!({"messages": messages, "tools": t}),
-                        None => serde_json::json!({"messages": messages}),
-                    },
-                )
+                .call("model.call", params, &mut sink_opt)
         };
         let latency_ms = t0.elapsed().as_millis() as u32;
         let r = result?;
@@ -755,6 +797,7 @@ impl Kernel {
                 serde_json::json!({
                     "hook": hook, "subject": subject, "target": target, "event": payload,
                 }),
+                &mut None,
             );
             if let Err(e) = r {
                 let name = slot.entry.name.clone();

@@ -50,6 +50,15 @@ fn parse_opts(args: &[String]) -> Result<Opts, Box<dyn std::error::Error>> {
     })
 }
 
+fn apply_streaming(session: &mut ReplSession) {
+    // Gap #3: stream model output to stderr as it arrives (stdout stays
+    // clean for the result JSON).
+    session.set_delta_sink(Box::new(|d: &str| {
+        eprint!("{d}");
+        let _ = std::io::Write::flush(&mut std::io::stderr());
+    }));
+}
+
 fn apply_guards(session: &mut ReplSession, opts: &Opts) {
     if let Some(b) = opts.budget_micros {
         session.set_budget_micros(b);
@@ -105,6 +114,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ReplSession::load(&opts.config, &opts.dir, opts.feedback, opts.max_steps)
                     .map_err(|e| format!("session load: {e}"))?;
             apply_guards(&mut session, &opts);
+            apply_streaming(&mut session);
             let r = session
                 .run_goal(&goal)
                 .map_err(|e| format!("mission: {e}"))?;
@@ -116,6 +126,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ReplSession::load(&opts.config, &opts.dir, opts.feedback, opts.max_steps)
                     .map_err(|e| format!("session load: {e}"))?;
             apply_guards(&mut session, &opts);
+            apply_streaming(&mut session);
             let stdin = std::io::stdin();
             let mut out = std::io::stdout();
             loop {

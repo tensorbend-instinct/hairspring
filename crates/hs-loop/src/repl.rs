@@ -209,6 +209,11 @@ impl ReplSession {
     pub fn set_interrupt_file(&mut self, path: &Path) {
         self.inner.set_interrupt_file(path);
     }
+
+    /// Gap #3: live model-output deltas (hs-repl prints them to stderr).
+    pub fn set_delta_sink(&mut self, sink: hs_kernel::DeltaSink) {
+        self.inner.set_delta_sink(sink);
+    }
 }
 
 /// One goal, one session, end to end: load the kernel, run the mission,

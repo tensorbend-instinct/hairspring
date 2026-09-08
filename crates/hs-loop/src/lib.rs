@@ -242,6 +242,12 @@ impl InnerLoop {
         self.wall_secs = Some(secs);
     }
 
+    /// Gap #3: register a streaming-delta sink on the kernel - model
+    /// output then surfaces incrementally (see hs_kernel::DeltaSink).
+    pub fn set_delta_sink(&mut self, sink: hs_kernel::DeltaSink) {
+        self.kernel.set_delta_sink(sink);
+    }
+
     /// Gap #2: point the loop at the operator's steering inbox. Drained at
     /// every step boundary; each line lands in the volatile tail as a
     /// STEERING section (a fresh user-turn section, never a rewritten
