@@ -69,8 +69,9 @@ fn apply_streaming(session: &mut ReplSession) {
     // post-mission flush keep output ordered (prose tail first).
     use std::io::IsTerminal;
     let color = std::io::stderr().is_terminal();
+    let theme = hs_loop::uipaint::Theme::from_env();
     let md = std::sync::Arc::new(std::sync::Mutex::new(
-        hs_loop::uipaint::MarkdownStreamer::new(color),
+        hs_loop::uipaint::MarkdownStreamer::with_theme(color, &theme),
     ));
     let md_push = md.clone();
     session.set_delta_sink(Box::new(move |d: &str| {
@@ -95,7 +96,7 @@ fn apply_streaming(session: &mut ReplSession) {
         if let Ok(mut s) = md_events.lock() {
             s.finish(&mut err); // prose tail lands before the card
         }
-        let mut p = hs_loop::uipaint::Painter::new(&mut err, color);
+        let mut p = hs_loop::uipaint::Painter::with_theme(&mut err, color, &theme);
         p.handle(&ev);
     }));
 }

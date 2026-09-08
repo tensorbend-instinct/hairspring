@@ -9,6 +9,134 @@
 
 use std::io::Write;
 
+/// UI gap #9: a theme - named roles mapped to SGR codes - drives every
+/// painted surface. dark and light ship built in; a TOML file overrides
+/// any subset of roles and falls back to dark for the rest. HS_THEME
+/// selects: "dark", "light", or a path to a theme file.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Theme {
+    /// Bright accent: model label, card arrow, composer label.
+    pub accent: String,
+    /// Plugin names on tool cards.
+    pub tool: String,
+    /// Success marks.
+    pub ok: String,
+    /// Failure marks.
+    pub fail: String,
+    /// Chrome: separators, timing, trimmed output, fences.
+    pub dim: String,
+    /// Metered cost.
+    pub cost: String,
+    /// Inline code spans.
+    pub code: String,
+    /// Markdown headers.
+    pub header: String,
+    /// List bullets.
+    pub bullet: String,
+}
+
+impl Theme {
+    /// The HAIRSPRING dark theme (the original hand-tuned codes).
+    pub fn dark() -> Self {
+        Theme {
+            accent: "36;1".into(),
+            tool: "36".into(),
+            ok: "32".into(),
+            fail: "31;1".into(),
+            dim: "2".into(),
+            cost: "33".into(),
+            code: "36".into(),
+            header: "1;4".into(),
+            bullet: "36".into(),
+        }
+    }
+
+    /// Light-background variant: blues over cyans, magenta over yellow
+    /// (yellow on white is unreadable), faint kept for chrome.
+    pub fn light() -> Self {
+        Theme {
+            accent: "34;1".into(),
+            tool: "34".into(),
+            ok: "32".into(),
+            fail: "31;1".into(),
+            dim: "2".into(),
+            cost: "35".into(),
+            code: "34".into(),
+            header: "1;4".into(),
+            bullet: "34".into(),
+        }
+    }
+
+    const ROLES: [&'static str; 9] = [
+        "accent", "tool", "ok", "fail", "dim", "cost", "code", "header", "bullet",
+    ];
+
+    fn set_role(&mut self, role: &str, code: &str) -> Result<(), String> {
+        match role {
+            "accent" => self.accent = code.to_string(),
+            "tool" => self.tool = code.to_string(),
+            "ok" => self.ok = code.to_string(),
+            "fail" => self.fail = code.to_string(),
+            "dim" => self.dim = code.to_string(),
+            "cost" => self.cost = code.to_string(),
+            "code" => self.code = code.to_string(),
+            "header" => self.header = code.to_string(),
+            "bullet" => self.bullet = code.to_string(),
+            other => return Err(format!("unknown theme role {other:?}")),
+        }
+        Ok(())
+    }
+
+    /// Parse a theme file: `role = "sgr"` lines over the dark base.
+    /// Unknown roles and malformed TOML are errors - a typo must not
+    /// silently no-op.
+    pub fn from_toml(text: &str) -> Result<Self, String> {
+        let v: toml::Value = toml::from_str(text).map_err(|e| format!("theme TOML: {e}"))?;
+        let table = v
+            .as_table()
+            .ok_or_else(|| "theme file must be a TOML table".to_string())?;
+        let mut t = Theme::dark();
+        for (k, val) in table {
+            if !Self::ROLES.contains(&k.as_str()) {
+                return Err(format!("unknown theme role {k:?}"));
+            }
+            let code = val
+                .as_str()
+                .ok_or_else(|| format!("theme role {k:?} must be a string"))?;
+            t.set_role(k, code)?;
+        }
+        Ok(t)
+    }
+
+    /// Select by name: "dark", "light", or a path to a theme file.
+    pub fn by_name(name: &str) -> Result<Self, String> {
+        match name {
+            "dark" => Ok(Theme::dark()),
+            "light" => Ok(Theme::light()),
+            path => {
+                let text = std::fs::read_to_string(path)
+                    .map_err(|e| format!("theme file {path:?}: {e}"))?;
+                Theme::from_toml(&text)
+            }
+        }
+    }
+
+    /// HS_THEME selection for the REPL surfaces. Unset or empty is dark;
+    /// a bad value is dark plus a stderr note, never a crash.
+    pub fn from_env() -> Self {
+        match std::env::var("HS_THEME") {
+            Ok(name) if !name.trim().is_empty() => match Theme::by_name(name.trim()) {
+                Ok(t) => t,
+                Err(e) => {
+                    eprintln!("HS_THEME: {e} - using dark");
+                    Theme::dark()
+                }
+            },
+            _ => Theme::dark(),
+        }
+    }
+}
+
 /// One visible beat of a running mission.
 #[derive(Debug, Clone)]
 pub enum UiEvent {
@@ -71,11 +199,21 @@ fn truncate(s: &str, max: usize) -> String {
 pub struct Painter<'a, W: Write> {
     out: &'a mut W,
     color: bool,
+    theme: Theme,
 }
 
 impl<'a, W: Write> Painter<'a, W> {
     pub fn new(out: &'a mut W, color: bool) -> Self {
-        Painter { out, color }
+        Painter::with_theme(out, color, &Theme::dark())
+    }
+
+    /// UI gap #9: every painted surface takes its codes from a Theme.
+    pub fn with_theme(out: &'a mut W, color: bool, theme: &Theme) -> Self {
+        Painter {
+            out,
+            color,
+            theme: theme.clone(),
+        }
     }
 
     fn paint(&mut self, code: &str, text: &str) {
@@ -93,10 +231,13 @@ impl<'a, W: Write> Painter<'a, W> {
                 plugin,
                 args_summary,
             } => {
-                self.paint("36;1", "\u{25b6} "); // bright cyan ▶
-                self.paint("36", plugin);
+                let arrow = self.theme.accent.clone();
+                let tool = self.theme.tool.clone();
+                let dim = self.theme.dim.clone();
+                self.paint(&arrow, "\u{25b6} ");
+                self.paint(&tool, plugin);
                 if !args_summary.is_empty() {
-                    self.paint("2", &format!("  {args_summary}"));
+                    self.paint(&dim, &format!("  {args_summary}"));
                 }
                 let _ = writeln!(self.out);
             }
@@ -106,18 +247,24 @@ impl<'a, W: Write> Painter<'a, W> {
                 output_summary,
                 elapsed_ms,
             } => {
-                let (code, mark) = if *ok { ("32", "\u{2713} ok") } else { ("31;1", "\u{2717} fail") };
+                let dim = self.theme.dim.clone();
+                let (code, mark) = if *ok {
+                    (self.theme.ok.clone(), "\u{2713} ok")
+                } else {
+                    (self.theme.fail.clone(), "\u{2717} fail")
+                };
                 let _ = write!(self.out, "  ");
-                self.paint(code, mark);
-                self.paint("2", &format!("  {elapsed_ms}ms"));
+                self.paint(&code, mark);
+                self.paint(&dim, &format!("  {elapsed_ms}ms"));
                 if !output_summary.is_empty() {
                     let _ = writeln!(self.out);
-                    self.paint("2", &format!("  {output_summary}"));
+                    self.paint(&dim, &format!("  {output_summary}"));
                 }
                 let _ = writeln!(self.out);
             }
             UiEvent::ModelCallStart { model } => {
-                self.paint("2", &format!("  … {model}"));
+                let dim = self.theme.dim.clone();
+                self.paint(&dim, &format!("  … {model}"));
                 let _ = writeln!(self.out);
             }
             UiEvent::ModelCallEnd {
@@ -125,8 +272,9 @@ impl<'a, W: Write> Painter<'a, W> {
                 input_tokens,
                 output_tokens,
             } => {
+                let dim = self.theme.dim.clone();
                 self.paint(
-                    "2",
+                    &dim,
                     &format!("  ↑{input_tokens} ↓{output_tokens}"),
                 );
                 let _ = writeln!(self.out);
@@ -140,25 +288,28 @@ impl<'a, W: Write> Painter<'a, W> {
     /// time, and the stream's short id. Semantic color when the terminal
     /// supports it: bright cyan model, dim separators, yellow cost.
     pub fn status_line(&mut self, v: &crate::repl::SessionVitals) {
-        self.paint("36;1", &v.model_label); // bright cyan
-        self.paint("2", " \u{00b7} ");
+        let accent = self.theme.accent.clone();
+        let dim = self.theme.dim.clone();
+        let cost = self.theme.cost.clone();
+        self.paint(&accent, &v.model_label);
+        self.paint(&dim, " \u{00b7} ");
         let missions = format!(
             "{} mission{}",
             v.missions_run,
             if v.missions_run == 1 { "" } else { "s" }
         );
         self.paint("0", &missions);
-        self.paint("2", " \u{00b7} ");
+        self.paint(&dim, " \u{00b7} ");
         self.paint("0", &format!("{} steps", v.total_steps));
-        self.paint("2", " \u{00b7} ");
+        self.paint(&dim, " \u{00b7} ");
         self.paint("0", &format!("{} calls", v.total_model_calls));
-        self.paint("2", " \u{00b7} ");
-        self.paint("33", &format_usd_micros(v.total_cost_micros)); // yellow
-        self.paint("2", " \u{00b7} ");
-        self.paint("2", &format_elapsed(v.elapsed));
-        self.paint("2", " \u{00b7} ");
+        self.paint(&dim, " \u{00b7} ");
+        self.paint(&cost, &format_usd_micros(v.total_cost_micros));
+        self.paint(&dim, " \u{00b7} ");
+        self.paint(&dim, &format_elapsed(v.elapsed));
+        self.paint(&dim, " \u{00b7} ");
         let short: String = v.stream_id.to_string().chars().take(8).collect();
-        self.paint("2", &short);
+        self.paint(&dim, &short);
         let _ = writeln!(self.out);
         let _ = self.out.flush();
     }
@@ -191,14 +342,22 @@ pub struct MarkdownStreamer {
     color: bool,
     buf: String,
     in_fence: bool,
+    theme: Theme,
 }
 
 impl MarkdownStreamer {
     pub fn new(color: bool) -> Self {
+        MarkdownStreamer::with_theme(color, &Theme::dark())
+    }
+
+    /// UI gap #9: markdown chrome (code, headers, bullets, fences) comes
+    /// from the theme.
+    pub fn with_theme(color: bool, theme: &Theme) -> Self {
         MarkdownStreamer {
             color,
             buf: String::new(),
             in_fence: false,
+            theme: theme.clone(),
         }
     }
 
@@ -245,13 +404,15 @@ impl MarkdownStreamer {
             return; // fence markers never print
         }
         if self.in_fence {
-            self.styled(out, "2;36", line); // dim cyan, verbatim
+            let fence = format!("2;{}", self.theme.code);
+            self.styled(out, &fence.clone(), line); // dim code color, verbatim
             return;
         }
         let hashes = trimmed.chars().take_while(|c| *c == '#').count();
         if (1..=6).contains(&hashes) && trimmed[hashes..].starts_with(' ') {
             let text = trimmed[hashes + 1..].trim_end();
-            self.render_inline(out, text, "1;4"); // bold underline
+            let header = self.theme.header.clone();
+            self.render_inline(out, text, &header);
             return;
         }
         if let Some(rest) = trimmed
@@ -260,7 +421,8 @@ impl MarkdownStreamer {
         {
             let indent = &line[..line.len() - trimmed.len()];
             let _ = write!(out, "{indent}");
-            self.styled(out, "36", "\u{2022}");
+            let bullet = self.theme.bullet.clone();
+            self.styled(out, &bullet, "\u{2022}");
             let _ = write!(out, " ");
             self.render_inline(out, rest, "");
             return;
@@ -290,7 +452,8 @@ impl MarkdownStreamer {
             if let Some(after) = rest.strip_prefix('`') {
                 if let Some(close) = after.find('`') {
                     if close > 0 {
-                        self.styled(out, "36", &after[..close]);
+                        let code = self.theme.code.clone();
+                        self.styled(out, &code, &after[..close]);
                         rest = &after[close + 1..];
                         continue;
                     }
@@ -354,16 +517,21 @@ fn sgr(color: bool, code: &str, text: &str) -> String {
     }
 }
 
-/// Top border: "╭─ label ────────╮" at exactly `cols` visible columns.
+/// Top border with the dark theme (back-compat wrapper).
 pub fn composer_top(label: &str, cols: usize, color: bool) -> String {
+    composer_top_themed(label, cols, color, &Theme::dark())
+}
+
+/// Top border: "╭─ label ────────╮" at exactly `cols` visible columns.
+pub fn composer_top_themed(label: &str, cols: usize, color: bool, theme: &Theme) -> String {
     let fixed = 2 + 1 + label.chars().count() + 1 + 1; // ╭─ sp label sp ╮
     let fill = cols.saturating_sub(fixed);
     format!(
         "{} {} {}{}",
-        sgr(color, "2", "\u{256d}\u{2500}"),
-        sgr(color, "36;1", label),
-        sgr(color, "2", &"\u{2500}".repeat(fill)),
-        sgr(color, "2", "\u{256e}")
+        sgr(color, &theme.dim, "\u{256d}\u{2500}"),
+        sgr(color, &theme.accent, label),
+        sgr(color, &theme.dim, &"\u{2500}".repeat(fill)),
+        sgr(color, &theme.dim, "\u{256e}")
     )
 }
 

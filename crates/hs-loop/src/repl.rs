@@ -760,7 +760,9 @@ fn paint_status(session: &ReplSession) {
     use std::io::IsTerminal;
     let color = std::io::stderr().is_terminal();
     let mut err = std::io::stderr();
-    let mut p = crate::uipaint::Painter::new(&mut err, color);
+    // UI gap #9: the status bar takes the operator's theme (HS_THEME).
+    let theme = crate::uipaint::Theme::from_env();
+    let mut p = crate::uipaint::Painter::with_theme(&mut err, color, &theme);
     p.status_line(&session.vitals());
 }
 
@@ -787,15 +789,17 @@ pub fn run_interactive<E: Editor + ?Sized>(
         .map(|c: usize| c.clamp(40, 120))
         .unwrap_or(72);
     let prompt = if color { crate::uipaint::EDITOR_PROMPT } else { "hs> " };
+    let theme = crate::uipaint::Theme::from_env();
     loop {
         if color {
             let v = session.vitals();
             eprintln!(
                 "{}",
-                crate::uipaint::composer_top(
+                crate::uipaint::composer_top_themed(
                     &format!("{} \u{00b7} {}", v.model_label, crate::uipaint::format_usd_micros(v.total_cost_micros)),
                     cols,
                     true,
+                    &theme,
                 )
             );
         }
