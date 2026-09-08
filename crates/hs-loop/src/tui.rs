@@ -626,8 +626,13 @@ impl DelegationGraph {
                         }
                         if let hs_core::Payload::Inline(cb) = &cev.payload {
                             if let Ok(cv) = serde_json::from_slice::<serde_json::Value>(cb) {
-                                if let Some(true) = cv.get("done").and_then(|d| d.as_bool()) {
-                                    g.note_done(child, true);
+                                // M12: terminal = done:true, or any close
+                                // carrying an outcome. hs-swarm's spawn-time
+                                // GoalUpdate {done:false} has no outcome -
+                                // an OPEN goal, still Running.
+                                let done = cv.get("done").and_then(|d| d.as_bool());
+                                if done == Some(true) || cv.get("outcome").is_some() {
+                                    g.note_done(child, done.unwrap_or(false));
                                 }
                             }
                         }

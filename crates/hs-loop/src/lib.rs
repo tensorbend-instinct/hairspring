@@ -379,6 +379,27 @@ impl InnerLoop {
     /// the partial result. This replaces the old behavior of feeding the
     /// error back and burning the remaining steps against a dead plugin (run
     /// 17117 lost ~24 calls that way).
+    /// M12: every mission END closes the goal on the durable stream -
+    /// success or failure. The resume picker's operator-stream marker
+    /// (Feedback|GoalUpdate) and the delegation graph's completion read
+    /// both depend on it; before M12 only the checker-green stop path
+    /// wrote GoalUpdate, so plain REPL sessions were invisible to
+    /// `:resume` (live-proof cap5, 2026-09-08: operator stream kinds
+    /// [0,0,0,0] after two completed missions). `outcome` names the
+    /// ending; hs-swarm's spawn-time GoalUpdate {done:false} carries
+    /// no outcome, so an OPEN goal is never mistaken for a failed one.
+    fn close_goal(&mut self, mission: &str, done: bool, outcome: &str) -> Result<(), LoopError> {
+        self.writer.append(
+            EventBuilder::new(EventKind::GoalUpdate).payload(Payload::Inline(
+                serde_json::to_vec(&serde_json::json!({
+                    "mission": mission, "done": done, "outcome": outcome,
+                }))
+                .expect("json! values serialize"),
+            )),
+        )?;
+        Ok(())
+    }
+
     fn abort_harness(
         &mut self,
         mission: &str,
@@ -395,6 +416,7 @@ impl InnerLoop {
                 .expect("json! values serialize"),
             )),
         )?;
+        self.close_goal(mission, false, "harness_error")?;
         Ok(MissionResult {
             passed: false,
             steps,
@@ -447,6 +469,7 @@ impl InnerLoop {
                     )),
                 );
                 self.checkpoint(done, model_calls);
+                let _ = self.close_goal(mission, false, "interrupted");
                 return Ok(MissionResult {
                     passed: false,
                     steps: done,
@@ -711,6 +734,7 @@ impl InnerLoop {
                         )),
                     )?;
                     self.checkpoint(steps, model_calls);
+                    self.close_goal(mission, false, "budget_killed")?;
                     return Ok(MissionResult {
                         passed: false,
                         steps,
@@ -747,6 +771,7 @@ impl InnerLoop {
                         )),
                     )?;
                     self.checkpoint(steps, model_calls);
+                    self.close_goal(mission, false, "wall_killed")?;
                     return Ok(MissionResult {
                         passed: false,
                         steps,
@@ -1226,12 +1251,7 @@ impl InnerLoop {
                         )),
                     )?;
                 }
-                self.writer.append(
-                    EventBuilder::new(EventKind::GoalUpdate).payload(Payload::Inline(
-                        serde_json::to_vec(&serde_json::json!({"mission": mission, "done": true}))
-                            .expect("json! values serialize"),
-                    )),
-                )?;
+                self.close_goal(mission, true, outcome)?;
                 self.checkpoint(steps, model_calls);
                 return Ok(MissionResult {
                     passed: true,
@@ -1253,6 +1273,7 @@ impl InnerLoop {
             }
             self.checkpoint(steps, model_calls);
         }
+        self.close_goal(mission, false, "steps_exhausted")?;
         Ok(MissionResult {
             passed: false,
             steps,
