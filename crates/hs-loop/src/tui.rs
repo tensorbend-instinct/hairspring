@@ -776,6 +776,108 @@ const TICKER_CAP: usize = 32;
 /// Everything the surface needs to render one frame. M1 keeps this
 /// small; later milestones grow it (transcript lines, editor buffer,
 /// delegation graph).
+/// M23: the transcript word-wrapped into physical ROWS at one width,
+/// kept in sync with `transcript` (extend on append, rebuild on a
+/// width change) so neither the render nor the scroll math re-wraps
+/// the whole history per frame. `width == 0` marks an empty cache.
+#[derive(Debug, Clone, Default)]
+pub struct RowsCache {
+    pub width: u16,
+    pub lines: Vec<Line<'static>>,
+    /// How many source transcript lines `lines` was built from.
+    pub src_len: usize,
+}
+
+/// M23: word-wrap one line into physical rows of at most `width`
+/// terminal cells, preserving span styles. The viewport renders THESE
+/// rows directly (no Paragraph reflow), so what the scroll math
+/// counts is by construction what the frame draws - ratatui's own
+/// line_count is feature-gated unstable, and trusting two different
+/// wrappers is how counters drift from screens.
+///
+/// Rules: greedy word wrap; a word longer than the width hard-breaks
+/// at the edge; the space at a break is consumed; a wide char that
+/// would straddle the edge moves whole to the next row (ratatui
+/// renders the same constraint); an empty line is one empty row.
+pub fn wrap_line(line: &Line<'static>, width: u16) -> Vec<Line<'static>> {
+    use unicode_width::UnicodeWidthChar;
+    let width = width as usize;
+    if width == 0 {
+        return vec![Line::from("")];
+    }
+    // Flatten spans to (char, style) cells, dropping zero-width chars.
+    let mut cells: Vec<(char, ratatui::style::Style)> = Vec::new();
+    for span in &line.spans {
+        for c in span.content.chars() {
+            cells.push((c, span.style));
+        }
+    }
+    let cw = |c: char| UnicodeWidthChar::width(c).unwrap_or(0);
+    let mut rows: Vec<Vec<(char, ratatui::style::Style)>> = Vec::new();
+    let mut cur: Vec<(char, ratatui::style::Style)> = Vec::new();
+    let mut cur_w = 0usize;
+    let mut i = 0usize;
+    while i < cells.len() {
+        // Word = run of non-space chars; then any trailing spaces ride
+        // with the NEXT word decision via the break rule below.
+        let (c, st) = cells[i];
+        if c == ' ' {
+            if cur_w + 1 > width {
+                // A space at the edge: break, and drop it.
+                rows.push(std::mem::take(&mut cur));
+                cur_w = 0;
+            } else {
+                cur.push((c, st));
+                cur_w += 1;
+            }
+            i += 1;
+            continue;
+        }
+        let w = cw(c);
+        if cur_w + w > width {
+            // Overflow: prefer breaking at the last space inside cur.
+            if let Some(si) = cur.iter().rposition(|(ch, _)| *ch == ' ') {
+                let rest = cur.split_off(si + 1);
+                cur.pop(); // the break space itself
+                rows.push(std::mem::take(&mut cur));
+                cur = rest;
+                cur_w = cur.iter().map(|(ch, _)| cw(*ch)).sum();
+            } else {
+                // No space: hard-break the row at the edge.
+                rows.push(std::mem::take(&mut cur));
+                cur_w = 0;
+            }
+            continue; // retry the same char on the fresh row
+        }
+        cur.push((c, st));
+        cur_w += w;
+        i += 1;
+    }
+    rows.push(cur); // the last row (possibly the only one, possibly empty)
+    rows.into_iter()
+        .map(|row| {
+            let mut spans: Vec<Span<'static>> = Vec::new();
+            for (c, st) in row {
+                if let Some(last) = spans.last_mut() {
+                    let last: &mut Span<'static> = last;
+                    if last.style == st {
+                        last.content.to_mut().push(c);
+                        continue;
+                    }
+                }
+                spans.push(Span::styled(c.to_string(), st));
+            }
+            Line::from(spans)
+        })
+        .collect()
+}
+
+/// M23: visual rows one line occupies at `width` (the same wrapper
+/// the viewport renders).
+pub fn wrapped_rows(line: &Line<'static>, width: u16) -> usize {
+    wrap_line(line, width).len()
+}
+
 #[derive(Debug, Clone)]
 pub struct TuiState {
     /// Live loop phase for the rail.
@@ -784,10 +886,20 @@ pub struct TuiState {
     pub editor: EditorState,
     /// Completed transcript lines (M3).
     pub transcript: Vec<Line<'static>>,
-    /// Scrollback: Some(h) hides the bottom h lines (pinned); None is
-    /// auto-follow. New lines while pinned increment h so the window
-    /// holds the same absolute lines.
+    /// Scrollback: Some(h) hides the bottom h visual ROWS (pinned);
+    /// None is auto-follow. M23: rows, not lines - a wrapped line
+    /// scrolls by the rows it occupies. New content while pinned adds
+    /// its wrapped row count so the window holds stable.
     pub transcript_scroll: Option<usize>,
+    /// M23: viewport width at the last render. Push-time scroll
+    /// accounting wraps new lines at THIS width so a pinned window
+    /// stays stable between frames. Set by render_skeleton.
+    pub last_vp_width: std::cell::Cell<u16>,
+    /// M23: per-line wrapped-row counts at the cached width, extended
+    /// incrementally as lines land and rebuilt on a width change.
+    /// Without it every frame would reflow the whole transcript -
+    /// frame cost linear in session length.
+    pub rows_cache: std::cell::RefCell<RowsCache>,
     /// Active picker overlay, if any (M4).
     pub picker: Option<PickerState>,
     /// In-flight streaming answer text; committed per line (M5).
@@ -817,6 +929,8 @@ impl Default for TuiState {
             editor: EditorState::default(),
             transcript: Vec::new(),
             transcript_scroll: None,
+            last_vp_width: std::cell::Cell::new(80),
+            rows_cache: std::cell::RefCell::new(RowsCache::default()),
             picker: None,
             answer_inflight: String::new(),
             agents: DelegationGraph::new(),
@@ -1015,19 +1129,22 @@ impl TuiState {
         }
     }
 
-    /// Append one plain transcript line (M3).
+    /// Append one plain transcript line (M3). M23: a pinned window
+    /// moves by the line's wrapped ROWS at the last rendered width.
     pub fn push_transcript_line(&mut self, text: &str) {
+        let line = Line::from(text.to_string());
         if let Some(h) = self.transcript_scroll.as_mut() {
-            *h += 1;
+            *h += wrapped_rows(&line, self.last_vp_width.get());
         }
-        self.transcript.push(Line::from(text.to_string()));
+        self.transcript.push(line);
     }
 
     /// Append markdown converted to styled lines (M3).
     pub fn push_transcript_markdown(&mut self, md: &str, theme: &crate::uipaint::Theme) {
         let lines = md_to_lines(md, theme);
         if let Some(h) = self.transcript_scroll.as_mut() {
-            *h += lines.len();
+            let w = self.last_vp_width.get();
+            *h += lines.iter().map(|l| wrapped_rows(l, w)).sum::<usize>();
         }
         self.transcript.extend(lines);
     }
@@ -1093,10 +1210,12 @@ impl TuiState {
         }
     }
 
-    /// Pin the view n lines up from the current bottom.
+    /// Pin the view n rows up from the current bottom (M23: rows).
     pub fn transcript_scroll_up(&mut self, n: usize) {
         let cur = self.transcript_scroll.unwrap_or(0);
-        self.transcript_scroll = Some((cur + n).min(self.transcript.len().saturating_sub(1)));
+        let w = self.last_vp_width.get();
+        let total: usize = self.transcript.iter().map(|l| wrapped_rows(l, w)).sum();
+        self.transcript_scroll = Some((cur + n).min(total.saturating_sub(1)));
     }
 
     /// Re-engage auto-follow.
@@ -1121,6 +1240,26 @@ impl TuiState {
     }
 }
 
+/// M23: keep the wrapped-row cache in sync with the transcript at
+/// `width` (rebuild on a width change, extend on append - transcript
+/// lines are only ever pushed).
+fn ensure_rows_cache(state: &TuiState, width: u16) {
+    let mut cache = state.rows_cache.borrow_mut();
+    if cache.width != width || cache.src_len > state.transcript.len() {
+        cache.width = width;
+        cache.lines = state
+            .transcript
+            .iter()
+            .flat_map(|l| wrap_line(l, width))
+            .collect();
+    } else if cache.src_len < state.transcript.len() {
+        for l in &state.transcript[cache.src_len..] {
+            cache.lines.extend(wrap_line(l, width));
+        }
+    }
+    cache.src_len = state.transcript.len();
+}
+
 /// Render the M1 skeleton: pinned composer box, loop rail with phases +
 /// event ticker, HUD. The viewport is intentionally blank in M1.
 pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
@@ -1137,31 +1276,39 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
     let viewport = Rect::new(0, 0, area.width, rail.y);
 
     // Transcript viewport: tail-follows, or pinned at the scrollback
-    // window (M3).
+    // window (M3). M23: content word-wraps at the viewport width
+    // (nothing clips past the right edge); scroll state is in visual
+    // ROWS and ratatui's own reflow does the wrapping, so what the
+    // scroll math counts is exactly what the frame draws.
     if viewport.height > 0
         && viewport.width > 0
         && (!state.transcript.is_empty() || !state.answer_inflight.is_empty())
     {
+        state.last_vp_width.set(viewport.width);
         let vis = viewport.height as usize;
+        ensure_rows_cache(state, viewport.width);
+        let following = state.transcript_scroll.is_none();
+        let mut lines: Vec<Line> = state.rows_cache.borrow().lines.clone();
+        // M11: the streaming tail renders live while tail-following,
+        // wrapped like committed content (M23).
+        if following && !state.answer_inflight.is_empty() {
+            lines.extend(wrap_line(
+                &Line::from(state.answer_inflight.clone()),
+                viewport.width,
+            ));
+        }
+        let total = lines.len();
         let hidden = state
             .transcript_scroll
             .unwrap_or(0)
-            .min(state.transcript.len().saturating_sub(1));
-        let end = state.transcript.len() - hidden;
-        let start = end.saturating_sub(vis);
-        let mut window: Vec<Line> = state.transcript[start..end].to_vec();
-        // M11: the streaming tail renders live while tail-following.
-        if state.transcript_scroll.is_none() && !state.answer_inflight.is_empty() {
-            window.push(Line::from(state.answer_inflight.clone()));
-            if window.len() > vis {
-                let drop = window.len() - vis;
-                window.drain(..drop);
-            }
-        }
-        f.render_widget(Paragraph::new(window), viewport);
+            .min(total.saturating_sub(1));
+        let scroll = total.saturating_sub(hidden + vis);
+        f.render_widget(Paragraph::new(lines).scroll((scroll as u16, 0)), viewport);
         // M15: a pinned viewport says so - bottom-right, dim, with the
-        // count of lines hidden under the window. Without it a
-        // scrolled-up screen reads as a stale live view (v3 cap4).
+        // count of rows hidden under the window (M23: rows, so the
+        // count matches what the wrapped frame actually hides).
+        // Without it a scrolled-up screen reads as a stale live view
+        // (v3 cap4).
         if hidden > 0 {
             let marker = format!("\u{25bc} {hidden} below ");
             let mw = marker.chars().count() as u16;
