@@ -260,9 +260,11 @@ fn run_fullscreen(
 
     // UI gap #7 on the full-screen surface: bare --resume opens the
     // picker overlay instead of the line-mode numbered prompt.
+    // M16: the live stream, so the picker can exclude it.
+    let mut current_stream = v0.stream_id;
     let mut resume_sessions: Vec<hs_loop::repl::SessionInfo> = Vec::new();
-    let open_resume_picker = |st: &mut TuiState| -> Vec<hs_loop::repl::SessionInfo> {
-        let infos = hs_loop::repl::list_sessions(&opts.dir);
+    let open_resume_picker = |st: &mut TuiState, current: uuid::Uuid| -> Vec<hs_loop::repl::SessionInfo> {
+        let infos = hs_loop::repl::list_sessions_excluding(&opts.dir, current);
         if infos.is_empty() {
             st.push_transcript_line("no prior sessions in this dir to resume");
         } else {
@@ -276,7 +278,7 @@ fn run_fullscreen(
         infos
     };
     if opts.resume.as_deref() == Some("") {
-        resume_sessions = open_resume_picker(&mut st);
+        resume_sessions = open_resume_picker(&mut st, current_stream);
     }
     loop {
         terminal.draw(|f| tui::render_skeleton(f, &st))?;
@@ -313,6 +315,7 @@ fn run_fullscreen(
                     Ok((label, short, id)) => {
                         st.model_label = label;
                         st.stream_short = short.clone();
+                        current_stream = id;
                         st.missions_run = 0;
                         st.total_steps = 0;
                         st.total_model_calls = 0;
@@ -352,7 +355,7 @@ fn run_fullscreen(
                         tui::KeyAction::Submit(text) => {
                             let t = text.trim().to_string();
                             if t == ":resume" {
-                                resume_sessions = open_resume_picker(&mut st);
+                                resume_sessions = open_resume_picker(&mut st, current_stream);
                             } else if t == ":help" {
                                 for line in hs_loop::repl::REPL_HELP.lines() {
                                     st.push_transcript_line(line);

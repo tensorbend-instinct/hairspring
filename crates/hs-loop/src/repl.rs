@@ -560,6 +560,18 @@ pub fn list_sessions(log_root: &Path) -> Vec<SessionInfo> {
     out
 }
 
+
+/// M16: the picker never offers the session you are already in.
+/// Resuming your own live stream would fork state mid-run; pi/omp
+/// pickers never list it. Same listing as list_sessions, minus the
+/// active stream id. A foreign id excludes nothing.
+pub fn list_sessions_excluding(log_root: &Path, current: uuid::Uuid) -> Vec<SessionInfo> {
+    list_sessions(log_root)
+        .into_iter()
+        .filter(|s| s.id != current)
+        .collect()
+}
+
 /// Map a picker's 1-based numeric selection to a stream id. Anything
 /// else - zero, out of range, non-numeric - selects nothing.
 pub fn pick_session(infos: &[SessionInfo], input: &str) -> Option<uuid::Uuid> {
