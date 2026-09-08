@@ -136,6 +136,9 @@ pub struct InnerLoop {
     /// UI batch 1: typed mission UI events for the REPL painter.
     /// None = silent (old behavior).
     ui_sink: Option<uipaint::UiSink>,
+    /// M10: last model name seen, so ModelCallStart can carry it before
+    /// the call returns.
+    last_model: Option<String>,
 }
 
 /// D1/W2: input budget from the VERIFIED provider context, minus an
@@ -186,6 +189,7 @@ impl InnerLoop {
             interrupt_file: None,
             mission_started: None,
             ui_sink: None,
+            last_model: None,
         })
     }
 
@@ -224,6 +228,7 @@ impl InnerLoop {
             interrupt_file: None,
             mission_started: None,
             ui_sink: None,
+            last_model: None,
         })
     }
 
@@ -640,6 +645,13 @@ impl InnerLoop {
             let assembly_ms = t_assembly.elapsed().as_millis() as u64; // capture BEFORE the model call (was after: read as ~latency)
             let messages = serde_json::Value::Array(messages);
 
+            // M10: bracket the round trip with UI events - the rail and
+            // HUD vitals derive from these mid-mission.
+            if let Some(sink) = self.ui_sink.as_mut() {
+                sink(uipaint::UiEvent::ModelCallStart {
+                    model: self.last_model.clone().unwrap_or_default(),
+                });
+            }
             // the only model round trip in the step
             let out = match self.kernel.call_model_messages(
                 "operator",
@@ -674,6 +686,14 @@ impl InnerLoop {
             };
             model_calls += 1;
             self.cost_total_micros += out.cost_usd_micros.max(0) as u64;
+            self.last_model = Some(out.model.clone());
+            if let Some(sink) = self.ui_sink.as_mut() {
+                sink(uipaint::UiEvent::ModelCallEnd {
+                    model: out.model.clone(),
+                    input_tokens: out.input_tokens,
+                    output_tokens: out.output_tokens,
+                });
+            }
             // T5c: checkpoint EVERY step after the model-call accounting,
             // answer or not - a wall kill must never book a 0-step row for
             // a mission that did real work (ab2 17092/17102/17117 lost

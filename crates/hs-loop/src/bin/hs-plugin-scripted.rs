@@ -50,6 +50,13 @@ fn main() {
                         }));
                     }
                 }
+                // TUI proof seam: pace responses so live captures can
+                // catch the rail mid-phase. Off by default.
+                if let Ok(ms) = std::env::var("HS_SEQMODEL_DELAY_MS") {
+                    if let Ok(ms) = ms.parse::<u64>() {
+                        std::thread::sleep(std::time::Duration::from_millis(ms));
+                    }
+                }
                 serde_json::json!({
                     "completion": completion,
                     "cached_tokens": 42,

@@ -685,6 +685,9 @@ pub struct TuiState {
     pub agents_panel: bool,
     /// Recent stream events, oldest first; the rail ticker shows the tail.
     pub ticker: VecDeque<EventKind>,
+    /// Surface theme (M9): every style on the surface derives from it;
+    /// the bin fills it from HS_THEME.
+    pub theme: crate::uipaint::Theme,
     /// HUD vitals.
     pub model_label: String,
     pub missions_run: u64,
@@ -706,6 +709,7 @@ impl Default for TuiState {
             agents: DelegationGraph::new(),
             agents_panel: false,
             ticker: VecDeque::new(),
+            theme: crate::uipaint::Theme::dark(),
             model_label: "hs".to_string(),
             missions_run: 0,
             total_steps: 0,
@@ -733,7 +737,9 @@ impl TuiState {
         match ev {
             U::ModelCallStart { model } => {
                 self.phase = LoopPhase::Plan;
-                self.model_label = model.clone();
+                if !model.is_empty() {
+                    self.model_label = model.clone();
+                }
                 self.push_ticker(EventKind::ModelCall);
             }
             U::ModelCallEnd {
@@ -745,6 +751,14 @@ impl TuiState {
                 self.total_model_calls += 1;
                 self.total_cost_micros += input_tokens * COST_MICROS_PER_INPUT_TOKEN
                     + output_tokens * COST_MICROS_PER_OUTPUT_TOKEN;
+                // M8: the call boundary commits any unterminated answer
+                // tail - deltas carry no trailing newline guarantee, and
+                // the next call's prose must start a fresh block.
+                if !self.answer_inflight.is_empty() {
+                    let tail = std::mem::take(&mut self.answer_inflight);
+                    let theme = self.theme.clone();
+                    self.push_transcript_markdown(&tail, &theme);
+                }
             }
             U::ToolCallStart {
                 plugin,
@@ -795,7 +809,20 @@ impl TuiState {
         while let Some(nl) = self.answer_inflight.find('\n') {
             let line: String = self.answer_inflight.drain(..=nl).collect();
             let md = line.trim_end_matches('\n').to_string();
-            self.push_transcript_markdown(&md, &crate::uipaint::Theme::dark());
+            let theme = self.theme.clone();
+            self.push_transcript_markdown(&md, &theme);
+        }
+    }
+
+    /// M11: echo a submitted goal; multi-line goals keep their line
+    /// breaks (one transcript line per goal line).
+    pub fn push_goal_echo(&mut self, text: &str) {
+        for (i, line) in text.lines().enumerate() {
+            if i == 0 {
+                self.push_transcript_line(&format!("\u{203a} {line}"));
+            } else {
+                self.push_transcript_line(line);
+            }
         }
     }
 
@@ -922,21 +949,33 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
 
     // Transcript viewport: tail-follows, or pinned at the scrollback
     // window (M3).
-    if viewport.height > 0 && viewport.width > 0 && !state.transcript.is_empty() {
+    if viewport.height > 0
+        && viewport.width > 0
+        && (!state.transcript.is_empty() || !state.answer_inflight.is_empty())
+    {
         let vis = viewport.height as usize;
-        let hidden = state.transcript_scroll.unwrap_or(0).min(state.transcript.len().saturating_sub(1));
+        let hidden = state
+            .transcript_scroll
+            .unwrap_or(0)
+            .min(state.transcript.len().saturating_sub(1));
         let end = state.transcript.len() - hidden;
         let start = end.saturating_sub(vis);
-        let window: Vec<Line> = state.transcript[start..end].to_vec();
+        let mut window: Vec<Line> = state.transcript[start..end].to_vec();
+        // M11: the streaming tail renders live while tail-following.
+        if state.transcript_scroll.is_none() && !state.answer_inflight.is_empty() {
+            window.push(Line::from(state.answer_inflight.clone()));
+            if window.len() > vis {
+                let drop = window.len() - vis;
+                window.drain(..drop);
+            }
+        }
         f.render_widget(Paragraph::new(window), viewport);
     }
 
     // Loop rail: phases on the left (active accented), ticker on the
     // right (oldest to newest).
     if rail.height > 0 && rail.width > 0 {
-        let accent = Style::default()
-            .fg(Color::Cyan)
-            .add_modifier(Modifier::BOLD);
+        let accent = sgr_style(&state.theme.accent);
         let dim = Style::default().add_modifier(Modifier::DIM);
         let mut spans: Vec<Span> = Vec::new();
         for (i, ph) in LoopPhase::ALL.iter().enumerate() {
@@ -1003,9 +1042,7 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
         let by = viewport.y + (viewport.height.saturating_sub(box_h)) / 2;
         let rect = Rect::new(bx, by, box_w, box_h);
         f.render_widget(ratatui::widgets::Clear, rect);
-        let accent = Style::default()
-            .fg(Color::Cyan)
-            .add_modifier(Modifier::BOLD);
+        let accent = sgr_style(&state.theme.accent);
         let lines: Vec<Line> = p
             .entries
             .iter()
@@ -1038,7 +1075,7 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
             .iter()
             .map(|n| {
                 let (glyph, style) = match n.status {
-                    AgentStatus::Running => ("\u{25b6}", Style::default().fg(Color::Cyan)),
+                    AgentStatus::Running => ("\u{25b6}", sgr_style(&state.theme.accent)),
                     AgentStatus::Done => ("\u{2713}", Style::default().fg(Color::Green)),
                     AgentStatus::Failed => ("\u{2717}", Style::default().fg(Color::Red)),
                 };
