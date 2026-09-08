@@ -1223,12 +1223,15 @@ impl TuiState {
         self.transcript_scroll = None;
     }
 
-    fn hud_line(&self) -> String {
+    /// M24: pub so the HUD text is test-pinnable (was private until
+    /// the pluralization pin needed it).
+    pub fn hud_line(&self) -> String {
         format!(
-            "{} mission{} \u{00b7} {} steps \u{00b7} {} calls \u{00b7} {}{}",
+            "{} mission{} \u{00b7} {} step{} \u{00b7} {} calls \u{00b7} {}{}",
             self.missions_run,
             if self.missions_run == 1 { "" } else { "s" },
             self.total_steps,
+            if self.total_steps == 1 { "" } else { "s" },
             self.total_model_calls,
             crate::uipaint::format_usd_micros(self.total_cost_micros),
             if self.stream_short.is_empty() {
