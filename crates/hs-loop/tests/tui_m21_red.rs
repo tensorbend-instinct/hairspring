@@ -103,9 +103,9 @@ default = true
 fn m21_done_line_shows_mission_cost_hud_shows_total() {
     let mut st = hs_loop::tui::TuiState::default();
     // Mission 1 lands: $0.0014 of $0.0014.
-    st.mission_done_report(1, 2, 1400, 1400, false);
+    st.mission_done_report(1, 2, 1400, 1400, "verified");
     // Mission 2 lands: $0.0021 itself, $0.0035 cumulative.
-    st.mission_done_report(3, 3, 2100, 3500, false);
+    st.mission_done_report(3, 3, 2100, 3500, "verified");
     let text = transcript_text(&st);
     assert!(text.contains("done: 1 steps, 2 calls, $0.0014"), "m1 line: {text}");
     assert!(

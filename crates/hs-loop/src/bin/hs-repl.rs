@@ -300,7 +300,7 @@ fn run_fullscreen(
                                 m.model_calls,
                                 m.cost_micros,
                                 cost_total,
-                                m.budget_killed,
+                                &m.outcome,
                             );
                         }
                         Err(e) => st.push_transcript_line(&format!("mission failed: {e}")),

@@ -873,19 +873,24 @@ impl TuiState {
         calls: u32,
         mission_cost_micros: u64,
         cost_total_micros: u64,
-        budget_killed: bool,
+        outcome: &str,
     ) {
         self.flush_inflight();
         self.mission_done(steps, cost_total_micros);
         // M21: the line reports the mission's OWN spend; the HUD above
         // it keeps the session total (pre-M21 the line printed the
         // cumulative total, overstating every mission after the first).
+        // M22: the outcome is always on the line, in the backfill's
+        // exact format (M14) - pre-M22 only budget-killed surfaced, so
+        // a steps_exhausted / ratchet_capped / harness_error mission
+        // printed the same line as a verified one while a RESUMED
+        // session showed the outcome. Live and resume now agree.
         self.push_transcript_line(&format!(
-            "\u{2500}\u{2500} done: {} steps, {} calls, {}{}",
+            "\u{2500}\u{2500} done: {} steps, {} calls, {} ({})",
             steps,
             calls,
             crate::uipaint::format_usd_micros(mission_cost_micros),
-            if budget_killed { " (budget-killed)" } else { "" }
+            outcome
         ));
     }
 
