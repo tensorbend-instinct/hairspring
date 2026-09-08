@@ -409,6 +409,12 @@ impl EditorState {
     }
 }
 
+/// Cost rate mirror of the line-mode metering (micro-dollars per
+/// token). Kept identical to repl.rs vitals accounting: the HUD must
+/// agree with the line-mode status bar.
+const COST_MICROS_PER_INPUT_TOKEN: u64 = 3;
+const COST_MICROS_PER_OUTPUT_TOKEN: u64 = 15;
+
 /// M4: the picker overlay state (resume picker first, model/theme
 /// pickers later). Entries are pre-rendered display lines; selection
 /// is an index.
@@ -440,6 +446,8 @@ pub struct TuiState {
     pub transcript_scroll: Option<usize>,
     /// Active picker overlay, if any (M4).
     pub picker: Option<PickerState>,
+    /// In-flight streaming answer text; committed per line (M5).
+    pub answer_inflight: String,
     /// Recent stream events, oldest first; the rail ticker shows the tail.
     pub ticker: VecDeque<EventKind>,
     /// HUD vitals.
@@ -459,6 +467,7 @@ impl Default for TuiState {
             transcript: Vec::new(),
             transcript_scroll: None,
             picker: None,
+            answer_inflight: String::new(),
             ticker: VecDeque::new(),
             model_label: "hs".to_string(),
             missions_run: 0,
@@ -476,6 +485,72 @@ impl TuiState {
         self.ticker.push_back(k);
         while self.ticker.len() > TICKER_CAP {
             self.ticker.pop_front();
+        }
+    }
+
+    /// M5: feed one mission UI event - phase, ticker, vitals, and tool
+    /// beats all derive from the same stream the line-mode Painter
+    /// consumes.
+    pub fn on_ui_event(&mut self, ev: &crate::uipaint::UiEvent) {
+        use crate::uipaint::UiEvent as U;
+        match ev {
+            U::ModelCallStart { model } => {
+                self.phase = LoopPhase::Plan;
+                self.model_label = model.clone();
+                self.push_ticker(EventKind::ModelCall);
+            }
+            U::ModelCallEnd {
+                input_tokens,
+                output_tokens,
+                ..
+            } => {
+                self.phase = LoopPhase::Reflect;
+                self.total_model_calls += 1;
+                self.total_cost_micros += input_tokens * COST_MICROS_PER_INPUT_TOKEN
+                    + output_tokens * COST_MICROS_PER_OUTPUT_TOKEN;
+            }
+            U::ToolCallStart {
+                plugin,
+                args_summary,
+            } => {
+                self.phase = LoopPhase::Act;
+                self.push_ticker(EventKind::ToolCall);
+                self.push_transcript_line(&format!("\u{25b6} {plugin}  {args_summary}"));
+            }
+            U::ToolCallEnd {
+                ok,
+                output_summary,
+                elapsed_ms,
+                ..
+            } => {
+                self.phase = LoopPhase::Observe;
+                self.push_ticker(EventKind::Observation);
+                let mark = if *ok { "\u{2713} ok" } else { "\u{2717} fail" };
+                let mut line = format!("  {mark}  {elapsed_ms}ms");
+                if !output_summary.is_empty() {
+                    line.push_str(&format!("  {output_summary}"));
+                }
+                self.push_transcript_line(&line);
+            }
+        }
+    }
+
+    fn push_ticker(&mut self, k: EventKind) {
+        self.ticker.push_back(k);
+        while self.ticker.len() > TICKER_CAP {
+            self.ticker.pop_front();
+        }
+    }
+
+    /// M5: feed one streaming answer delta (the delta-sink channel).
+    /// Complete lines commit to the transcript as markdown; the tail
+    /// stays in flight until its newline arrives.
+    pub fn on_answer_delta(&mut self, text: &str) {
+        self.answer_inflight.push_str(text);
+        while let Some(nl) = self.answer_inflight.find('\n') {
+            let line: String = self.answer_inflight.drain(..=nl).collect();
+            let md = line.trim_end_matches('\n').to_string();
+            self.push_transcript_markdown(&md, &crate::uipaint::Theme::dark());
         }
     }
 
