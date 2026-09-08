@@ -22,8 +22,12 @@ use hs_core::EventKind;
 /// the latest stream events.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum LoopPhase {
-    /// Model call in flight (or idle before the first one).
+    /// M17: no mission in flight - the rail lights nothing. Boot and
+    /// post-mission both sit here; pre-M17 the rail glowed a stale
+    /// REFLECT over an idle composer.
     #[default]
+    Idle,
+    /// Model call in flight, deciding the next action.
     Plan,
     /// A tool call is executing.
     Act,
@@ -44,6 +48,7 @@ impl LoopPhase {
 
     fn label(self) -> &'static str {
         match self {
+            LoopPhase::Idle => "",
             LoopPhase::Plan => "PLAN",
             LoopPhase::Act => "ACT",
             LoopPhase::Observe => "OBSERVE",
@@ -808,7 +813,7 @@ pub struct TuiState {
 impl Default for TuiState {
     fn default() -> Self {
         TuiState {
-            phase: LoopPhase::Plan,
+            phase: LoopPhase::Idle,
             editor: EditorState::default(),
             transcript: Vec::new(),
             transcript_scroll: None,
@@ -848,6 +853,9 @@ impl TuiState {
     /// have no live event, so they accrue here; cost takes the
     /// session-authoritative total.
     pub fn mission_done(&mut self, steps: u32, cost_total_micros: u64) {
+        // M17: nothing is in flight once the mission lands - the rail
+        // goes Idle instead of glowing a stale phase over the composer.
+        self.phase = LoopPhase::Idle;
         self.missions_run += 1;
         self.total_steps += steps as u64;
         self.total_cost_micros = cost_total_micros;
@@ -857,7 +865,14 @@ impl TuiState {
         use crate::uipaint::UiEvent as U;
         match ev {
             U::ModelCallStart { model } => {
-                self.phase = LoopPhase::Plan;
+                // M17: a call issued right after an observation is the
+                // operator REASONING OVER that result - Reflect. Any
+                // other call start is the operator deciding - Plan.
+                self.phase = if matches!(self.phase, LoopPhase::Observe) {
+                    LoopPhase::Reflect
+                } else {
+                    LoopPhase::Plan
+                };
                 if !model.is_empty() {
                     self.model_label = model.clone();
                 }
@@ -868,7 +883,9 @@ impl TuiState {
                 output_tokens,
                 ..
             } => {
-                self.phase = LoopPhase::Reflect;
+                // M17: the END of a call is not a phase - the rail keeps
+                // whatever the call start lit (Plan, or Reflect after an
+                // observation). Pre-M17 this forced Reflect every time.
                 self.total_model_calls += 1;
                 self.total_cost_micros += input_tokens * COST_MICROS_PER_INPUT_TOKEN
                     + output_tokens * COST_MICROS_PER_OUTPUT_TOKEN;

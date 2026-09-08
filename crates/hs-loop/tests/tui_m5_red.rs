@@ -19,20 +19,24 @@ fn tool_end() -> UiEvent {
     UiEvent::ToolCallEnd { plugin: "term.exec".into(), ok: true, output_summary: "x".into(), elapsed_ms: 1 }
 }
 
-// R1: phase follows the event stream: model call = PLAN, tool call =
-// ACT, tool result = OBSERVE, model answer = REFLECT, next call = PLAN.
+// R1: phase follows the event stream. M17 superseded the original
+// mapping (boot at PLAN, ModelCallEnd forced REFLECT): boot and
+// post-mission are IDLE, a call start after an observation is REFLECT,
+// and the END of a call moves nothing.
 #[test]
 fn r1_phase_follows_events() {
     let mut st = TuiState::default();
-    assert_eq!(st.phase, LoopPhase::Plan, "idle starts at PLAN");
+    assert_eq!(st.phase, LoopPhase::Idle, "M17: nothing in flight at boot");
+    st.on_ui_event(&model_start());
+    assert_eq!(st.phase, LoopPhase::Plan);
     st.on_ui_event(&tool_start());
     assert_eq!(st.phase, LoopPhase::Act);
     st.on_ui_event(&tool_end());
     assert_eq!(st.phase, LoopPhase::Observe);
     st.on_ui_event(&model_end());
-    assert_eq!(st.phase, LoopPhase::Reflect);
+    assert_eq!(st.phase, LoopPhase::Observe, "M17: call end moves nothing");
     st.on_ui_event(&model_start());
-    assert_eq!(st.phase, LoopPhase::Plan);
+    assert_eq!(st.phase, LoopPhase::Reflect, "M17: reasoning over the result");
 }
 
 // R2: the ticker records every event as its stream kind, in order.
