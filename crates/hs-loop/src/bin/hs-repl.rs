@@ -171,7 +171,7 @@ fn run_fullscreen(
         Ui(UiEvent),
         Delta(String),
         Done(Result<(hs_loop::MissionResult, u64), String>),
-        Switched(Result<(String, String), String>),
+        Switched(Result<(String, String, uuid::Uuid), String>),
     }
 
     enum UiCmd {
@@ -232,7 +232,7 @@ fn run_fullscreen(
                             let short: String =
                                 v.stream_id.to_string().chars().take(8).collect();
                             session = new_session;
-                            let _ = tx.send(TuiMsg::Switched(Ok((label, short))));
+                            let _ = tx.send(TuiMsg::Switched(Ok((label, short, id))));
                         }
                         Err(e) => {
                             let _ = tx.send(TuiMsg::Switched(Err(e.to_string())));
@@ -310,13 +310,17 @@ fn run_fullscreen(
                     }
                 }
                 TuiMsg::Switched(r) => match r {
-                    Ok((label, short)) => {
+                    Ok((label, short, id)) => {
                         st.model_label = label;
                         st.stream_short = short.clone();
                         st.missions_run = 0;
                         st.total_steps = 0;
                         st.total_model_calls = 0;
                         st.total_cost_micros = 0;
+                        // M14: restore the resumed session's visible
+                        // history BEFORE the marker, so the screen
+                        // reads like the session you picked.
+                        tui::backfill_transcript(&mut st, &opts.dir, id);
                         st.push_transcript_line(&format!("\u{2500}\u{2500} resumed stream {short}"));
                     }
                     Err(e) => st.push_transcript_line(&format!("resume failed: {e}")),

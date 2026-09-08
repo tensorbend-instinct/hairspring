@@ -645,6 +645,107 @@ impl DelegationGraph {
     }
 }
 
+/// M14: replay a resumed stream's visible history into the
+/// transcript - goal echoes, committed answer blocks, and
+/// per-mission done lines, rendered through the same paths as the
+/// live surface (push_goal_echo / push_transcript_markdown).
+/// Internal distill calls never render. Pre-M14 a resume switched
+/// the stream but left the screen showing only "resumed stream X"
+/// (v2 cap6); pi/omp restore history on resume.
+pub fn backfill_transcript(
+    st: &mut TuiState,
+    log_root: &std::path::Path,
+    stream_id: uuid::Uuid,
+) {
+    let Ok(reader) = hs_log::StreamReader::open(log_root, stream_id) else {
+        return;
+    };
+    let Ok(events) = reader.events() else { return };
+    let theme = st.theme.clone();
+    let mut mission_open = false;
+    let mut steps: u64 = 0;
+    let mut calls: u64 = 0;
+    let mut cost: u64 = 0;
+    for ev in &events {
+        match ev.kind {
+            hs_core::EventKind::ModelCall => {
+                let Ok(bytes) = reader.resolve_payload(ev) else { continue };
+                let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+                    continue;
+                };
+                let distill =
+                    v.get("why").and_then(|w| w.as_str()) == Some("distill");
+                calls += 1;
+                cost += v.get("input_tokens").and_then(|t| t.as_u64()).unwrap_or(0)
+                    * COST_MICROS_PER_INPUT_TOKEN
+                    + v.get("output_tokens").and_then(|t| t.as_u64()).unwrap_or(0)
+                        * COST_MICROS_PER_OUTPUT_TOKEN;
+                if distill {
+                    continue; // internal call: counted, never rendered
+                }
+                steps += 1;
+                if !mission_open {
+                    mission_open = true;
+                    if let Some(goal) = extract_mission_text(&v) {
+                        st.push_goal_echo(&goal);
+                    }
+                }
+                let completion =
+                    v.get("completion").and_then(|c| c.as_str()).unwrap_or("");
+                if !completion.trim().is_empty() {
+                    st.push_transcript_markdown(completion, &theme);
+                }
+            }
+            hs_core::EventKind::GoalUpdate => {
+                let Ok(bytes) = reader.resolve_payload(ev) else { continue };
+                let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+                    continue;
+                };
+                // M12 semantics: terminal iff done:true or an outcome
+                // key; hs-swarm's spawn-time done:false is an OPEN
+                // goal and must not print a done line.
+                let terminal = v.get("done").and_then(|d| d.as_bool()) == Some(true)
+                    || v.get("outcome").is_some();
+                if terminal && mission_open {
+                    let outcome =
+                        v.get("outcome").and_then(|o| o.as_str()).unwrap_or("done");
+                    st.push_transcript_line(&format!(
+                        "\u{2500}\u{2500} done: {steps} steps, {calls} calls, {} ({outcome})",
+                        crate::uipaint::format_usd_micros(cost)
+                    ));
+                    mission_open = false;
+                    steps = 0;
+                    calls = 0;
+                    cost = 0;
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+
+/// M14: the goal text of a mission, from its first operator call's
+/// messages. Prompts carry "MISSION: <goal>"; the goal runs to the
+/// first blank line (the MCP catalog suffix), preserving multi-line
+/// goals.
+fn extract_mission_text(v: &serde_json::Value) -> Option<String> {
+    let msgs = v.get("messages")?.as_array()?;
+    for m in msgs {
+        if let Some(c) = m.get("content").and_then(|c| c.as_str()) {
+            if let Some(i) = c.find("MISSION: ") {
+                let rest = &c[i + 9..];
+                let end = rest.find("\n\n").unwrap_or(rest.len());
+                let goal = rest[..end].trim();
+                if !goal.is_empty() {
+                    return Some(goal.to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
 /// Cost rate mirror of the line-mode metering (micro-dollars per
 /// token). Kept identical to repl.rs vitals accounting: the HUD must
 /// agree with the line-mode status bar.
