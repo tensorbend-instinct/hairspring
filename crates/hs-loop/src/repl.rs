@@ -105,6 +105,7 @@ pub struct ReplSession {
     missions_run: u64,
     total_steps: u64,
     total_model_calls: u64,
+    ui_flush: Option<Box<dyn FnMut() + Send>>,
 }
 
 impl ReplSession {
@@ -228,6 +229,7 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
             missions_run: 0,
             total_steps: 0,
             total_model_calls: 0,
+            ui_flush: None,
         })
     }
 
@@ -300,6 +302,7 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
             missions_run: 0,
             total_steps: 0,
             total_model_calls: 0,
+            ui_flush: None,
         })
     }
 
@@ -407,6 +410,19 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
     /// UI batch 1: typed mission UI events for the REPL painter.
     pub fn set_ui_sink(&mut self, sink: crate::uipaint::UiSink) {
         self.inner.set_ui_sink(sink);
+    }
+
+    /// UI gap #4: the bin owns the markdown streamer's flush; the shared
+    /// interactive loop calls it after each mission so a partial final
+    /// line of model prose lands before the status bar repaints.
+    pub fn set_ui_flush(&mut self, flush: Box<dyn FnMut() + Send>) {
+        self.ui_flush = Some(flush);
+    }
+
+    fn flush_ui(&mut self) {
+        if let Some(f) = self.ui_flush.as_mut() {
+            f();
+        }
     }
 }
 
@@ -611,6 +627,7 @@ pub fn run_interactive<E: Editor + ?Sized>(
                     Ok(r) => print_result(&r),
                     Err(e) => eprintln!("mission failed: {e}"),
                 }
+                session.flush_ui();
                 paint_status(session);
             }
         }

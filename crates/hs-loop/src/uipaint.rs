@@ -180,3 +180,139 @@ pub fn format_elapsed(d: std::time::Duration) -> String {
         format!("{s}s")
     }
 }
+
+/// REPL UI gap #4: streaming markdown for model prose. Deltas arrive in
+/// arbitrary chunks (a token can split mid-construct), so the streamer
+/// buffers to line boundaries: a construct split across chunks renders
+/// byte-identical to one fed whole. Supported: ATX headers, fenced code
+/// blocks, inline `code`, **bold**, "- "/"* " bullets. Anything that
+/// never closes prints literally. Plain mode strips markers, no ANSI.
+pub struct MarkdownStreamer {
+    color: bool,
+    buf: String,
+    in_fence: bool,
+}
+
+impl MarkdownStreamer {
+    pub fn new(color: bool) -> Self {
+        MarkdownStreamer {
+            color,
+            buf: String::new(),
+            in_fence: false,
+        }
+    }
+
+    /// Feed one delta. Complete lines render immediately; a partial
+    /// tail waits for its newline (or finish()).
+    pub fn push<W: Write>(&mut self, delta: &str, out: &mut W) {
+        self.buf.push_str(delta);
+        while let Some(pos) = self.buf.find('\n') {
+            let mut line: String = self.buf.drain(..=pos).collect();
+            line.pop(); // the newline itself
+            self.render_line(&line, out);
+            let _ = writeln!(out);
+        }
+        let _ = out.flush();
+    }
+
+    /// Flush a partial final line - the model's last tokens must not
+    /// vanish. No-op when everything buffered is already rendered.
+    pub fn finish<W: Write>(&mut self, out: &mut W) {
+        if self.buf.is_empty() {
+            return;
+        }
+        let line = std::mem::take(&mut self.buf);
+        self.render_line(&line, out);
+        let _ = writeln!(out);
+        let _ = out.flush();
+    }
+
+    fn styled<W: Write>(&self, out: &mut W, code: &str, text: &str) {
+        if text.is_empty() {
+            return;
+        }
+        if self.color && !code.is_empty() {
+            let _ = write!(out, "\x1b[{code}m{text}\x1b[0m");
+        } else {
+            let _ = write!(out, "{text}");
+        }
+    }
+
+    fn render_line<W: Write>(&mut self, line: &str, out: &mut W) {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("```") {
+            self.in_fence = !self.in_fence;
+            return; // fence markers never print
+        }
+        if self.in_fence {
+            self.styled(out, "2;36", line); // dim cyan, verbatim
+            return;
+        }
+        let hashes = trimmed.chars().take_while(|c| *c == '#').count();
+        if (1..=6).contains(&hashes) && trimmed[hashes..].starts_with(' ') {
+            let text = trimmed[hashes + 1..].trim_end();
+            self.render_inline(out, text, "1;4"); // bold underline
+            return;
+        }
+        if let Some(rest) = trimmed
+            .strip_prefix("- ")
+            .or_else(|| trimmed.strip_prefix("* "))
+        {
+            let indent = &line[..line.len() - trimmed.len()];
+            let _ = write!(out, "{indent}");
+            self.styled(out, "36", "\u{2022}");
+            let _ = write!(out, " ");
+            self.render_inline(out, rest, "");
+            return;
+        }
+        self.render_inline(out, line, "");
+    }
+
+    /// Inline constructs on one complete line: `code` spans and **bold**
+    /// spans, segment-styled so ANSI never nests. Unmatched markers
+    /// print literally. `plain_style` styles the unmarked runs (headers
+    /// render their whole line bold-underline).
+    fn render_inline<W: Write>(&self, out: &mut W, line: &str, plain_style: &str) {
+        let mut rest = line;
+        while !rest.is_empty() {
+            if let Some(after) = rest.strip_prefix("**") {
+                if let Some(close) = after.find("**") {
+                    if close > 0 {
+                        self.styled(out, "1", &after[..close]);
+                        rest = &after[close + 2..];
+                        continue;
+                    }
+                }
+                let _ = write!(out, "**");
+                rest = after;
+                continue;
+            }
+            if let Some(after) = rest.strip_prefix('`') {
+                if let Some(close) = after.find('`') {
+                    if close > 0 {
+                        self.styled(out, "36", &after[..close]);
+                        rest = &after[close + 1..];
+                        continue;
+                    }
+                }
+                let _ = write!(out, "`");
+                rest = after;
+                continue;
+            }
+            let next = rest.find(['*', '`']).unwrap_or(rest.len());
+            if next == 0 {
+                // a marker char that opened no construct: literal
+                let end = rest
+                    .char_indices()
+                    .nth(1)
+                    .map(|(i, _)| i)
+                    .unwrap_or(rest.len());
+                let _ = write!(out, "{}", &rest[..end]);
+                rest = &rest[end..];
+                continue;
+            }
+            self.styled(out, plain_style, &rest[..next]);
+            rest = &rest[next..];
+        }
+    }
+}

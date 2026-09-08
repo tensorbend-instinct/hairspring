@@ -53,24 +53,41 @@ fn parse_opts(args: &[String]) -> Result<Opts, Box<dyn std::error::Error>> {
     })
 }
 
-fn apply_ui(session: &mut ReplSession) {
-    // UI batch 1: paint typed mission events (tool-call cards) to stderr;
-    // color only on a real terminal, plain when piped.
-    use std::io::IsTerminal;
-    let color = std::io::stderr().is_terminal();
-    session.set_ui_sink(Box::new(move |ev| {
-        let mut err = std::io::stderr();
-        let mut p = hs_loop::uipaint::Painter::new(&mut err, color);
-        p.handle(&ev);
-    }));
-}
-
 fn apply_streaming(session: &mut ReplSession) {
     // Gap #3: stream model output to stderr as it arrives (stdout stays
-    // clean for the result JSON).
-    session.set_delta_sink(Box::new(|d: &str| {
-        eprint!("{d}");
+    // clean for the result JSON). UI gap #4: prose renders as MARKDOWN
+    // while it streams - the streamer is shared so UI events and the
+    // post-mission flush keep output ordered (prose tail first).
+    use std::io::IsTerminal;
+    let color = std::io::stderr().is_terminal();
+    let md = std::sync::Arc::new(std::sync::Mutex::new(
+        hs_loop::uipaint::MarkdownStreamer::new(color),
+    ));
+    let md_push = md.clone();
+    session.set_delta_sink(Box::new(move |d: &str| {
+        let mut err = std::io::stderr();
+        if let Ok(mut s) = md_push.lock() {
+            s.push(d, &mut err);
+        } else {
+            eprint!("{d}");
+        }
         let _ = std::io::Write::flush(&mut std::io::stderr());
+    }));
+    let md_flush = md.clone();
+    session.set_ui_flush(Box::new(move || {
+        let mut err = std::io::stderr();
+        if let Ok(mut s) = md_flush.lock() {
+            s.finish(&mut err);
+        }
+    }));
+    let md_events = md;
+    session.set_ui_sink(Box::new(move |ev| {
+        let mut err = std::io::stderr();
+        if let Ok(mut s) = md_events.lock() {
+            s.finish(&mut err); // prose tail lands before the card
+        }
+        let mut p = hs_loop::uipaint::Painter::new(&mut err, color);
+        p.handle(&ev);
     }));
 }
 
@@ -143,7 +160,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
             apply_guards(&mut session, &opts);
-            apply_ui(&mut session);
             apply_streaming(&mut session);
             let r = session
                 .run_goal(&goal)
@@ -156,7 +172,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ReplSession::load(&opts.config, &opts.dir, opts.feedback, opts.max_steps)
                     .map_err(|e| format!("session load: {e}"))?;
             apply_guards(&mut session, &opts);
-            apply_ui(&mut session);
             apply_streaming(&mut session);
             use std::io::IsTerminal;
             if std::io::stdin().is_terminal() {
