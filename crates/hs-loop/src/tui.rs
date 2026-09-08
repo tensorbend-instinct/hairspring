@@ -409,6 +409,17 @@ impl EditorState {
     }
 }
 
+/// M4: the picker overlay state (resume picker first, model/theme
+/// pickers later). Entries are pre-rendered display lines; selection
+/// is an index.
+#[derive(Debug, Clone, Default)]
+pub struct PickerState {
+    /// Display lines, one per entry.
+    pub entries: Vec<String>,
+    /// Current selection.
+    pub selected: usize,
+}
+
 /// Cap on ticker entries kept; the rail shows the tail.
 const TICKER_CAP: usize = 32;
 
@@ -427,6 +438,8 @@ pub struct TuiState {
     /// auto-follow. New lines while pinned increment h so the window
     /// holds the same absolute lines.
     pub transcript_scroll: Option<usize>,
+    /// Active picker overlay, if any (M4).
+    pub picker: Option<PickerState>,
     /// Recent stream events, oldest first; the rail ticker shows the tail.
     pub ticker: VecDeque<EventKind>,
     /// HUD vitals.
@@ -445,6 +458,7 @@ impl Default for TuiState {
             editor: EditorState::default(),
             transcript: Vec::new(),
             transcript_scroll: None,
+            picker: None,
             ticker: VecDeque::new(),
             model_label: "hs".to_string(),
             missions_run: 0,
@@ -480,6 +494,61 @@ impl TuiState {
             *h += lines.len();
         }
         self.transcript.extend(lines);
+    }
+
+    /// Open a picker overlay over the transcript (M4).
+    pub fn open_picker(&mut self, entries: Vec<String>) {
+        if entries.is_empty() {
+            self.picker = None;
+        } else {
+            self.picker = Some(PickerState { entries, selected: 0 });
+        }
+    }
+
+    /// Selected entry index, None when no picker is open.
+    pub fn picker_selected(&self) -> Option<usize> {
+        self.picker.as_ref().map(|p| p.selected)
+    }
+
+    pub fn picker_down(&mut self) {
+        if let Some(p) = self.picker.as_mut() {
+            p.selected = (p.selected + 1).min(p.entries.len().saturating_sub(1));
+        }
+    }
+
+    pub fn picker_up(&mut self) {
+        if let Some(p) = self.picker.as_mut() {
+            p.selected = p.selected.saturating_sub(1);
+        }
+    }
+
+    /// Take the selected entry and close the overlay.
+    pub fn picker_take(&mut self) -> Option<String> {
+        let p = self.picker.take()?;
+        p.entries.get(p.selected).cloned()
+    }
+
+    /// Close the overlay without a choice.
+    pub fn picker_cancel(&mut self) {
+        self.picker = None;
+    }
+
+    /// PgUp: scroll one viewport page (M4).
+    pub fn transcript_page_up(&mut self, page: usize) {
+        self.transcript_scroll_up(page);
+    }
+
+    /// Mouse wheel up: three lines at a time (M4).
+    pub fn transcript_wheel_up(&mut self, n: usize) {
+        self.transcript_scroll_up(n);
+    }
+
+    /// Mouse wheel down: toward the tail; reaching it re-engages follow.
+    pub fn transcript_wheel_down(&mut self, n: usize) {
+        if let Some(h) = self.transcript_scroll {
+            let h = h.saturating_sub(n);
+            self.transcript_scroll = if h == 0 { None } else { Some(h) };
+        }
     }
 
     /// Pin the view n lines up from the current bottom.
@@ -597,5 +666,36 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
     if l.hud.height > 0 && l.hud.width > 0 {
         let hud = Paragraph::new(state.hud_line());
         f.render_widget(hud, l.hud);
+    }
+
+    // M4: the picker overlay - centered box over the transcript,
+    // selected entry highlighted with the theme accent.
+    if let Some(p) = &state.picker {
+        let box_w = (area.width * 3 / 4).max(20).min(area.width);
+        let box_h = (p.entries.len() as u16 + 2).min(viewport.height.max(3));
+        let bx = (area.width - box_w) / 2;
+        let by = viewport.y + (viewport.height.saturating_sub(box_h)) / 2;
+        let rect = Rect::new(bx, by, box_w, box_h);
+        f.render_widget(ratatui::widgets::Clear, rect);
+        let accent = Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD);
+        let lines: Vec<Line> = p
+            .entries
+            .iter()
+            .enumerate()
+            .map(|(i, e)| {
+                if i == p.selected {
+                    Line::from(Span::styled(format!("\u{25b6} {e}"), accent))
+                } else {
+                    Line::from(format!("  {e}"))
+                }
+            })
+            .collect();
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .title(" resume ");
+        f.render_widget(Paragraph::new(lines).block(block), rect);
     }
 }
