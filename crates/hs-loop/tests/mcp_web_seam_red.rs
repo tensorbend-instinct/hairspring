@@ -93,6 +93,13 @@ fn t1_tb_runner_registers_mcp_tools() {
         echo["function"]["parameters"]["properties"]["text"].is_object(),
         "the server's input schema rides along: {echo}"
     );
+    // the mission prompt must ADVERTISE the mcp tool (name + arg schema) -
+    // the TB model path is free-form, the prompt is the only tool doc
+    let mprompt = std::fs::read_to_string(run_dir.join("mission_prompt.txt")).unwrap();
+    assert!(
+        mprompt.contains("mcp.fixture.echo"),
+        "mission prompt advertises the mcp tool:\n{mprompt}"
+    );
     // and the mission itself still ran its normal blind flow
     let result: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(run_dir.join("result.json")).unwrap(),

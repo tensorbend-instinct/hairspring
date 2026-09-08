@@ -75,6 +75,7 @@ fn t3_tb_prompt_teaches_own_checks_and_hides_grading() {
         workdir: "/app".into(),
         instruction: "Do the thing.".into(),
         answer_path: "/tmp/answer.txt".into(),
+        mcp_tools: String::new(),
     });
     for want in [".hs/checks", "term.exec", "Do the thing.", "ANSWER_PATH: /tmp/answer.txt"] {
         assert!(p.contains(want), "prompt missing {want:?}");

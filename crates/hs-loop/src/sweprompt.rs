@@ -55,6 +55,12 @@ pub struct TbPromptArgs {
     pub workdir: String,
     pub instruction: String,
     pub answer_path: String,
+    /// Advertised MCP tool catalog (names + one-line descriptions + arg
+    /// schemas). Empty when HS_MCP_SERVERS is unset: the slot vanishes.
+    /// TB missions talk to the model free-form - the prompt IS the tool
+    /// documentation (live proof 2026-09-08: without this section the model
+    /// never calls mcp.* tools, doom-loops on term.exec instead).
+    pub mcp_tools: String,
 }
 
 pub const TB_MISSION_TEMPLATE: &str = "You are solving a terminal task inside a live Linux container. You work DIRECTLY on the real machine at {workdir} (you are root, network on, state persists between commands - what you build here is exactly what gets graded). Every tool path is relative to {workdir}.\n\
@@ -66,13 +72,14 @@ WORK POLICY:\n\
 - If something is blocked, say so plainly rather than quietly dropping it.\n\
 - Do the work in the current step instead of ending with an offer to do it later.\n\
 WORKFLOW: explore with term.exec / repo.read / repo.search, do the task with term.exec, write .hs/checks, verify until green, then answer.submit with a summary of what you changed and how you verified it. The checker runs your .hs/checks after every submit; green ends the mission, red comes back as FEEDBACK - repair what it reports before resubmitting.\n\
-ANSWER_PATH: {answer_path}";
+{mcp_tools}ANSWER_PATH: {answer_path}";
 
 pub fn build_tb_mission_prompt(args: &TbPromptArgs) -> String {
     TB_MISSION_TEMPLATE
         .replace("{workdir}", &args.workdir)
         .replace("{instruction}", &args.instruction)
         .replace("{answer_path}", &args.answer_path)
+        .replace("{mcp_tools}", &args.mcp_tools)
 }
 
 /// Critic-mode template (Eric 2026-09-07): same blind discipline, plus the
@@ -89,13 +96,14 @@ WORK POLICY:\n\
 - If something is blocked, say so plainly rather than quietly dropping it.\n\
 - Do the work in the current step instead of ending with an offer to do it later.\n\
 WORKFLOW: explore with term.exec / repo.read / repo.search, do the task with term.exec, write .hs/checks, verify until green, then answer.submit with a summary of what you changed and how you verified it. After every submit the checker runs your .hs/checks and then the critic; green on both ends the mission, red from either comes back as FEEDBACK - repair what it reports before resubmitting.\n\
-ANSWER_PATH: {answer_path}";
+{mcp_tools}ANSWER_PATH: {answer_path}";
 
 pub fn build_tb_mission_prompt_critic(args: &TbPromptArgs) -> String {
     TB_MISSION_CRITIC_TEMPLATE
         .replace("{workdir}", &args.workdir)
         .replace("{instruction}", &args.instruction)
         .replace("{answer_path}", &args.answer_path)
+        .replace("{mcp_tools}", &args.mcp_tools)
 }
 
 pub struct PromptArgs {

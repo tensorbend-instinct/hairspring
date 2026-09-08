@@ -67,17 +67,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let prompt_args = hs_loop::sweprompt::TbPromptArgs {
-        workdir: workdir.clone(),
-        instruction: instruction.clone(),
-        answer_path: answer_path.display().to_string(),
-    };
-    let prompt = if critic {
-        hs_loop::sweprompt::build_tb_mission_prompt_critic(&prompt_args)
-    } else {
-        hs_loop::sweprompt::build_tb_mission_prompt(&prompt_args)
-    };
-    std::fs::write(run_dir.join("mission_prompt.txt"), &prompt)?;
     let mut native_tools = hs_loop::toolschema::tb_tools();
     // MCP tool seam (Eric 2026-09-07 web-tooling order; mirrors hs-swe-run):
     // HS_MCP_SERVERS points at a [[mcp_servers]] TOML; discovered tools
@@ -95,6 +84,47 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         mcp_fragment = fragment;
         native_tools.extend(mcp_native);
     }
+    // TB missions talk to the model free-form - the mission prompt IS the
+    // tool documentation, so discovered MCP tools must be advertised there
+    // with their arg schemas, not just registered in tools.json (live proof
+    // 2026-09-08: registered-but-undocumented mcp.ddg.* tools were never
+    // called; the model doom-looped on term.exec ls/pwd instead).
+    let mcp_catalog = {
+        let mut s = String::new();
+        for t in &native_tools {
+            let f = &t["function"];
+            let name = f["name"].as_str().unwrap_or("");
+            if !name.starts_with("mcp.") {
+                continue;
+            }
+            if s.is_empty() {
+                s.push_str(
+                    "AVAILABLE MCP TOOLS (call by name with JSON args matching the schema):
+",
+                );
+            }
+            let desc = f["description"].as_str().unwrap_or("").chars().take(200).collect::<String>();
+            let params = serde_json::to_string(&f["parameters"]).expect("params serialize");
+            s.push_str(&format!("- {name}: {desc} Args schema: {params}
+"));
+        }
+        if !s.is_empty() {
+            s.push('\n');
+        }
+        s
+    };
+    let prompt_args = hs_loop::sweprompt::TbPromptArgs {
+        workdir: workdir.clone(),
+        instruction: instruction.clone(),
+        answer_path: answer_path.display().to_string(),
+        mcp_tools: mcp_catalog,
+    };
+    let prompt = if critic {
+        hs_loop::sweprompt::build_tb_mission_prompt_critic(&prompt_args)
+    } else {
+        hs_loop::sweprompt::build_tb_mission_prompt(&prompt_args)
+    };
+    std::fs::write(run_dir.join("mission_prompt.txt"), &prompt)?;
     std::fs::write(
         run_dir.join("tools.json"),
         serde_json::to_string_pretty(&native_tools).expect("json! values serialize"),

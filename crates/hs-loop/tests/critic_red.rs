@@ -210,6 +210,7 @@ fn t10_critic_mode_prompt_discloses_critic() {
         workdir: "/app".into(),
         instruction: "Do the thing.".into(),
         answer_path: "/tmp/answer.txt".into(),
+        mcp_tools: String::new(),
     });
     let pl = p.to_lowercase();
     assert!(pl.contains("critic"), "names the critic");
