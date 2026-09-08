@@ -115,6 +115,132 @@ pub fn layout(width: u16, height: u16) -> TuiLayout {
     }
 }
 
+/// M3: map a theme SGR code string ("36;1", "2", "31;1") to a ratatui
+/// Style. Supports the codes Theme roles use: 30-37/90-97 fg, 1 bold,
+/// 2 dim, 4 underline.
+pub fn sgr_style(code: &str) -> Style {
+    let mut style = Style::default();
+    for part in code.split(';') {
+        style = match part.trim() {
+            "0" => Style::default(),
+            "1" => style.add_modifier(Modifier::BOLD),
+            "2" => style.add_modifier(Modifier::DIM),
+            "4" => style.add_modifier(Modifier::UNDERLINED),
+            "30" => style.fg(Color::Black),
+            "31" => style.fg(Color::Red),
+            "32" => style.fg(Color::Green),
+            "33" => style.fg(Color::Yellow),
+            "34" => style.fg(Color::Blue),
+            "35" => style.fg(Color::Magenta),
+            "36" => style.fg(Color::Cyan),
+            "37" => style.fg(Color::White),
+            "90" => style.fg(Color::DarkGray),
+            "91" => style.fg(Color::LightRed),
+            "92" => style.fg(Color::LightGreen),
+            "93" => style.fg(Color::LightYellow),
+            "94" => style.fg(Color::LightBlue),
+            "95" => style.fg(Color::LightMagenta),
+            "96" => style.fg(Color::LightCyan),
+            "97" => style.fg(Color::White),
+            _ => style,
+        };
+    }
+    style
+}
+
+/// M3: convert markdown text into styled ratatui Lines - the same
+/// rules the line-mode MarkdownStreamer paints (headers, bullets,
+/// fences, inline code, bold), driven by the Theme. Fence bodies pass
+/// through verbatim, dimmed in the code color.
+pub fn md_to_lines(md: &str, theme: &crate::uipaint::Theme) -> Vec<Line<'static>> {
+    let mut out = Vec::new();
+    let mut in_fence = false;
+    let fence_style = sgr_style(&format!("2;{}", theme.code));
+    for raw in md.lines() {
+        let trimmed = raw.trim_start();
+        if trimmed.starts_with("```") {
+            in_fence = !in_fence;
+            continue;
+        }
+        if in_fence {
+            out.push(Line::from(Span::styled(raw.to_string(), fence_style)));
+            continue;
+        }
+        let hashes = trimmed.chars().take_while(|c| *c == '#').count();
+        if hashes >= 2 && trimmed.chars().nth(hashes) == Some(' ') {
+            let text = trimmed[hashes + 1..].trim_end();
+            out.push(Line::from(inline_spans(text, sgr_style(&theme.header), theme)));
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("- ") {
+            let indent = raw.len() - trimmed.len();
+            let mut spans = vec![
+                Span::raw(" ".repeat(indent)),
+                Span::styled("\u{2022} ", sgr_style(&theme.bullet)),
+            ];
+            spans.extend(inline_spans(rest, Style::default(), theme));
+            out.push(Line::from(spans));
+            continue;
+        }
+        out.push(Line::from(inline_spans(raw, Style::default(), theme)));
+    }
+    out
+}
+
+/// Inline spans: `code` in the theme's code color, **bold** bold, the
+/// rest in the base style. Markers are consumed; unmatched markers
+/// render literally.
+fn inline_spans(text: &str, base: Style, theme: &crate::uipaint::Theme) -> Vec<Span<'static>> {
+    let code_style = sgr_style(&theme.code);
+    let bold = base.add_modifier(Modifier::BOLD);
+    let mut spans = Vec::new();
+    let mut rest = text;
+    while !rest.is_empty() {
+        let tick = rest.find('`');
+        let star = rest.find("**");
+        let next = match (tick, star) {
+            (Some(t), Some(s)) => Some(t.min(s)),
+            (a, b) => a.or(b),
+        };
+        let Some(i) = next else {
+            spans.push(Span::styled(rest.to_string(), base));
+            break;
+        };
+        if i > 0 {
+            spans.push(Span::styled(rest[..i].to_string(), base));
+        }
+        let after = &rest[i..];
+        if let Some(body) = after.strip_prefix('`') {
+            if let Some(close) = body.find('`') {
+                if close > 0 {
+                    spans.push(Span::styled(body[..close].to_string(), code_style));
+                    rest = &body[close + 1..];
+                    continue;
+                }
+            }
+            spans.push(Span::styled("`".to_string(), base));
+            rest = body;
+        } else if let Some(body) = after.strip_prefix("**") {
+            if let Some(close) = body.find("**") {
+                if close > 0 {
+                    spans.push(Span::styled(body[..close].to_string(), bold));
+                    rest = &body[close + 2..];
+                    continue;
+                }
+            }
+            spans.push(Span::styled("**".to_string(), base));
+            rest = body;
+        } else {
+            spans.push(Span::styled(after.to_string(), base));
+            break;
+        }
+    }
+    if spans.is_empty() {
+        spans.push(Span::styled(String::new(), base));
+    }
+    spans
+}
+
 /// M2: the composer editor - multi-line editing with cursor movement,
 /// history, and submit. Pure state; rendering and crossterm key
 /// translation live at the edges.
@@ -295,6 +421,12 @@ pub struct TuiState {
     pub phase: LoopPhase,
     /// The composer editor (M2).
     pub editor: EditorState,
+    /// Completed transcript lines (M3).
+    pub transcript: Vec<Line<'static>>,
+    /// Scrollback: Some(h) hides the bottom h lines (pinned); None is
+    /// auto-follow. New lines while pinned increment h so the window
+    /// holds the same absolute lines.
+    pub transcript_scroll: Option<usize>,
     /// Recent stream events, oldest first; the rail ticker shows the tail.
     pub ticker: VecDeque<EventKind>,
     /// HUD vitals.
@@ -311,6 +443,8 @@ impl Default for TuiState {
         TuiState {
             phase: LoopPhase::Plan,
             editor: EditorState::default(),
+            transcript: Vec::new(),
+            transcript_scroll: None,
             ticker: VecDeque::new(),
             model_label: "hs".to_string(),
             missions_run: 0,
@@ -329,6 +463,34 @@ impl TuiState {
         while self.ticker.len() > TICKER_CAP {
             self.ticker.pop_front();
         }
+    }
+
+    /// Append one plain transcript line (M3).
+    pub fn push_transcript_line(&mut self, text: &str) {
+        if let Some(h) = self.transcript_scroll.as_mut() {
+            *h += 1;
+        }
+        self.transcript.push(Line::from(text.to_string()));
+    }
+
+    /// Append markdown converted to styled lines (M3).
+    pub fn push_transcript_markdown(&mut self, md: &str, theme: &crate::uipaint::Theme) {
+        let lines = md_to_lines(md, theme);
+        if let Some(h) = self.transcript_scroll.as_mut() {
+            *h += lines.len();
+        }
+        self.transcript.extend(lines);
+    }
+
+    /// Pin the view n lines up from the current bottom.
+    pub fn transcript_scroll_up(&mut self, n: usize) {
+        let cur = self.transcript_scroll.unwrap_or(0);
+        self.transcript_scroll = Some((cur + n).min(self.transcript.len().saturating_sub(1)));
+    }
+
+    /// Re-engage auto-follow.
+    pub fn transcript_scroll_to_bottom(&mut self) {
+        self.transcript_scroll = None;
     }
 
     fn hud_line(&self) -> String {
@@ -356,10 +518,27 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
         return;
     }
     let l = layout(area.width, area.height);
+    // Composer grows with the editor buffer; rail and viewport yield.
+    let max_h = area.height.saturating_sub(4).max(3);
+    let want_h = (state.editor.line_count() as u16 + 2).clamp(3, max_h);
+    let composer = Rect::new(0, l.hud.y.saturating_sub(want_h), area.width, want_h);
+    let rail = Rect::new(0, composer.y.saturating_sub(1), area.width, composer.y.min(1));
+    let viewport = Rect::new(0, 0, area.width, rail.y);
+
+    // Transcript viewport: tail-follows, or pinned at the scrollback
+    // window (M3).
+    if viewport.height > 0 && viewport.width > 0 && !state.transcript.is_empty() {
+        let vis = viewport.height as usize;
+        let hidden = state.transcript_scroll.unwrap_or(0).min(state.transcript.len().saturating_sub(1));
+        let end = state.transcript.len() - hidden;
+        let start = end.saturating_sub(vis);
+        let window: Vec<Line> = state.transcript[start..end].to_vec();
+        f.render_widget(Paragraph::new(window), viewport);
+    }
 
     // Loop rail: phases on the left (active accented), ticker on the
     // right (oldest to newest).
-    if l.rail.height > 0 && l.rail.width > 0 {
+    if rail.height > 0 && rail.width > 0 {
         let accent = Style::default()
             .fg(Color::Cyan)
             .add_modifier(Modifier::BOLD);
@@ -372,19 +551,16 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
             let style = if *ph == state.phase { accent } else { dim };
             spans.push(Span::styled(ph.label(), style));
         }
-        let left_w = l.rail.width * 3 / 5;
+        let left_w = rail.width * 3 / 5;
         let phases = Paragraph::new(Line::from(spans));
-        f.render_widget(
-            phases,
-            Rect::new(l.rail.x, l.rail.y, left_w.min(l.rail.width), 1),
-        );
-        let right_w = l.rail.width - left_w.min(l.rail.width);
+        f.render_widget(phases, Rect::new(rail.x, rail.y, left_w.min(rail.width), 1));
+        let right_w = rail.width - left_w.min(rail.width);
         if right_w > 0 {
             let ticker: String = state.ticker.iter().map(|k| kind_glyph(*k)).collect();
             let tick = Paragraph::new(ticker).alignment(ratatui::layout::Alignment::Right);
             f.render_widget(
                 tick,
-                Rect::new(l.rail.x + left_w.min(l.rail.width), l.rail.y, right_w, 1),
+                Rect::new(rail.x + left_w.min(rail.width), rail.y, right_w, 1),
             );
         }
     }
@@ -392,14 +568,7 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
     // Composer: rounded box, model+cost title, editor content, cursor
     // on the editor's cell. The box grows with the buffer (viewport
     // yields), capped so the chrome always fits.
-    if l.composer.height > 0 && l.composer.width > 0 {
-        let max_h = area.height.saturating_sub(4).max(3);
-        let want_h = (state.editor.line_count() as u16 + 2).clamp(3, max_h);
-        let composer = if want_h != l.composer.height {
-            Rect::new(0, l.hud.y.saturating_sub(want_h), area.width, want_h)
-        } else {
-            l.composer
-        };
+    if composer.height > 0 && composer.width > 0 {
         let title = format!(
             " {} \u{00b7} {} ",
             state.model_label,
