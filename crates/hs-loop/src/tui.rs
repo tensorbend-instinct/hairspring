@@ -861,6 +861,30 @@ impl TuiState {
         self.total_cost_micros = cost_total_micros;
     }
 
+    /// M20: end-of-mission sequencing in one place. The held answer
+    /// commits BEFORE the done line - the bin previously pushed the
+    /// summary and only then flushed the tail, so the summary landed
+    /// above the answer it summarized (live proof: tui-proof-m19).
+    /// Keeps the M13 accounting (calls live-counted, cost is the
+    /// session-authoritative total) and the done-line format.
+    pub fn mission_done_report(
+        &mut self,
+        steps: u32,
+        calls: u32,
+        cost_total_micros: u64,
+        budget_killed: bool,
+    ) {
+        self.flush_inflight();
+        self.mission_done(steps, cost_total_micros);
+        self.push_transcript_line(&format!(
+            "\u{2500}\u{2500} done: {} steps, {} calls, {}{}",
+            steps,
+            calls,
+            crate::uipaint::format_usd_micros(cost_total_micros),
+            if budget_killed { " (budget-killed)" } else { "" }
+        ));
+    }
+
     pub fn on_ui_event(&mut self, ev: &crate::uipaint::UiEvent) {
         use crate::uipaint::UiEvent as U;
         match ev {

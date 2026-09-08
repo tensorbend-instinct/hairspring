@@ -293,18 +293,14 @@ fn run_fullscreen(
                             // M13: calls were counted live via
                             // ModelCallEnd; adding m.model_calls here
                             // doubled the HUD count.
-                            st.mission_done(m.steps, cost_total);
-                            st.push_transcript_line(&format!(
-                                "\u{2500}\u{2500} done: {} steps, {} calls, {}{}",
+                            // M20: one method owns the sequencing -
+                            // held answer commits, THEN the done line.
+                            st.mission_done_report(
                                 m.steps,
                                 m.model_calls,
-                                tui_cost(cost_total),
-                                if m.budget_killed { " (budget-killed)" } else { "" }
-                            ));
-                            // M19: commit any held answer tail (prose
-                            // disposition; wire JSON was already dropped
-                            // at ToolCallStart).
-                            st.commit_answer_tail();
+                                cost_total,
+                                m.budget_killed,
+                            );
                         }
                         Err(e) => st.push_transcript_line(&format!("mission failed: {e}")),
                     }
@@ -387,10 +383,6 @@ fn run_fullscreen(
     Ok(())
 }
 
-/// micro-USD as dollars for the TUI mission summary.
-fn tui_cost(micros: u64) -> String {
-    hs_loop::uipaint::format_usd_micros(micros)
-}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
