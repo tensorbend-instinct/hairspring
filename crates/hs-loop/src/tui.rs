@@ -115,6 +115,174 @@ pub fn layout(width: u16, height: u16) -> TuiLayout {
     }
 }
 
+/// M2: the composer editor - multi-line editing with cursor movement,
+/// history, and submit. Pure state; rendering and crossterm key
+/// translation live at the edges.
+#[derive(Debug, Clone, Default)]
+pub struct EditorState {
+    lines: Vec<String>,
+    row: usize,
+    col: usize, // in chars, not bytes
+    history: std::collections::VecDeque<String>,
+    hist_idx: Option<usize>,
+    stash: String,
+}
+
+const HISTORY_CAP: usize = 100;
+
+impl EditorState {
+    /// Whole buffer, lines joined by newlines.
+    pub fn text(&self) -> String {
+        self.lines.join("\n")
+    }
+
+    /// (row, col) in chars.
+    pub fn cursor(&self) -> (usize, usize) {
+        (self.row, self.col)
+    }
+
+    fn line_len(&self, row: usize) -> usize {
+        self.lines.get(row).map(|l| l.chars().count()).unwrap_or(0)
+    }
+
+    fn set_text(&mut self, text: &str) {
+        self.lines = text.split('\n').map(str::to_string).collect();
+        if self.lines.is_empty() {
+            self.lines.push(String::new());
+        }
+        self.row = self.lines.len() - 1;
+        self.col = self.line_len(self.row);
+    }
+
+    /// Insert one char at the cursor.
+    pub fn input_char(&mut self, c: char) {
+        if self.lines.is_empty() {
+            self.lines.push(String::new());
+        }
+        let line = &mut self.lines[self.row];
+        let byte = line.char_indices().nth(self.col).map(|(b, _)| b).unwrap_or(line.len());
+        line.insert(byte, c);
+        self.col += 1;
+    }
+
+    /// Delete the char left of the cursor; at column 0 join with the
+    /// line above.
+    pub fn backspace(&mut self) {
+        if self.col > 0 {
+            let line = &mut self.lines[self.row];
+            let byte = line.char_indices().nth(self.col - 1).map(|(b, _)| b).unwrap_or(0);
+            line.remove(byte);
+            self.col -= 1;
+        } else if self.row > 0 {
+            let cur = self.lines.remove(self.row);
+            self.row -= 1;
+            self.col = self.line_len(self.row);
+            self.lines[self.row].push_str(&cur);
+        }
+    }
+
+    /// Split the current line at the cursor.
+    pub fn insert_newline(&mut self) {
+        if self.lines.is_empty() {
+            self.lines.push(String::new());
+        }
+        let line = &mut self.lines[self.row];
+        let byte = line.char_indices().nth(self.col).map(|(b, _)| b).unwrap_or(line.len());
+        let tail = line[byte..].to_string();
+        line.truncate(byte);
+        self.lines.insert(self.row + 1, tail);
+        self.row += 1;
+        self.col = 0;
+    }
+
+    pub fn move_left(&mut self) {
+        self.col = self.col.saturating_sub(1);
+    }
+
+    pub fn move_right(&mut self) {
+        self.col = (self.col + 1).min(self.line_len(self.row));
+    }
+
+    pub fn move_home(&mut self) {
+        self.col = 0;
+    }
+
+    pub fn move_end(&mut self) {
+        self.col = self.line_len(self.row);
+    }
+
+    pub fn move_up(&mut self) {
+        if self.row > 0 {
+            self.row -= 1;
+            self.col = self.col.min(self.line_len(self.row));
+        }
+    }
+
+    pub fn move_down(&mut self) {
+        if self.row + 1 < self.lines.len() {
+            self.row += 1;
+            self.col = self.col.min(self.line_len(self.row));
+        }
+    }
+
+    /// Submit the buffer: returns the text, clears the editor, pushes
+    /// history. An empty buffer submits nothing.
+    pub fn submit(&mut self) -> Option<String> {
+        let text = self.text();
+        if text.trim().is_empty() {
+            return None;
+        }
+        self.history.push_back(text.clone());
+        while self.history.len() > HISTORY_CAP {
+            self.history.pop_front();
+        }
+        self.set_text("");
+        self.hist_idx = None;
+        self.stash.clear();
+        Some(text)
+    }
+
+    /// Walk history toward older entries; returns the now-current text.
+    pub fn history_up(&mut self) -> Option<String> {
+        if self.history.is_empty() {
+            return None;
+        }
+        let idx = match self.hist_idx {
+            None => {
+                self.stash = self.text();
+                self.history.len() - 1
+            }
+            Some(0) => 0,
+            Some(i) => i - 1,
+        };
+        self.hist_idx = Some(idx);
+        let entry = self.history[idx].clone();
+        self.set_text(&entry);
+        Some(self.text())
+    }
+
+    /// Walk history toward newer entries, then back to the stashed live
+    /// line.
+    pub fn history_down(&mut self) -> Option<String> {
+        let idx = self.hist_idx?;
+        if idx + 1 < self.history.len() {
+            self.hist_idx = Some(idx + 1);
+            let entry = self.history[idx + 1].clone();
+            self.set_text(&entry);
+        } else {
+            self.hist_idx = None;
+            let stash = self.stash.clone();
+            self.set_text(&stash);
+        }
+        Some(self.text())
+    }
+
+    /// Line count (drives composer height).
+    pub fn line_count(&self) -> usize {
+        self.lines.len().max(1)
+    }
+}
+
 /// Cap on ticker entries kept; the rail shows the tail.
 const TICKER_CAP: usize = 32;
 
@@ -125,6 +293,8 @@ const TICKER_CAP: usize = 32;
 pub struct TuiState {
     /// Live loop phase for the rail.
     pub phase: LoopPhase,
+    /// The composer editor (M2).
+    pub editor: EditorState,
     /// Recent stream events, oldest first; the rail ticker shows the tail.
     pub ticker: VecDeque<EventKind>,
     /// HUD vitals.
@@ -140,6 +310,7 @@ impl Default for TuiState {
     fn default() -> Self {
         TuiState {
             phase: LoopPhase::Plan,
+            editor: EditorState::default(),
             ticker: VecDeque::new(),
             model_label: "hs".to_string(),
             missions_run: 0,
@@ -218,8 +389,17 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
         }
     }
 
-    // Composer: rounded box, model+cost title, hs> input line.
+    // Composer: rounded box, model+cost title, editor content, cursor
+    // on the editor's cell. The box grows with the buffer (viewport
+    // yields), capped so the chrome always fits.
     if l.composer.height > 0 && l.composer.width > 0 {
+        let max_h = area.height.saturating_sub(4).max(3);
+        let want_h = (state.editor.line_count() as u16 + 2).clamp(3, max_h);
+        let composer = if want_h != l.composer.height {
+            Rect::new(0, l.hud.y.saturating_sub(want_h), area.width, want_h)
+        } else {
+            l.composer
+        };
         let title = format!(
             " {} \u{00b7} {} ",
             state.model_label,
@@ -229,8 +409,19 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .title(title);
-        let input = Paragraph::new("hs> ").block(block);
-        f.render_widget(input, l.composer);
+        let text = state.editor.text();
+        let mut content = String::from("hs> ");
+        content.push_str(&text);
+        let input = Paragraph::new(content).block(block);
+        f.render_widget(input, composer);
+        if composer.height >= 3 && composer.width > 6 {
+            let (row, col) = state.editor.cursor();
+            let cx = composer.x + 1 + 4 + col as u16;
+            let cy = composer.y + 1 + row as u16;
+            if cx < composer.x + composer.width - 1 && cy < composer.y + composer.height - 1 {
+                f.set_cursor_position((cx, cy));
+            }
+        }
     }
 
     // HUD: session vitals on the last row.
