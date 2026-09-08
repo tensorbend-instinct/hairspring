@@ -1397,11 +1397,21 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
             let style = if *ph == state.phase { accent } else { dim };
             spans.push(Span::styled(ph.label(), style));
         }
-        let left_w = rail.width * 3 / 5;
+        // M27: phases get their full MEASURED width - pre-M27 a fixed
+        // 3/5 split clipped "REFLECT" to "R" at 40 columns. The
+        // ticker takes the remainder and yields entirely below a
+        // readable minimum (4 cells); only a terminal narrower than
+        // the rail itself clips phase names.
+        let phases_w: u16 = (LoopPhase::ALL
+            .iter()
+            .map(|p| p.label().chars().count())
+            .sum::<usize>()
+            + 3 * (LoopPhase::ALL.len() - 1)) as u16;
+        let left_w = phases_w.min(rail.width);
         let phases = Paragraph::new(Line::from(spans));
-        f.render_widget(phases, Rect::new(rail.x, rail.y, left_w.min(rail.width), 1));
-        let right_w = rail.width - left_w.min(rail.width);
-        if right_w > 0 {
+        f.render_widget(phases, Rect::new(rail.x, rail.y, left_w, 1));
+        let right_w = rail.width - left_w;
+        if right_w >= 4 {
             let ticker: String = state.ticker.iter().map(|k| kind_glyph(*k)).collect();
             let tick = Paragraph::new(ticker).alignment(ratatui::layout::Alignment::Right);
             f.render_widget(
