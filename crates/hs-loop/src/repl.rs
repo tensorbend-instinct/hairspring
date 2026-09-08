@@ -93,11 +93,18 @@ impl ReplSession {
         // goal prompt so a real model can find them (REPL missions deliver
         // no native schema today - the prompt IS the tool catalog).
         let mut mcp_catalog = String::new();
+        // Gap #1 (parity build 2026-09-07): native tool schemas on every
+        // operator call, same as hs-tb-run/hs-swe-run - SYSTEM_NATIVE +
+        // tool_choice:"required" holds the model on-protocol by construction.
+        // The free-form path provably cannot (live proof: 39 prose replies
+        // in 40 steps under explicit nudges).
+        let mut native_tools = crate::toolschema::tb_tools();
         let merged_config;
         let config = if let Ok(servers_toml) = std::env::var("HS_MCP_SERVERS") {
             let (fragment, native) =
                 crate::mcpbridge::discover_mcp_tools(std::path::Path::new(&servers_toml))
                     .map_err(LoopError::Visibility)?;
+            native_tools.extend(native.iter().cloned());
             for t in &native {
                 mcp_catalog.push_str(&format!(
                     "- {}: {}\n",
@@ -115,8 +122,10 @@ impl ReplSession {
         };
         let kernel = swe_kernel(config, log_root)?;
         require_visibility(&kernel).map_err(LoopError::Visibility)?;
+        let mut inner = InnerLoop::new(kernel, log_root, feedback, max_steps)?;
+        inner.set_tools(serde_json::Value::Array(native_tools));
         Ok(ReplSession {
-            inner: InnerLoop::new(kernel, log_root, feedback, max_steps)?,
+            inner,
             used_ids: std::collections::HashSet::new(),
             last_answer_path: None,
             mcp_catalog,
@@ -159,6 +168,18 @@ impl ReplSession {
         self.last_answer_path
             .as_ref()
             .and_then(|p| std::fs::read_to_string(p).ok())
+    }
+
+    /// Names of the native tool schemas delivered on operator model calls
+    /// (builtin + MCP-discovered). Empty only if delivery was never set up.
+    pub fn native_tool_names(&self) -> Vec<String> {
+        self.inner
+            .native_tools()
+            .and_then(|t| t.as_array().cloned())
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|t| t["function"]["name"].as_str().map(str::to_string))
+            .collect()
     }
 
     pub fn stream_id(&self) -> uuid::Uuid {

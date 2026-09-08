@@ -237,6 +237,12 @@ impl InnerLoop {
         self.tools = Some(tools);
     }
 
+    /// The native schemas currently delivered on operator model calls
+    /// (None = free-form path; REPL parity gap #1 made Some the REPL norm).
+    pub fn native_tools(&self) -> Option<&serde_json::Value> {
+        self.tools.as_ref()
+    }
+
     /// Wall-kill resilience (phase 1, design D6): when set, the loop writes
     /// a JSON checkpoint of {steps, model_calls, cost_micros} after EVERY
     /// step. An external wall-clock kill (timeout, OOM, SIGKILL) then books
