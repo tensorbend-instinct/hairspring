@@ -22,6 +22,7 @@ pub mod selfcheck;
 pub mod termexec;
 pub mod sweprompt;
 pub mod toolschema;
+pub mod tui;
 pub mod uipaint;
 
 use hs_core::{EventBuilder, EventKind, Payload};

@@ -22,6 +22,8 @@ tokio = { version = "1", features = ["rt", "process", "io-std", "macros"] }
 rmcp = { version = "0.6", features = ["client", "server", "transport-child-process", "transport-io"] }
 ignore = "0.4"
 rustyline = "14"
+ratatui = "0.30.2"
+crossterm = "0.29.0"
 
 [dev-dependencies]
 tempfile = "3"
