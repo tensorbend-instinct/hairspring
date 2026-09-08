@@ -132,6 +132,53 @@ impl ReplSession {
         })
     }
 
+    /// Gap #4 (resume): adopt an existing stream instead of opening a fresh
+    /// one. The substrate (StreamWriter::resume via InnerLoop::with_stream)
+    /// recovers sequence + hash-chain state, so new missions append to the
+    /// same stream and their prompts replay the prior transcript from the
+    /// log. Config/MCP/native-tool setup is identical to load().
+    pub fn load_resume(
+        config: &Path,
+        log_root: &Path,
+        feedback: bool,
+        max_steps: u32,
+        stream_id: uuid::Uuid,
+    ) -> Result<Self, LoopError> {
+        let mut mcp_catalog = String::new();
+        let mut native_tools = crate::toolschema::tb_tools();
+        let merged_config;
+        let config = if let Ok(servers_toml) = std::env::var("HS_MCP_SERVERS") {
+            let (fragment, native) =
+                crate::mcpbridge::discover_mcp_tools(std::path::Path::new(&servers_toml))
+                    .map_err(LoopError::Visibility)?;
+            native_tools.extend(native.iter().cloned());
+            for t in &native {
+                mcp_catalog.push_str(&format!(
+                    "- {}: {}\n",
+                    t["function"]["name"].as_str().unwrap_or(""),
+                    t["function"]["description"].as_str().unwrap_or("")
+                ));
+            }
+            let mut text = std::fs::read_to_string(config)?;
+            text.push_str(&fragment);
+            merged_config = log_root.join("repl-hairspring.toml");
+            std::fs::write(&merged_config, text)?;
+            merged_config.as_path()
+        } else {
+            config
+        };
+        let kernel = swe_kernel(config, log_root)?;
+        require_visibility(&kernel).map_err(LoopError::Visibility)?;
+        let mut inner = InnerLoop::with_stream(kernel, log_root, stream_id, feedback, max_steps)?;
+        inner.set_tools(serde_json::Value::Array(native_tools));
+        Ok(ReplSession {
+            inner,
+            used_ids: std::collections::HashSet::new(),
+            last_answer_path: None,
+            mcp_catalog,
+        })
+    }
+
     /// The mission id the NEXT run of this goal would use: the slug, with
     /// a -2/-3/... suffix when the slug already ran in this session.
     pub fn mission_id_for(&self, goal: &str) -> String {
