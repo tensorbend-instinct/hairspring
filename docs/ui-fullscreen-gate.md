@@ -83,3 +83,57 @@ full-screen takes over on a TTY. Milestones, each TDD + pushed:
 - M2: editor widget + input routing (:commands, history, Tab completion).
 - M3: transcript viewport + streaming markdown adapter + scroll.
 - M4: picker overlays, mouse, resize, polish pass vs pi/omp.
+
+## ADDENDUM (Eric 2026-09-08 14:53, via Main): the loop substrate is the
+## differentiator - it must be VISIBLE
+
+Eric: loop/graph mechanisms are still missing from the surface. Phase
+transitions, the event stream, and the delegation graph are first-class
+design elements alongside frame/composer/scrollback, not afterthoughts.
+
+What the substrate already emits (hs-core EventKind, 18 kinds):
+ModelCall, ToolCall, Observation, Decision, ContextInject, Feedback,
+SnapshotRef, Proposal, Consequence, GoalUpdate, BudgetUpdate, Spawn,
+Message, Mutation, Score, ScorerPin, CanaryResult, Prefetch - plus the
+gates 7-8 CapabilityDelta/FitnessDelta/Regression/CapabilityChange
+space. hs-swarm carries the delegation structure. Everything the UI
+needs is already on the stream; today none of it is rendered.
+
+Design - one surface, four regions:
+
+    +------------------------------------------------------+
+    | transcript viewport (markdown, tool cards, scroll)   |
+    +------------------------------------------------------+
+    | loop rail: [PHASE] ticker of recent stream events    |
+    +------------------------------------------------------+
+    | /- model . $cost ----------------\                   |
+    | | hs> composer (pinned)          |                   |
+    | \--------------------------------/                   |
+    | HUD: missions . steps . calls . $ . time . stream-id |
+    +------------------------------------------------------+
+
+1. LOOP-PHASE INDICATOR (loop rail, left): where in the cycle the agent
+   is RIGHT NOW, derived from the latest stream events:
+   PLAN (ModelCall in flight) -> ACT (ToolCall running) ->
+   OBSERVE (Observation landed) -> REFLECT (Decision/Feedback) ->
+   back to PLAN. Named phases with a spinner on the active one; theme
+   accent for the live phase, dim for the rest.
+
+2. EVENT-STREAM VISUALIZATION (loop rail, right): a ticker of the last
+   N stream events, one glyph + theme color per EventKind, newest
+   rightmost, with the live one pulsing. `:events` expands it into a
+   scrollable side panel: time, kind, one-line summary per event - the
+   stream made inspectable without leaving the surface.
+
+3. DELEGATION GRAPH (overlay/side panel, appears when swarm is active):
+   built from Spawn (edge parent->child) and Message (edge activity)
+   events. Nodes: short agent id, model, live status (running/done/
+   failed from Consequence). Rendered as an indented tree in a panel;
+   `:agents` toggles it. When no swarm has spawned, the panel is absent
+   - zero chrome for the single-agent case.
+
+Milestone plan absorbs these: M1 layout skeleton now renders FOUR
+regions (viewport, loop rail, composer, HUD) in TestBackend; M2 editor
++ input; M3 viewport + streaming markdown; M4 pickers/mouse/resize;
+M5 loop rail live (phase derivation + ticker, unit-tested against
+synthetic event sequences); M6 delegation graph panel.
