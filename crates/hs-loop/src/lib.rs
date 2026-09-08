@@ -610,11 +610,26 @@ impl InnerLoop {
                                 c.lines.join("\n")
                             );
                             let mut distilled: Option<String> = None;
+                            // M18: same bracket for the distill call -
+                            // it is booked (model_calls, cost) and must
+                            // show on the HUD like any other call.
+                            if let Some(sink) = self.ui_sink.as_mut() {
+                                sink(uipaint::UiEvent::ModelCallStart {
+                                    model: self.last_model.clone().unwrap_or_default(),
+                                });
+                            }
                             if let Ok(out) =
                                 self.kernel.call_model("operator", None, &distill_prompt)
                             {
                                 model_calls += 1;
                                 self.cost_total_micros += out.cost_usd_micros.max(0) as u64;
+                                if let Some(sink) = self.ui_sink.as_mut() {
+                                    sink(uipaint::UiEvent::ModelCallEnd {
+                                        model: out.model.clone(),
+                                        input_tokens: out.input_tokens,
+                                        output_tokens: out.output_tokens,
+                                    });
+                                }
                                 let _ = self.writer.append(
                                         EventBuilder::new(EventKind::ModelCall)
                                             .payload(Payload::Inline(
@@ -1125,6 +1140,15 @@ impl InnerLoop {
                         &self.prior_gaps,
                     );
                     let verdict_tools = serde_json::json!([crate::toolschema::verdict_tool()]);
+                    // M18: the verifier round trip is a real billed model
+                    // call - bracket it with UI events like the main path,
+                    // or the HUD live count silently drops it (live-proof
+                    // capC2: HUD "1 calls" vs done-line "2 calls").
+                    if let Some(sink) = self.ui_sink.as_mut() {
+                        sink(uipaint::UiEvent::ModelCallStart {
+                            model: self.last_model.clone().unwrap_or_default(),
+                        });
+                    }
                     match self.kernel.call_model_with(
                         "operator",
                         None,
@@ -1134,6 +1158,13 @@ impl InnerLoop {
                         Ok(vout) => {
                             model_calls += 1;
                             self.cost_total_micros += vout.cost_usd_micros.max(0) as u64;
+                            if let Some(sink) = self.ui_sink.as_mut() {
+                                sink(uipaint::UiEvent::ModelCallEnd {
+                                    model: vout.model.clone(),
+                                    input_tokens: vout.input_tokens,
+                                    output_tokens: vout.output_tokens,
+                                });
+                            }
                             self.writer.append(
                                 EventBuilder::new(EventKind::ModelCall).payload(Payload::Inline(
                                     serde_json::to_vec(&serde_json::json!({
