@@ -17,6 +17,8 @@ pub enum ReplCommand {
     Help,
     /// Steps/cost/stream of the current session.
     Status,
+    /// Print the input history (preloaded + this session's lines).
+    History,
     /// Print the latest mission's answer artifact.
     LastAnswer,
     Quit,
@@ -30,6 +32,7 @@ pub fn parse_command(line: &str) -> ReplCommand {
         ":quit" | ":q" | ":exit" => ReplCommand::Quit,
         ":help" | ":h" | ":?" => ReplCommand::Help,
         ":status" => ReplCommand::Status,
+        ":history" => ReplCommand::History,
         ":last" => ReplCommand::LastAnswer,
         _ if t.starts_with(':') => ReplCommand::Unknown(t.to_string()),
         _ => ReplCommand::Goal(t.to_string()),
@@ -65,6 +68,7 @@ pub fn goal_slug(goal: &str) -> String {
 pub const REPL_HELP: &str = "hairspring REPL - run the harness on a goal, end to end
   <text>    run <text> as a goal (mission) on the loaded kernel
   :status   steps, model calls, cost, stream id of the current session
+  :history  input history - preloaded from this dir's prior sessions
   :last     print the latest mission's answer artifact
   :help     this text
   :quit     exit";
@@ -310,4 +314,183 @@ pub fn run_one_shot(
     max_steps: u32,
 ) -> Result<MissionResult, LoopError> {
     ReplSession::load(config, log_root, feedback, max_steps)?.run_goal(goal)
+}
+
+/// Gap #5: line editing. The interactive loop reads through an Editor:
+/// a rustyline-backed TTY editor (real editing keys) or a piped-stdin
+/// fallback. HAIRSPRING owns the history lifecycle: every accepted line
+/// is appended to <session dir>/.hs_repl_history and preloaded by the
+/// next session on the same dir - up-arrow works across restarts.
+pub trait Editor {
+    /// One line of input, None on EOF/Ctrl-C.
+    fn read_line(&mut self, prompt: &str) -> std::io::Result<Option<String>>;
+    fn add_history(&mut self, line: &str);
+    fn history(&self) -> &[String];
+}
+
+const HISTORY_FILE: &str = ".hs_repl_history";
+
+fn load_history(log_root: &Path) -> Vec<String> {
+    std::fs::read_to_string(log_root.join(HISTORY_FILE))
+        .map(|b| b.lines().map(|l| l.to_string()).collect())
+        .unwrap_or_default()
+}
+
+fn append_history(log_root: &Path, line: &str) {
+    use std::io::Write;
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_root.join(HISTORY_FILE))
+    {
+        let _ = writeln!(f, "{line}");
+    }
+}
+
+/// Non-TTY editor: plain lines from any BufRead, history still
+/// recorded and preloaded. The prompt goes to stderr (stdout stays
+/// clean for result JSON).
+pub struct StdinEditor<R: std::io::BufRead> {
+    reader: R,
+    log_root: PathBuf,
+    history: Vec<String>,
+}
+
+impl<R: std::io::BufRead> StdinEditor<R> {
+    pub fn new(log_root: &Path, reader: R) -> Self {
+        StdinEditor {
+            reader,
+            log_root: log_root.to_path_buf(),
+            history: load_history(log_root),
+        }
+    }
+}
+
+impl<R: std::io::BufRead> Editor for StdinEditor<R> {
+    fn read_line(&mut self, prompt: &str) -> std::io::Result<Option<String>> {
+        eprint!("{prompt}");
+        let mut line = String::new();
+        if self.reader.read_line(&mut line)? == 0 {
+            return Ok(None);
+        }
+        Ok(Some(line))
+    }
+    fn add_history(&mut self, line: &str) {
+        append_history(&self.log_root, line);
+        self.history.push(line.to_string());
+    }
+    fn history(&self) -> &[String] {
+        &self.history
+    }
+}
+
+/// TTY editor: rustyline gives the real input line - cursor movement,
+/// emacs/vi keys, kill ring - and HAIRSPRING's file history is loaded
+/// into it so recall spans restarts.
+pub struct RustylineEditor {
+    rl: rustyline::DefaultEditor,
+    log_root: PathBuf,
+    history: Vec<String>,
+}
+
+impl RustylineEditor {
+    pub fn new(log_root: &Path) -> Result<Self, rustyline::error::ReadlineError> {
+        let mut rl = rustyline::DefaultEditor::new()?;
+        let history = load_history(log_root);
+        for h in &history {
+            let _ = rl.add_history_entry(h.as_str());
+        }
+        Ok(RustylineEditor {
+            rl,
+            log_root: log_root.to_path_buf(),
+            history,
+        })
+    }
+}
+
+impl Editor for RustylineEditor {
+    fn read_line(&mut self, prompt: &str) -> std::io::Result<Option<String>> {
+        match self.rl.readline(prompt) {
+            Ok(line) => Ok(Some(line)),
+            Err(rustyline::error::ReadlineError::Interrupted)
+            | Err(rustyline::error::ReadlineError::Eof) => Ok(None),
+            Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+        }
+    }
+    fn add_history(&mut self, line: &str) {
+        let _ = self.rl.add_history_entry(line);
+        append_history(&self.log_root, line);
+        self.history.push(line.to_string());
+    }
+    fn history(&self) -> &[String] {
+        &self.history
+    }
+}
+
+/// Print one mission result as JSON on stdout (the machine-readable
+/// surface; prompts and chatter stay on stderr).
+pub fn print_result(r: &crate::MissionResult) {
+    println!(
+        "{}",
+        serde_json::to_string(&serde_json::json!({
+            "passed": r.passed,
+            "steps": r.steps,
+            "model_calls": r.model_calls,
+            "outcome": r.outcome,
+            "budget_killed": r.budget_killed,
+            "harness_error": r.harness_error,
+            "stream_id": r.stream_id.to_string(),
+            "answer_path": r.answer_path.display().to_string(),
+        }))
+        .expect("json! values serialize")
+    );
+}
+
+/// The interactive loop: read a line, record it, dispatch. Shared by
+/// the TTY and piped paths so behavior is identical on both.
+pub fn run_interactive<E: Editor + ?Sized>(
+    session: &mut ReplSession,
+    editor: &mut E,
+) -> Result<(), Box<dyn std::error::Error>> {
+    loop {
+        let line = match editor.read_line("hs> ")? {
+            None => break,
+            Some(l) => l.trim().to_string(),
+        };
+        if line.is_empty() {
+            continue;
+        }
+        editor.add_history(&line);
+        match parse_command(&line) {
+            ReplCommand::Quit => break,
+            ReplCommand::Help => eprintln!("{REPL_HELP}"),
+            ReplCommand::Status => {
+                println!(
+                    "{}",
+                    serde_json::to_string(&serde_json::json!({
+                        "stream_id": session.stream_id().to_string(),
+                        "cost_usd_micros": session.total_cost_micros(),
+                    }))
+                    .expect("json! values serialize")
+                );
+            }
+            ReplCommand::History => {
+                for h in editor.history() {
+                    println!("{h}");
+                }
+            }
+            ReplCommand::LastAnswer => match session.last_answer() {
+                Some(a) => println!("{a}"),
+                None => eprintln!("no mission has run yet"),
+            },
+            ReplCommand::Unknown(c) => {
+                eprintln!("unknown command {c} (:help lists commands)")
+            }
+            ReplCommand::Goal(goal) => match session.run_goal(&goal) {
+                Ok(r) => print_result(&r),
+                Err(e) => eprintln!("mission failed: {e}"),
+            },
+        }
+    }
+    Ok(())
 }

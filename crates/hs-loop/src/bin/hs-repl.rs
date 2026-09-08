@@ -9,7 +9,7 @@
 //!   hs-repl --config hairspring.toml --dir /path/run [--feedback on|off] [--max-steps N]
 //!   One goal per line; :help lists the commands.
 
-use hs_loop::repl::{parse_command, ReplCommand, ReplSession, REPL_HELP};
+use hs_loop::repl::ReplSession;
 use std::io::{BufRead, Write};
 use std::path::PathBuf;
 
@@ -85,22 +85,6 @@ fn apply_guards(session: &mut ReplSession, opts: &Opts) {
     session.set_interrupt_file(&interrupt);
 }
 
-fn print_result(r: &hs_loop::MissionResult) {
-    println!(
-        "{}",
-        serde_json::to_string(&serde_json::json!({
-            "passed": r.passed,
-            "steps": r.steps,
-            "model_calls": r.model_calls,
-            "outcome": r.outcome,
-            "budget_killed": r.budget_killed,
-            "harness_error": r.harness_error,
-            "stream_id": r.stream_id.to_string(),
-            "answer_path": r.answer_path.display().to_string(),
-        }))
-        .expect("json! values serialize")
-    );
-}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
@@ -152,7 +136,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let r = session
                 .run_goal(&goal)
                 .map_err(|e| format!("mission: {e}"))?;
-            print_result(&r);
+            hs_loop::repl::print_result(&r);
         }
         None => {
             eprintln!("hairspring repl (:help for commands, :quit to exit)");
@@ -161,44 +145,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .map_err(|e| format!("session load: {e}"))?;
             apply_guards(&mut session, &opts);
             apply_streaming(&mut session);
-            let stdin = std::io::stdin();
-            let mut out = std::io::stdout();
-            loop {
-                eprint!("hs> ");
-                out.flush()?;
-                let mut line = String::new();
-                if stdin.lock().read_line(&mut line)? == 0 {
-                    break; // EOF
-                }
-                let line = line.trim().to_string();
-                if line.is_empty() {
-                    continue;
-                }
-                match parse_command(&line) {
-                    ReplCommand::Quit => break,
-                    ReplCommand::Help => eprintln!("{REPL_HELP}"),
-                    ReplCommand::Status => {
-                        println!(
-                            "{}",
-                            serde_json::to_string(&serde_json::json!({
-                                "stream_id": session.stream_id().to_string(),
-                                "cost_usd_micros": session.total_cost_micros(),
-                            }))
-                            .expect("json! values serialize")
-                        );
-                    }
-                    ReplCommand::LastAnswer => match session.last_answer() {
-                        Some(a) => println!("{a}"),
-                        None => eprintln!("no mission has run yet"),
-                    },
-                    ReplCommand::Unknown(c) => {
-                        eprintln!("unknown command {c} (:help lists commands)")
-                    }
-                    ReplCommand::Goal(goal) => match session.run_goal(&goal) {
-                        Ok(r) => print_result(&r),
-                        Err(e) => eprintln!("mission failed: {e}"),
-                    },
-                }
+            use std::io::IsTerminal;
+            if std::io::stdin().is_terminal() {
+                let mut ed = hs_loop::repl::RustylineEditor::new(&opts.dir)
+                    .map_err(|e| format!("line editor: {e}"))?;
+                hs_loop::repl::run_interactive(&mut session, &mut ed)?;
+            } else {
+                let stdin = std::io::stdin();
+                let mut ed = hs_loop::repl::StdinEditor::new(&opts.dir, stdin.lock());
+                hs_loop::repl::run_interactive(&mut session, &mut ed)?;
             }
         }
     }
