@@ -18,8 +18,9 @@ fn transcript_text(st: &TuiState) -> String {
         .join("\n")
 }
 
-// R1: an unterminated in-flight answer commits when the model call ends,
-// leaving the buffer empty for the next call.
+// R1: an unterminated in-flight answer survives the model call's end
+// and commits at the disposition boundary (M19: the end of a call does
+// not yet know prose vs wire JSON), leaving the buffer empty after.
 #[test]
 fn r1_model_call_end_commits_inflight_answer() {
     let mut st = TuiState::default();
@@ -30,10 +31,11 @@ fn r1_model_call_end_commits_inflight_answer() {
         output_tokens: 5,
     });
     assert!(
-        st.answer_inflight.is_empty(),
-        "ModelCallEnd must flush the in-flight answer, got {:?}",
-        st.answer_inflight
+        !st.answer_inflight.is_empty(),
+        "M19: ModelCallEnd holds the text until disposition is known"
     );
+    st.commit_answer_tail();
+    assert!(st.answer_inflight.is_empty(), "boundary flush empties the buffer");
     assert!(
         transcript_text(&st).contains("partial answer without newline"),
         "committed transcript must contain the flushed answer"
@@ -51,12 +53,16 @@ fn r2_successive_calls_commit_separately() {
         input_tokens: 1,
         output_tokens: 1,
     });
+    // M19: the next call's start is the disposition boundary that
+    // commits the first call's prose.
+    st.on_ui_event(&UiEvent::ModelCallStart { model: "m".into() });
     st.on_answer_delta("second call prose");
     st.on_ui_event(&UiEvent::ModelCallEnd {
         model: "m".into(),
         input_tokens: 1,
         output_tokens: 1,
     });
+    st.commit_answer_tail();
     let text = transcript_text(&st);
     let first = text.find("first call prose").expect("first block present");
     let second = text.find("second call prose").expect("second block present");
@@ -100,6 +106,7 @@ fn r4_flushed_block_renders_markdown() {
         input_tokens: 1,
         output_tokens: 1,
     });
+    st.commit_answer_tail(); // M19: flush at the disposition boundary
     let text = transcript_text(&st);
     assert!(text.contains("Result"), "heading text present");
     assert!(

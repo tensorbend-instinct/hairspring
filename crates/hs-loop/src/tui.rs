@@ -865,6 +865,9 @@ impl TuiState {
         use crate::uipaint::UiEvent as U;
         match ev {
             U::ModelCallStart { model } => {
+                // M19: reaching the next call means the held text was
+                // prose (a rejected no-tool-call reply) - commit it.
+                self.flush_inflight();
                 // M17: a call issued right after an observation is the
                 // operator REASONING OVER that result - Reflect. Any
                 // other call start is the operator deciding - Plan.
@@ -889,19 +892,17 @@ impl TuiState {
                 self.total_model_calls += 1;
                 self.total_cost_micros += input_tokens * COST_MICROS_PER_INPUT_TOKEN
                     + output_tokens * COST_MICROS_PER_OUTPUT_TOKEN;
-                // M8: the call boundary commits any unterminated answer
-                // tail - deltas carry no trailing newline guarantee, and
-                // the next call's prose must start a fresh block.
-                if !self.answer_inflight.is_empty() {
-                    let tail = std::mem::take(&mut self.answer_inflight);
-                    let theme = self.theme.clone();
-                    self.push_transcript_markdown(&tail, &theme);
-                }
+                // M19: do NOT commit here - whether this call was prose
+                // or wire JSON is only known when the NEXT event lands
+                // (ToolCallStart drops it, anything else commits it).
             }
             U::ToolCallStart {
                 plugin,
                 args_summary,
             } => {
+                // M19: the held text is this call's raw JSON envelope;
+                // the beat below narrates it - never scrollback.
+                self.answer_inflight.clear();
                 self.phase = LoopPhase::Act;
                 self.push_ticker(EventKind::ToolCall);
                 self.push_transcript_line(&format!("\u{25b6} {plugin}  {args_summary}"));
@@ -920,6 +921,7 @@ impl TuiState {
                 elapsed_ms,
                 ..
             } => {
+                self.flush_inflight();
                 self.phase = LoopPhase::Observe;
                 self.push_ticker(EventKind::Observation);
                 let mark = if *ok { "\u{2713} ok" } else { "\u{2717} fail" };
@@ -943,13 +945,29 @@ impl TuiState {
     /// Complete lines commit to the transcript as markdown; the tail
     /// stays in flight until its newline arrives.
     pub fn on_answer_delta(&mut self, text: &str) {
+        // M19: hold the whole call in flight. A completion that parses
+        // as a tool call is pure wire JSON (lib.rs parses the ENTIRE
+        // completion) - committing lines eagerly here is what leaked
+        // raw tool-call JSON into scrollback (M17/M18 proof captures).
+        // The live tail still renders from answer_inflight; commit or
+        // drop happens when the call's disposition arrives.
         self.answer_inflight.push_str(text);
-        while let Some(nl) = self.answer_inflight.find('\n') {
-            let line: String = self.answer_inflight.drain(..=nl).collect();
-            let md = line.trim_end_matches('\n').to_string();
+    }
+
+    /// M19: commit the in-flight text as markdown (prose disposition).
+    fn flush_inflight(&mut self) {
+        if !self.answer_inflight.is_empty() {
+            let tail = std::mem::take(&mut self.answer_inflight);
             let theme = self.theme.clone();
-            self.push_transcript_markdown(&md, &theme);
+            self.push_transcript_markdown(&tail, &theme);
         }
+    }
+
+    /// M19: mission boundary - commit whatever prose remains held.
+    /// The bin calls this when Done lands (budget-kill can end a
+    /// mission with text still in flight).
+    pub fn commit_answer_tail(&mut self) {
+        self.flush_inflight();
     }
 
     /// M11: echo a submitted goal; multi-line goals keep their line

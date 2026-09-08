@@ -301,12 +301,10 @@ fn run_fullscreen(
                                 tui_cost(cost_total),
                                 if m.budget_killed { " (budget-killed)" } else { "" }
                             ));
-                            // Commit any unterminated answer tail.
-                            if !st.answer_inflight.is_empty() {
-                                let tail = std::mem::take(&mut st.answer_inflight);
-                                let theme = st.theme.clone();
-                                st.push_transcript_markdown(&tail, &theme);
-                            }
+                            // M19: commit any held answer tail (prose
+                            // disposition; wire JSON was already dropped
+                            // at ToolCallStart).
+                            st.commit_answer_tail();
                         }
                         Err(e) => st.push_transcript_line(&format!("mission failed: {e}")),
                     }

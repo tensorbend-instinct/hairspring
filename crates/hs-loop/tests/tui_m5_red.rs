@@ -92,16 +92,19 @@ fn r4_tool_beats_enter_transcript() {
     assert!(text.contains('\u{2713}'), "ok beat marker: {text:?}");
 }
 
-// R5: markdown deltas append to an in-flight line until a newline
-/// boundary, then commit - streaming answers render incrementally
-/// without a wall of partial lines.
+// R5: markdown deltas accumulate in flight (rendered live from the
+/// buffer) and commit at the DISPOSITION boundary (M19 superseded the
+/// per-newline eager commit: a tool-call completion is pure wire JSON
+/// and must never reach scrollback).
 #[test]
 fn r5_streaming_answer_commits_per_line() {
     let mut st = TuiState::default();
     st.on_answer_delta("## Hello");
     assert_eq!(st.transcript.len(), 0, "unterminated line stays in flight");
     st.on_answer_delta(" world\nsecond line\n");
-    assert_eq!(st.transcript.len(), 2, "two complete lines committed");
+    assert_eq!(st.transcript.len(), 0, "M19: held until disposition is known");
+    st.commit_answer_tail();
+    assert_eq!(st.transcript.len(), 2, "both lines commit at the boundary");
     let first: String = st.transcript[0].spans.iter().map(|s| s.content.clone()).collect();
     assert_eq!(first, "Hello world", "markdown header rendered on commit");
 }

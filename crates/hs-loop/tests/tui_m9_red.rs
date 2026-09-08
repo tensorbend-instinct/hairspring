@@ -17,6 +17,9 @@ fn flush_code_span(st: &mut TuiState) -> ratatui::style::Style {
         input_tokens: 1,
         output_tokens: 1,
     });
+    // M19: the call boundary no longer commits; the disposition
+    // boundary does (mission end here).
+    st.commit_answer_tail();
     st.transcript
         .last()
         .and_then(|l| l.spans.first())
