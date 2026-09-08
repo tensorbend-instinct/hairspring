@@ -145,6 +145,171 @@ fn apply_guards(session: &mut ReplSession, opts: &Opts) {
 }
 
 
+/// UI gap #10: the full-screen surface. TTY stdin gets the ratatui
+/// surface by default (HS_TUI=off falls back to line mode); piped stdin
+/// always stays byte-plain line mode. The mission runner lives on a
+/// worker thread that owns the session; the UI thread owns the
+/// terminal and the TuiState.
+fn run_fullscreen(
+    session: ReplSession,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use crossterm::event::{self, Event, MouseEventKind};
+    use crossterm::execute;
+    use crossterm::terminal::{
+        disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+    };
+    use hs_loop::tui::{self, TuiState};
+    use hs_loop::uipaint::{Theme, UiEvent};
+    use ratatui::backend::CrosstermBackend;
+    use ratatui::Terminal;
+    use std::io::stdout;
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    enum TuiMsg {
+        Ui(UiEvent),
+        Delta(String),
+        Done(Result<(hs_loop::MissionResult, u64), String>),
+    }
+
+    let (tx, rx) = mpsc::channel::<TuiMsg>();
+    let (goal_tx, goal_rx) = mpsc::channel::<String>();
+
+    // Vitals snapshot before the session moves to the worker.
+    let v0 = session.vitals();
+    let mut st = TuiState {
+        model_label: v0.model_label.clone(),
+        missions_run: v0.missions_run,
+        total_steps: v0.total_steps,
+        total_model_calls: v0.total_model_calls,
+        total_cost_micros: v0.total_cost_micros,
+        stream_short: v0.stream_id.to_string().chars().take(8).collect(),
+        ..Default::default()
+    };
+
+    let mut session = session;
+    {
+        let txu = tx.clone();
+        session.set_ui_sink(Box::new(move |ev| {
+            let _ = txu.send(TuiMsg::Ui(ev));
+        }));
+        let txd = tx.clone();
+        session.set_delta_sink(Box::new(move |d: &str| {
+            let _ = txd.send(TuiMsg::Delta(d.to_string()));
+        }));
+    }
+    std::thread::spawn(move || {
+        let mut session = session;
+        while let Ok(goal) = goal_rx.recv() {
+            let r = session
+                .run_goal(&goal)
+                .map(|m| (m, session.total_cost_micros()))
+                .map_err(|e| e.to_string());
+            let _ = tx.send(TuiMsg::Done(r));
+        }
+    });
+
+    // Terminal guard: always restore, even on panic unwind.
+    struct Guard;
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            let _ = disable_raw_mode();
+            let _ = execute!(stdout(), LeaveAlternateScreen);
+        }
+    }
+    enable_raw_mode()?;
+    execute!(stdout(), EnterAlternateScreen)?;
+    let _guard = Guard;
+    let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
+
+    let theme = Theme::from_env();
+    let mut running = false;
+    loop {
+        terminal.draw(|f| tui::render_skeleton(f, &st))?;
+        while let Ok(msg) = rx.try_recv() {
+            match msg {
+                TuiMsg::Ui(ev) => st.on_ui_event(&ev),
+                TuiMsg::Delta(d) => st.on_answer_delta(&d),
+                TuiMsg::Done(r) => {
+                    running = false;
+                    match r {
+                        Ok((m, cost_total)) => {
+                            st.missions_run += 1;
+                            st.total_steps += m.steps as u64;
+                            st.total_model_calls += m.model_calls as u64;
+                            st.total_cost_micros = cost_total;
+                            st.push_transcript_line(&format!(
+                                "\u{2500}\u{2500} done: {} steps, {} calls, {}{}",
+                                m.steps,
+                                m.model_calls,
+                                tui_cost(cost_total),
+                                if m.budget_killed { " (budget-killed)" } else { "" }
+                            ));
+                            // Commit any unterminated answer tail.
+                            if !st.answer_inflight.is_empty() {
+                                let tail = std::mem::take(&mut st.answer_inflight);
+                                st.push_transcript_markdown(&tail, &theme);
+                            }
+                        }
+                        Err(e) => st.push_transcript_line(&format!("mission failed: {e}")),
+                    }
+                }
+            }
+        }
+        if event::poll(Duration::from_millis(60))? {
+            match event::read()? {
+                Event::Key(k) => {
+                    if k.kind != crossterm::event::KeyEventKind::Press {
+                        continue;
+                    }
+                    match tui::handle_key(&mut st, k) {
+                        tui::KeyAction::Continue | tui::KeyAction::ToggleAgents => {}
+                        tui::KeyAction::Quit => break,
+                        tui::KeyAction::Picked(_choice) => {
+                            // Picker wiring for :resume lands with the
+                            // session-switch milestone; the overlay is
+                            // exercised by tests today.
+                        }
+                        tui::KeyAction::Submit(text) => {
+                            let t = text.trim().to_string();
+                            if t == ":help" {
+                                for line in hs_loop::repl::REPL_HELP.lines() {
+                                    st.push_transcript_line(line);
+                                }
+                            } else if let Some(goal) = t.strip_prefix(":") {
+                                st.push_transcript_line(&format!(
+                                    "unknown command :{goal} (:help lists commands)"
+                                ));
+                            } else if !running {
+                                running = true;
+                                st.push_transcript_line(&format!("\u{203a} {t}"));
+                                let _ = goal_tx.send(t);
+                            } else {
+                                st.push_transcript_line(
+                                    "(mission in flight - queued input is a later milestone)",
+                                );
+                            }
+                        }
+                    }
+                }
+                Event::Mouse(m) => match m.kind {
+                    MouseEventKind::ScrollUp => st.transcript_wheel_up(3),
+                    MouseEventKind::ScrollDown => st.transcript_wheel_down(3),
+                    _ => {}
+                },
+                Event::Resize(_, _) => {}
+                _ => {}
+            }
+        }
+    }
+    Ok(())
+}
+
+/// micro-USD as dollars for the TUI mission summary.
+fn tui_cost(micros: u64) -> String {
+    hs_loop::uipaint::format_usd_micros(micros)
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
     let one_shot_goal = if args.get(1).map(|s| s.as_str()) == Some("run") {
@@ -201,7 +366,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             apply_guards(&mut session, &opts);
             apply_streaming(&mut session);
             use std::io::IsTerminal;
-            if std::io::stdin().is_terminal() {
+            if std::io::stdin().is_terminal()
+                && std::env::var("HS_TUI").as_deref() != Ok("off")
+            {
+                run_fullscreen(session)?;
+            } else if std::io::stdin().is_terminal() {
                 let mut ed = hs_loop::repl::RustylineEditor::new(&opts.dir)
                     .map_err(|e| format!("line editor: {e}"))?;
                 hs_loop::repl::run_interactive(&mut session, &mut ed)?;

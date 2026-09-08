@@ -409,6 +409,127 @@ impl EditorState {
     }
 }
 
+/// M7: what a key event means for the surface. The bin's terminal loop
+/// maps every key through handle_key; only Submit/Picked leave the UI
+/// layer (the caller dispatches the mission / applies the choice).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum KeyAction {
+    /// Handled inside the surface; keep looping.
+    Continue,
+    /// Editor submitted a line (mission text or a caller command).
+    Submit(String),
+    /// Picker chose an entry.
+    Picked(String),
+    /// ":agents" toggled the delegation panel.
+    ToggleAgents,
+    /// Ctrl+C or ":quit".
+    Quit,
+}
+
+/// Translate one key event into a surface action. Picker-open mode
+/// owns Up/Down/Enter/Esc; otherwise the editor owns keys, PgUp/PgDn
+/// scroll the transcript, and Enter submits (Alt+Enter = newline).
+pub fn handle_key(state: &mut TuiState, key: ratatui::crossterm::event::KeyEvent) -> KeyAction {
+    use ratatui::crossterm::event::{KeyCode, KeyModifiers};
+
+    // Picker mode eats navigation before the editor sees it.
+    if state.picker.is_some() {
+        match key.code {
+            KeyCode::Up => {
+                state.picker_up();
+                return KeyAction::Continue;
+            }
+            KeyCode::Down => {
+                state.picker_down();
+                return KeyAction::Continue;
+            }
+            KeyCode::Enter => {
+                return match state.picker_take() {
+                    Some(choice) => KeyAction::Picked(choice),
+                    None => KeyAction::Continue,
+                };
+            }
+            KeyCode::Esc => {
+                state.picker_cancel();
+                return KeyAction::Continue;
+            }
+            _ => return KeyAction::Continue,
+        }
+    }
+
+    match (key.code, key.modifiers) {
+        (KeyCode::Char('c'), KeyModifiers::CONTROL) => KeyAction::Quit,
+        (KeyCode::Char(c), KeyModifiers::NONE) | (KeyCode::Char(c), KeyModifiers::SHIFT) => {
+            state.editor.input_char(c);
+            KeyAction::Continue
+        }
+        (KeyCode::Enter, KeyModifiers::ALT) => {
+            state.editor.insert_newline();
+            KeyAction::Continue
+        }
+        (KeyCode::Enter, _) => match state.editor.submit() {
+            None => KeyAction::Continue,
+            Some(text) => match text.trim() {
+                ":quit" | ":q" => KeyAction::Quit,
+                ":agents" => {
+                    state.toggle_agents_panel();
+                    KeyAction::ToggleAgents
+                }
+                _ => KeyAction::Submit(text),
+            },
+        },
+        (KeyCode::Backspace, _) => {
+            state.editor.backspace();
+            KeyAction::Continue
+        }
+        (KeyCode::Left, _) => {
+            state.editor.move_left();
+            KeyAction::Continue
+        }
+        (KeyCode::Right, _) => {
+            state.editor.move_right();
+            KeyAction::Continue
+        }
+        (KeyCode::Home, _) => {
+            state.editor.move_home();
+            KeyAction::Continue
+        }
+        (KeyCode::End, _) => {
+            state.editor.move_end();
+            KeyAction::Continue
+        }
+        (KeyCode::Up, _) => {
+            // History when the cursor sits on the first row; otherwise
+            // plain cursor movement inside a multi-line buffer.
+            if state.editor.cursor().0 == 0 {
+                state.editor.history_up();
+            } else {
+                state.editor.move_up();
+            }
+            KeyAction::Continue
+        }
+        (KeyCode::Down, _) => {
+            let (row, _) = state.editor.cursor();
+            let last = state.editor.line_count().saturating_sub(1);
+            if row >= last {
+                state.editor.history_down();
+            } else {
+                state.editor.move_down();
+            }
+            KeyAction::Continue
+        }
+        (KeyCode::PageUp, _) => {
+            state.transcript_page_up(20);
+            KeyAction::Continue
+        }
+        (KeyCode::PageDown, _) => {
+            state.transcript_wheel_down(20);
+            KeyAction::Continue
+        }
+        _ => KeyAction::Continue,
+    }
+}
+
 /// M6: delegation graph - the loop substrate's Spawn/Message structure
 /// rendered as a first-class surface element. Nodes derive from Spawn
 /// events on the operator stream; completion derives from the child's
