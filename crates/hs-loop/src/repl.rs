@@ -83,6 +83,31 @@ pub struct ReplSession {
 }
 
 impl ReplSession {
+
+/// Gap #6: the REPL's compaction budget comes from the configured
+/// model's real window, not the loop's ~1M-token default. The default
+/// model's `context_tokens` stanza declares the window; the loop
+/// budget keeps 25% headroom for the reply. Without this, a long
+/// REPL session blows the provider's context (400) long before the
+/// assembler's compactor would ever fire.
+fn configured_context_tokens(config: &Path) -> Option<usize> {
+    let text = std::fs::read_to_string(config).ok()?;
+    let v: toml::Value = toml::from_str(&text).ok()?;
+    let models = v.get("models")?.as_array()?;
+    let default_model = models
+        .iter()
+        .find(|m| {
+            m.get("default")
+                .and_then(|d| d.as_bool())
+                .unwrap_or(false)
+        })
+        .or(models.first())?;
+    default_model
+        .get("context_tokens")?
+        .as_integer()
+        .map(|n| n as usize)
+}
+
     /// Tool-env wiring (live defect 2026-09-08): hs-tb-run sets
     /// HS_TERM_WORKDIR/HS_SWE_WORKSPACE for every plugin the kernel
     /// spawns; hs-repl never did, so term.exec fell back to /app and
@@ -146,6 +171,9 @@ impl ReplSession {
         let kernel = swe_kernel(config, log_root)?;
         require_visibility(&kernel).map_err(LoopError::Visibility)?;
         let mut inner = InnerLoop::new(kernel, log_root, feedback, max_steps)?;
+        if let Some(tokens) = Self::configured_context_tokens(config) {
+            inner.set_context_budget_tokens(tokens * 3 / 4);
+        }
         inner.set_tools(serde_json::Value::Array(native_tools));
         Ok(ReplSession {
             inner,
@@ -210,6 +238,9 @@ impl ReplSession {
         let kernel = swe_kernel(config, log_root)?;
         require_visibility(&kernel).map_err(LoopError::Visibility)?;
         let mut inner = InnerLoop::with_stream(kernel, log_root, stream_id, feedback, max_steps)?;
+        if let Some(tokens) = Self::configured_context_tokens(config) {
+            inner.set_context_budget_tokens(tokens * 3 / 4);
+        }
         inner.set_tools(serde_json::Value::Array(native_tools));
         Ok(ReplSession {
             inner,
