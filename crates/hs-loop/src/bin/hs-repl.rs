@@ -298,6 +298,7 @@ fn run_fullscreen(
                             st.mission_done_report(
                                 m.steps,
                                 m.model_calls,
+                                m.cost_micros,
                                 cost_total,
                                 m.budget_killed,
                             );

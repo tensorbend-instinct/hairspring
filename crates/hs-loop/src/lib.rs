@@ -78,6 +78,11 @@ pub struct MissionResult {
     /// True when the run was killed for exceeding its USD budget (gate 8:
     /// budget-killed missions score as failures, never as passes).
     pub budget_killed: bool,
+    /// M21: this mission's own provider-reported spend (micro-USD) -
+    /// the delta of the loop's cumulative counter over the mission.
+    /// The TUI done line prints THIS; the session total lives on
+    /// total_cost_micros().
+    pub cost_micros: u64,
     /// Some(msg) when the mission aborted on a harness failure (phase 1:
     /// a plugin declared PluginDead by the supervisor). The message names
     /// the plugin and the real cause. Harness-aborted missions book their
@@ -101,6 +106,8 @@ pub struct InnerLoop {
     feedback_injection: bool,
     max_steps: u32,
     cost_total_micros: u64,
+    /// M21: cumulative cost at the current mission's start.
+    mission_cost_start: u64,
     budget_micros: Option<u64>,
     progress_path: Option<PathBuf>,
     ledger: ledger::Ledger,
@@ -172,6 +179,7 @@ impl InnerLoop {
             feedback_injection,
             max_steps,
             cost_total_micros: 0,
+            mission_cost_start: 0,
             budget_micros: None,
             tools: None,
             progress_path: None,
@@ -211,6 +219,7 @@ impl InnerLoop {
             feedback_injection,
             max_steps,
             cost_total_micros: 0,
+            mission_cost_start: 0,
             budget_micros: None,
             tools: None,
             progress_path: None,
@@ -424,6 +433,7 @@ impl InnerLoop {
             stream_id: self.stream_id,
             answer_path: answer_path.to_path_buf(),
             budget_killed: false,
+            cost_micros: self.cost_total_micros.saturating_sub(self.mission_cost_start),
             harness_error: Some(msg),
             outcome: "harness_error".to_string(),
         })
@@ -444,6 +454,8 @@ impl InnerLoop {
     ) -> Result<MissionResult, LoopError> {
         let mission = mission_id;
         self.mission_started = Some(std::time::Instant::now());
+        // M21: per-mission spend is the delta from this point.
+        self.mission_cost_start = self.cost_total_micros;
         let answer_path = self.log_root.join("work").join(mission).join("answer.txt");
         std::fs::create_dir_all(
             answer_path
@@ -477,6 +489,7 @@ impl InnerLoop {
                     stream_id: self.stream_id,
                     answer_path,
                     budget_killed: false,
+            cost_micros: self.cost_total_micros.saturating_sub(self.mission_cost_start),
                     harness_error: None,
                     outcome: "interrupted".to_string(),
                 });
@@ -757,6 +770,7 @@ impl InnerLoop {
                         stream_id: self.stream_id,
                         answer_path,
                         budget_killed: true,
+            cost_micros: self.cost_total_micros.saturating_sub(self.mission_cost_start),
                         harness_error: None,
                         outcome: "budget_killed".to_string(),
                     });
@@ -794,6 +808,7 @@ impl InnerLoop {
                         stream_id: self.stream_id,
                         answer_path,
                         budget_killed: false,
+            cost_micros: self.cost_total_micros.saturating_sub(self.mission_cost_start),
                         harness_error: None,
                         outcome: "wall_killed".to_string(),
                     });
@@ -1291,6 +1306,7 @@ impl InnerLoop {
                     stream_id: self.stream_id,
                     answer_path,
                     budget_killed: false,
+            cost_micros: self.cost_total_micros.saturating_sub(self.mission_cost_start),
                     harness_error: None,
                     outcome: outcome.to_string(),
                 });
@@ -1312,6 +1328,7 @@ impl InnerLoop {
             stream_id: self.stream_id,
             answer_path,
             budget_killed: false,
+            cost_micros: self.cost_total_micros.saturating_sub(self.mission_cost_start),
             harness_error: None,
             outcome: "steps_exhausted".to_string(),
         })

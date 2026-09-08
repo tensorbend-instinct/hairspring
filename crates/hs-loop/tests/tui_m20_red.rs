@@ -26,7 +26,7 @@ fn transcript_text(st: &TuiState) -> String {
 fn m20_done_line_follows_the_answer() {
     let mut st = TuiState::default();
     st.on_answer_delta("the final answer prose");
-    st.mission_done_report(1, 2, 1400, false);
+    st.mission_done_report(1, 2, 1400, 1400, false); // M21: mission cost, then session total
     let text = transcript_text(&st);
     let a = text.find("the final answer prose").expect("answer committed");
     let d = text.find("done: 1 steps, 2 calls").expect("done line present");
@@ -40,7 +40,9 @@ fn m20_done_line_follows_the_answer() {
 #[test]
 fn m20_report_keeps_counters_and_format() {
     let mut st = TuiState::default();
-    st.mission_done_report(3, 3, 3500, true);
+    // M21 supersession: mission cost and session total are separate
+    // args; the line prints the mission's own spend.
+    st.mission_done_report(3, 3, 3500, 3500, true);
     let text = transcript_text(&st);
     assert!(text.contains("done: 3 steps, 3 calls, $0.0035 (budget-killed)"), "format: {text}");
     assert_eq!(st.total_steps, 3);
