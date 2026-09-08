@@ -148,8 +148,8 @@ default = true
             notescratch = bin("hs-plugin-notescratch")?,
             model = model,
             model_bin = bin(&format!("hs-plugin-{model}"))?,
-        ) + mcp_fragment.as_str(),
-    )?;
+        ),
+    ) + &mcp_fragment)?;
 
     let work_dir = log_root.join("work").join(&task_id);
     std::fs::create_dir_all(&work_dir).expect("work dir");

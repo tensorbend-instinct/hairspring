@@ -74,6 +74,7 @@ pub struct ReplSession {
     inner: InnerLoop,
     used_ids: std::collections::HashSet<String>,
     last_answer_path: Option<PathBuf>,
+    mcp_catalog: String,
 }
 
 impl ReplSession {
@@ -86,12 +87,39 @@ impl ReplSession {
         feedback: bool,
         max_steps: u32,
     ) -> Result<Self, LoopError> {
+        // MCP tool seam (Eric 2026-09-07 web-tooling order): HS_MCP_SERVERS
+        // points at a [[mcp_servers]] TOML; discovered tools merge into the
+        // session kernel (mcp.<server>.<tool>) and are advertised on every
+        // goal prompt so a real model can find them (REPL missions deliver
+        // no native schema today - the prompt IS the tool catalog).
+        let mut mcp_catalog = String::new();
+        let merged_config;
+        let config = if let Ok(servers_toml) = std::env::var("HS_MCP_SERVERS") {
+            let (fragment, native) =
+                crate::mcpbridge::discover_mcp_tools(std::path::Path::new(&servers_toml))
+                    .map_err(LoopError::Visibility)?;
+            for t in &native {
+                mcp_catalog.push_str(&format!(
+                    "- {}: {}\n",
+                    t["function"]["name"].as_str().unwrap_or(""),
+                    t["function"]["description"].as_str().unwrap_or("")
+                ));
+            }
+            let mut text = std::fs::read_to_string(config)?;
+            text.push_str(&fragment);
+            merged_config = log_root.join("repl-hairspring.toml");
+            std::fs::write(&merged_config, text)?;
+            merged_config.as_path()
+        } else {
+            config
+        };
         let kernel = swe_kernel(config, log_root)?;
         require_visibility(&kernel).map_err(LoopError::Visibility)?;
         Ok(ReplSession {
             inner: InnerLoop::new(kernel, log_root, feedback, max_steps)?,
             used_ids: std::collections::HashSet::new(),
             last_answer_path: None,
+            mcp_catalog,
         })
     }
 
@@ -115,7 +143,12 @@ impl ReplSession {
     /// text itself is the prompt the model sees.
     pub fn run_goal(&mut self, goal: &str) -> Result<MissionResult, LoopError> {
         let id = self.mission_id_for(goal);
-        let r = self.inner.run_mission_full(&id, goal)?;
+        let prompt = if self.mcp_catalog.is_empty() {
+            goal.to_string()
+        } else {
+            format!("{goal}\n\nAVAILABLE MCP TOOLS (call them like any other tool):\n{}", self.mcp_catalog)
+        };
+        let r = self.inner.run_mission_full(&id, &prompt)?;
         self.used_ids.insert(id);
         self.last_answer_path = Some(r.answer_path.clone());
         Ok(r)

@@ -92,3 +92,70 @@ pub fn resolve_plugin_bin(exe: &Path, name: &str) -> Result<std::path::PathBuf, 
         ))
     }
 }
+
+/// Discovery shared by every runner seam (hs-swe-run's block generalized for
+/// hs-tb-run and the REPL, Eric 2026-09-07 web-tooling order): for each
+/// server in the TOML, list its tools through hs-plugin-mcpcall and return
+/// (kernel config fragment, native tool schemas with the server-provided
+/// input_schema verbatim). Discovery failure is a hard error - a
+/// half-registered surface is worse than none.
+///
+/// Binary resolution: HS_MCP_BRIDGE_BIN wins when set (test seam - the
+/// REPL runs discovery in-process, where current_exe is the test binary,
+/// not a sibling of the plugins); otherwise resolve_plugin_bin next to the
+/// current exe (production: every runner ships its plugins beside it).
+pub fn discover_mcp_tools(
+    servers_toml: &Path,
+) -> Result<(String, Vec<serde_json::Value>), String> {
+    let servers = load_mcp_servers(servers_toml)?;
+    let mcpcall = match std::env::var("HS_MCP_BRIDGE_BIN") {
+        Ok(p) => std::path::PathBuf::from(p),
+        Err(_) => resolve_plugin_bin(
+            &std::env::current_exe().map_err(|e| format!("current exe: {e}"))?,
+            "hs-plugin-mcpcall",
+        )?,
+    };
+    let mut fragment = String::new();
+    let mut native = Vec::new();
+    for s in &servers {
+        let out = std::process::Command::new(&mcpcall)
+            .args([
+                "--config",
+                &servers_toml.display().to_string(),
+                "--server",
+                &s.name,
+                "--list",
+                "--list-verbose",
+            ])
+            .output()
+            .map_err(|e| format!("mcp discovery spawn: {e}"))?;
+        if !out.status.success() {
+            return Err(format!(
+                "mcp discovery: {}",
+                String::from_utf8_lossy(&out.stderr)
+            ));
+        }
+        let discovered: Vec<serde_json::Value> = serde_json::from_slice(&out.stdout)
+            .map_err(|e| format!("mcp discovery parse: {e}"))?;
+        for d in &discovered {
+            let full = d["name"].as_str().unwrap_or("").to_string();
+            let desc = d["description"].as_str().unwrap_or("").to_string();
+            let tool = full
+                .strip_prefix(&format!("mcp.{}.", s.name))
+                .ok_or_else(|| format!("unexpected tool name {full}"))?
+                .to_string();
+            fragment.push_str(&format!(
+                "\n[[tools]]\nname = \"{full}\"\ncommand = [\"{}\", \"--plugin\", \"--config\", \"{}\", \"--server\", \"{}\", \"--tool\", \"{tool}\", \"--name\", \"{full}\"]\nsubjects = [\"*\"]\n",
+                mcpcall.display(),
+                servers_toml.display(),
+                s.name,
+            ));
+            native.push(crate::toolschema::mcp_tool(
+                &full,
+                &desc,
+                d.get("input_schema").cloned(),
+            ));
+        }
+    }
+    Ok((fragment, native))
+}
