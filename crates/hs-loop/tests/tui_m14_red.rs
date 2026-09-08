@@ -13,13 +13,14 @@ use hs_loop::tui::{self, TuiState};
 fn write_stream(
     root: &std::path::Path,
     id: uuid::Uuid,
-    events: Vec<(hs_core::EventKind, serde_json::Value)>,
+    events: Vec<(hs_core::EventKind, serde_json::Value, i64)>,
 ) {
     let mut w = hs_log::StreamWriter::create(root, id).unwrap();
-    for (kind, v) in events {
+    for (kind, v, cost) in events {
         w.append(
             hs_core::EventBuilder::new(kind)
-                .payload(hs_core::Payload::Inline(serde_json::to_vec(&v).unwrap())),
+                .payload(hs_core::Payload::Inline(serde_json::to_vec(&v).unwrap()))
+                .cost_usd_micros(cost),
         )
         .unwrap();
     }
@@ -50,26 +51,26 @@ fn r1_backfill_replays_visible_history() {
                 "messages": [{"role": "user", "content": "MISSION: fix the parser bug\nand keep it green\n\n..."}],
                 "completion": "patched the parser, tests green",
                 "input_tokens": 50, "output_tokens": 10
-            })),
+            }), 700),
             (hs_core::EventKind::GoalUpdate, serde_json::json!({
                 "mission": "fix-the-parser-bug", "done": false, "outcome": "steps_exhausted"
-            })),
-            // an internal distill call between missions: must NOT render
-            (hs_core::EventKind::ModelCall, serde_json::json!({
-                "model": "scripted", "why": "distill",
-                "prompt": "distill the transcript", "completion": "INTERNAL NOTES",
-                "input_tokens": 40, "output_tokens": 8
-            })),
-            // mission 2
+            }), 0),
+            // mission 2: operator call + an internal distill call inside
+            // the mission window (counted, never rendered)
             (hs_core::EventKind::ModelCall, serde_json::json!({
                 "model": "scripted",
                 "messages": [{"role": "user", "content": "MISSION: harden the edge cases\n\n..."}],
                 "completion": "added the boundary tests",
                 "input_tokens": 60, "output_tokens": 12
-            })),
+            }), 600),
+            (hs_core::EventKind::ModelCall, serde_json::json!({
+                "model": "scripted", "why": "distill",
+                "prompt": "distill the transcript", "completion": "INTERNAL NOTES",
+                "input_tokens": 40, "output_tokens": 8
+            }), 100),
             (hs_core::EventKind::GoalUpdate, serde_json::json!({
                 "mission": "harden-the-edge-cases", "done": true, "outcome": "verified"
-            })),
+            }), 0),
         ],
     );
 
@@ -86,6 +87,11 @@ fn r1_backfill_replays_visible_history() {
     assert!(text.contains("added the boundary tests"), "answer 2: {text:?}");
     assert!(!text.contains("INTERNAL NOTES"), "distill never renders: {text:?}");
     assert!(text.contains("verified"), "done line names the outcome: {text:?}");
+    // cost comes from the recorded per-call cost_usd_micros, never a
+    // token-rate estimate: mission 1 = 700 micros, mission 2 = 600+100
+    // (distill counts toward cost, never renders).
+    assert_eq!(text.matches("$0.0007").count(), 2, "recorded cost, both missions: {text:?}");
+    assert!(!text.contains("$0.0003"), "no token-rate estimate: {text:?}");
     // order: goal 1 before answer 1 before goal 2
     let g1 = text.find("fix the parser bug").unwrap();
     let a1 = text.find("patched the parser").unwrap();
@@ -106,4 +112,46 @@ fn r2_backfill_empty_stream_is_noop() {
     // and a nonexistent stream id: same
     tui::backfill_transcript(&mut st, root, uuid::Uuid::new_v4());
     assert!(st.transcript.is_empty());
+}
+
+// R3: the loop records the real per-call cost on the ModelCall
+// payload, so a resumed session's done lines can show the SAME cost
+// the live HUD showed - not a token-rate estimate (cap11 showed the
+// estimate at $0.0007 where live showed $0.0014).
+#[test]
+fn r3_model_call_payload_records_cost() {
+    let dir = std::env::temp_dir().join("m14-r3");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("script.jsonl"), "alpha\nbeta\n").unwrap();
+    std::fs::write(dir.join("hairspring.toml"), r#"
+[[tools]]
+name = "answer.write"
+command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-answer"]
+subjects = ["*"]
+[[tools]]
+name = "checker.run"
+command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-liechecker"]
+subjects = ["*"]
+[[models]]
+name = "scripted"
+command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted"]
+default = true
+"#).unwrap();
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", dir.join("script.jsonl")); }
+    let mut s = hs_loop::repl::load_session(
+        &dir.join("hairspring.toml"), &dir.join("run"), false, 2, None, None,
+    ).unwrap();
+    let r = s.run_goal("probe").unwrap();
+    drop(s);
+    let reader = hs_log::StreamReader::open(&dir.join("run"), r.stream_id).unwrap();
+    let events = reader.events().unwrap();
+    let calls: Vec<_> = events.iter().filter(|e| e.kind == hs_core::EventKind::ModelCall).collect();
+    assert!(!calls.is_empty());
+    for ev in calls {
+        assert!(
+            ev.cost_usd_micros > 0,
+            "ModelCall EVENT records cost_usd_micros: {ev:?}"
+        );
+    }
 }

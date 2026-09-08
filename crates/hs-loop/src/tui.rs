@@ -676,10 +676,12 @@ pub fn backfill_transcript(
                 let distill =
                     v.get("why").and_then(|w| w.as_str()) == Some("distill");
                 calls += 1;
-                cost += v.get("input_tokens").and_then(|t| t.as_u64()).unwrap_or(0)
-                    * COST_MICROS_PER_INPUT_TOKEN
-                    + v.get("output_tokens").and_then(|t| t.as_u64()).unwrap_or(0)
-                        * COST_MICROS_PER_OUTPUT_TOKEN;
+                // The recorded per-call cost (Event.cost_usd_micros),
+                // never a token-rate estimate: a resumed session's
+                // done line must show the SAME cost the live HUD
+                // showed (cap11: estimate read $0.0007 where live
+                // read $0.0014).
+                cost += ev.cost_usd_micros.max(0) as u64;
                 if distill {
                     continue; // internal call: counted, never rendered
                 }
