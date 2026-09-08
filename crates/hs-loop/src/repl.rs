@@ -73,12 +73,38 @@ pub const REPL_HELP: &str = "hairspring REPL - run the harness on a goal, end to
   :help     this text
   :quit     exit";
 
+/// UI gap #1: a typed snapshot of where the session stands - the data
+/// an ambient status bar paints. No string-scraping of logs: the session
+/// accumulates every mission's counters as they land.
+#[derive(Debug, Clone)]
+pub struct SessionVitals {
+    /// Name of the configured default model.
+    pub model_label: String,
+    /// Missions completed in this session.
+    pub missions_run: u64,
+    /// Model steps across all missions.
+    pub total_steps: u64,
+    /// Provider calls across all missions.
+    pub total_model_calls: u64,
+    /// Accumulated cost in USD micros (as metered by the loop).
+    pub total_cost_micros: u64,
+    /// Wall time since the session loaded its kernel.
+    pub elapsed: std::time::Duration,
+    /// The live log stream.
+    pub stream_id: uuid::Uuid,
+}
+
 /// A loaded kernel + loop pair that runs goals as missions, in order.
 pub struct ReplSession {
     inner: InnerLoop,
     used_ids: std::collections::HashSet<String>,
     last_answer_path: Option<PathBuf>,
     mcp_catalog: String,
+    model_label: String,
+    started: std::time::Instant,
+    missions_run: u64,
+    total_steps: u64,
+    total_model_calls: u64,
 }
 
 impl ReplSession {
@@ -89,6 +115,23 @@ impl ReplSession {
 /// budget keeps 25% headroom for the reply. Without this, a long
 /// REPL session blows the provider's context (400) long before the
 /// assembler's compactor would ever fire.
+/// UI gap #1: the configured default model's NAME, for the status bar.
+/// Same TOML stanza walk as configured_context_tokens.
+fn configured_model_label(config: &Path) -> Option<String> {
+    let text = std::fs::read_to_string(config).ok()?;
+    let v: toml::Value = toml::from_str(&text).ok()?;
+    let models = v.get("models")?.as_array()?;
+    let default_model = models
+        .iter()
+        .find(|m| {
+            m.get("default")
+                .and_then(|d| d.as_bool())
+                .unwrap_or(false)
+        })
+        .or(models.first())?;
+    default_model.get("name")?.as_str().map(str::to_string)
+}
+
 fn configured_context_tokens(config: &Path) -> Option<usize> {
     let text = std::fs::read_to_string(config).ok()?;
     let v: toml::Value = toml::from_str(&text).ok()?;
@@ -174,11 +217,17 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
             inner.set_context_budget_tokens(tokens * 3 / 4);
         }
         inner.set_tools(serde_json::Value::Array(native_tools));
+        let model_label = Self::configured_model_label(config).unwrap_or_else(|| "?".to_string());
         Ok(ReplSession {
             inner,
             used_ids: std::collections::HashSet::new(),
             last_answer_path: None,
             mcp_catalog,
+            model_label,
+            started: std::time::Instant::now(),
+            missions_run: 0,
+            total_steps: 0,
+            total_model_calls: 0,
         })
     }
 
@@ -240,11 +289,17 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
             inner.set_context_budget_tokens(tokens * 3 / 4);
         }
         inner.set_tools(serde_json::Value::Array(native_tools));
+        let model_label = Self::configured_model_label(config).unwrap_or_else(|| "?".to_string());
         Ok(ReplSession {
             inner,
             used_ids: std::collections::HashSet::new(),
             last_answer_path: None,
             mcp_catalog,
+            model_label,
+            started: std::time::Instant::now(),
+            missions_run: 0,
+            total_steps: 0,
+            total_model_calls: 0,
         })
     }
 
@@ -274,6 +329,9 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
             format!("{goal}\n\nAVAILABLE MCP TOOLS (call them like any other tool):\n{}", self.mcp_catalog)
         };
         let r = self.inner.run_mission_full(&id, &prompt)?;
+        self.missions_run += 1;
+        self.total_steps += r.steps as u64;
+        self.total_model_calls += r.model_calls as u64;
         self.used_ids.insert(id);
         self.last_answer_path = Some(r.answer_path.clone());
         Ok(r)
@@ -304,6 +362,21 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
 
     pub fn total_cost_micros(&self) -> u64 {
         self.inner.total_cost_micros()
+    }
+
+    /// UI gap #1: the session vitals snapshot an ambient status bar
+    /// paints after every beat - model, mission/step/call counters,
+    /// metered cost, wall time, stream id.
+    pub fn vitals(&self) -> SessionVitals {
+        SessionVitals {
+            model_label: self.model_label.clone(),
+            missions_run: self.missions_run,
+            total_steps: self.total_steps,
+            total_model_calls: self.total_model_calls,
+            total_cost_micros: self.total_cost_micros(),
+            elapsed: self.started.elapsed(),
+            stream_id: self.stream_id(),
+        }
     }
 
     pub fn set_budget_micros(&mut self, micros: u64) {
@@ -479,12 +552,26 @@ pub fn print_result(r: &crate::MissionResult) {
     );
 }
 
+/// UI gap #1: paint the ambient status bar to stderr (colored on a
+/// terminal, plain when piped).
+fn paint_status(session: &ReplSession) {
+    use std::io::IsTerminal;
+    let color = std::io::stderr().is_terminal();
+    let mut err = std::io::stderr();
+    let mut p = crate::uipaint::Painter::new(&mut err, color);
+    p.status_line(&session.vitals());
+}
+
 /// The interactive loop: read a line, record it, dispatch. Shared by
 /// the TTY and piped paths so behavior is identical on both.
 pub fn run_interactive<E: Editor + ?Sized>(
     session: &mut ReplSession,
     editor: &mut E,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // UI gap #1: the ambient status bar. Painted on session start and
+    // after every mission, so the operator never types :status to learn
+    // where the session stands. stderr only - stdout stays clean JSON.
+    paint_status(session);
     loop {
         let line = match editor.read_line("hs> ")? {
             None => break,
@@ -519,10 +606,13 @@ pub fn run_interactive<E: Editor + ?Sized>(
             ReplCommand::Unknown(c) => {
                 eprintln!("unknown command {c} (:help lists commands)")
             }
-            ReplCommand::Goal(goal) => match session.run_goal(&goal) {
-                Ok(r) => print_result(&r),
-                Err(e) => eprintln!("mission failed: {e}"),
-            },
+            ReplCommand::Goal(goal) => {
+                match session.run_goal(&goal) {
+                    Ok(r) => print_result(&r),
+                    Err(e) => eprintln!("mission failed: {e}"),
+                }
+                paint_status(session);
+            }
         }
     }
     Ok(())

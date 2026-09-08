@@ -134,4 +134,49 @@ impl<'a, W: Write> Painter<'a, W> {
         }
         let _ = self.out.flush();
     }
+
+    /// UI gap #1: the ambient status bar - ONE line carrying the session
+    /// vitals: model, missions, steps, calls, metered cost, elapsed wall
+    /// time, and the stream's short id. Semantic color when the terminal
+    /// supports it: bright cyan model, dim separators, yellow cost.
+    pub fn status_line(&mut self, v: &crate::repl::SessionVitals) {
+        self.paint("36;1", &v.model_label); // bright cyan
+        self.paint("2", " \u{00b7} ");
+        let missions = format!(
+            "{} mission{}",
+            v.missions_run,
+            if v.missions_run == 1 { "" } else { "s" }
+        );
+        self.paint("0", &missions);
+        self.paint("2", " \u{00b7} ");
+        self.paint("0", &format!("{} steps", v.total_steps));
+        self.paint("2", " \u{00b7} ");
+        self.paint("0", &format!("{} calls", v.total_model_calls));
+        self.paint("2", " \u{00b7} ");
+        self.paint("33", &format_usd_micros(v.total_cost_micros)); // yellow
+        self.paint("2", " \u{00b7} ");
+        self.paint("2", &format_elapsed(v.elapsed));
+        self.paint("2", " \u{00b7} ");
+        let short: String = v.stream_id.to_string().chars().take(8).collect();
+        self.paint("2", &short);
+        let _ = writeln!(self.out);
+        let _ = self.out.flush();
+    }
+}
+
+/// Metered cost as dollars: 430320 micros -> "$0.4303".
+pub fn format_usd_micros(micros: u64) -> String {
+    format!("${:.4}", micros as f64 / 1_000_000.0)
+}
+
+/// Compact wall time: 65s -> "1m5s", 3700s -> "1h1m", 9s -> "9s".
+pub fn format_elapsed(d: std::time::Duration) -> String {
+    let s = d.as_secs();
+    if s >= 3600 {
+        format!("{}h{}m", s / 3600, (s % 3600) / 60)
+    } else if s >= 60 {
+        format!("{}m{}s", s / 60, s % 60)
+    } else {
+        format!("{s}s")
+    }
 }
