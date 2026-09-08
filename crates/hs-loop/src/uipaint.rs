@@ -316,3 +316,74 @@ impl MarkdownStreamer {
         }
     }
 }
+
+/// UI gap #8: the composer frame. A line-based REPL cannot hold a
+/// persistent box under a scrolling transcript the way pi/omp's TUI
+/// does, so the box is painted PER ENTRY: top border + left-bar prompt,
+/// bottom border once the line lands. Visible width counts glyphs only
+/// (escape codes excluded), so the frame is exact on any terminal.
+///
+/// The composer prompt: the box's left bar + the REPL sigil.
+pub const EDITOR_PROMPT: &str = "\u{2502} hs> ";
+
+/// Visible terminal width of a string: ANSI CSI sequences count zero,
+/// every other char counts one (box glyphs are single-width).
+pub fn visible_width(s: &str) -> usize {
+    let mut w = 0;
+    let mut it = s.chars().peekable();
+    while let Some(c) = it.next() {
+        if c == '\x1b' && it.peek() == Some(&'[') {
+            it.next();
+            for c2 in it.by_ref() {
+                if c2.is_ascii_alphabetic() {
+                    break;
+                }
+            }
+        } else {
+            w += 1;
+        }
+    }
+    w
+}
+
+fn sgr(color: bool, code: &str, text: &str) -> String {
+    if color {
+        format!("\x1b[{code}m{text}\x1b[0m")
+    } else {
+        text.to_string()
+    }
+}
+
+/// Top border: "╭─ label ────────╮" at exactly `cols` visible columns.
+pub fn composer_top(label: &str, cols: usize, color: bool) -> String {
+    let fixed = 2 + 1 + label.chars().count() + 1 + 1; // ╭─ sp label sp ╮
+    let fill = cols.saturating_sub(fixed);
+    format!(
+        "{} {} {}{}",
+        sgr(color, "2", "\u{256d}\u{2500}"),
+        sgr(color, "36;1", label),
+        sgr(color, "2", &"\u{2500}".repeat(fill)),
+        sgr(color, "2", "\u{256e}")
+    )
+}
+
+/// Bottom border: "╰────────────╯" at exactly `cols` visible columns.
+pub fn composer_bottom(cols: usize, color: bool) -> String {
+    let fill = cols.saturating_sub(2);
+    sgr(
+        color,
+        "2",
+        &format!("\u{2570}{}\u{256f}", "\u{2500}".repeat(fill)),
+    )
+}
+
+/// A section rule: "── label ────────────" at exactly `cols` columns.
+pub fn separator(label: &str, cols: usize, color: bool) -> String {
+    let fixed = 2 + 1 + label.chars().count() + 1; // ── sp label sp
+    let fill = cols.saturating_sub(fixed);
+    sgr(
+        color,
+        "2",
+        &format!("\u{2500}\u{2500} {label} {}", "\u{2500}".repeat(fill)),
+    )
+}

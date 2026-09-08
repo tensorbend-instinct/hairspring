@@ -774,11 +774,38 @@ pub fn run_interactive<E: Editor + ?Sized>(
     // after every mission, so the operator never types :status to learn
     // where the session stands. stderr only - stdout stays clean JSON.
     paint_status(session);
+    // UI gap #8: the composer frame. TTY only - piped stdin keeps the
+    // byte-plain "hs> " prompt and zero chrome so scripts never see
+    // box glyphs. Width follows COLUMNS, bounded sanely.
+    let color = {
+        use std::io::IsTerminal;
+        std::io::stderr().is_terminal()
+    };
+    let cols: usize = std::env::var("COLUMNS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .map(|c: usize| c.clamp(40, 120))
+        .unwrap_or(72);
+    let prompt = if color { crate::uipaint::EDITOR_PROMPT } else { "hs> " };
     loop {
-        let line = match editor.read_line("hs> ")? {
+        if color {
+            let v = session.vitals();
+            eprintln!(
+                "{}",
+                crate::uipaint::composer_top(
+                    &format!("{} \u{00b7} {}", v.model_label, crate::uipaint::format_usd_micros(v.total_cost_micros)),
+                    cols,
+                    true,
+                )
+            );
+        }
+        let line = match editor.read_line(prompt)? {
             None => break,
             Some(l) => l.trim().to_string(),
         };
+        if color {
+            eprintln!("{}", crate::uipaint::composer_bottom(cols, true));
+        }
         if line.is_empty() {
             continue;
         }
