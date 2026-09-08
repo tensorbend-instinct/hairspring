@@ -593,6 +593,42 @@ impl InnerLoop {
                     });
                 }
             }
+            // Wall guard fires INSIDE the loop, at the same step boundary
+            // as the budget guard. Live burn 2026-09-07 (glm-critic TB
+            // trial): enforcement had been delegated to the harness's
+            // external exec timeout (wall + 600s grace), which killed the
+            // container 10 minutes past the guard and destroyed every
+            // artifact - ledger, critic trace, checks, answer. Booking
+            // here keeps the evidence: the mission exits cleanly, the
+            // runner pulls the run dir, and the official verifier still
+            // grades the final machine state. A wall-killed mission is a
+            // failure, same as a budget-killed one.
+            if let (Some(w), Some(t0)) = (self.wall_secs, self.mission_started) {
+                let elapsed = t0.elapsed().as_secs();
+                if elapsed >= w {
+                    self.writer.append(
+                        EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                            serde_json::to_vec(&serde_json::json!({
+                                "wall_killed": true, "wall_secs": w,
+                                "elapsed_secs": elapsed,
+                                "cost_micros": self.cost_total_micros,
+                            }))
+                            .expect("json! values serialize"),
+                        )),
+                    )?;
+                    self.checkpoint(steps, model_calls);
+                    return Ok(MissionResult {
+                        passed: false,
+                        steps,
+                        model_calls,
+                        stream_id: self.stream_id,
+                        answer_path,
+                        budget_killed: false,
+                        harness_error: None,
+                        outcome: "wall_killed".to_string(),
+                    });
+                }
+            }
             self.writer.append(
                 EventBuilder::new(EventKind::ModelCall)
                     .payload(Payload::Inline(
