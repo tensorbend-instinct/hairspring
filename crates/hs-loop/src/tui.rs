@@ -1272,8 +1272,18 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
     }
     let l = layout(area.width, area.height);
     // Composer grows with the editor buffer; rail and viewport yield.
+    // M25: the buffer WORD-WRAPS at the box inner width (same wrapper
+    // as the transcript) - pre-M25 a goal longer than the box clipped
+    // at the edge while being typed, cursor included. Box height is
+    // the WRAPPED row count + borders.
+    let inner_w = area.width.saturating_sub(2).max(1);
+    let raw = format!("hs> {}", state.editor.text());
+    let wrapped_rows: usize = raw
+        .split('\n')
+        .map(|l| wrap_line(&Line::from(l.to_string()), inner_w).len())
+        .sum();
     let max_h = area.height.saturating_sub(4).max(3);
-    let want_h = (state.editor.line_count() as u16 + 2).clamp(3, max_h);
+    let want_h = (wrapped_rows as u16 + 2).clamp(3, max_h);
     let composer = Rect::new(0, l.hud.y.saturating_sub(want_h), area.width, want_h);
     let rail = Rect::new(0, composer.y.saturating_sub(1), area.width, composer.y.min(1));
     let viewport = Rect::new(0, 0, area.width, rail.y);
@@ -1364,15 +1374,33 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .title(title);
-        let text = state.editor.text();
-        let mut content = String::from("hs> ");
-        content.push_str(&text);
+        let mut content: Vec<Line> = Vec::new();
+        for l in raw.split('\n') {
+            content.extend(wrap_line(&Line::from(l.to_string()), inner_w));
+        }
         let input = Paragraph::new(content).block(block);
         f.render_widget(input, composer);
         if composer.height >= 3 && composer.width > 6 {
             let (row, col) = state.editor.cursor();
-            let cx = composer.x + 1 + 4 + col as u16;
-            let cy = composer.y + 1 + row as u16;
+            // M25: wrap the buffer up to (row, col) the same way the
+            // content wrapped; the cursor lands on the last wrapped
+            // row's tail, not on the old unwrapped (row, col) cell.
+            let mut before = String::from("hs> ");
+            for (i, l) in state.editor.text().split('\n').enumerate() {
+                if i < row {
+                    before.push_str(l);
+                    before.push('\n');
+                } else {
+                    before.extend(l.chars().take(col));
+                    break;
+                }
+            }
+            let mut bl: Vec<Line> = Vec::new();
+            for l in before.split('\n') {
+                bl.extend(wrap_line(&Line::from(l.to_string()), inner_w));
+            }
+            let cy = composer.y + 1 + bl.len().saturating_sub(1) as u16;
+            let cx = composer.x + 1 + bl.last().map(|l| l.width() as u16).unwrap_or(0);
             if cx < composer.x + composer.width - 1 && cy < composer.y + composer.height - 1 {
                 f.set_cursor_position((cx, cy));
             }
