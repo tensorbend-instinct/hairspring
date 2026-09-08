@@ -438,6 +438,57 @@ pub fn run_one_shot(
     ReplSession::load(config, log_root, feedback, max_steps)?.run_goal(goal)
 }
 
+/// UI gap #6: tab completion for the REPL's :commands (pi/omp
+/// complete their commands at the prompt; hs-repl made the operator
+/// type them from memory). Pure prefix function so it is testable
+/// without a TTY; CommandCompleter adapts it to rustyline.
+pub const REPL_COMMANDS: &[&str] = &[":help", ":history", ":last", ":quit", ":status"];
+
+/// Completions for a command prefix. Only colon-prefixed input
+/// completes; goal text never does.
+pub fn command_completions(prefix: &str) -> Vec<String> {
+    if !prefix.starts_with(':') {
+        return Vec::new();
+    }
+    REPL_COMMANDS
+        .iter()
+        .filter(|c| c.starts_with(prefix))
+        .map(|s| s.to_string())
+        .collect()
+}
+
+/// rustyline adapter: Tab on ":st" replaces the whole line with
+/// ":status" (start = 0), so commands complete in place.
+pub struct CommandCompleter;
+
+impl rustyline::completion::Completer for CommandCompleter {
+    type Candidate = rustyline::completion::Pair;
+
+    fn complete(
+        &self,
+        line: &str,
+        pos: usize,
+        _ctx: &rustyline::Context<'_>,
+    ) -> rustyline::Result<(usize, Vec<rustyline::completion::Pair>)> {
+        let prefix = &line[..pos.min(line.len())];
+        let pairs = command_completions(prefix)
+            .into_iter()
+            .map(|c| rustyline::completion::Pair {
+                display: c.clone(),
+                replacement: c,
+            })
+            .collect();
+        Ok((0, pairs))
+    }
+}
+
+impl rustyline::hint::Hinter for CommandCompleter {
+    type Hint = String;
+}
+impl rustyline::highlight::Highlighter for CommandCompleter {}
+impl rustyline::validate::Validator for CommandCompleter {}
+impl rustyline::Helper for CommandCompleter {}
+
 /// Gap #5: line editing. The interactive loop reads through an Editor:
 /// a rustyline-backed TTY editor (real editing keys) or a piped-stdin
 /// fallback. HAIRSPRING owns the history lifecycle: every accepted line
@@ -510,14 +561,16 @@ impl<R: std::io::BufRead> Editor for StdinEditor<R> {
 /// emacs/vi keys, kill ring - and HAIRSPRING's file history is loaded
 /// into it so recall spans restarts.
 pub struct RustylineEditor {
-    rl: rustyline::DefaultEditor,
+    rl: rustyline::Editor<CommandCompleter, rustyline::history::DefaultHistory>,
     log_root: PathBuf,
     history: Vec<String>,
 }
 
 impl RustylineEditor {
     pub fn new(log_root: &Path) -> Result<Self, rustyline::error::ReadlineError> {
-        let mut rl = rustyline::DefaultEditor::new()?;
+        let mut rl = rustyline::Editor::new()?;
+        // UI gap #6: Tab completes :commands at the prompt.
+        rl.set_helper(Some(CommandCompleter));
         let history = load_history(log_root);
         for h in &history {
             let _ = rl.add_history_entry(h.as_str());
