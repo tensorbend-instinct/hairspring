@@ -288,10 +288,10 @@ fn run_fullscreen(
                     running = false;
                     match r {
                         Ok((m, cost_total)) => {
-                            st.missions_run += 1;
-                            st.total_steps += m.steps as u64;
-                            st.total_model_calls += m.model_calls as u64;
-                            st.total_cost_micros = cost_total;
+                            // M13: calls were counted live via
+                            // ModelCallEnd; adding m.model_calls here
+                            // doubled the HUD count.
+                            st.mission_done(m.steps, cost_total);
                             st.push_transcript_line(&format!(
                                 "\u{2500}\u{2500} done: {} steps, {} calls, {}{}",
                                 m.steps,

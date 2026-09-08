@@ -737,6 +737,19 @@ impl TuiState {
     /// M5: feed one mission UI event - phase, ticker, vitals, and tool
     /// beats all derive from the same stream the line-mode Painter
     /// consumes.
+    /// M13: mission completion reconciliation. Model calls are counted
+    /// LIVE by ModelCallEnd (M10); the done path must not add them
+    /// again - pre-M13 the bin added MissionResult.model_calls on top,
+    /// and the HUD ended every mission at 2x the real count (cap3:
+    /// "done: 2 steps, 2 calls" vs HUD "4 calls", same screen). Steps
+    /// have no live event, so they accrue here; cost takes the
+    /// session-authoritative total.
+    pub fn mission_done(&mut self, steps: u32, cost_total_micros: u64) {
+        self.missions_run += 1;
+        self.total_steps += steps as u64;
+        self.total_cost_micros = cost_total_micros;
+    }
+
     pub fn on_ui_event(&mut self, ev: &crate::uipaint::UiEvent) {
         use crate::uipaint::UiEvent as U;
         match ev {

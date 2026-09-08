@@ -529,6 +529,11 @@ pub fn list_sessions(log_root: &Path) -> Vec<SessionInfo> {
                 }
             }
         }
+        // M13: the payload is one JSON line, so a multi-line goal
+        // arrives as an ESCAPED two-char \n that the real-newline
+        // split above never sees - flatten it (cap5 picker showed a
+        // literal "\n" mid-preview).
+        preview = preview.replace("\\n", " ").replace("\\t", " ");
         if preview.is_empty() {
             preview = "(no mission)".to_string();
         }
