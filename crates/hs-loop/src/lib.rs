@@ -119,6 +119,13 @@ pub struct InnerLoop {
     /// Fix 4: mission wall budget (secs) + start instant, for the per-step
     /// "T-minus" header. None = wall not tracked (old behavior).
     wall_secs: Option<u64>,
+    /// Gap #2: operator steering inbox - a file of lines the loop drains
+    /// at every step boundary into the volatile tail (mid-mission user
+    /// turns). None = no operator channel (old behavior).
+    steering_inbox: Option<PathBuf>,
+    /// Gap #2: operator interrupt flag - when this file exists at a step
+    /// boundary the mission stops cleanly with outcome "interrupted".
+    interrupt_file: Option<PathBuf>,
     mission_started: Option<std::time::Instant>,
     /// Native tool schemas delivered to the provider's tools parameter on
     /// the operator call (native tool calling; Eric 2026-09-05). None = the
@@ -170,6 +177,8 @@ impl InnerLoop {
             verifier_rounds: 0,
             prior_gaps: vec![],
             wall_secs: None,
+            steering_inbox: None,
+            interrupt_file: None,
             mission_started: None,
         })
     }
@@ -205,6 +214,8 @@ impl InnerLoop {
             verifier_rounds: 0,
             prior_gaps: vec![],
             wall_secs: None,
+            steering_inbox: None,
+            interrupt_file: None,
             mission_started: None,
         })
     }
@@ -229,6 +240,45 @@ impl InnerLoop {
     /// it externally; this makes it VISIBLE to the model every step.
     pub fn set_wall_secs(&mut self, secs: u64) {
         self.wall_secs = Some(secs);
+    }
+
+    /// Gap #2: point the loop at the operator's steering inbox. Drained at
+    /// every step boundary; each line lands in the volatile tail as a
+    /// STEERING section (a fresh user-turn section, never a rewritten
+    /// earlier message - KV-cache discipline).
+    pub fn set_steering_inbox(&mut self, path: &Path) {
+        self.steering_inbox = Some(path.to_path_buf());
+    }
+
+    /// Gap #2: point the loop at the operator's interrupt flag file. When
+    /// it exists at a step boundary the mission stops with outcome
+    /// "interrupted" - artifacts and ledger booked, not an error.
+    pub fn set_interrupt_file(&mut self, path: &Path) {
+        self.interrupt_file = Some(path.to_path_buf());
+    }
+
+    fn drain_steering(&mut self) -> Vec<String> {
+        let Some(path) = &self.steering_inbox else {
+            return vec![];
+        };
+        let Ok(body) = std::fs::read_to_string(path) else {
+            return vec![];
+        };
+        let lines: Vec<String> = body
+            .lines()
+            .map(|l| l.trim())
+            .filter(|l| !l.is_empty())
+            .map(|l| l.to_string())
+            .collect();
+        // drained, not re-read: remove so a later step cannot re-consume
+        let _ = std::fs::remove_file(path);
+        lines
+    }
+
+    fn interrupt_requested(&self) -> bool {
+        self.interrupt_file
+            .as_ref()
+            .is_some_and(|p| p.exists())
     }
 
     /// Native tool schemas for the operator model call (builtin +
@@ -360,6 +410,31 @@ impl InnerLoop {
         let mut model_calls = 0u32;
 
         for step in 1..=self.max_steps {
+            // Gap #2: operator interrupt at the step boundary. Booked as
+            // its own outcome - operator intent, never a harness error,
+            // never a pass.
+            if self.interrupt_requested() {
+                let done = step - 1;
+                let _ = self.writer.append(
+                    EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                        serde_json::to_vec(&serde_json::json!({
+                            "interrupted": true, "after_steps": done,
+                        }))
+                        .expect("json! values serialize"),
+                    )),
+                );
+                self.checkpoint(done, model_calls);
+                return Ok(MissionResult {
+                    passed: false,
+                    steps: done,
+                    model_calls,
+                    stream_id: self.stream_id,
+                    answer_path,
+                    budget_killed: false,
+                    harness_error: None,
+                    outcome: "interrupted".to_string(),
+                });
+            }
             steps = step;
             // observe + drain_feedback: what the world said since last step
             let artifact = std::fs::read_to_string(&answer_path).unwrap_or_default();
@@ -405,6 +480,17 @@ impl InnerLoop {
                     volatile.push_str(&format!("- {f}\n"));
                 }
                 injected = true;
+            }
+            // Gap #2: drained operator steering rides the volatile tail
+            // like FEEDBACK - the operator's fresh mid-mission user turn.
+            let steered = self.drain_steering();
+            if !steered.is_empty() {
+                volatile.push_str(
+                    "STEERING (operator, mid-mission; overrides earlier plans where they conflict):\n",
+                );
+                for s in &steered {
+                    volatile.push_str(&format!("- {s}\n"));
+                }
             }
             volatile.push_str(&artifact_section(&answer_path, &artifact));
             // Fix 5: convergence pressure (ab2: three wall-killed missions

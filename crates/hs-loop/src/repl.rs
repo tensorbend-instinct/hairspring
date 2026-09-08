@@ -197,6 +197,18 @@ impl ReplSession {
     pub fn set_wall_secs(&mut self, secs: u64) {
         self.inner.set_wall_secs(secs);
     }
+
+    /// Gap #2: operator steering inbox, drained into the mission prompt at
+    /// every step boundary.
+    pub fn set_steering_inbox(&mut self, path: &Path) {
+        self.inner.set_steering_inbox(path);
+    }
+
+    /// Gap #2: operator interrupt flag - the mission stops cleanly at the
+    /// next step boundary once this file exists.
+    pub fn set_interrupt_file(&mut self, path: &Path) {
+        self.inner.set_interrupt_file(path);
+    }
 }
 
 /// One goal, one session, end to end: load the kernel, run the mission,
