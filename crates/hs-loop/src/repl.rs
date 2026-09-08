@@ -426,6 +426,28 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
     }
 }
 
+/// The shared session constructor every hs-repl mode uses (UI gap #7
+/// live defect: the interactive arm silently ignored --resume/--fork and
+/// opened a fresh stream; the picker's choice went nowhere). resume and
+/// fork are exclusive; resume adopts the picked stream, fork branches it.
+pub fn load_session(
+    config: &Path,
+    log_root: &Path,
+    feedback: bool,
+    max_steps: u32,
+    resume: Option<uuid::Uuid>,
+    fork: Option<uuid::Uuid>,
+) -> Result<ReplSession, LoopError> {
+    match (resume, fork) {
+        (Some(_), Some(_)) => Err(LoopError::Visibility(
+            "--resume and --fork are exclusive".to_string(),
+        )),
+        (Some(id), None) => ReplSession::load_resume(config, log_root, feedback, max_steps, id),
+        (None, Some(parent)) => ReplSession::load_fork(config, log_root, feedback, max_steps, parent),
+        (None, None) => ReplSession::load(config, log_root, feedback, max_steps),
+    }
+}
+
 /// One goal, one session, end to end: load the kernel, run the mission,
 /// return the result. The `hs-repl run` path.
 pub fn run_one_shot(
@@ -436,6 +458,117 @@ pub fn run_one_shot(
     max_steps: u32,
 ) -> Result<MissionResult, LoopError> {
     ReplSession::load(config, log_root, feedback, max_steps)?.run_goal(goal)
+}
+
+/// UI gap #7: the resume picker. One prior session per stream in the
+/// log root, typed (no print-scraping): stream id, event count, the
+/// first mission's goal as a human preview, and the last-write time.
+#[derive(Debug, Clone)]
+pub struct SessionInfo {
+    pub id: uuid::Uuid,
+    pub events: u64,
+    pub preview: String,
+    pub modified: std::time::SystemTime,
+}
+
+fn truncate60(s: &str) -> String {
+    if s.chars().count() <= 60 {
+        return s.to_string();
+    }
+    let mut t: String = s.chars().take(59).collect();
+    t.push('\u{2026}');
+    t
+}
+
+/// Every resumable session under log_root, newest first. Streams that
+/// fail to open or read are skipped - the picker lists what resume can
+/// actually adopt.
+pub fn list_sessions(log_root: &Path) -> Vec<SessionInfo> {
+    let mut out = Vec::new();
+    let Ok(rd) = std::fs::read_dir(log_root.join("streams")) else {
+        return out;
+    };
+    for entry in rd.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        let Ok(id) = uuid::Uuid::parse_str(&name) else {
+            continue;
+        };
+        let Ok(reader) = hs_log::StreamReader::open(log_root, id) else {
+            continue;
+        };
+        let Ok(events) = reader.events() else {
+            continue;
+        };
+        // Only OPERATOR streams are resumable sessions. A REPL run also
+        // leaves an aux (journal) stream behind; the operator stream is
+        // the one InnerLoop reports as MissionResult.stream_id and the
+        // only one load_resume can adopt - marked by Feedback/GoalUpdate
+        // events, which the aux stream never carries (live probe
+        // 2026-09-08: operator kinds [0,1,5,0,5,9], aux [2,0,2,1,...]).
+        if !events.iter().any(|e| {
+            matches!(
+                e.kind,
+                hs_core::EventKind::Feedback | hs_core::EventKind::GoalUpdate
+            )
+        }) {
+            continue;
+        }
+        let mut preview = String::new();
+        for ev in events.iter().take(4) {
+            if let Ok(bytes) = reader.resolve_payload(ev) {
+                let text = String::from_utf8_lossy(&bytes);
+                if let Some(i) = text.find("MISSION: ") {
+                    // payload is one JSON line: cut at the closing quote
+                    preview = text[i + 9..]
+                        .split(['"', '\n'])
+                        .next()
+                        .unwrap_or("")
+                        .trim()
+                        .to_string();
+                    break;
+                }
+            }
+        }
+        if preview.is_empty() {
+            preview = "(no mission)".to_string();
+        }
+        // Directory mtime only moves on file creation; the last seg
+        // file's mtime tracks the stream's actual last write.
+        let mut modified = std::time::SystemTime::UNIX_EPOCH;
+        if let Ok(files) = std::fs::read_dir(entry.path()) {
+            for f in files.flatten() {
+                if let Ok(m) = f.metadata().and_then(|md| md.modified()) {
+                    if m > modified {
+                        modified = m;
+                    }
+                }
+            }
+        }
+        out.push(SessionInfo {
+            id,
+            events: events.len() as u64,
+            preview: truncate60(&preview),
+            modified,
+        });
+    }
+    out.sort_by(|a, b| b.modified.cmp(&a.modified).then_with(|| a.id.cmp(&b.id)));
+    out
+}
+
+/// Map a picker's 1-based numeric selection to a stream id. Anything
+/// else - zero, out of range, non-numeric - selects nothing.
+pub fn pick_session(infos: &[SessionInfo], input: &str) -> Option<uuid::Uuid> {
+    let n: usize = input.trim().parse().ok()?;
+    if n == 0 || n > infos.len() {
+        return None;
+    }
+    Some(infos[n - 1].id)
+}
+
+/// One numbered picker line: short id, event count, mission preview.
+pub fn session_line(i: usize, info: &SessionInfo) -> String {
+    let short: String = info.id.to_string().chars().take(8).collect();
+    format!("{i}) {short}  {} events  {}", info.events, info.preview)
 }
 
 /// UI gap #6: tab completion for the REPL's :commands (pi/omp

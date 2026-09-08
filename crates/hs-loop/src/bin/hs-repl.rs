@@ -48,7 +48,16 @@ fn parse_opts(args: &[String]) -> Result<Opts, Box<dyn std::error::Error>> {
             .map_err(|_| "--wall-secs must be an integer")?,
         steering_inbox: arg(args, "--steering-inbox").map(PathBuf::from),
         interrupt_file: arg(args, "--interrupt-file").map(PathBuf::from),
-        resume: arg(args, "--resume"),
+        resume: args
+            .iter()
+            .position(|a| a == "--resume")
+            .map(|i| {
+                // UI gap #7: bare "--resume" (no uuid) opens the picker.
+                args.get(i + 1)
+                    .filter(|v| !v.starts_with("--"))
+                    .cloned()
+                    .unwrap_or_default()
+            }),
         fork: arg(args, "--fork"),
     })
 }
@@ -91,6 +100,27 @@ fn apply_streaming(session: &mut ReplSession) {
     }));
 }
 
+/// UI gap #7: one constructor for every mode - --resume and --fork
+/// resolve through hs_loop::repl::load_session, so interactive and
+/// one-shot behave identically.
+fn build_session(opts: &Opts) -> Result<ReplSession, Box<dyn std::error::Error>> {
+    let parse = |v: &Option<String>, flag: &str| -> Result<Option<uuid::Uuid>, Box<dyn std::error::Error>> {
+        v.as_ref()
+            .map(|s| {
+                uuid::Uuid::parse_str(s).map_err(|e| format!("{flag} needs a stream uuid: {e}").into())
+            })
+            .transpose()
+    };
+    Ok(hs_loop::repl::load_session(
+        &opts.config,
+        &opts.dir,
+        opts.feedback,
+        opts.max_steps,
+        parse(&opts.resume, "--resume")?,
+        parse(&opts.fork, "--fork")?,
+    )?)
+}
+
 fn apply_guards(session: &mut ReplSession, opts: &Opts) {
     if let Some(b) = opts.budget_micros {
         session.set_budget_micros(b);
@@ -121,44 +151,39 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         None
     };
-    let opts = parse_opts(&args)?;
+    let mut opts = parse_opts(&args)?;
     std::fs::create_dir_all(&opts.dir)?;
+
+    // UI gap #7: `--resume` with no id lists prior sessions and lets the
+    // operator pick one instead of pasting a raw stream uuid.
+    if let Some(r) = &opts.resume {
+        if r.is_empty() {
+            use std::io::IsTerminal;
+            if !std::io::stdin().is_terminal() {
+                return Err("--resume without an id opens the picker, which needs a TTY; piped mode wants --resume <uuid>".into());
+            }
+            let sessions = hs_loop::repl::list_sessions(&opts.dir);
+            if sessions.is_empty() {
+                return Err("no prior sessions in this dir to resume".into());
+            }
+            eprintln!("prior sessions (newest first):");
+            for (i, s) in sessions.iter().enumerate() {
+                eprintln!("  {}", hs_loop::repl::session_line(i + 1, s));
+            }
+            eprint!("resume which? [1-{}] ", sessions.len());
+            let mut line = String::new();
+            std::io::stdin().read_line(&mut line)?;
+            let id = hs_loop::repl::pick_session(&sessions, &line)
+                .ok_or("invalid selection")?;
+            opts.resume = Some(id.to_string());
+        }
+    }
 
     match one_shot_goal {
         Some(goal) => {
             // Gap #4: --resume <stream-id> continues a prior session's
             // stream (history replays from the log); default opens fresh.
-            let mut session = match (&opts.resume, &opts.fork) {
-                (Some(_), Some(_)) => return Err("--resume and --fork are exclusive".into()),
-                (Some(id), None) => {
-                    let stream_id = uuid::Uuid::parse_str(id)
-                        .map_err(|e| format!("--resume needs a stream uuid: {e}"))?;
-                    ReplSession::load_resume(
-                        &opts.config,
-                        &opts.dir,
-                        opts.feedback,
-                        opts.max_steps,
-                        stream_id,
-                    )
-                    .map_err(|e| format!("session resume: {e}"))?
-                }
-                (None, Some(id)) => {
-                    let parent = uuid::Uuid::parse_str(id)
-                        .map_err(|e| format!("--fork needs a stream uuid: {e}"))?;
-                    ReplSession::load_fork(
-                        &opts.config,
-                        &opts.dir,
-                        opts.feedback,
-                        opts.max_steps,
-                        parent,
-                    )
-                    .map_err(|e| format!("session fork: {e}"))?
-                }
-                (None, None) => {
-                    ReplSession::load(&opts.config, &opts.dir, opts.feedback, opts.max_steps)
-                        .map_err(|e| format!("session load: {e}"))?
-                }
-            };
+            let mut session = build_session(&opts)?;
             apply_guards(&mut session, &opts);
             apply_streaming(&mut session);
             let r = session
@@ -168,9 +193,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         None => {
             eprintln!("hairspring repl (:help for commands, :quit to exit)");
-            let mut session =
-                ReplSession::load(&opts.config, &opts.dir, opts.feedback, opts.max_steps)
-                    .map_err(|e| format!("session load: {e}"))?;
+            // UI gap #7: interactive honors --resume/--fork like one-shot
+            // (the picker resolves to a uuid above; previously the
+            // interactive arm ignored it and opened a fresh stream).
+            let mut session = build_session(&opts)?;
             apply_guards(&mut session, &opts);
             apply_streaming(&mut session);
             use std::io::IsTerminal;
