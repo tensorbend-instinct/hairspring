@@ -89,6 +89,11 @@ pub const REPL_HELP: &str = "hairspring REPL - run the harness on a goal, end to
 /// UI gap #1: a typed snapshot of where the session stands - the data
 /// an ambient status bar paints. No string-scraping of logs: the session
 /// accumulates every mission's counters as they land.
+/// D4: the budget every session arms when the config declares none -
+/// $10, matching the standing external exec guard. Explicit
+/// `--budget-micros` or the config stanza overrides it.
+pub const DEFAULT_SESSION_BUDGET_MICROS: u64 = 10_000_000;
+
 #[derive(Debug, Clone)]
 pub struct SessionVitals {
     /// Name of the configured default model.
@@ -101,6 +106,8 @@ pub struct SessionVitals {
     pub total_model_calls: u64,
     /// Accumulated cost in USD micros (as metered by the loop).
     pub total_cost_micros: u64,
+    /// D5: conservative list-rate counterpart - the guarded figure.
+    pub conservative_cost_micros: u64,
     /// Wall time since the session loaded its kernel.
     pub elapsed: std::time::Duration,
     /// The live log stream.
@@ -144,6 +151,23 @@ fn configured_model_label(config: &Path) -> Option<String> {
         })
         .or(models.first())?;
     default_model.get("name")?.as_str().map(str::to_string)
+}
+
+/// D4: the run's USD budget from the config, when declared
+/// (`[run] budget_usd = <dollars>` or `budget_micros = <micros>`;
+/// dollars win when both appear). Missing means the caller arms the
+/// default session cap - "uncapped" is never the silent default
+/// (live burn 2026-09-09: 0 missions, 58 calls, $8.81, no cap armed).
+fn configured_budget_micros(config: &Path) -> Option<u64> {
+    let text = std::fs::read_to_string(config).ok()?;
+    let v: toml::Value = toml::from_str(&text).ok()?;
+    let run = v.get("run")?.as_table()?;
+    if let Some(usd) = run.get("budget_usd").and_then(toml::Value::as_float) {
+        return Some((usd.max(0.0) * 1e6).round() as u64);
+    }
+    run.get("budget_micros")
+        .and_then(toml::Value::as_integer)
+        .map(|n| n.max(0) as u64)
 }
 
 fn configured_context_tokens(config: &Path) -> Option<usize> {
@@ -249,6 +273,9 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         if let Some(tokens) = Self::configured_context_tokens(config) {
             inner.set_context_budget_tokens(tokens * 3 / 4);
         }
+        inner.set_budget_micros(
+            Self::configured_budget_micros(config).unwrap_or(DEFAULT_SESSION_BUDGET_MICROS),
+        );
         // B1 (v5 D3): every REPL session owns the shared K plane at
         // <dir>/memory.db; the model consults it via the memory.recall
         // tool (cut #10: consulted, never pre-passed) and every mission
@@ -354,6 +381,9 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         if let Some(tokens) = Self::configured_context_tokens(config) {
             inner.set_context_budget_tokens(tokens * 3 / 4);
         }
+        inner.set_budget_micros(
+            Self::configured_budget_micros(config).unwrap_or(DEFAULT_SESSION_BUDGET_MICROS),
+        );
         // B1 (v5 D3): every REPL session owns the shared K plane at
         // <dir>/memory.db; the model consults it via the memory.recall
         // tool (cut #10: consulted, never pre-passed) and every mission
@@ -487,6 +517,7 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
             total_steps: self.total_steps,
             total_model_calls: self.total_model_calls,
             total_cost_micros: self.total_cost_micros(),
+            conservative_cost_micros: self.inner.conservative_cost_total_micros(),
             elapsed: self.started.elapsed(),
             stream_id: self.stream_id(),
         }
@@ -494,6 +525,14 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
 
     pub fn set_budget_micros(&mut self, micros: u64) {
         self.inner.set_budget_micros(micros);
+    }
+
+    /// The armed session budget (micro-USD) - always `Some` after
+    /// construction (D4): config `[run] budget_usd`/`budget_micros` when
+    /// declared, else `DEFAULT_SESSION_BUDGET_MICROS`.
+    #[must_use]
+    pub fn budget_micros(&self) -> Option<u64> {
+        self.inner.budget_micros()
     }
 
     pub fn set_wall_secs(&mut self, secs: u64) {

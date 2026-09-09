@@ -251,6 +251,10 @@ pub struct CallResult {
     pub output_tokens: u64,
     pub cached_tokens: u64,
     pub cost_usd_micros: i64,
+    /// Conservative list-rate cost (D5): every input token at the full
+    /// in-rate, every output token at the full out-rate - no cache
+    /// credit. Budget guards bind this figure.
+    pub conservative_cost_usd_micros: i64,
 }
 
 pub struct ParsedCall {
@@ -264,6 +268,8 @@ pub struct ParsedCall {
     /// count alone never told us WHAT the model reasoned.
     pub reasoning_content: String,
     pub cost_usd_micros: i64,
+    /// D5: conservative list-rate counterpart (no cache credit).
+    pub conservative_cost_usd_micros: i64,
 }
 
 /// The request body. tools = the native function schemas (`OpenAI` shape);
@@ -343,7 +349,7 @@ pub fn build_body_messages(
     body
 }
 
-fn usage_cost(p: &Provider, usage: &serde_json::Value) -> (u64, u64, u64, u64, i64) {
+fn usage_cost(p: &Provider, usage: &serde_json::Value) -> (u64, u64, u64, u64, i64, i64) {
     let input_tokens = usage["prompt_tokens"].as_u64().unwrap_or(0);
     let output_tokens = usage["completion_tokens"].as_u64().unwrap_or(0);
     let reasoning_tokens = usage["completion_tokens_details"]["reasoning_tokens"]
@@ -362,7 +368,11 @@ fn usage_cost(p: &Provider, usage: &serde_json::Value) -> (u64, u64, u64, u64, i
         + (input_tokens - cached) as f64 * pin
         + output_tokens as f64 * pout)
         .round() as i64;
-    (input_tokens, output_tokens, cached, reasoning_tokens, cost)
+    // D5: conservative list-rate figure - no cache credit. Cache pricing
+    // is the provider's to change; a guard binds the number that stays
+    // true under full list rates.
+    let conservative = (input_tokens as f64 * pin + output_tokens as f64 * pout).round() as i64;
+    (input_tokens, output_tokens, cached, reasoning_tokens, cost, conservative)
 }
 
 /// Native path: the request carried `tool_choice:"required`", so the response
@@ -391,7 +401,7 @@ pub fn parse_response(p: &Provider, v: &serde_json::Value) -> Result<ParsedCall,
         .map_err(|e| format!("{}: tool_call arguments not JSON: {e}", p.name))?;
     let completion = json!({"tool": name, "args": args}).to_string();
     let reasoning_content = msg["reasoning_content"].as_str().unwrap_or("").to_string();
-    let (input_tokens, output_tokens, cached_tokens, reasoning_tokens, cost) =
+    let (input_tokens, output_tokens, cached_tokens, reasoning_tokens, cost, conservative) =
         usage_cost(p, &v["usage"]);
     Ok(ParsedCall {
         completion,
@@ -401,6 +411,7 @@ pub fn parse_response(p: &Provider, v: &serde_json::Value) -> Result<ParsedCall,
         reasoning_tokens,
         reasoning_content,
         cost_usd_micros: cost,
+        conservative_cost_usd_micros: conservative,
     })
 }
 
@@ -426,7 +437,7 @@ fn parse_response_legacy(p: &Provider, v: &serde_json::Value) -> Result<ParsedCa
         .as_str()
         .unwrap_or("")
         .to_string();
-    let (input_tokens, output_tokens, cached_tokens, reasoning_tokens, cost) =
+    let (input_tokens, output_tokens, cached_tokens, reasoning_tokens, cost, conservative) =
         usage_cost(p, &v["usage"]);
     Ok(ParsedCall {
         completion,
@@ -436,6 +447,7 @@ fn parse_response_legacy(p: &Provider, v: &serde_json::Value) -> Result<ParsedCa
         reasoning_tokens,
         reasoning_content,
         cost_usd_micros: cost,
+        conservative_cost_usd_micros: conservative,
     })
 }
 
@@ -629,6 +641,7 @@ fn call_with_body(
                     "reasoning_tokens": out.reasoning_tokens,
                     "reasoning_content": out.reasoning_content,
                     "cost_usd_micros": out.cost_usd_micros,
+                    "conservative_cost_usd_micros": out.conservative_cost_usd_micros,
                     "provider_model": model,
                 }))
             }
@@ -656,6 +669,7 @@ fn call_with_body(
                     "reasoning_tokens": 0,
                     "reasoning_content": "",
                     "cost_usd_micros": 0,
+                    "conservative_cost_usd_micros": 0,
                     "provider_model": model,
                 }));
             }
@@ -740,6 +754,7 @@ fn call_with_body_streaming(
                     "reasoning_tokens": out.reasoning_tokens,
                     "reasoning_content": out.reasoning_content,
                     "cost_usd_micros": out.cost_usd_micros,
+                    "conservative_cost_usd_micros": out.conservative_cost_usd_micros,
                     "provider_model": model,
                 }))
             }

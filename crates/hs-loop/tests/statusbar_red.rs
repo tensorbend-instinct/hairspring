@@ -116,6 +116,7 @@ fn r3_painter_status_line() {
         total_steps: 7,
         total_model_calls: 9,
         total_cost_micros: 430_320,
+        conservative_cost_micros: 512_000,
         elapsed: std::time::Duration::from_secs(65),
         stream_id: uuid::Uuid::parse_str("4c4056c0-ced7-4d5d-9e6a-a85d29a593b9").unwrap(),
     };

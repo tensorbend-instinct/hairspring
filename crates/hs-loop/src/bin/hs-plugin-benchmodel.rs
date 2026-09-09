@@ -48,7 +48,8 @@ fn main() {
                 "completion": completion.to_string(),
                 "input_tokens": prompt.len() / 4 + 1,
                 "output_tokens": 12,
-                "cost_usd_micros": 900
+                "cost_usd_micros": 900,
+                "conservative_cost_usd_micros": 1200
             })
         }
         _ => serde_json::json!({"$error": "unknown method"}),

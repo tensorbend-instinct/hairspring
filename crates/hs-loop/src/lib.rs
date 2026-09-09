@@ -89,6 +89,9 @@ pub struct MissionResult {
     /// The TUI done line prints THIS; the session total lives on
     /// `total_cost_micros()`.
     pub cost_micros: u64,
+    /// D5: this mission's conservative list-rate spend (no cache
+    /// credit) - the figure budget guards bind. Both are booked.
+    pub conservative_cost_micros: u64,
     /// Some(msg) when the mission aborted on a harness failure (phase 1:
     /// a plugin declared `PluginDead` by the supervisor). The message names
     /// the plugin and the real cause. Harness-aborted missions book their
@@ -140,8 +143,14 @@ pub struct InnerLoop {
     feedback_injection: bool,
     max_steps: u32,
     cost_total_micros: u64,
+    /// D5: cumulative CONSERVATIVE list-rate cost (no cache credit).
+    /// The budget guard binds this counter; the provider-reported
+    /// counter above is kept alongside for honest reporting.
+    conservative_cost_total_micros: u64,
     /// M21: cumulative cost at the current mission's start.
     mission_cost_start: u64,
+    /// D5: conservative counterpart of `mission_cost_start`.
+    mission_conservative_start: u64,
     budget_micros: Option<u64>,
     progress_path: Option<PathBuf>,
     ledger: ledger::Ledger,
@@ -256,7 +265,9 @@ impl InnerLoop {
             feedback_injection,
             max_steps,
             cost_total_micros: 0,
+            conservative_cost_total_micros: 0,
             mission_cost_start: 0,
+            mission_conservative_start: 0,
             budget_micros: None,
             tools: None,
             model_override: None,
@@ -320,7 +331,9 @@ impl InnerLoop {
             feedback_injection,
             max_steps,
             cost_total_micros: 0,
+            conservative_cost_total_micros: 0,
             mission_cost_start: 0,
+            mission_conservative_start: 0,
             budget_micros: None,
             tools: None,
             model_override: None,
@@ -368,10 +381,25 @@ impl InnerLoop {
         self.cost_total_micros
     }
 
+    /// Cumulative CONSERVATIVE list-rate spend (micro-USD) - the figure
+    /// budget guards bind (D5). Always >= the provider-reported total.
+    #[must_use]
+    pub fn conservative_cost_total_micros(&self) -> u64 {
+        self.conservative_cost_total_micros
+    }
+
     /// Hard per-mission USD budget (micro-USD). When cumulative provider-reported
     /// cost would exceed the cap, the mission is killed and scored as failed.
     pub fn set_budget_micros(&mut self, micros: u64) {
         self.budget_micros = Some(micros);
+    }
+
+    /// The armed USD budget (micro-USD), `None` when nothing bound one
+    /// (D4: every session constructor binds one - `None` is only for
+    /// harness binaries that deliberately run uncapped before binding).
+    #[must_use]
+    pub fn budget_micros(&self) -> Option<u64> {
+        self.budget_micros
     }
 
     /// Fix 4 (ab2): the mission's wall budget in seconds. The runner enforces
@@ -623,6 +651,9 @@ impl InnerLoop {
                     cost_micros: self
                         .cost_total_micros
                         .saturating_sub(self.mission_cost_start),
+                    conservative_cost_micros: self
+                        .conservative_cost_total_micros
+                        .saturating_sub(self.mission_conservative_start),
                     harness_error: None,
                     outcome: "wall_killed".to_string(),
                 }));
@@ -637,6 +668,7 @@ impl InnerLoop {
                 "steps": steps,
                 "model_calls": model_calls,
                 "cost_micros": self.cost_total_micros,
+                "conservative_cost_micros": self.conservative_cost_total_micros,
             });
             let _ = std::fs::write(
                 p,
@@ -1068,6 +1100,9 @@ impl InnerLoop {
             answer_path: answer_path.to_path_buf(),
             budget_killed: false,
             cost_micros: self.cost_total_micros.saturating_sub(self.mission_cost_start),
+            conservative_cost_micros: self
+                .conservative_cost_total_micros
+                .saturating_sub(self.mission_conservative_start),
             harness_error: Some(msg),
             outcome: "harness_error".to_string(),
         })
@@ -1148,6 +1183,7 @@ impl InnerLoop {
         self.mission_started = Some(std::time::Instant::now());
         // M21: per-mission spend is the delta from this point.
         self.mission_cost_start = self.cost_total_micros;
+        self.mission_conservative_start = self.conservative_cost_total_micros;
         let answer_path = self.log_root.join("work").join(mission).join("answer.txt");
         std::fs::create_dir_all(
             answer_path
@@ -1182,6 +1218,9 @@ impl InnerLoop {
                     answer_path,
                     budget_killed: false,
             cost_micros: self.cost_total_micros.saturating_sub(self.mission_cost_start),
+            conservative_cost_micros: self
+                .conservative_cost_total_micros
+                .saturating_sub(self.mission_conservative_start),
                     harness_error: None,
                     outcome: "interrupted".to_string(),
                 });
@@ -1315,6 +1354,7 @@ impl InnerLoop {
                             {
                                 model_calls += 1;
                                 self.cost_total_micros += out.cost_usd_micros.max(0) as u64;
+            self.conservative_cost_total_micros += out.conservative_cost_usd_micros.max(0) as u64;
                                 if let Some(sink) = self.ui_sink.as_mut() {
                                     sink(uipaint::UiEvent::ModelCallEnd {
                                         model: out.model.clone(),
@@ -1334,6 +1374,7 @@ impl InnerLoop {
                                                     "reasoning_content": out.reasoning_content,
                                                     "cached_tokens": out.cached_tokens,
                                                     "cost_usd_micros": out.cost_usd_micros,
+                                                    "conservative_cost_usd_micros": out.conservative_cost_usd_micros,
                                                 }))
                                                 .expect("json! values serialize"),
                                             ))
@@ -1414,6 +1455,7 @@ impl InnerLoop {
             };
             model_calls += 1;
             self.cost_total_micros += out.cost_usd_micros.max(0) as u64;
+            self.conservative_cost_total_micros += out.conservative_cost_usd_micros.max(0) as u64;
             self.last_model = Some(out.model.clone());
             if let Some(sink) = self.ui_sink.as_mut() {
                 sink(uipaint::UiEvent::ModelCallEnd {
@@ -1428,12 +1470,13 @@ impl InnerLoop {
             // 19-25 steps each to answer-only checkpointing).
             self.checkpoint(steps, model_calls);
             if let Some(cap) = self.budget_micros
-                && self.cost_total_micros > cap {
+                && self.conservative_cost_total_micros > cap {
                     self.writer.append(
                         EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
                             serde_json::to_vec(&serde_json::json!({
                                 "budget_killed": true, "cap_micros": cap,
                                 "cost_micros": self.cost_total_micros,
+                                "conservative_cost_micros": self.conservative_cost_total_micros,
                             }))
                             .expect("json! values serialize"),
                         )),
@@ -1448,6 +1491,9 @@ impl InnerLoop {
                         answer_path,
                         budget_killed: true,
             cost_micros: self.cost_total_micros.saturating_sub(self.mission_cost_start),
+            conservative_cost_micros: self
+                .conservative_cost_total_micros
+                .saturating_sub(self.mission_conservative_start),
                         harness_error: None,
                         outcome: "budget_killed".to_string(),
                     });
@@ -1474,6 +1520,8 @@ impl InnerLoop {
                             "reasoning_tokens": out.reasoning_tokens,
                             "reasoning_content": out.reasoning_content,
                             "cached_tokens": out.cached_tokens,
+                            "cost_usd_micros": out.cost_usd_micros,
+                            "conservative_cost_usd_micros": out.conservative_cost_usd_micros,
                             "assembly_ms": assembly_ms,
                         }))
                         .expect("json! values serialize"),
@@ -1986,6 +2034,7 @@ impl InnerLoop {
                         Ok(vout) => {
                             model_calls += 1;
                             self.cost_total_micros += vout.cost_usd_micros.max(0) as u64;
+                            self.conservative_cost_total_micros += vout.conservative_cost_usd_micros.max(0) as u64;
                             if let Some(sink) = self.ui_sink.as_mut() {
                                 sink(uipaint::UiEvent::ModelCallEnd {
                                     model: vout.model.clone(),
@@ -2135,6 +2184,9 @@ impl InnerLoop {
                     answer_path,
                     budget_killed: false,
             cost_micros: self.cost_total_micros.saturating_sub(self.mission_cost_start),
+            conservative_cost_micros: self
+                .conservative_cost_total_micros
+                .saturating_sub(self.mission_conservative_start),
                     harness_error: None,
                     outcome: outcome.to_string(),
                 });
@@ -2159,6 +2211,9 @@ impl InnerLoop {
             answer_path,
             budget_killed: false,
             cost_micros: self.cost_total_micros.saturating_sub(self.mission_cost_start),
+            conservative_cost_micros: self
+                .conservative_cost_total_micros
+                .saturating_sub(self.mission_conservative_start),
             harness_error: None,
             outcome: "steps_exhausted".to_string(),
         })

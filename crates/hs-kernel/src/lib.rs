@@ -126,6 +126,11 @@ pub struct ModelOutcome {
     pub reasoning_content: String,
     pub cached_tokens: u64,
     pub cost_usd_micros: i64,
+    /// Conservative list-rate cost (no cache credit): every input token
+    /// at the full in-rate, every output token at the full out-rate.
+    /// Plugins that do not report one book the provider figure as both
+    /// (D5). Budget guards bind THIS counter.
+    pub conservative_cost_usd_micros: i64,
     pub latency_ms: u32,
     pub model: String,
 }
@@ -730,6 +735,9 @@ impl Kernel {
             reasoning_content: r["reasoning_content"].as_str().unwrap_or("").to_string(),
             cached_tokens: r["cached_tokens"].as_u64().unwrap_or(0),
             cost_usd_micros: r["cost_usd_micros"].as_i64().unwrap_or(0),
+            conservative_cost_usd_micros: r["conservative_cost_usd_micros"]
+                .as_i64()
+                .unwrap_or_else(|| r["cost_usd_micros"].as_i64().unwrap_or(0)),
             latency_ms,
             model: name.clone(),
         };
@@ -741,6 +749,8 @@ impl Kernel {
                 "reasoning_tokens": out.reasoning_tokens,
                 "reasoning_content": out.reasoning_content,
                 "cached_tokens": out.cached_tokens,
+                "cost_usd_micros": out.cost_usd_micros,
+                "conservative_cost_usd_micros": out.conservative_cost_usd_micros,
             }),
             latency_ms,
             out.cost_usd_micros,
@@ -845,6 +855,9 @@ impl Kernel {
             reasoning_content: r["reasoning_content"].as_str().unwrap_or("").to_string(),
             cached_tokens: r["cached_tokens"].as_u64().unwrap_or(0),
             cost_usd_micros: r["cost_usd_micros"].as_i64().unwrap_or(0),
+            conservative_cost_usd_micros: r["conservative_cost_usd_micros"]
+                .as_i64()
+                .unwrap_or_else(|| r["cost_usd_micros"].as_i64().unwrap_or(0)),
             latency_ms,
             model: name.clone(),
         };
@@ -856,6 +869,8 @@ impl Kernel {
                 "reasoning_tokens": out.reasoning_tokens,
                 "reasoning_content": out.reasoning_content,
                 "cached_tokens": out.cached_tokens,
+                "cost_usd_micros": out.cost_usd_micros,
+                "conservative_cost_usd_micros": out.conservative_cost_usd_micros,
             }),
             latency_ms,
             out.cost_usd_micros,
