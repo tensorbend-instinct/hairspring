@@ -489,6 +489,12 @@ impl Kernel {
             .map(|s| s.entry.clone())
             .collect()
     }
+    /// Registry membership WITHOUT the subject filter: used by the
+    /// delegation pre-flight to tell "poll slot absent" apart from
+    /// "registered but gated away from the operator".
+    pub fn has_tool(&self, name: &str) -> bool {
+        self.tools.borrow().contains_key(name)
+    }
     pub fn list_models(&self) -> Vec<PluginEntry> {
         self.models
             .borrow()

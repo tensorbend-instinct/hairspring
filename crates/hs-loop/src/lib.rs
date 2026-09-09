@@ -1073,9 +1073,20 @@ impl InnerLoop {
                         {
                             // Mirror the tool-error path exactly: the
                             // model gets its tool result + feedback.
-                            let msg = format!(
-                                "tool {tool} failed: agent.spawn requires agent.spawn_poll registered (same hs-plugin-swarm binary) - async delegation polls outcomes through it"
-                            );
+                            // list_tools is subject-filtered: this arm
+                            // covers BOTH "not registered" and "registered
+                            // but gated away from the operator" - the
+                            // diagnosis must say which, or a mis-scoped
+                            // config reads as a missing binary.
+                            let msg = if self.kernel.has_tool("agent.spawn_poll") {
+                                format!(
+                                    "tool {tool} failed: agent.spawn_poll is registered but its subjects exclude the operator subject - outcome polls are issued as the operator, so delegation outcomes could never arrive. Fix the config subjects (e.g. subjects = [\"*\"])"
+                                )
+                            } else {
+                                format!(
+                                    "tool {tool} failed: agent.spawn requires agent.spawn_poll registered (same hs-plugin-swarm binary) - async delegation polls outcomes through it"
+                                )
+                            };
                             self.writer.append(
                                 EventBuilder::new(EventKind::ToolCall).payload(
                                     Payload::Inline(
