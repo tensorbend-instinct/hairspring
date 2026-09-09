@@ -198,6 +198,11 @@ pub struct InnerLoop {
     prefetch_hits: u32,
     prefetch_misses: u32,
     prefetch_enabled: bool,
+    /// 7.5: retirement knobs - session-overridable via
+    /// `set_prefetch_knobs` (the promoted policy overlays them); the
+    /// compiled-in constants are the defaults, not the law.
+    prefetch_min_samples: u32,
+    prefetch_cost_crossover: f64,
     /// B1: close-time distillation floor - the seq of the LAST mission
     /// close (seeded at stream end for resumed/forked streams). Extraction
     /// slices above it, so each mission's K record carries only its own
@@ -282,6 +287,8 @@ impl InnerLoop {
             prefetch_hits: 0,
             prefetch_misses: 0,
             prefetch_enabled: true,
+            prefetch_min_samples: PREFETCH_MIN_SAMPLES,
+            prefetch_cost_crossover: PREFETCH_COST_CROSSOVER,
             distill_floor: 0,
             world: None,
         })
@@ -344,6 +351,8 @@ impl InnerLoop {
             prefetch_hits: 0,
             prefetch_misses: 0,
             prefetch_enabled: true,
+            prefetch_min_samples: PREFETCH_MIN_SAMPLES,
+            prefetch_cost_crossover: PREFETCH_COST_CROSSOVER,
             distill_floor,
             world: None,
         })
@@ -480,6 +489,14 @@ impl InnerLoop {
     /// set by the spawner before the mission runs.
     pub fn set_swarm_depth(&mut self, depth: u32) {
         self.swarm_depth = depth;
+    }
+
+    /// 7.5: overlay the promoted prefetch policy's retirement knobs
+    /// (basis points, the policy-layer representation). Defaults remain
+    /// the compiled-in constants until a promotion overlays them.
+    pub fn set_prefetch_knobs(&mut self, min_samples: u32, cost_crossover_bp: u32) {
+        self.prefetch_min_samples = min_samples;
+        self.prefetch_cost_crossover = f64::from(cost_crossover_bp) / 10_000.0;
     }
 
     pub fn set_model_override(&mut self, model: Option<String>) -> Result<(), LoopError> {
@@ -897,8 +914,9 @@ impl InnerLoop {
             }
             let total = self.prefetch_hits + self.prefetch_misses;
             let retired = self.prefetch_enabled
-                && total >= PREFETCH_MIN_SAMPLES
-                && (f64::from(self.prefetch_hits) / f64::from(total)) < PREFETCH_COST_CROSSOVER;
+                && total >= self.prefetch_min_samples
+                && (f64::from(self.prefetch_hits) / f64::from(total))
+                    < self.prefetch_cost_crossover;
             if retired {
                 self.prefetch_enabled = false;
             }
@@ -908,7 +926,8 @@ impl InnerLoop {
                         "predicted": pref.args, "hit": hit,
                         "tokens_est": pref.tokens_est,
                         "hits": self.prefetch_hits, "misses": self.prefetch_misses,
-                        "crossover": PREFETCH_COST_CROSSOVER,
+                        "crossover": self.prefetch_cost_crossover,
+                        "min_samples": self.prefetch_min_samples,
                         "predictor_retired": retired,
                     }))
                     .expect("json! values serialize"),

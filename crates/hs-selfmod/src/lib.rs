@@ -41,17 +41,31 @@ pub enum PolicyTool {
     Table(BTreeMap<String, String>),
 }
 
+/// The prefetch predictor's tunable knobs (checklist 7.5: the predictor
+/// is tuned BY EVOLUTION, so the knobs are ordinary policy). The
+/// crossover is basis points (`0..=10_000`) so the layer stays `Eq`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PrefetchPolicy {
+    /// Resolutions the predictor needs before it may retire.
+    pub min_samples: u32,
+    /// Hit-rate floor in basis points; below it the predictor retires.
+    pub cost_crossover_bp: u32,
+}
+
 /// The mutable surface of the agent: prompts + tool configs. Mutations may
 /// touch ONLY this layer (spec fig 5: "rewrite a prompt or a tool").
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PolicyLayer {
     pub prompts: BTreeMap<String, String>,
     pub tools: BTreeMap<String, PolicyTool>,
+    /// Prefetch predictor knobs (7.5); `None` = compiled-in defaults.
+    #[serde(default)]
+    pub prefetch: Option<PrefetchPolicy>,
 }
 impl PolicyLayer {
     #[must_use]
     pub fn new(prompts: BTreeMap<String, String>, tools: BTreeMap<String, PolicyTool>) -> Self {
-        PolicyLayer { prompts, tools }
+        PolicyLayer { prompts, tools, prefetch: None }
     }
 }
 
@@ -60,6 +74,8 @@ impl PolicyLayer {
 pub enum PolicyChange {
     SetPrompt { name: String, text: String },
     SetTool { name: String, tool: PolicyTool },
+    /// Retune the prefetch predictor (7.5: tuned by evolution).
+    SetPrefetch { min_samples: u32, cost_crossover_bp: u32 },
 }
 
 /// A proposed self-modification. By construction it can only express
@@ -275,6 +291,15 @@ impl SelfModLoop {
                 }
                 PolicyChange::SetTool { name, tool } => {
                     fork.policy.tools.insert(name.clone(), tool.clone());
+                }
+                PolicyChange::SetPrefetch {
+                    min_samples,
+                    cost_crossover_bp,
+                } => {
+                    fork.policy.prefetch = Some(PrefetchPolicy {
+                        min_samples: *min_samples,
+                        cost_crossover_bp: *cost_crossover_bp,
+                    });
                 }
             }
         }
