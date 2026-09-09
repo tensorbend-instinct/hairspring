@@ -191,6 +191,10 @@ pub struct InnerLoop {
     /// slices above it, so each mission's K record carries only its own
     /// edits and provenance on the shared session stream.
     distill_floor: u64,
+    /// B2 (v5 gate 6): the shared world plane, one world stream inside
+    /// this session's substrate log root. Attached via `attach_world`
+    /// (REPL sessions always); world.* tools dispatch natively below.
+    world: Option<hs_world::World>,
     /// Async delegation: children spawned by THIS mission, still
     /// running. Joined before a passing close; their costs land in
     /// this mission's books.
@@ -265,6 +269,7 @@ impl InnerLoop {
             prefetch_misses: 0,
             prefetch_enabled: true,
             distill_floor: 0,
+            world: None,
         })
     }
 
@@ -324,6 +329,7 @@ impl InnerLoop {
             prefetch_misses: 0,
             prefetch_enabled: true,
             distill_floor,
+            world: None,
         })
     }
 
@@ -559,6 +565,128 @@ impl InnerLoop {
     /// B1 (v5 D3 + cut #10): tool dispatch. D3's K plane is consulted by
     /// the model as a builtin tool - it never reaches the plugin bus and
     /// is never pre-passed into prompts.
+    /// B2 (v5 gate 6): join the shared world plane (one world stream in
+    /// this substrate). Called by every REPL session; missions then reach
+    /// the world through the world.* tools below.
+    pub fn attach_world(&mut self) {
+        self.world = Some(
+            hs_world::World::open(&self.log_root).expect("world open at the session log root"),
+        );
+    }
+
+    /// The world plane this session joined (test/admin reach: ticks,
+    /// installs, uninstalls are world operations, not model tools).
+    #[must_use]
+    pub fn world(&self) -> Option<&hs_world::World> {
+        self.world.as_ref()
+    }
+
+    /// The canonical world stream (proposal/consequence evidence reads).
+    #[must_use]
+    pub fn world_stream_id(&self) -> uuid::Uuid {
+        self.world
+            .as_ref()
+            .expect("attach_world first")
+            .world_stream()
+    }
+
+    /// B2 (spec 3.4): world tool dispatch. The agent writes proposals; the
+    /// world service alone validates (schema, hash, path, version,
+    /// quarantine) and writes the consequence. Rejections are served to
+    /// the model as ordinary tool output - never fatal to the mission.
+    /// Returns None for non-world tools.
+    fn world_dispatch(&mut self, tool: &str, args: &serde_json::Value) -> Option<ToolCallOutcome> {
+        if !matches!(tool, "world.propose" | "world.observe" | "world.install" | "world.tick") {
+            return None;
+        }
+        let started = std::time::Instant::now();
+        let done = |output: serde_json::Value| {
+            Some(ToolCallOutcome {
+                output,
+                latency_ms: u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX),
+            })
+        };
+        let Some(world) = &self.world else {
+            return done(serde_json::json!({"error": format!("{tool}: no world attached to this session")}));
+        };
+        match tool {
+            "world.propose" => {
+                use sha2::Digest as _;
+                let path = args["world_path"].as_str().unwrap_or("").to_string();
+                let content = args["content"].as_str().unwrap_or("").to_string();
+                let kind = match args["kind"].as_str().unwrap_or("file") {
+                    "program" => hs_world::ArtifactKind::Program,
+                    "controller" => hs_world::ArtifactKind::Controller,
+                    "note" => hs_world::ArtifactKind::Note,
+                    "skill" => hs_world::ArtifactKind::Skill,
+                    _ => hs_world::ArtifactKind::File,
+                };
+                let artifact = hs_world::Artifact {
+                    artifact_id: args["artifact_id"]
+                        .as_str()
+                        .and_then(|s| uuid::Uuid::parse_str(s).ok())
+                        .unwrap_or_else(uuid::Uuid::new_v4),
+                    version: u32::try_from(args["version"].as_u64().unwrap_or(1)).unwrap_or(1),
+                    kind,
+                    content_hash: sha2::Sha256::digest(content.as_bytes()).into(),
+                    world_path: path,
+                    author_stream: self.stream_id,
+                    parent_version: None,
+                    status: hs_world::ArtifactStatus::Proposed,
+                };
+                match world.propose(artifact, content.as_bytes()) {
+                    Ok(a) => done(serde_json::json!({
+                        "artifact_id": a.artifact_id, "version": a.version,
+                        "kind": a.kind, "world_path": a.world_path,
+                        "author_stream": a.author_stream, "status": "validated",
+                    })),
+                    Err(e) => done(serde_json::json!({
+                        "error": format!("world rejected the proposal: {e:?}")
+                    })),
+                }
+            }
+            "world.observe" => {
+                let path = args["world_path"].as_str().unwrap_or("");
+                match world.observe(path) {
+                    Ok(arts) => {
+                        let rows: Vec<serde_json::Value> = arts
+                            .iter()
+                            .map(|a| {
+                                serde_json::json!({
+                                    "artifact_id": a.artifact_id, "version": a.version,
+                                    "kind": a.kind, "world_path": a.world_path,
+                                    "author_stream": a.author_stream, "status": a.status,
+                                    "content_hash": a.content_hash,
+                                })
+                            })
+                            .collect();
+                        done(serde_json::json!({"world_path": path, "count": rows.len(), "artifacts": rows}))
+                    }
+                    Err(e) => done(serde_json::json!({"error": format!("world.observe: {e:?}")})),
+                }
+            }
+            "world.install" => {
+                let Some(id) = args["artifact_id"]
+                    .as_str()
+                    .and_then(|s| uuid::Uuid::parse_str(s).ok())
+                else {
+                    return done(serde_json::json!({"error": "world.install: artifact_id must be a uuid"}));
+                };
+                match world.install(id) {
+                    Ok(()) => done(serde_json::json!({"installed": id.to_string()})),
+                    Err(e) => done(serde_json::json!({"error": format!("world.install: {e:?}")})),
+                }
+            }
+            _ => match world.tick() {
+                Ok(ids) => done(serde_json::json!({
+                    "acted": ids.iter().map(std::string::ToString::to_string).collect::<Vec<_>>(),
+                    "count": ids.len(),
+                })),
+                Err(e) => done(serde_json::json!({"error": format!("world.tick: {e:?}")})),
+            },
+        }
+    }
+
     fn dispatch_tool(
         &mut self,
         tool: &str,
@@ -566,6 +694,9 @@ impl InnerLoop {
     ) -> Result<ToolCallOutcome, KernelError> {
         if tool == "memory.recall" {
             return Ok(self.memory_recall(args));
+        }
+        if let Some(out) = self.world_dispatch(tool, args) {
+            return Ok(out);
         }
         self.kernel.call_tool("operator", tool, args.clone())
     }

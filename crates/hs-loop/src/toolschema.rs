@@ -249,3 +249,59 @@ pub fn memory_recall_tool() -> Value {
         json!({"type":"object","properties":{"k":{"type":"integer","description":"records to return, 1..=50 (default 5)"}}}),
     )
 }
+
+/// B2 (v5 gate 6, spec 3.4): the shared world as mission tools. The agent
+/// WRITES proposals; the world service alone validates them (schema,
+/// permissions, material preconditions, quarantine of the proposing
+/// stream) and writes the consequences. Zero-message coordination: other
+/// agents reuse installed artifacts by observation, never by messages.
+#[must_use]
+pub fn world_propose_tool() -> Value {
+    f(
+        "world.propose",
+        "Propose an artifact into the shared world (gate 6): your proposal is validated by the world service (schema + content hash + path + version), which alone writes the consequence. Returns the validated artifact_id/version on success, or the rejection reason. Content is hashed and stored content-addressed; world_path MUST be absolute; kind: file|program|controller|note|skill. Installed controllers keep acting on world ticks even after your stream ends (executable inheritance).",
+        json!({"type":"object","properties":{
+            "world_path":{"type":"string","description":"absolute path in the shared world"},
+            "content":{"type":"string","description":"artifact content (controllers: the declarative program JSON, e.g. {\"op\":\"append_counter\",\"target\":\"/path\"})"},
+            "kind":{"type":"string","enum":["file","program","controller","note","skill"]},
+            "artifact_id":{"type":"string","description":"uuid, optional (generated when omitted)"},
+            "version":{"type":"integer","description":"optional, default 1"}},"required":["world_path","content"]}),
+    )
+}
+
+/// B2: zero-message coordination - read the current live (validated or
+/// installed) artifacts at a world path. This is how a later mission
+/// reuses an earlier mission's work with no messages at all.
+#[must_use]
+pub fn world_observe_tool() -> Value {
+    f(
+        "world.observe",
+        "Read the shared world (gate 6): the live (validated or installed) artifacts at a world path - what other missions have ALREADY delivered there. Zero-message coordination: consult the world BEFORE re-deriving anything another mission may have produced.",
+        json!({"type":"object","properties":{"world_path":{"type":"string"}},"required":["world_path"]}),
+    )
+}
+
+/// B2: install a validated controller/program artifact. It starts acting
+/// on every world tick WITHOUT any model call, and it keeps acting after
+/// your stream ends - an installed controller is world property
+/// (executable inheritance).
+#[must_use]
+pub fn world_install_tool() -> Value {
+    f(
+        "world.install",
+        "Install a validated controller or program artifact by artifact_id (gate 6). Installed artifacts act on every world tick with no model call and keep acting after your stream ends. Only validated controller/program artifacts install.",
+        json!({"type":"object","properties":{"artifact_id":{"type":"string"}},"required":["artifact_id"]}),
+    )
+}
+
+/// B2: advance the world one tick - every installed controller acts once,
+/// purely mechanically (no model call). Returns the consequence event
+/// artifact ids this tick produced.
+#[must_use]
+pub fn world_tick_tool() -> Value {
+    f(
+        "world.tick",
+        "Advance the shared world one tick (gate 6): every installed controller acts once, mechanically, with no model call. Returns the artifact ids this tick produced.",
+        json!({"type":"object","properties":{}}),
+    )
+}

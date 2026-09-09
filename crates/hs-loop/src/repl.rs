@@ -237,6 +237,16 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
             native_tools.push(crate::toolschema::memory_recall_tool());
             inner.set_memory_db(&memory_db);
         }
+        // B2 (v5 gate 6): every REPL session also joins the shared world
+        // plane; the model writes proposals through the world.* tools and
+        // the world service alone writes consequences (spec 3.4).
+        inner.attach_world();
+        native_tools.extend([
+            crate::toolschema::world_propose_tool(),
+            crate::toolschema::world_observe_tool(),
+            crate::toolschema::world_install_tool(),
+            crate::toolschema::world_tick_tool(),
+        ]);
         inner.set_tools(serde_json::Value::Array(native_tools));
         let model_label = Self::configured_model_label(config).unwrap_or_else(|| "?".to_string());
         Ok(ReplSession {
@@ -323,6 +333,16 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
             native_tools.push(crate::toolschema::memory_recall_tool());
             inner.set_memory_db(&memory_db);
         }
+        // B2 (v5 gate 6): every REPL session also joins the shared world
+        // plane; the model writes proposals through the world.* tools and
+        // the world service alone writes consequences (spec 3.4).
+        inner.attach_world();
+        native_tools.extend([
+            crate::toolschema::world_propose_tool(),
+            crate::toolschema::world_observe_tool(),
+            crate::toolschema::world_install_tool(),
+            crate::toolschema::world_tick_tool(),
+        ]);
         inner.set_tools(serde_json::Value::Array(native_tools));
         let model_label = Self::configured_model_label(config).unwrap_or_else(|| "?".to_string());
         Ok(ReplSession {

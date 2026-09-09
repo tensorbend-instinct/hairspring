@@ -109,13 +109,22 @@ fn r1_delegation_runs_a_real_child_and_books_it() {
     let r = s.run_goal("parent task").unwrap();
     assert!(r.passed, "delegating parent passes: {r:?}");
 
-    // Four streams: parent mission + parent kernel dispatch + child
-    // mission + child kernel dispatch.
+    // Five streams: parent mission + parent kernel dispatch + child
+    // mission + child kernel dispatch, plus the shared world stream every
+    // REPL session joins (B2 gate 6: one world stream per substrate).
     let ledgers = ledger_by_stream(&dir.join("run"));
     assert_eq!(
         ledgers.len(),
-        4,
-        "parent+child mission streams plus both kernel dispatch streams: {:?}",
+        5,
+        "parent+child mission streams plus both kernel dispatch streams plus the world stream: {:?}",
+        ledgers.keys()
+    );
+    // the fifth is the canonical world stream (uuid v5, DNS "hairspring.world")
+    assert!(
+        ledgers.contains_key(
+            &uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_DNS, b"hairspring.world").to_string()
+        ),
+        "the world stream is accounted for: {:?}",
         ledgers.keys()
     );
 
