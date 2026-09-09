@@ -101,6 +101,9 @@ pub const TUI_HELP: &str = "hairspring - full-screen surface
   :models   pick the operator model (next mission onward)
   :theme    pick the surface theme
   :agents   toggle the delegation graph panel
+  :lineage  toggle the selfmod lineage panel
+  :scorer   toggle the scorer stream panel
+  :time     toggle the T_mission decomposition panel
   :help     this text
   :quit     exit (Ctrl+C works too)
   keys: Enter run - Alt+Enter newline - PgUp/PgDn scroll - wheel scrolls";
@@ -458,6 +461,12 @@ pub enum KeyAction {
     Picked(PickerKind, String),
     /// ":agents" toggled the delegation panel.
     ToggleAgents,
+    /// ":lineage" toggled the selfmod lineage panel.
+    ToggleLineage,
+    /// ":scorer" toggled the scorer stream panel.
+    ToggleScorer,
+    /// ":time" toggled the `T_mission` decomposition panel.
+    ToggleTime,
     /// Ctrl+C or ":quit".
     Quit,
 }
@@ -510,6 +519,18 @@ pub fn handle_key(state: &mut TuiState, key: ratatui::crossterm::event::KeyEvent
                 ":agents" => {
                     state.toggle_agents_panel();
                     KeyAction::ToggleAgents
+                }
+                ":lineage" => {
+                    state.toggle_lineage_panel();
+                    KeyAction::ToggleLineage
+                }
+                ":scorer" => {
+                    state.toggle_scorer_panel();
+                    KeyAction::ToggleScorer
+                }
+                ":time" => {
+                    state.toggle_time_panel();
+                    KeyAction::ToggleTime
                 }
                 _ => KeyAction::Submit(text),
             },
@@ -968,6 +989,7 @@ pub fn wrapped_rows(line: &Line<'static>, width: u16) -> usize {
     wrap_line(line, width).len()
 }
 
+#[allow(clippy::struct_excessive_bools)] // UI surface state: panel visibility flags are the honest shape
 #[derive(Debug, Clone)]
 pub struct TuiState {
     /// Live loop phase for the rail.
@@ -998,6 +1020,18 @@ pub struct TuiState {
     pub agents: DelegationGraph,
     /// Whether the agents panel overlay is open (M6).
     pub agents_panel: bool,
+    /// B8c: the selfmod lineage overlay is open.
+    pub lineage_panel: bool,
+    /// B8c: the scorer stream overlay is open.
+    pub scorer_panel: bool,
+    /// B8c: the `T_mission` decomposition overlay is open.
+    pub time_panel: bool,
+    /// B8c: the session layer injects the lineage view on toggle.
+    pub lineage_view: Option<crate::tui_views::SelfmodView>,
+    /// B8c: the session layer injects the scorer view on toggle.
+    pub scorer_view: Option<crate::tui_views::ScorerView>,
+    /// B8c: the session layer injects the mission decomposition on toggle.
+    pub time_view: Option<crate::mission_time::Decomposition>,
     /// Recent stream events, oldest first; the rail ticker shows the tail.
     pub ticker: VecDeque<EventKind>,
     /// Eric's five #1: goals submitted while a mission runs queue here
@@ -1029,6 +1063,12 @@ impl Default for TuiState {
             answer_inflight: String::new(),
             agents: DelegationGraph::new(),
             agents_panel: false,
+            lineage_panel: false,
+            scorer_panel: false,
+            time_panel: false,
+            lineage_view: None,
+            scorer_view: None,
+            time_view: None,
             ticker: VecDeque::new(),
             queued_goals: VecDeque::new(),
             theme: crate::uipaint::Theme::dark(),
@@ -1274,6 +1314,18 @@ impl TuiState {
     /// a non-empty graph exists; an empty graph shows nothing.
     pub fn toggle_agents_panel(&mut self) {
         self.agents_panel = !self.agents_panel;
+    }
+    /// B8c: open/close the selfmod lineage overlay.
+    pub fn toggle_lineage_panel(&mut self) {
+        self.lineage_panel = !self.lineage_panel;
+    }
+    /// B8c: open/close the scorer stream overlay.
+    pub fn toggle_scorer_panel(&mut self) {
+        self.scorer_panel = !self.scorer_panel;
+    }
+    /// B8c: open/close the `T_mission` decomposition overlay.
+    pub fn toggle_time_panel(&mut self) {
+        self.time_panel = !self.time_panel;
     }
 
     /// Open a picker overlay over the transcript (M4).
@@ -1686,6 +1738,130 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .title(" agents ");
+        f.render_widget(Paragraph::new(lines).block(block), rect);
+    }
+
+    // B8c: the lineage overlay - the selfmod stream as booked
+    // mutations and deltas; an absent or empty stream renders one
+    // honest line, never a blank box.
+    if state.lineage_panel {
+        let dim = Style::default().add_modifier(Modifier::DIM);
+        let lines: Vec<Line> = match &state.lineage_view {
+            None => vec![Line::styled("no selfmod cycle this session", dim)],
+            Some(v) => {
+                let mut ls: Vec<Line> = Vec::new();
+                for m in &v.mutations {
+                    let short: String = m.fork.to_string().chars().take(8).collect();
+                    ls.push(Line::from(format!(
+                        "\u{270e} {short}  {} changes",
+                        m.changes
+                    )));
+                }
+                for c in &v.capability_deltas {
+                    ls.push(Line::from(format!(
+                        "\u{25b2} {} {}  prompts={} tools={}",
+                        c.candidate,
+                        if c.promoted { "promoted" } else { "demoted" },
+                        c.prompts,
+                        c.tools
+                    )));
+                }
+                for fd in &v.fitness_deltas {
+                    ls.push(Line::from(format!(
+                        "\u{25c6} {}  held-out={:.1}%",
+                        fd.candidate,
+                        fd.held_out_pass_rate * 100.0
+                    )));
+                }
+                if ls.is_empty() {
+                    ls.push(Line::styled("no selfmod cycle this session", dim));
+                }
+                ls
+            }
+        };
+        let box_w = (area.width * 2 / 3).max(40).min(area.width);
+        let box_h = (lines.len() as u16 + 2).min(viewport.height.max(3));
+        let rect = Rect::new(area.width - box_w, viewport.y, box_w, box_h);
+        f.render_widget(ratatui::widgets::Clear, rect);
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .title(" lineage ");
+        f.render_widget(Paragraph::new(lines).block(block), rect);
+    }
+
+    // B8c: the scorer overlay - pins, tier scores, canary results.
+    if state.scorer_panel {
+        let dim = Style::default().add_modifier(Modifier::DIM);
+        let lines: Vec<Line> = match &state.scorer_view {
+            None => vec![Line::styled("no scorer stream this session", dim)],
+            Some(v) => {
+                let mut ls: Vec<Line> = Vec::new();
+                for p in &v.pins {
+                    let h8: String = p.hash.chars().take(8).collect();
+                    ls.push(Line::from(format!(
+                        "\u{2691} {} \u{00b7} {} \u{00b7} {h8}",
+                        p.version, p.conditions
+                    )));
+                }
+                for sc in &v.scores {
+                    ls.push(Line::from(format!(
+                        "{} cand={} suite={} {} {}/{}",
+                        sc.tier,
+                        sc.candidate,
+                        sc.suite,
+                        if sc.passed { "PASS" } else { "FAIL" },
+                        sc.correct,
+                        sc.total
+                    )));
+                }
+                for cg in &v.canaries {
+                    let flag = if cg.error { " ERROR" } else { "" };
+                    ls.push(Line::from(format!(
+                        "\u{25c8} {} gt={} scorer={}{flag}",
+                        cg.id,
+                        if cg.ground_truth_good { "good" } else { "bad" },
+                        if cg.scorer_said_good { "good" } else { "bad" },
+                    )));
+                }
+                if ls.is_empty() {
+                    ls.push(Line::styled("no scorer stream this session", dim));
+                }
+                ls
+            }
+        };
+        let box_w = (area.width * 2 / 3).max(40).min(area.width);
+        let box_h = (lines.len() as u16 + 2).min(viewport.height.max(3));
+        let rect = Rect::new(area.width - box_w, viewport.y, box_w, box_h);
+        f.render_widget(ratatui::widgets::Clear, rect);
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .title(" scorer ");
+        f.render_widget(Paragraph::new(lines).block(block), rect);
+    }
+
+    // B8c: the T_mission overlay - the session stream's measured
+    // decomposition (the published report lines, header rows dropped).
+    if state.time_panel {
+        let dim = Style::default().add_modifier(Modifier::DIM);
+        let lines: Vec<Line> = match &state.time_view {
+            None => vec![Line::styled("no mission decomposition yet", dim)],
+            Some(d) => d
+                .report_lines("session")
+                .into_iter()
+                .skip(2)
+                .map(Line::from)
+                .collect(),
+        };
+        let box_w = (area.width * 3 / 4).max(50).min(area.width);
+        let box_h = (lines.len() as u16 + 2).min(viewport.height.max(3));
+        let rect = Rect::new(area.width - box_w, viewport.y, box_w, box_h);
+        f.render_widget(ratatui::widgets::Clear, rect);
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .title(" T_mission ");
         f.render_widget(Paragraph::new(lines).block(block), rect);
     }
 }

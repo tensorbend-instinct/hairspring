@@ -381,6 +381,19 @@ fn run_fullscreen(
                     }
                     match tui::handle_key(&mut st, k) {
                         tui::KeyAction::Continue | tui::KeyAction::ToggleAgents => {}
+                        tui::KeyAction::ToggleLineage => {
+                            st.lineage_view = hs_loop::tui_views::selfmod_view(&opts.dir);
+                        }
+                        tui::KeyAction::ToggleScorer => {
+                            st.scorer_view = hs_loop::tui_views::scorer_view(&opts.dir);
+                        }
+                        tui::KeyAction::ToggleTime => {
+                            st.time_view = hs_log::StreamReader::open(&opts.dir, current_stream)
+                                .ok()
+                                .and_then(|r| {
+                                    hs_loop::mission_time::MissionTime::decompose(&r).ok()
+                                });
+                        }
                         tui::KeyAction::Quit => break,
                         tui::KeyAction::Picked(tui::PickerKind::Models, choice) => {
                             let name = choice.split(' ').next().unwrap_or("").to_string();

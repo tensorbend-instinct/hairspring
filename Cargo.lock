@@ -958,6 +958,8 @@ dependencies = [
  "hs-kernel",
  "hs-log",
  "hs-memory",
+ "hs-scorer",
+ "hs-selfmod",
  "hs-world",
  "ignore",
  "ratatui",

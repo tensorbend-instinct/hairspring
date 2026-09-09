@@ -16,14 +16,11 @@
 use std::process::Command;
 
 fn empty_repo() -> std::path::PathBuf {
-    let d = std::env::temp_dir().join(format!(
-        "replay-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
+    // clock nanos REPEAT across threads on this box - uniqueness comes
+    // from a per-process counter, never from the clock.
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let d = std::env::temp_dir().join(format!("replay-{}-{}", std::process::id(), n));
     std::fs::create_dir_all(&d).unwrap();
     let o = Command::new("git")
         .args(["init", "-q"])
