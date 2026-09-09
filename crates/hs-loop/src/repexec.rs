@@ -202,11 +202,25 @@ fn worktree_add_once(ws: &Path, scratch: &Path) -> Result<(), Value> {
 
 /// Prep from a diff the model supplies inline (T4: test before the first
 /// answer.write). Same scratch-worktree semantics as prep.
+/// One prep-gradient scratch name. The wall clock is NOT a uniqueness
+/// source: on this fleet, `clock_gettime` returns IDENTICAL nanos to two
+/// threads (~30k duplicates per 1.6M samples measured), so pid+nanos
+/// scratch paths collided - two threads raced git's check-then-create
+/// `worktree add`, one thread's `git apply` landed in the other dir,
+/// and the suite flaked with a "patch does not apply" verdict arm of a
+/// DIFFERENT call (m51). A process-local counter is the only honest
+/// uniqueness primitive; the pid component keeps names distinct across
+/// test binaries, and the pre-add `worktree remove` still clears any
+/// same-tagged leftover from a pid-recycled earlier run.
+pub fn unique_tag(prefix: &str) -> String {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    format!("{prefix}-{}-{n}", std::process::id())
+}
+
 fn prep_diff(ws: &Path, patch: &str) -> Result<Option<PathBuf>, Value> {
-    let uniq = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_nanos());
-    let scratch = std::env::temp_dir().join(format!("repexec-{}-{}", std::process::id(), uniq));
+    let tag = unique_tag("repexec");
+    let scratch = std::env::temp_dir().join(&tag);
     let _ = Command::new("git")
         .args(["worktree", "remove", "--force"])
         .arg(&scratch)
@@ -421,10 +435,7 @@ pub fn run_sandboxed_no_patch(ws: &Path, command: &str, timeout_secs: u64) -> Va
 /// hardlinks objects, so even a large repo copies fast, and the result has
 /// a real .git directory that survives the sandbox bind at /ws.
 fn scratch_clone(ws: &Path) -> Result<PathBuf, Value> {
-    let uniq = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_nanos());
-    let scratch = std::env::temp_dir().join(format!("repsh-{}-{}", std::process::id(), uniq));
+    let scratch = std::env::temp_dir().join(unique_tag("repsh"));
     let _ = std::fs::remove_dir_all(&scratch);
     match Command::new("git")
         .args(["clone", "--quiet", "--local", "--no-hardlinks"])

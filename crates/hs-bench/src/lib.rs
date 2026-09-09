@@ -309,12 +309,15 @@ pub fn apply_model_patch(workspace: &Path, patch: &str) -> Result<ApplyResult, B
     // The temp patch file is harness machinery: it must live OUTSIDE the
     // agent-visible workspace (a crash mid-cleanup once stranded it in-tree,
     // where agents saw it and the candidate diff grew a bogus deletion hunk).
+    // Same collision class as hs-loop::repexec scratch tags: the wall
+    // clock hands identical nanos to threads, so concurrent runners with
+    // DIFFERENT patches could share this path - last writer wins and the
+    // wrong patch gets applied or rejected. Counter, never clock.
+    static PATCH_TAG: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let tag_n = PATCH_TAG.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let patch_path = std::env::temp_dir().join(format!(
-        ".hs-eval-{}-{}.patch",
+        ".hs-eval-{}-{tag_n}.patch",
         std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.as_nanos())
     ));
     std::fs::write(&patch_path, patch)?;
     let out = Command::new("git")

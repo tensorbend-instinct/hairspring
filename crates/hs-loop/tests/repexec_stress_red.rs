@@ -87,3 +87,29 @@ fn transient_git_spawn_failure_is_retried_not_surfaced() {
     let r = hs_loop::repexec::run_sandboxed(d.path(), &ans, "true", 30);
     assert_eq!(r["applied"], true, "transient spawn failure recovered via retry: {r}");
 }
+
+/// Uniqueness pin for the m51 collision: whatever names prep uses must
+/// never repeat inside a process - not once in hundreds of thousands of
+/// concurrent mints. The wall clock alone fails this on the fleet
+/// (~30k duplicates per 1.6M samples across 8 threads, measured).
+#[test]
+fn r3_scratch_tags_never_repeat_under_threaded_minting() {
+    let seen = std::sync::Arc::new(std::sync::Mutex::new(
+        std::collections::HashMap::<String, Vec<(usize, usize)>>::new(),
+    ));
+    let mut hs = vec![];
+    for tid in 0..8usize {
+        let seen = std::sync::Arc::clone(&seen);
+        hs.push(std::thread::spawn(move || {
+            for i in 0..20_000usize {
+                let t = hs_loop::repexec::unique_tag("r3probe");
+                seen.lock().unwrap().entry(t).or_default().push((tid, i));
+            }
+        }));
+    }
+    for h in hs {
+        h.join().unwrap();
+    }
+    let seen = seen.lock().unwrap();
+    assert_eq!(seen.len(), 8 * 20_000, "every tag must be unique");
+}
