@@ -273,3 +273,67 @@ fn k4_memory_recall_schema_shape() {
         "the schema carries its behavioral description"
     );
 }
+
+#[test]
+fn k6_within_session_distillation_is_mission_scoped() {
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    // B1 close-distillation defect (live TUI proof, 2026-09-09): extraction
+    // read the WHOLE shared session stream, so mission N's record
+    // inherited mission N-1's edits and provenance. Within ONE session,
+    // each close must distill ONLY that mission's events.
+    let dir = tempfile::tempdir().unwrap();
+    let log = tempfile::tempdir().unwrap();
+    let db = tempfile::tempdir().unwrap().keep().join("memory.db");
+    // one plugin process, one session: the script freezes at launch, so
+    // both missions' lines live in one file, consumed in order.
+    let a0 = format!("{}/work/task-0/answer.txt", log.path().display());
+    let a1 = format!("{}/work/task-1/answer.txt", log.path().display());
+    let script = write_script(
+        dir.path(),
+        &[
+            serde_json::json!({"tool":"answer.write","args":{"path":a0,"content":"TOKEN-0-SECRET"}}),
+            serde_json::json!({"tool":"answer.write","args":{"path":a1,"content":"TOKEN-1-SECRET"}}),
+        ],
+    );
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
+    let mut l = rig(dir.path(), log.path(), 4);
+    l.set_memory_db(&db);
+    let r1 = l.run_mission("task-0").unwrap();
+    assert!(r1.passed, "mission 1 passes: {r1:?}");
+    let r2 = l.run_mission("task-1").unwrap();
+    assert!(r2.passed, "mission 2 passes: {r2:?}");
+
+    let store = hs_memory::sqlite::SqliteMemoryStore::open(&db).unwrap();
+    let all = store.top_k("operator", 10).unwrap();
+    let m1 = all
+        .iter()
+        .find(|r| r.mission_id.as_deref() == Some("task-0"))
+        .expect("mission 1's close distilled a record");
+    let m2 = all
+        .iter()
+        .find(|r| r.mission_id.as_deref() == Some("task-1"))
+        .expect("mission 2's close distilled a record");
+    let overlap: Vec<u64> = m2
+        .source_seqs
+        .iter()
+        .filter(|s| m1.source_seqs.contains(s))
+        .copied()
+        .collect();
+    assert!(
+        overlap.is_empty(),
+        "mission 2's record must not borrow mission 1's events: {overlap:?} (m2: {m2:?})"
+    );
+    assert!(
+        m2.content.contains("task-1/answer.txt"),
+        "m2's edits name its own answer: {m2:?}"
+    );
+    assert!(
+        !m2.content.contains("task-0/answer.txt"),
+        "m2 must not inherit m1's edits: {}",
+        m2.content
+    );
+    assert!(
+        m1.content.contains("task-0/answer.txt"),
+        "m1's edits name its own answer: {m1:?}"
+    );
+}

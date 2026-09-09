@@ -7,6 +7,9 @@ use crate::NewMemoryRecord;
 use hs_core::EventKind;
 use std::path::Path;
 
+/// Whole-stream extraction (floor 0). Kept for the bench harness and
+/// single-mission callers; interactive sessions go through
+/// `extract_stream_from` so each close distills ONLY its own mission.
 #[must_use]
 pub fn extract_stream(
     log_root: &Path,
@@ -14,12 +17,33 @@ pub fn extract_stream(
     mission_id: &str,
     agent_id: &str,
 ) -> Vec<NewMemoryRecord> {
+    extract_stream_from(log_root, stream_id, mission_id, agent_id, 0)
+}
+
+/// B1 (live-proof defect, 2026-09-09): mission-scoped extraction. A REPL
+/// session runs its missions on ONE shared stream, so close-time
+/// distillation must slice the stream at the last close's seq - events
+/// strictly above `min_seq_exclusive` - or mission N's record inherits
+/// mission N-1's edits and provenance (verbatim: task-3's record named
+/// task-2's answer path with seqs [3,4] from task-2's events).
+#[must_use]
+pub fn extract_stream_from(
+    log_root: &Path,
+    stream_id: uuid::Uuid,
+    mission_id: &str,
+    agent_id: &str,
+    min_seq_exclusive: u64,
+) -> Vec<NewMemoryRecord> {
     let Ok(reader) = hs_log::StreamReader::open(log_root, stream_id) else {
         return vec![];
     };
     let Ok(events) = reader.events() else {
         return vec![];
     };
+    let events: Vec<_> = events
+        .into_iter()
+        .filter(|e| e.seq > min_seq_exclusive)
+        .collect();
     let mut edits: Vec<String> = vec![];
     let mut edit_seqs: Vec<u64> = vec![];
     let mut failures: Vec<(u64, String)> = vec![];

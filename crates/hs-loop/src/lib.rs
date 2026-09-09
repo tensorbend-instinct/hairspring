@@ -186,6 +186,11 @@ pub struct InnerLoop {
     prefetch_hits: u32,
     prefetch_misses: u32,
     prefetch_enabled: bool,
+    /// B1: close-time distillation floor - the seq of the LAST mission
+    /// close (seeded at stream end for resumed/forked streams). Extraction
+    /// slices above it, so each mission's K record carries only its own
+    /// edits and provenance on the shared session stream.
+    distill_floor: u64,
     /// Async delegation: children spawned by THIS mission, still
     /// running. Joined before a passing close; their costs land in
     /// this mission's books.
@@ -259,6 +264,7 @@ impl InnerLoop {
             prefetch_hits: 0,
             prefetch_misses: 0,
             prefetch_enabled: true,
+            distill_floor: 0,
         })
     }
 
@@ -272,6 +278,14 @@ impl InnerLoop {
         max_steps: u32,
     ) -> Result<Self, LoopError> {
         let outcome = StreamWriter::resume(log_root, stream_id)?;
+        // B1: a resumed/forked stream already holds the parent's mission
+        // events; without this floor the first close here would re-distill
+        // them into THIS mission's record (same overlap defect class).
+        let distill_floor = hs_log::StreamReader::open(log_root, stream_id)
+            .ok()
+            .and_then(|r| r.events().ok())
+            .and_then(|ev| ev.last().map(|e| e.seq))
+            .unwrap_or(0);
         Ok(InnerLoop {
             kernel,
             writer: outcome.writer,
@@ -309,6 +323,7 @@ impl InnerLoop {
             prefetch_hits: 0,
             prefetch_misses: 0,
             prefetch_enabled: true,
+            distill_floor,
         })
     }
 
@@ -678,8 +693,13 @@ impl InnerLoop {
         // handoff distiller plugs into the same provenance contract
         // later. The booking makes the write auditable from the log.
         if self.memory_store.is_some() {
-            let records =
-                hs_memory::extract::extract_stream(&self.log_root, self.stream_id, mission, "operator");
+            let records = hs_memory::extract::extract_stream_from(
+                &self.log_root,
+                self.stream_id,
+                mission,
+                "operator",
+                self.distill_floor,
+            );
             let mut written = 0usize;
             if let Some(store) = &self.memory_store {
                 for r in records {
@@ -698,7 +718,7 @@ impl InnerLoop {
                 )),
             )?;
         }
-        self.writer.append(
+        let gu = self.writer.append(
             EventBuilder::new(EventKind::GoalUpdate).payload(Payload::Inline(
                 serde_json::to_vec(&serde_json::json!({
                     "mission": mission, "done": done, "outcome": outcome,
@@ -706,6 +726,8 @@ impl InnerLoop {
                 .expect("json! values serialize"),
             )),
         )?;
+        // the next close slices above this terminal event
+        self.distill_floor = gu.seq;
         Ok(())
     }
 
