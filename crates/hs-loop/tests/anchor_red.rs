@@ -8,13 +8,13 @@ use std::path::PathBuf;
 use std::process::Command;
 
 fn fixture_ws() -> PathBuf {
+    // nanos REPEAT across threads on the build fleet (measured): time is
+    // not a uniqueness source. An atomic counter is.
+    static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let uniq = format!(
         "anchor-{}-{}",
         std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
+        SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     );
     let ws = std::env::temp_dir().join(uniq);
     std::fs::create_dir_all(ws.join("src")).unwrap();

@@ -196,6 +196,11 @@ impl World {
                 serde_json::to_vec(&artifact).expect("artifacts serialize"),
             )),
         )?;
+        // Single-authority fencing (spec 2.6): the proposal writer holds
+        // the stream's exclusive flock; consequence() re-resumes the
+        // stream, so this writer MUST be dropped first - the proposal is
+        // already durably booked and the resume revalidates the chain.
+        drop(w);
 
         if artifact.status != ArtifactStatus::Proposed {
             return Err(WorldError::Rejected(

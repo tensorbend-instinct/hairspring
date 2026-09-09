@@ -425,8 +425,38 @@ impl InnerLoop {
             && !self.kernel.has_model(m) {
                 return Err(LoopError::Visibility(format!("unknown model: {m}")));
             }
+        // Spec 2.7/9.11: capability swaps are log transactions, not
+        // silent edits. Book the binding change on the session stream
+        // before it takes effect: old effective model -> new effective
+        // model (None restores the config default, named explicitly).
+        let old_model = self.effective_model_name();
         self.model_override = model;
+        let new_model = self.effective_model_name();
+        if old_model != new_model {
+            let body = format!(
+                r#"{{"capability":"model","old_binding":"{old_model}","new_binding":"{new_model}"}}"#
+            );
+            self.writer.append(
+                hs_core::EventBuilder::new(hs_core::EventKind::CapabilityChange)
+                    .payload(hs_core::Payload::Inline(body.into_bytes())),
+            )?;
+        }
         Ok(())
+    }
+
+    /// The model the next call would actually use: the override when
+    /// set, otherwise the config default.
+    fn effective_model_name(&self) -> String {
+        match &self.model_override {
+            Some(m) => m.clone(),
+            None => self
+                .kernel
+                .model_names()
+                .into_iter()
+                .find(|(_, d)| *d)
+                .map(|(n, _)| n)
+                .unwrap_or_default(),
+        }
     }
 
     /// Configured models as (name, `is_default`) for the picker.

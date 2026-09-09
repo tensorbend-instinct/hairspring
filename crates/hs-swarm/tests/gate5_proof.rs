@@ -48,7 +48,11 @@ fn gate5_proof_child_streams_and_delegation_overhead() {
 
     // parent stream exists first
     let parent_stream = uuid::Uuid::new_v4();
-    let _parent_writer = hs_log::StreamWriter::create(&log_root, parent_stream).unwrap();
+    // Single-authority fencing (spec 2.6): the parent stream exists but
+    // holds NO live writer while the spawner books the delegation - in
+    // production the parent loop owns its stream and books Spawn itself
+    // at mint time; this crate helper stands in for that moment.
+    hs_log::StreamWriter::create(&log_root, parent_stream).unwrap();
 
     let spawner = Spawner::new(&log_root, &config, true, 6);
     let mut overheads = Vec::new();
@@ -132,7 +136,8 @@ fn gate5_adversarial_failed_child_is_recorded_honestly() {
     let log_root = root.path().join("log");
     let config = kernel_config(root.path());
     let parent_stream = uuid::Uuid::new_v4();
-    let _pw = hs_log::StreamWriter::create(&log_root, parent_stream).unwrap();
+    // fenced (spec 2.6): no live parent writer while spawn books Spawn
+    hs_log::StreamWriter::create(&log_root, parent_stream).unwrap();
 
     let spawner = Spawner::new(&log_root, &config, true, 4);
     // two good subtasks, one that can never pass (checker has no task-20)

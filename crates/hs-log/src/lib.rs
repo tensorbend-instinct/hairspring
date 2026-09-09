@@ -27,6 +27,7 @@ pub enum LogError {
     Io(io::Error),
     StreamExists(Uuid),
     StreamMissing(Uuid),
+    StreamHeld(Uuid),
     Decode(hs_core::DecodeError),
     Corruption(Corruption),
 }
@@ -46,6 +47,10 @@ impl std::fmt::Display for LogError {
             Self::Io(e) => write!(f, "io: {e}"),
             Self::StreamExists(id) => write!(f, "stream {id} already exists"),
             Self::StreamMissing(id) => write!(f, "stream {id} not found"),
+            Self::StreamHeld(id) => write!(
+                f,
+                "stream {id} held by a live writer (single-authority fencing)"
+            ),
             Self::Decode(e) => write!(f, "decode: {e}"),
             Self::Corruption(c) => write!(f, "corruption at seq {}: {:?}", c.seq, c.kind),
         }
@@ -184,6 +189,10 @@ pub struct StreamWriter {
     root: PathBuf,
     stream: Uuid,
     file: File,
+    // Spec 2.6 single-authority fencing: an advisory exclusive flock on
+    // writer.lock held for the writer's whole lifetime. The OS releases
+    // it on close/kill, so a dead holder never wedges the stream.
+    _lock: File,
     seg_index: usize,
     seg_len: u64,
     next_seq: u64,
@@ -195,6 +204,28 @@ pub struct ResumeOutcome {
     pub writer: StreamWriter,
     pub events_recovered: u64,
     pub truncated_bytes: u64,
+}
+
+/// Spec 2.6: one live writer per stream. An exclusive non-blocking
+/// flock on `<stream>/writer.lock`; the fd lives in the writer, so the
+/// lock is held exactly as long as the writer and released by the OS on
+/// drop, exit, or kill - crash-safe by construction.
+fn acquire_writer_lock(dir: &Path, stream: Uuid) -> Result<File, LogError> {
+    use std::os::unix::io::AsRawFd;
+    let f = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(dir.join("writer.lock"))?;
+    let rc = unsafe { libc::flock(f.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+    if rc != 0 {
+        let e = io::Error::last_os_error();
+        if e.raw_os_error() == Some(libc::EWOULDBLOCK) {
+            return Err(LogError::StreamHeld(stream));
+        }
+        return Err(LogError::Io(e));
+    }
+    Ok(f)
 }
 
 impl StreamWriter {
@@ -234,10 +265,12 @@ impl StreamWriter {
             .append(true)
             .open(dir.join("seg-000000.hslog"))?;
         fsync_dir(&dir)?;
+        let lock = acquire_writer_lock(&dir, stream)?;
         Ok(StreamWriter {
             root: root.to_path_buf(),
             stream,
             file,
+            _lock: lock,
             seg_index: 0,
             seg_len: 0,
             next_seq: 0,
@@ -317,6 +350,7 @@ impl StreamWriter {
                 root: root.to_path_buf(),
                 stream,
                 file,
+                _lock: acquire_writer_lock(&stream_dir(root, stream), stream)?,
                 seg_index: last_seg_index,
                 seg_len: last_seg_len,
                 next_seq,

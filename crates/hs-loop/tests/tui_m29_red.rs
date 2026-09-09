@@ -94,7 +94,20 @@ fn r1_model_override_decides_the_call() {
     let led_b = ledger_text(&dir.join("run-b"));
     assert!(led_b.contains("\"plugin\": \"m-beta\"") || led_b.contains("\"plugin\":\"m-beta\""),
         "override run served by m-beta");
-    assert!(!led_b.contains("m-alpha"), "override run never touches m-alpha");
+    // No model.call dispatch ever names m-alpha. (The stream DOES name
+    // it once - in the spec-2.7 capability_change event booking the
+    // m-alpha -> m-beta swap; that booking is required, pinned in
+    // cap_change_red c1.)
+    assert!(
+        !led_b.contains("\"plugin\": \"m-alpha\"") && !led_b.contains("\"plugin\":\"m-alpha\""),
+        "override run never dispatches a call to m-alpha"
+    );
+    // (this reader extracts payloads only, so pin the booking's body)
+    assert!(
+        led_b.contains("\"old_binding\":\"m-alpha\"")
+            && led_b.contains("\"new_binding\":\"m-beta\""),
+        "the swap itself is booked (spec 2.7/9.11)"
+    );
 }
 
 // R2: an unknown model name is rejected with an error naming it;
