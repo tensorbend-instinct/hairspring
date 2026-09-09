@@ -460,6 +460,16 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         self.inner.set_steering_inbox(path);
     }
 
+    /// B3 (v5 2.5): gateway task inbox for mid-run goal injection.
+    pub fn set_task_inbox(&mut self, path: &Path) {
+        self.inner.set_task_inbox(path);
+    }
+
+    /// Goals injected mid-run via the gateway task inbox, drained.
+    pub fn take_queued_goals(&mut self) -> Vec<String> {
+        self.inner.take_queued_goals()
+    }
+
     /// Gap #2: operator interrupt flag - the mission stops cleanly at the
     /// next step boundary once this file exists.
     pub fn set_interrupt_file(&mut self, path: &Path) {
@@ -927,6 +937,13 @@ pub fn run_interactive<E: Editor + ?Sized>(
                 match session.run_goal(&goal) {
                     Ok(r) => print_result(&r),
                     Err(e) => eprintln!("mission failed: {e}"),
+                }
+                // B3: gateway adds queued mid-run execute after the close.
+                for queued in session.take_queued_goals() {
+                    match session.run_goal(&queued) {
+                        Ok(r) => print_result(&r),
+                        Err(e) => eprintln!("queued mission failed: {e}"),
+                    }
                 }
                 session.flush_ui();
                 paint_status(session);

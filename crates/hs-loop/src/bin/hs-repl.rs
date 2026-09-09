@@ -24,6 +24,7 @@ struct Opts {
     budget_micros: Option<u64>,
     wall_secs: Option<u64>,
     steering_inbox: Option<PathBuf>,
+    task_inbox: Option<PathBuf>,
     interrupt_file: Option<PathBuf>,
     resume: Option<String>,
     fork: Option<String>,
@@ -47,6 +48,7 @@ fn parse_opts(args: &[String]) -> Result<Opts, Box<dyn std::error::Error>> {
             .transpose()
             .map_err(|_| "--wall-secs must be an integer")?,
         steering_inbox: arg(args, "--steering-inbox").map(PathBuf::from),
+        task_inbox: arg(args, "--task-inbox").map(PathBuf::from),
         interrupt_file: arg(args, "--interrupt-file").map(PathBuf::from),
         resume: args
             .iter()
@@ -142,6 +144,14 @@ fn apply_guards(session: &mut ReplSession, opts: &Opts) {
         .unwrap_or_else(|| opts.dir.join("interrupt"));
     session.set_steering_inbox(&steering);
     session.set_interrupt_file(&interrupt);
+    // B3 (v5 2.5): the task inbox completes the gateway trio - echo a
+    // goal into <dir>/tasks.txt while a mission runs and it is booked
+    // (Message, gateway traffic), queued, and run after the close.
+    let tasks = opts
+        .task_inbox
+        .clone()
+        .unwrap_or_else(|| opts.dir.join("tasks.txt"));
+    session.set_task_inbox(&tasks);
 }
 
 
@@ -226,6 +236,14 @@ fn run_fullscreen(
                         .map(|m| (m, session.total_cost_micros()))
                         .map_err(|e| e.to_string());
                     let _ = tx.send(TuiMsg::Done(r));
+                    // B3: run gateway adds queued during that mission.
+                    for queued in session.take_queued_goals() {
+                        let r = session
+                            .run_goal(&queued)
+                            .map(|m| (m, session.total_cost_micros()))
+                            .map_err(|e| e.to_string());
+                        let _ = tx.send(TuiMsg::Done(r));
+                    }
                 }
                 UiCmd::SetModel(name) => {
                     let r = session
@@ -545,6 +563,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .run_goal(&goal)
             .map_err(|e| format!("mission: {e}"))?;
         hs_loop::repl::print_result(&r);
+        // B3: gateway adds queued mid-run execute after the close.
+        for queued in session.take_queued_goals() {
+            let r = session
+                .run_goal(&queued)
+                .map_err(|e| format!("queued mission: {e}"))?;
+            hs_loop::repl::print_result(&r);
+        }
     } else {
         eprintln!("hairspring repl (:help for commands, :quit to exit)");
         // UI gap #7: interactive honors --resume/--fork like one-shot

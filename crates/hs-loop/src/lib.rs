@@ -156,6 +156,12 @@ pub struct InnerLoop {
     /// Fix 4: mission wall budget (secs) + start instant, for the per-step
     /// "T-minus" header. None = wall not tracked (old behavior).
     wall_secs: Option<u64>,
+    /// B3 (v5 2.5): gateway task inbox - goals injected mid-run are
+    /// drained at step boundaries, booked as Message (gateway traffic),
+    /// and queued to run after the current mission closes.
+    task_inbox: Option<PathBuf>,
+    /// Goals drained from the task inbox, in injection order.
+    queued_tasks: std::collections::VecDeque<String>,
     /// Gap #2: operator steering inbox - a file of lines the loop drains
     /// at every step boundary into the volatile tail (mid-mission user
     /// turns). None = no operator channel (old behavior).
@@ -260,6 +266,8 @@ impl InnerLoop {
             prior_gaps: vec![],
             wall_secs: None,
             steering_inbox: None,
+            task_inbox: None,
+            queued_tasks: std::collections::VecDeque::new(),
             interrupt_file: None,
             mission_started: None,
             ui_sink: None,
@@ -320,6 +328,8 @@ impl InnerLoop {
             prior_gaps: vec![],
             wall_secs: None,
             steering_inbox: None,
+            task_inbox: None,
+            queued_tasks: std::collections::VecDeque::new(),
             interrupt_file: None,
             mission_started: None,
             ui_sink: None,
@@ -372,6 +382,52 @@ impl InnerLoop {
     /// earlier message - KV-cache discipline).
     pub fn set_steering_inbox(&mut self, path: &Path) {
         self.steering_inbox = Some(path.to_path_buf());
+    }
+
+    /// B3: point the loop at the gateway task inbox. Drained at every
+    /// step boundary; each line is a NEW GOAL added mid-run - booked as
+    /// gateway traffic and queued; it never rewrites the running
+    /// mission's plan (that is what steering is for).
+    pub fn set_task_inbox(&mut self, path: &Path) {
+        self.task_inbox = Some(path.to_path_buf());
+    }
+
+    /// Goals queued by mid-run gateway adds, in injection order.
+    pub fn take_queued_goals(&mut self) -> Vec<String> {
+        self.queued_tasks.drain(..).collect()
+    }
+
+    fn drain_task_inbox(&mut self) -> Vec<String> {
+        let Some(path) = &self.task_inbox else {
+            return vec![];
+        };
+        let Ok(body) = std::fs::read_to_string(path) else {
+            return vec![];
+        };
+        let lines: Vec<String> = body
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .map(std::string::ToString::to_string)
+            .collect();
+        let _ = std::fs::remove_file(path);
+        lines
+    }
+
+    /// Drain the gateway task inbox at a step boundary: book each added
+    /// goal as Message (kind 12, the spec's gateway-traffic kind) on
+    /// this stream and queue it for after the mission closes.
+    fn poll_gateway_tasks(&mut self) {
+        for goal in self.drain_task_inbox() {
+            let body = format!(
+                r#"{{"gateway":"task_queued","goal":{goal:?}}}"#
+            );
+            let _ = self.writer.append(
+                hs_core::EventBuilder::new(hs_core::EventKind::Message)
+                    .payload(hs_core::Payload::Inline(body.into_bytes())),
+            );
+            self.queued_tasks.push_back(goal);
+        }
     }
 
     /// Gap #2: point the loop at the operator's interrupt flag file. When
@@ -1094,6 +1150,7 @@ impl InnerLoop {
             }
             // Gap #2: drained operator steering rides the volatile tail
             // like FEEDBACK - the operator's fresh mid-mission user turn.
+            self.poll_gateway_tasks();
             let steered = self.drain_steering();
             if !steered.is_empty() {
                 volatile.push_str(
