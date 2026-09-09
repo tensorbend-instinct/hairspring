@@ -14,6 +14,7 @@ pub mod goal;
 pub mod ledger;
 pub mod mcpbridge;
 pub mod mission_time;
+pub mod publication;
 pub mod msgfmt;
 pub mod realmodel;
 pub mod repexec;
