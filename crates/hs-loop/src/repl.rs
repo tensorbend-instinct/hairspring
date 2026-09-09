@@ -196,7 +196,7 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
     /// directory, stable across missions - the operator exports nothing.
     /// Plugins are long-lived processes spawned at kernel load, so this
     /// must run BEFORE `swe_kernel`.
-    fn wire_tool_env(log_root: &Path) -> Result<(), LoopError> {
+    fn wire_tool_env(log_root: &Path, config: &Path) -> Result<(), LoopError> {
         std::fs::create_dir_all(log_root)?;
         // D6 (live burn 2026-09-09): anchor the repo tools at the
         // session's WORK area, never the run root - the root holds
@@ -204,14 +204,37 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         // not read through repo.read/repo.search.
         let work = log_root.join("work");
         std::fs::create_dir_all(&work)?;
+        // D10 (live burn 2026-09-09, realrun3): HS_SELFCHECK_DIRECT binds
+        // the checker to the REGISTERED surface, never unconditionally.
+        // Live-machine surface (term.exec): the agent works the real
+        // workdir, so .hs/checks lives there - DIRECT=1. Candidate
+        // surface (edit.patch/edit.anchor/edit.apply): the agent writes
+        // into the candidate worktree, so the checker must look there -
+        // DIRECT unset. Direct was set unconditially for the tb rig and
+        // silently ungreened every candidate-surface REPL mission
+        // ("no checks declared" against run/work on a correct mission).
+        let text = std::fs::read_to_string(config)?;
+        let parsed: toml::Value = toml::from_str(&text).map_err(|e| LoopError::Visibility(e.to_string()))?;
+        let names: Vec<&str> = parsed
+            .get("tools")
+            .and_then(toml::Value::as_array)
+            .map(|ts| {
+                ts.iter()
+                    .filter_map(|t| t.get("name").and_then(toml::Value::as_str))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let live_machine = names.contains(&"term.exec");
+        let candidate_surface =
+            names.iter().any(|n| matches!(*n, "edit.patch" | "edit.anchor" | "edit.apply"));
         unsafe {
             std::env::set_var("HS_TERM_WORKDIR", &work);
             std::env::set_var("HS_SWE_WORKSPACE", &work);
-            // The REPL serves the tb surface (tb_tools: term.exec works
-            // the LIVE machine, no edit.patch candidate), so the blind
-            // checker must run its .hs/checks against the real workdir
-            // too - candidate mode could never be satisfied here.
-            std::env::set_var("HS_SELFCHECK_DIRECT", "1");
+            if live_machine {
+                std::env::set_var("HS_SELFCHECK_DIRECT", "1");
+            } else if candidate_surface {
+                std::env::remove_var("HS_SELFCHECK_DIRECT");
+            }
         }
         Ok(())
     }
@@ -262,7 +285,7 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         } else {
             config
         };
-        Self::wire_tool_env(log_root)?;
+        Self::wire_tool_env(log_root, config)?;
         let kernel = swe_kernel(config, log_root)?;
         require_visibility(&kernel).map_err(LoopError::Visibility)?;
         let registered: Vec<String> = kernel
@@ -370,7 +393,7 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         } else {
             config
         };
-        Self::wire_tool_env(log_root)?;
+        Self::wire_tool_env(log_root, config)?;
         let kernel = swe_kernel(config, log_root)?;
         require_visibility(&kernel).map_err(LoopError::Visibility)?;
         let registered: Vec<String> = kernel
