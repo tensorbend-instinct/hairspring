@@ -1174,6 +1174,22 @@ impl InnerLoop {
     /// Gate 8: a mission whose PROMPT differs from its id. The id names the
     /// work dir (must be path-safe); the prompt is the full mission text the
     /// model sees (e.g. a SWE-bench problem statement + response contract).
+    /// Arm mission memory unconditionally (dance #95, live burn
+    /// 2026-09-09, realrun2): the REPL session default (no `--feedback
+    /// on`) ran a production mission on the bake-off "baseline" arm -
+    /// `feedback_injection=false` gates transcript assembly, the ledger,
+    /// convergence pressure and doom-loop nudges (all in
+    /// `run_mission_full`), so the model got a 2-message frame every
+    /// step, re-discovered the empty workspace 50 times, and wrote
+    /// nothing. The baseline arm exists for the experiment binaries
+    /// (hs-swe-run/hs-tb-run `--feedback off`); a production mission
+    /// without its own memory is unwinnable for any model, so
+    /// `ReplSession::run_goal` arms it here. The experiment flag still
+    /// constructs the loop with the arm off - only `run_goal` forces it.
+    pub fn arm_mission_memory(&mut self) {
+        self.feedback_injection = true;
+    }
+
     pub fn run_mission_full(
         &mut self,
         mission_id: &str,

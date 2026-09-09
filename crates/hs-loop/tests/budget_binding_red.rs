@@ -60,8 +60,14 @@ fn session_binds_budget_from_config_run_stanza() {
         Some(5_000),
         "config [run] budget_usd must bind to the loop"
     );
-    let r = session.run_goal("task-0").unwrap();
-    assert!(r.budget_killed, "config-bound cap must kill the burn");
+    // Burn vehicle: task-20 is UNREPAIRABLE by design (the 24-task
+    // fixture family: 0..18 feedback-repairable, 18..24 not). Since dance
+    // #95 arms mission memory for every run_goal, benchmodel now REPAIRS
+    // task-0 from the injected checker feedback and the mission converges
+    // - the correct behavior - so the runaway-burn pin needs a task that
+    // can never go green.
+    let r = session.run_goal("task-20").unwrap();
+    assert!(r.budget_killed, "config-bound cap must kill the burn: {r:?}");
     assert!(r.model_calls <= 6, "killed near the cap, got {}", r.model_calls);
     assert!(session.total_cost_micros() <= 5_900);
 }

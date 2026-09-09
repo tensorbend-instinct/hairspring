@@ -445,6 +445,10 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
     /// Run one goal end-to-end: mission id names the work dir, the goal
     /// text itself is the prompt the model sees.
     pub fn run_goal(&mut self, goal: &str) -> Result<MissionResult, LoopError> {
+        // Dance #95: production missions always run with mission memory
+        // armed - the feedback flag belongs to the experiment binaries
+        // (baseline arm), never to an operator's TUI mission.
+        self.inner.arm_mission_memory();
         let id = self.mission_id_for(goal);
         let prompt = if self.mcp_catalog.is_empty() {
             goal.to_string()
