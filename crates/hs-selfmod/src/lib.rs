@@ -52,6 +52,56 @@ pub struct PrefetchPolicy {
     pub cost_crossover_bp: u32,
 }
 
+/// The predictor defaults a fork inherits when its policy sets no
+/// prefetch overlay. Mirrors hs-loop's `PREFETCH_MIN_SAMPLES` /
+/// `PREFETCH_COST_CROSSOVER` (hs-selfmod cannot import hs-loop; the
+/// live loop's compiled constants are the same defaults, overlaid via
+/// `set_prefetch_knobs` when a promotion ships).
+pub const DEFAULT_PREFETCH: PrefetchPolicy = PrefetchPolicy {
+    min_samples: 4,
+    cost_crossover_bp: 5_000,
+};
+
+/// A held-out K-retrieval workload for prefetch-policy assays (7.5).
+/// Each step is `(recall args, result tokens)` - `tokens` is the
+/// `ceil(bytes/4)` estimate the live predictor books as `tokens_est`.
+#[derive(Clone, Debug)]
+pub struct PrefetchWorkload {
+    /// Workload label (lands in the booked suite field).
+    pub name: String,
+    /// The recall sequence in step order.
+    pub recalls: Vec<(String, u32)>,
+}
+impl PrefetchWorkload {
+    #[must_use]
+    pub fn new(name: &str, recalls: Vec<(String, u32)>) -> Self {
+        PrefetchWorkload {
+            name: name.to_string(),
+            recalls,
+        }
+    }
+}
+
+/// The measured outcome of one held-out prefetch assay.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PrefetchFitness {
+    /// The knobs that were evaluated (fork overlay or defaults).
+    pub policy: PrefetchPolicy,
+    /// Prefetches issued before retirement (or stream end).
+    pub issued: u32,
+    /// Resolutions that were hits.
+    pub hits: u32,
+    /// Tokens spent on issued prefetches.
+    pub tokens_spent: u64,
+    /// Tokens saved by hits (the recall result not re-fetched).
+    pub tokens_saved: u64,
+    /// `tokens_saved - tokens_spent`: the evolutionary gradient.
+    pub net_tokens: i64,
+    /// Net clamped into `[0, 1]` against best-possible savings, for the
+    /// booked `held_out_pass_rate` channel.
+    pub normalized: f64,
+}
+
 /// The mutable surface of the agent: prompts + tool configs. Mutations may
 /// touch ONLY this layer (spec fig 5: "rewrite a prompt or a tool").
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -310,6 +360,84 @@ impl SelfModLoop {
         .expect("json! values serialize");
         self.emit(EventKind::Mutation, &body)?;
         Ok(())
+    }
+
+    /// Held-out prefetch assay (7.5): the fork's predictor knobs (the
+    /// policy overlay, or the defaults when it sets none) are simulated
+    /// over a K-retrieval workload the proposing cycle never saw - the
+    /// same last-query predictor semantics the live loop runs - and the
+    /// fitness delta is booked on the canonical selfmod stream. This is
+    /// the measurement half of "the predictor is tuned by evolution".
+    pub fn assay_prefetch(
+        &mut self,
+        fork: &Fork,
+        workload: &PrefetchWorkload,
+    ) -> Result<PrefetchFitness, SelfModError> {
+        let policy = fork.policy.prefetch.unwrap_or(DEFAULT_PREFETCH);
+        let crossover = f64::from(policy.cost_crossover_bp) / 10_000.0;
+        let mut enabled = true;
+        let mut outstanding: Option<(String, u32)> = None;
+        let mut issued = 0u32;
+        let mut hits = 0u32;
+        let mut spent = 0u64;
+        let mut saved = 0u64;
+        for (args, tokens) in &workload.recalls {
+            // resolve the outstanding prefetch exactly like the live
+            // `memory_recall`: hit iff the prediction equals these args
+            if let Some((pa, pt)) = outstanding.take() {
+                issued += 1;
+                spent += u64::from(pt);
+                if pa == *args {
+                    hits += 1;
+                    saved += u64::from(*tokens);
+                }
+                if enabled
+                    && issued >= policy.min_samples
+                    && (f64::from(hits) / f64::from(issued)) < crossover
+                {
+                    enabled = false;
+                }
+            }
+            // serve the recall; the predictor re-issues its last-query
+            // speculation while still enabled
+            if enabled {
+                outstanding = Some((args.clone(), *tokens));
+            }
+        }
+        let net_tokens = saved.cast_signed() - spent.cast_signed();
+        // With the last-query predictor a hit reuses exactly what was
+        // prefetched, so net <= 0 always; the gradient is waste avoided.
+        // Normalize against the never-retiring predictor's spend:
+        // 1.0 = no waste, 0.0 = burned everything, in between scaled.
+        let spend_max: u64 = workload
+            .recalls
+            .iter()
+            .take(workload.recalls.len().saturating_sub(1))
+            .map(|(_, t)| u64::from(*t))
+            .sum();
+        let normalized = if spend_max == 0 {
+            1.0
+        } else {
+            (1.0 + (net_tokens as f64) / (spend_max as f64)).clamp(0.0, 1.0)
+        };
+        let fitness = PrefetchFitness {
+            policy,
+            issued,
+            hits,
+            tokens_spent: spent,
+            tokens_saved: saved,
+            net_tokens,
+            normalized,
+        };
+        self.emit(
+            EventKind::FitnessDelta,
+            &format!(
+                "fitness_delta candidate={} held_out_pass_rate={:.3}",
+                fork.candidate_name(),
+                fitness.normalized
+            ),
+        )?;
+        Ok(fitness)
     }
 
     /// Tier 0-1 self-report on the visible suite (what the agent can see).
