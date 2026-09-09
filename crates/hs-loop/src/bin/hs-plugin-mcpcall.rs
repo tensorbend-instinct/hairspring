@@ -9,8 +9,13 @@
 //!       --args '<json>' [--path-args a,b]
 //! --path-args: argument names whose string values must pass the server's
 //! `allowed_roots` check before the server is even spawned (deny by default).
+//!
+//! Plugin mode (the kernel's per-call path) applies the equivalent gate
+//! itself: every path-like string in the args tree must pass
+//! `allowed_roots` BEFORE the server is spawned (deep pass 2026-09-09:
+//! plugin mode previously forwarded model args unchecked).
 
-use hs_loop::mcpbridge::{load_mcp_servers, check_path_allowed, McpServerConfig, namespaced_tool};
+use hs_loop::mcpbridge::{check_args_paths, check_path_allowed, load_mcp_servers, McpServerConfig, namespaced_tool};
 use rmcp::{model::CallToolRequestParam, transport::TokioChildProcess, ServiceExt};
 
 fn has_flag(args: &[String], flag: &str) -> bool {
@@ -72,6 +77,8 @@ async fn mcp_call(
         .find(|s| s.name == server_name)
         .ok_or_else(|| format!("unknown server '{server_name}'"))?
         .clone();
+    // Refuse out-of-root path args BEFORE the server is spawned.
+    check_args_paths(&cfg, &args)?;
     let mut cmd = tokio::process::Command::new(&cfg.command[0]);
     cmd.args(&cfg.command[1..]);
     let service =

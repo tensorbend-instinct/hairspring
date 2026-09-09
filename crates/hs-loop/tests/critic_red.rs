@@ -14,9 +14,22 @@
 
 use std::process::Command;
 
+/// The critic runs unprivileged (uid nobody) since the read-only
+/// enforcement fix: fixture dirs must be world-traversable like real
+/// task workdirs (/app, log work dirs) - tempfile's 0700 default would
+/// deny probes for the wrong reason.
+fn traversable(dir: &tempfile::TempDir) {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
+}
+
 const DRIVER: &str = env!("CARGO_BIN_EXE_hs-tb-run");
 
 fn fixture(dir: &std::path::Path) -> (std::path::PathBuf, std::path::PathBuf) {
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
     let run_dir = dir.join("run");
     let ws = run_dir.join("ws");
     std::fs::create_dir_all(&ws).unwrap();
@@ -60,6 +73,7 @@ fn u2_clean_verdict_passes() {
 #[test]
 fn u3_tool_calls_execute_and_feed_back() {
     let dir = tempfile::tempdir().unwrap();
+    traversable(&dir);
     std::fs::write(dir.path().join("results.txt"), "beta-ok\n").unwrap();
     let mut m = hs_loop::critic::ScriptedCritic::new(vec![
         hs_loop::critic::CriticReply::ToolCalls(vec![("c1".into(), "cat results.txt".into())]),

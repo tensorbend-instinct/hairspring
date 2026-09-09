@@ -46,7 +46,9 @@ pub fn assemble(
                     v["result"]
                 );
                 if line.len() > LINE_CAP {
-                    line.truncate(LINE_CAP);
+                    // boundary-safe: raw String::truncate panics mid-char
+                    // (RED assembler_utf8_red, 2026-09-09)
+                    line = crate::msgfmt::prefix_bytes_safe(&line, LINE_CAP);
                     line.push_str("...[truncated]");
                 }
                 lines.push((e.seq, e.event_id, line));
@@ -181,7 +183,7 @@ pub fn assemble_messages(
                     "null".to_string()
                 };
                 if content.len() > CONTENT_CAP {
-                    content.truncate(CONTENT_CAP);
+                    content = crate::msgfmt::prefix_bytes_safe(&content, CONTENT_CAP);
                     content.push_str("...[truncated]");
                 }
                 let line = format!("{}({}) => {}", plugin, v["args"], content);

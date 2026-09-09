@@ -73,7 +73,7 @@ impl std::fmt::Display for KernelError {
 }
 impl std::error::Error for KernelError {}
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct PluginEntry {
     pub name: String,
     pub command: Vec<String>,
@@ -469,17 +469,26 @@ impl Kernel {
                     stderr_dir: stderr_dir.clone(),
                 })
             };
+        // Spawn on add AND on change: a kept name whose entry (command,
+        // subjects, lease, ...) changed must be respawned, or the config
+        // edit is silently ignored and the old process keeps serving.
         let mut tools = self.tools.borrow_mut();
         for e in &parsed.tools {
-            if !tools.contains_key(&e.name) {
-                tools.insert(e.name.clone(), spawn_describe(e, "tool")?);
+            let needs_spawn = tools.get(&e.name).is_none_or(|slot| slot.entry != *e);
+            if needs_spawn {
+                let slot = spawn_describe(e, "tool")?;
+                // replacing drops the old slot; the protocol reaps the
+                // process (stdin EOF)
+                tools.insert(e.name.clone(), slot);
             }
         }
         tools.retain(|name, _| parsed.tools.iter().any(|e| &e.name == name));
         let mut models = self.models.borrow_mut();
         for e in &parsed.models {
-            if !models.contains_key(&e.name) {
-                models.insert(e.name.clone(), spawn_describe(e, "model")?);
+            let needs_spawn = models.get(&e.name).is_none_or(|slot| slot.entry != *e);
+            if needs_spawn {
+                let slot = spawn_describe(e, "model")?;
+                models.insert(e.name.clone(), slot);
             }
         }
         models.retain(|name, _| parsed.models.iter().any(|e| &e.name == name));
@@ -612,13 +621,16 @@ impl Kernel {
         let latency_ms = t0.elapsed().as_millis() as u32;
         match result {
             Ok(r) => {
+                // Canonical cost field carries the tool's reported cost,
+                // same convention as model calls (and hs-loop / hs-goal).
+                let cost = r["cost_usd_micros"].as_i64().unwrap_or(0);
                 self.record(
                     EventKind::ToolCall,
                     serde_json::json!({
                         "plugin": name, "args": args, "result": r,
                     }),
                     latency_ms,
-                    0,
+                    cost,
                 )?;
                 self.fire_rails("call.post_tool", subject, name, &r);
                 Ok(ToolCallOutcome {

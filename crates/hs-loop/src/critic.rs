@@ -11,6 +11,12 @@
 //! Fail-closed everywhere: step cap, wall cap, budget cap, transport
 //! error, malformed verdict - each means NOT passed. A capped or broken
 //! critic is not a clean critic.
+//!
+//! The critic's shell is READ-ONLY BY MECHANISM, not by prompt courtesy:
+//! `term_exec` routes through `termexec::run_readonly` (uid nobody, groups
+//! cleared), so it can probe and re-derive but cannot modify the
+//! submission under review (deep pass 2026-09-09: mechanism was an
+//! unrestricted root shell behind a read-only prompt - closed).
 
 use serde_json::{json, Value};
 use std::path::Path;
@@ -19,13 +25,13 @@ use std::time::Instant;
 /// One tool the critic may call: a shell command on the live machine.
 pub const TERM_EXEC_TOOL: &str = "term_exec";
 
-pub const CRITIC_SYSTEM: &str = "You are an independent verifier reviewing a finished submission on a live Linux machine. You did NOT do the work under review and you have no memory of how it was produced. Your only job is to try to REFUTE the claim that the submission satisfies the task. You have one tool, term_exec: it runs a shell command on the live machine (cwd is the task workdir, you are root, state persists between calls).\n\
+pub const CRITIC_SYSTEM: &str = "You are an independent verifier reviewing a finished submission on a live Linux machine. You did NOT do the work under review and you have no memory of how it was produced. Your only job is to try to REFUTE the claim that the submission satisfies the task. You have one tool, term_exec: it runs a shell command on the live machine as an UNPRIVILEGED user (cwd is the task workdir; scratch in /tmp persists between calls).\n\
 METHOD, in order:\n\
 1. Extract every hard requirement from the task instruction: required files, paths, formats, labels, units, counts, and numeric ranges. Test EACH ONE against the live machine state. Do not trust the declared checks' coverage - test the instruction, not the checks.\n\
 2. For every computed value in the submission, re-derive it by a DIFFERENT method than the declared checks use: a different formula, an independent code path, or a back-calculation from the outputs. Both methods must agree.\n\
 3. Probe the edges the declared checks ignore: missing files, units, rounding, ordering, extra or missing lines.\n\
 RULES:\n\
-- Read-only on the task's deliverable files: never modify, move, or delete them. Scratch work goes in /tmp only.\n\
+- The task's files are read-only to you BY MECHANISM: you run unprivileged (not root), so any modify, move, or delete of them fails with permission denied. Scratch work goes in /tmp.\n\
 - A refutation must be concrete and reproduced: name the command you ran and the output that proves the failure.\n\
 - When you are done, reply with exactly one JSON object and nothing else: {\"refuted\": true, \"reason\": \"<reproduced failure, quoting command and output>\"} or {\"refuted\": false, \"reason\": \"<what you tested and re-derived>\"}. Reply refuted:false only after genuinely running steps 1-3.";
 
@@ -110,7 +116,7 @@ pub fn parse_verdict(text: &str) -> Option<(bool, String)> {
 }
 
 fn tail(s: &str, n: usize) -> String {
-    if s.len() > n { s[s.len() - n..].to_string() } else { s.to_string() }
+    crate::msgfmt::tail_bytes_safe(s, n)
 }
 
 /// Run the refutation loop. Never panics into a pass: every abnormal exit
@@ -188,7 +194,7 @@ pub fn refute(
                 messages.push(json!({"role": "assistant", "content": null, "tool_calls": tcs}));
                 for (id, cmd) in &calls {
                     trace.push(json!({"kind": "term_exec", "command": cmd}));
-                    let o = crate::termexec::run(workdir, cmd, cfg.cmd_timeout_secs);
+                    let o = crate::termexec::run_readonly(workdir, cmd, cfg.cmd_timeout_secs);
                     let result_text = tail(
                         &format!(
                             "exit {}\nstdout:\n{}\nstderr:\n{}",

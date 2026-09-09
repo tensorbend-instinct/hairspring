@@ -220,8 +220,10 @@ pub fn apply_blocks(ws: &Path, blocks: &[EditBlock]) -> Value {
     let mut staged: std::collections::BTreeMap<String, String> = Default::default();
     let mut results: Vec<Value> = Vec::new();
     for (i, b) in blocks.iter().enumerate() {
-        if b.path.starts_with('/') || b.path.split('/').any(|s| s == "..") {
-            return json!({"applied": false, "error": format!("block {i} ({}): path must be repo-relative, no absolute paths or ..", b.path), "results": results});
+        // CLOBBER (outside) or LEAK (symlink target read into the splice)
+        // if a base-repo symlink sits on this path - deep-pass 2026-09-09.
+        if let Err(e) = safe_join(&cand, Path::new(&b.path)) {
+            return json!({"applied": false, "error": format!("block {i} ({}): {}", b.path, e["$error"].as_str().unwrap_or("refused path")), "results": results});
         }
         if b.old.is_empty() {
             return json!({"applied": false, "error": format!("block {i} ({}): old must be non-empty", b.path), "results": results});
@@ -300,20 +302,34 @@ pub fn reset(ws: &Path) -> Value {
 // (session traces, 2026-09-06): corrupt hand-written hunks (8619/3314),
 // empty fenced submissions (8609), prose-contaminated answer files.
 
-/// Reject absolute paths and any `..` escape; the candidate root is the
-/// only writable scope for model edits.
+/// Reject absolute paths, any `..` escape, and any SYMLINK component; the
+/// candidate root is the only writable scope for model edits.
+/// Deep-pass hostile review (2026-09-09): a symlink committed in the base
+/// repo made `safe_join`'s logical containment a lie - the kernel follows
+/// the link OUT of the candidate, so a model Update File on that path read
+/// the outside file into the splice and `fs::write` CLOBBERED it on the
+/// host (the edit path is not behind bwrap). Walk every component with
+/// `symlink_metadata` and refuse any link.
 fn safe_join(base: &Path, rel: &Path) -> Result<PathBuf, Value> {
     if rel.is_absolute() {
         return Err(
             json!({"applied": false, "$error": format!("path must be repo-relative: {}", rel.display())}),
         );
     }
+    let mut probe = base.to_path_buf();
     for c in rel.components() {
         if !matches!(c, std::path::Component::Normal(_)) {
             return Err(
                 json!({"applied": false, "$error": format!("path escapes the candidate: {}", rel.display())}),
             );
         }
+        probe.push(c.as_os_str());
+        if let Ok(md) = std::fs::symlink_metadata(&probe)
+            && md.file_type().is_symlink() {
+                return Err(
+                    json!({"applied": false, "$error": format!("refusing to follow symlink in the candidate: {}", rel.display())}),
+                );
+            }
     }
     Ok(base.join(rel))
 }

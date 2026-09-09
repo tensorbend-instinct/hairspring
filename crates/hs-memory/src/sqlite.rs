@@ -29,6 +29,9 @@ impl SqliteMemoryStore {
               source_seqs   TEXT NOT NULL,
               created_at    INTEGER NOT NULL
             );
+            -- Reserved for the relation layer (the AGE-style graph half of
+            -- the Postgres+pgvector+AGE replacement): no code reads or
+            -- writes this table yet.
             CREATE TABLE IF NOT EXISTS memory_edges (
               from_id TEXT NOT NULL, to_id TEXT NOT NULL,
               rel TEXT NOT NULL,
@@ -83,6 +86,8 @@ impl MemoryStore for SqliteMemoryStore {
                 created_at: row.get(8)?,
             })
         })?;
-        Ok(rows.filter_map(std::result::Result::ok).collect())
+        // Surface row decode failures: silently dropping a corrupt row
+        // would turn store corruption into silently missing memory.
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 }

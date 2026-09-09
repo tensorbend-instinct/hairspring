@@ -11,13 +11,16 @@ fn main() {
         "policy.propose_prompt",
         "tool",
         &mut |method, params| match method {
-            "policy.propose_prompt" => {
+            // The kernel's ToolCall path always sends method "tool.call";
+            // matching only the literal name left this tool dead over the
+            // wire (RED policy_wire_red, 2026-09-09).
+            "policy.propose_prompt" | "tool.call" => {
                 let dir = match std::env::var("HS_RUN_DIR") {
                     Ok(d) => d,
                     Err(_) => return serde_json::json!({"$error": "HS_RUN_DIR not set"}),
                 };
-                let name = params["name"].as_str().unwrap_or("swe-mission");
-                let text = params["text"].as_str().unwrap_or("");
+                let name = params["args"]["name"].as_str().unwrap_or("swe-mission");
+                let text = params["args"]["text"].as_str().unwrap_or("");
                 if text.trim().is_empty() {
                     return serde_json::json!({"$error": "empty proposal text"});
                 }

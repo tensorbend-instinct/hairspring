@@ -258,14 +258,15 @@ impl OuterLoop {
                 let r = self
                     .kernel
                     .call_tool("operator", tool, plan["args"].clone())?;
-                cost_usd_micros += r.output["cost_usd_micros"].as_i64().unwrap_or(0);
+                let tool_cost = r.output["cost_usd_micros"].as_i64().unwrap_or(0);
+                cost_usd_micros += tool_cost;
                 self.record_ev(
                     EventKind::ToolCall,
                     serde_json::json!({
                         "plugin": tool, "args": plan["args"].clone(), "result": r.output,
                     }),
                     r.latency_ms,
-                    0,
+                    tool_cost,
                 )?;
                 artifact_changed =
                     std::fs::read_to_string(&answer_path).unwrap_or_default() != artifact_before;

@@ -129,8 +129,6 @@ impl Spawner {
         ))
     }
 
-    /// Drive a child to completion on this thread (parallel = N threads,
-    /// one Spawner clone per thread via `new`).
     /// Create the child stream WITHOUT appending to the parent
     /// stream: for in-process callers (the agent.spawn tool path),
     /// where the parent's own loop writer owns that stream and a
@@ -168,6 +166,8 @@ impl Spawner {
         ))
     }
 
+    /// Drive a child to completion on this thread (parallel = N threads,
+    /// one Spawner clone per thread via `new`).
     pub fn run_to_completion(&self, child: &Child) -> Result<ChildReport, SpawnError> {
         let kernel = hs_kernel::Kernel::load_with_log(&self.kernel_config, &self.log_root)?;
         let model = match &child.model {

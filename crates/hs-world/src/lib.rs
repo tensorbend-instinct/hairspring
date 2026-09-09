@@ -412,6 +412,13 @@ fn hex32(h: &[u8; 32]) -> String {
 }
 
 fn parse_hex32(s: &str) -> Result<[u8; 32], WorldError> {
+    // Exactly 64 ASCII hex chars: an odd length would panic the pairwise
+    // slicing below, and non-ASCII bytes make every str slice unsafe.
+    if s.len() != 64 || !s.is_ascii() {
+        return Err(WorldError::Rejected(
+            "snapshot id must be 32 bytes hex".into(),
+        ));
+    }
     let b = (0..s.len())
         .step_by(2)
         .map(|i| u8::from_str_radix(&s[i..i + 2], 16))
@@ -477,6 +484,25 @@ fn manifest_bytes(m: &SnapshotManifest) -> Vec<u8> {
     // Canonical: the walk is path-sorted and serde_json emits struct fields
     // in declaration order, so the encoding is deterministic.
     serde_json::to_vec(m).expect("world event bodies serialize")
+}
+
+/// Join a manifest-relative path onto `dest`, rejecting anything that is
+/// not a plain relative path of normal components. A lexical
+/// `starts_with` check is NOT enough: `dest.join("../x")` starts with
+/// `dest` lexically but escapes it - a forged manifest must never write
+/// outside `dest`.
+fn dest_join(dest: &Path, rel: &str) -> Result<PathBuf, WorldError> {
+    let p = Path::new(rel);
+    let plain = !p.is_absolute()
+        && p.components()
+            .all(|c| matches!(c, std::path::Component::Normal(_)));
+    if plain {
+        Ok(dest.join(p))
+    } else {
+        Err(WorldError::Rejected(format!(
+            "manifest path escapes dest: {rel}"
+        )))
+    }
 }
 
 impl World {
@@ -549,13 +575,7 @@ impl World {
         std::fs::create_dir_all(dest)
             .map_err(|e| WorldError::Rejected(format!("mkdir {}: {e}", dest.display())))?;
         for l in &manifest.symlinks {
-            let lp = dest.join(&l.path);
-            if !lp.starts_with(dest) {
-                return Err(WorldError::Rejected(format!(
-                    "manifest link escapes dest: {}",
-                    l.path
-                )));
-            }
+            let lp = dest_join(dest, &l.path)?;
             if let Some(parent) = lp.parent() {
                 std::fs::create_dir_all(parent).map_err(|e| {
                     WorldError::Rejected(format!("mkdir {}: {e}", parent.display()))
@@ -565,12 +585,7 @@ impl World {
                 .map_err(|e| WorldError::Rejected(format!("symlink {}: {e}", lp.display())))?;
         }
         for d in &manifest.dirs {
-            let dp = dest.join(d);
-            if !dp.starts_with(dest) {
-                return Err(WorldError::Rejected(format!(
-                    "manifest dir escapes dest: {d}"
-                )));
-            }
+            let dp = dest_join(dest, d)?;
             std::fs::create_dir_all(&dp)
                 .map_err(|e| WorldError::Rejected(format!("mkdir {}: {e}", dp.display())))?;
         }
@@ -586,14 +601,8 @@ impl World {
                     e.path
                 )));
             }
-            let dest_p = dest.join(&e.path);
             // path-escape guard: a forged manifest must not write outside dest
-            if !dest_p.starts_with(dest) {
-                return Err(WorldError::Rejected(format!(
-                    "manifest path escapes dest: {}",
-                    e.path
-                )));
-            }
+            let dest_p = dest_join(dest, &e.path)?;
             if let Some(parent) = dest_p.parent() {
                 std::fs::create_dir_all(parent).map_err(|e2| {
                     WorldError::Rejected(format!("mkdir {}: {e2}", parent.display()))

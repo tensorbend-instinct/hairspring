@@ -116,6 +116,7 @@ pub enum DecodeError {
     Truncated { at: &'static str },
     UnknownKindTag(u8),
     UnknownPayloadTag(u8),
+    InvalidOptionTag { field: &'static str, tag: u8 },
     TrailingBytes(usize),
 }
 
@@ -125,6 +126,9 @@ impl std::fmt::Display for DecodeError {
             Self::Truncated { at } => write!(f, "truncated encoding at {at}"),
             Self::UnknownKindTag(t) => write!(f, "unknown event kind tag {t:#04x}"),
             Self::UnknownPayloadTag(t) => write!(f, "unknown payload tag {t:#04x}"),
+            Self::InvalidOptionTag { field, tag } => {
+                write!(f, "invalid option tag {tag:#04x} for {field}")
+            }
             Self::TrailingBytes(n) => write!(f, "{n} trailing bytes after event"),
         }
     }
@@ -268,13 +272,25 @@ impl Event {
         };
         let parent_event_id = match r.u8("parent")? {
             0 => None,
-            _ => Some(Uuid::from_bytes(r.arr("parent.id")?)),
+            1 => Some(Uuid::from_bytes(r.arr("parent.id")?)),
+            t => {
+                return Err(DecodeError::InvalidOptionTag {
+                    field: "parent_event_id",
+                    tag: t,
+                });
+            }
         };
         let latency_ms = r.u32("latency_ms")?;
         let cost_usd_micros = r.i64("cost_usd_micros")?;
         let sandbox_snap_id = match r.u8("snap")? {
             0 => None,
-            _ => Some(Uuid::from_bytes(r.arr("snap.id")?)),
+            1 => Some(Uuid::from_bytes(r.arr("snap.id")?)),
+            t => {
+                return Err(DecodeError::InvalidOptionTag {
+                    field: "sandbox_snap_id",
+                    tag: t,
+                });
+            }
         };
         let prev_hash: [u8; 32] = r.arr("prev_hash")?;
         let hash: [u8; 32] = r.arr("hash")?;

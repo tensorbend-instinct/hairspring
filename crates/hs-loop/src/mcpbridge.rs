@@ -71,6 +71,52 @@ pub fn check_path_allowed(cfg: &McpServerConfig, path: &str) -> Result<(), Strin
     ))
 }
 
+/// Plugin-mode equivalent of the CLI's `--path-args` gate: with no
+/// operator naming the path arguments per call, every string ANYWHERE in
+/// the arg tree that looks like a path must pass the same `allowed_roots`
+/// check BEFORE the server is spawned (deny by default). The server-side
+/// contract stays as defense in depth, not the only line (deep pass
+/// 2026-09-09: plugin mode had no client-side gate at all).
+pub fn check_args_paths(cfg: &McpServerConfig, args: &serde_json::Value) -> Result<(), String> {
+    fn walk(cfg: &McpServerConfig, v: &serde_json::Value, depth: u32) -> Result<(), String> {
+        if depth > 32 {
+            return Ok(());
+        }
+        match v {
+            serde_json::Value::String(s) => {
+                if is_path_like(s) {
+                    check_path_allowed(cfg, s)?;
+                }
+                Ok(())
+            }
+            serde_json::Value::Array(a) => {
+                for x in a {
+                    walk(cfg, x, depth + 1)?;
+                }
+                Ok(())
+            }
+            serde_json::Value::Object(o) => {
+                for x in o.values() {
+                    walk(cfg, x, depth + 1)?;
+                }
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+    walk(cfg, args, 0)
+}
+
+/// A string is path-like when it is absolute or climbs with `..`. URLs
+/// (`scheme://`) are not filesystem paths, and bare names the server
+/// resolves against its own cwd carry no client-verifiable root.
+fn is_path_like(s: &str) -> bool {
+    if s.contains("://") {
+        return false;
+    }
+    s.starts_with('/') || s == ".." || s.starts_with("../") || s.ends_with("/..") || s.contains("/../")
+}
+
 /// Resolve a plugin binary as the canonicalized sibling of the running
 /// executable. B4 lesson: a bridge silently picked up from another tree
 /// runs stale code, so a missing sibling is a LOUD error - never a

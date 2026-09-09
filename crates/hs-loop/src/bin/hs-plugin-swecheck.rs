@@ -74,7 +74,7 @@ fn main() {
 
                     reset_to_base(&ws);
                     serde_json::json!({"passed": false,
-                        "error": format!("patch did not apply: {}", &msg[..msg.len().min(600)])})
+                        "error": format!("patch did not apply: {}", hs_loop::msgfmt::prefix_bytes_safe(&msg, 600))})
                 }
                 Ok(hs_bench::ApplyResult::Applied) => {
                     let mut failures: Vec<String> = vec![];
@@ -83,7 +83,7 @@ fn main() {
                             let (ok, log) = run_cmd(&ws, &setup);
                             if !ok {
                                 failures
-                                    .push(format!("setup failed: {}", &log[..log.len().min(400)]));
+                                    .push(format!("setup failed: {}", hs_loop::msgfmt::prefix_bytes_safe(&log, 400)));
                             }
                         }
                     let f2p = std::env::var("HS_SWE_F2P").unwrap_or_default();

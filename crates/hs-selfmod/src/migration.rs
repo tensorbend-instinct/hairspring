@@ -233,12 +233,17 @@ impl Migration {
     }
 
     fn emit(&mut self, step: MigrationStep) -> Result<(), MigrationError> {
-        let body = format!(
-            "{{\"old_binding\":\"{}\",\"new_binding\":\"{}\",\"step\":\"{}\"}}",
-            self.old.reference,
-            self.new.reference,
-            step.as_str()
-        );
+        // Real JSON (never format!-rolled): references may contain quotes or
+        // backslashes, and recover() parses this body back. Kinds are logged
+        // alongside references so recovery does not have to guess them.
+        let body = serde_json::json!({
+            "old_binding": self.old.reference,
+            "new_binding": self.new.reference,
+            "old_kind": self.old.kind,
+            "new_kind": self.new.kind,
+            "step": step.as_str(),
+        })
+        .to_string();
         self.writer.append(
             EventBuilder::new(EventKind::CapabilityChange)
                 .payload(Payload::Inline(body.into_bytes())),
@@ -368,8 +373,21 @@ impl Migration {
             // a fresh quiesce opens a new transaction; later steps extend it
             let step = MigrationStep::from_str(v["step"].as_str()?)?;
             if step == MigrationStep::Quiesce || old.is_none() {
-                old = Some(Binding::model(v["old_binding"].as_str()?));
-                new = Some(Binding::model(v["new_binding"].as_str()?));
+                // Kind fields landed with the escaping fix; bodies written
+                // before it carry references only - recover those as model
+                // bindings, exactly as before.
+                let old_kind = serde_json::from_value::<BindingKind>(v["old_kind"].clone())
+                    .unwrap_or(BindingKind::Model);
+                let new_kind = serde_json::from_value::<BindingKind>(v["new_kind"].clone())
+                    .unwrap_or(BindingKind::Model);
+                old = Some(Binding {
+                    kind: old_kind,
+                    reference: v["old_binding"].as_str()?.to_string(),
+                });
+                new = Some(Binding {
+                    kind: new_kind,
+                    reference: v["new_binding"].as_str()?.to_string(),
+                });
             }
             last = Some(step);
         }

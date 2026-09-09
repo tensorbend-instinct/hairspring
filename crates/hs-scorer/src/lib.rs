@@ -247,12 +247,12 @@ impl ScorerPin {
         self.hash
     }
     fn compute(scorer_version: &str, conditions: &str) -> [u8; 32] {
-        // deterministic pin hash via the log's blob hasher
-        hs_log::write_blob(
-            Path::new("/tmp"),
-            format!("{scorer_version}|{conditions}").as_bytes(),
-        )
-        .unwrap_or([0u8; 32])
+        // Pure computation: sha256 over "version|conditions". NEVER a
+        // storage call - the previous write_blob(/tmp) route littered the
+        // blob store and, on an IO error, silently returned a zero hash
+        // that would make any two pins "match".
+        use sha2::Digest;
+        sha2::Sha256::digest(format!("{scorer_version}|{conditions}").as_bytes()).into()
     }
 }
 
@@ -410,16 +410,15 @@ impl Lineage {
             let rec = self
                 .dir
                 .join(format!("promotion-{}.json", candidate.name()));
-            let _ = std::fs::write(
-                rec,
-                format!(
-                    "{{\"family\":\"{}\",\"candidate\":\"{}\",\"held_out_pass_rate\":{},\"pin\":\"{}\"}}",
-                    self.family,
-                    candidate.name(),
-                    verdict.pass_rate,
-                    hex(pin.hash())
-                ),
-            );
+            // Real JSON (never format!-rolled): names may contain quotes.
+            let body = serde_json::json!({
+                "family": self.family,
+                "candidate": candidate.name(),
+                "held_out_pass_rate": verdict.pass_rate,
+                "pin": hex(pin.hash()),
+            })
+            .to_string();
+            let _ = std::fs::write(rec, body);
         }
         Ok(())
     }

@@ -451,11 +451,14 @@ fn resolve_op(
             let insert_at = if anchor == "0:" {
                 0
             } else if anchor == "EOF" {
-                // Insert at the actual end of file content. If the file ends
-                // with '\n', split_lines produces a synthetic trailing empty
-                // line — insert before it rather than after it.
+                // Insert at the actual end of file content. split_lines
+                // produces a synthetic trailing empty line both for files
+                // ending in '\n' AND for an empty file ([""]) - insert
+                // before it rather than after it. (Previously guarded by
+                // `len > 1`, which made an EOF insert into an empty file
+                // prepend a blank line (a leading newline). 
                 let len = lines.len();
-                if len > 1 && lines[len - 1].is_empty() {
+                if lines[len - 1].is_empty() {
                     len - 1
                 } else {
                     len

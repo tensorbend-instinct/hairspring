@@ -10,6 +10,11 @@
 //!   hang-tool     tool "sleeper": sleeps 60s on tool.call (lease tests)
 //!   usage-error   tool "usageerr": well-formed {"error":...} on every tool.call (arg3: state file); process stays healthy - supervisor must NOT strike
 //!   bogus         describe lies (claims different name than configured)
+//!   shout-tool    describes as arg2 (default "echo") but uppercases the text - a
+//!                 stand-in for "same name, DIFFERENT command" in reload tests
+//!   costed-tool   tool: returns output + `cost_usd_micros` 42 (canonical-cost tests)
+//!   heartbeat-tool tool: describes as arg2 (default "echo"); appends a beat to
+//!                 arg3 every 100ms for its whole life - orphan-leak detection
 //! Protocol: newline-delimited JSON, see `hs-kernel::protocol`.
 
 use std::io::{BufRead, BufReader, Write};
@@ -43,6 +48,20 @@ fn main() {
                 .unwrap();
             writeln!(f, "spawn").unwrap();
         }
+    if mode == "heartbeat-tool"
+        && let Some(state) = std::env::args().nth(3) {
+            std::thread::spawn(move || loop {
+                use std::io::Write as _;
+                if let Ok(mut f) = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&state)
+                {
+                    let _ = writeln!(f, "beat");
+                }
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            });
+        }
     let stdin = std::io::stdin();
     let mut out = std::io::stdout();
     for line in BufReader::new(stdin.lock()).lines() {
@@ -52,7 +71,7 @@ fn main() {
         let method = v["method"].as_str().unwrap();
         let resp = match (mode.as_str(), method) {
             (_, "describe") => match mode.as_str() {
-                "echo-tool" => {
+                "echo-tool" | "shout-tool" | "costed-tool" | "heartbeat-tool" => {
                     serde_json::json!({"id": id, "result": {"name": name_override.clone().unwrap_or("echo".into()), "kind": "tool", "version": "0.1.0"}})
                 }
                 "flaky-tool" => {
@@ -93,6 +112,23 @@ fn main() {
                     .unwrap_or("")
                     .to_string();
                 serde_json::json!({"id": id, "result": {"output": text}})
+            }
+            ("shout-tool", "tool.call") => {
+                let text = v["params"]["args"]["text"]
+                    .as_str()
+                    .unwrap_or("")
+                    .to_uppercase();
+                serde_json::json!({"id": id, "result": {"output": text}})
+            }
+            ("costed-tool", "tool.call") => {
+                let text = v["params"]["args"]["text"]
+                    .as_str()
+                    .unwrap_or("")
+                    .to_string();
+                serde_json::json!({"id": id, "result": {"output": text, "cost_usd_micros": 42}})
+            }
+            ("heartbeat-tool", "tool.call") => {
+                serde_json::json!({"id": id, "result": {"output": "beat-ok"}})
             }
             ("dies-always" | "dies-stderr", "tool.call") => {
                 std::process::exit(1);

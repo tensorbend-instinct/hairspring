@@ -8,6 +8,37 @@
 
 use serde_json::Value;
 
+
+/// Last `max_bytes` of `s`, advanced to a UTF-8 char boundary. Slicing a
+/// String at a raw byte offset panics when the offset splits a multi-byte
+/// char, and command/model output is arbitrary UTF-8 (RED `utf8_tail_red`,
+/// 2026-09-09: termexec, selfcheck and repexec all panicked on
+/// `'\u{e9}'*k + "x"` output).
+#[must_use]
+pub fn tail_bytes_safe(s: &str, max_bytes: usize) -> String {
+    if s.len() <= max_bytes {
+        return s.to_string();
+    }
+    let mut cut = s.len() - max_bytes;
+    while !s.is_char_boundary(cut) {
+        cut += 1;
+    }
+    s[cut..].to_string()
+}
+
+/// First `max_bytes` of `s`, backed off to a UTF-8 char boundary.
+#[must_use]
+pub fn prefix_bytes_safe(s: &str, max_bytes: usize) -> String {
+    if s.len() <= max_bytes {
+        return s.to_string();
+    }
+    let mut cut = max_bytes;
+    while !s.is_char_boundary(cut) {
+        cut -= 1;
+    }
+    s[..cut].to_string()
+}
+
 /// One history exchange as a native `assistant(tool_calls)` + tool pair.
 /// The `tool_call` id is deterministic from the owning event's seq, so the
 /// replayed prefix is byte-identical across steps (the KV-cache contract).

@@ -74,7 +74,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         if let Some(b) = bytes {
                             let mut t = String::from_utf8_lossy(&b).into_owned();
                             if t.len() > 3000 {
-                                t.truncate(2_000_000);
+                                truncate_chars(&mut t, 3000);
                                 t.push_str("\n...[truncated]");
                             }
                             println!("  payload: {t}");
@@ -134,7 +134,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let completion = v["completion"].as_str().unwrap_or("");
                         let mut act = completion.to_string();
                         if act.len() > 300 {
-                            act.truncate(300);
+                            truncate_chars(&mut act, 300);
                             act.push_str("...[truncated]");
                         }
                         println!(
@@ -163,4 +163,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn hex(b: &[u8; 32]) -> String {
     b.iter().map(|x| format!("{x:02x}")).collect()
+}
+
+/// Truncate to at most `max` bytes without splitting a multi-byte char
+/// (`String::truncate` panics on a non-boundary).
+fn truncate_chars(t: &mut String, max: usize) {
+    let mut end = max.min(t.len());
+    while !t.is_char_boundary(end) {
+        end -= 1;
+    }
+    t.truncate(end);
 }

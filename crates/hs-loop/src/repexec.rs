@@ -14,11 +14,7 @@ const OUT_TAIL: usize = 8192;
 
 fn tail(bytes: &[u8]) -> String {
     let s = String::from_utf8_lossy(bytes);
-    if s.len() > OUT_TAIL {
-        s[s.len() - OUT_TAIL..].to_string()
-    } else {
-        s.to_string()
-    }
+    crate::msgfmt::tail_bytes_safe(&s, OUT_TAIL)
 }
 
 /// The sandbox command line, as an argv vector (pure, unit-testable).

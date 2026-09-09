@@ -462,9 +462,14 @@ impl InnerLoop {
     /// this stream and queue it for after the mission closes.
     fn poll_gateway_tasks(&mut self) {
         for goal in self.drain_task_inbox() {
-            let body = format!(
-                r#"{{"gateway":"task_queued","goal":{goal:?}}}"#
-            );
+            // serde, never format!-templated JSON: a goal carrying a
+            // control byte or quote must book a parseable payload
+            // (debug `{:?}` escapes are not JSON escapes).
+            let body = serde_json::to_string(&serde_json::json!({
+                "gateway": "task_queued",
+                "goal": goal,
+            }))
+            .expect("json! values serialize");
             let _ = self.writer.append(
                 hs_core::EventBuilder::new(hs_core::EventKind::Message)
                     .payload(hs_core::Payload::Inline(body.into_bytes())),
@@ -540,9 +545,14 @@ impl InnerLoop {
         self.model_override = model;
         let new_model = self.effective_model_name();
         if old_model != new_model {
-            let body = format!(
-                r#"{{"capability":"model","old_binding":"{old_model}","new_binding":"{new_model}"}}"#
-            );
+            // serde, never format!-templated JSON: a model name with a
+            // quote or backslash must book a parseable payload.
+            let body = serde_json::to_string(&serde_json::json!({
+                "capability": "model",
+                "old_binding": old_model,
+                "new_binding": new_model,
+            }))
+            .expect("json! values serialize");
             self.writer.append(
                 hs_core::EventBuilder::new(hs_core::EventKind::CapabilityChange)
                     .payload(hs_core::Payload::Inline(body.into_bytes())),
@@ -1196,6 +1206,22 @@ impl InnerLoop {
         prompt: &str,
     ) -> Result<MissionResult, LoopError> {
         let mission = mission_id;
+        // Deep-pass hostile review (2026-09-09): the mission id names the
+        // work dir, and on the swarm child path the id IS the model's
+        // untrusted `agent.spawn` mission string (no slug filter runs on
+        // that path). A separator or `..` walks the work dir out of the
+        // substrate and `create_dir_all` lands it there. Refuse anything
+        // but a single safe path component, at the write site.
+        if mission.is_empty()
+            || mission == "."
+            || mission == ".."
+            || mission.contains('/')
+            || mission.contains('\\')
+        {
+            return Err(LoopError::Visibility(format!(
+                "mission id must be a single safe path component, got {mission:?}"
+            )));
+        }
         self.mission_started = Some(std::time::Instant::now());
         // M21: per-mission spend is the delta from this point.
         self.mission_cost_start = self.cost_total_micros;

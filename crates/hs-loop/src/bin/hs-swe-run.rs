@@ -492,7 +492,7 @@ fn grade_submission(
                 let mut tail = String::from_utf8_lossy(&o.stdout).into_owned();
                 tail.push_str(&String::from_utf8_lossy(&o.stderr));
                 if tail.len() > 2000 {
-                    tail = tail[tail.len() - 2000..].to_string();
+                    tail = hs_loop::msgfmt::tail_bytes_safe(&tail, 2000);
                 }
                 results
                     .push(serde_json::json!({"cmd": c, "passed": ok, "output_tail": tail.trim()}));

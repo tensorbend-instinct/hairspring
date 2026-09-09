@@ -55,7 +55,7 @@ pub fn check(ws: &std::path::Path) -> serde_json::Value {
                 let mut tail = String::from_utf8_lossy(&o.stdout).into_owned();
                 tail.push_str(&String::from_utf8_lossy(&o.stderr));
                 if tail.len() > 2000 {
-                    tail = tail[tail.len() - 2000..].to_string();
+                    tail = crate::msgfmt::tail_bytes_safe(&tail, 2000);
                 }
                 failures.push(format!(
                     "`{c}` exited {:?}\n{}",
