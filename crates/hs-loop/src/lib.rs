@@ -930,7 +930,14 @@ impl InnerLoop {
                     )?;
                     Some(msg)
                 }
-                Some((tool, args)) => {
+                Some((tool, mut args)) => {
+                    // Eric's five #5: the loop injects its own stream id
+                    // so a spawned child links to THIS mission. The model
+                    // never fabricates delegation provenance.
+                    if tool == "agent.spawn" {
+                        args["parent_stream"] =
+                            serde_json::json!(self.stream_id.to_string());
+                    }
                     if let Some(sink) = self.ui_sink.as_mut() {
                         sink(uipaint::UiEvent::ToolCallStart {
                             plugin: tool.clone(),
@@ -952,6 +959,49 @@ impl InnerLoop {
                                 output_summary: uipaint::summarize_output(&tool_out.output),
                                 elapsed_ms: tool_out.latency_ms as u64,
                             });
+                        }
+                        // Eric's five #5: on a successful delegation the
+                        // loop books the Spawn link on its OWN stream
+                        // (single writer), raises the live graph events
+                        // for the :agents panel, and folds the child's
+                        // cost into this mission's books so the $ guard
+                        // stays honest across delegation.
+                        if tool == "agent.spawn" {
+                            let out = &tool_out.output;
+                            if let Some(cid) = out["child_stream_id"]
+                                .as_str()
+                                .and_then(|v| uuid::Uuid::parse_str(v).ok())
+                            {
+                                let cmission =
+                                    out["mission"].as_str().unwrap_or("").to_string();
+                                self.writer.append(
+                                    EventBuilder::new(EventKind::Spawn).payload(
+                                        Payload::Inline(
+                                            serde_json::to_vec(&serde_json::json!({
+                                                "child_stream_id": cid,
+                                                "mission": cmission,
+                                            }))
+                                            .expect("json! values serialize"),
+                                        ),
+                                    ),
+                                )?;
+                                if let Some(sink) = self.ui_sink.as_mut() {
+                                    sink(uipaint::UiEvent::SubAgentSpawned {
+                                        child: cid,
+                                        mission: cmission,
+                                    });
+                                    sink(uipaint::UiEvent::SubAgentFinished {
+                                        child: cid,
+                                        ok: out["passed"].as_bool().unwrap_or(false),
+                                    });
+                                }
+                            }
+                            if let Some(c) = out["cost_usd_micros"].as_i64() {
+                                if c > 0 {
+                                    self.cost_total_micros =
+                                        self.cost_total_micros.saturating_add(c as u64);
+                                }
+                            }
                         }
                         let ev = self.writer.append(
                             EventBuilder::new(EventKind::ToolCall)

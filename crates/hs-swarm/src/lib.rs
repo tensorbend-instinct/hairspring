@@ -119,6 +119,39 @@ impl Spawner {
 
     /// Drive a child to completion on this thread (parallel = N threads,
     /// one Spawner clone per thread via `new`).
+    /// Create the child stream WITHOUT appending to the parent
+    /// stream: for in-process callers (the agent.spawn tool path),
+    /// where the parent's own loop writer owns that stream and a
+    /// second appender would corrupt seq numbering. The loop books the
+    /// Spawn link itself after the call returns.
+    pub fn spawn_child(
+        &self,
+        parent_stream: uuid::Uuid,
+        mission: &str,
+    ) -> Result<(Child, f64), SpawnError> {
+        let t0 = Instant::now();
+        let child_id = uuid::Uuid::new_v4();
+        let mut cw = StreamWriter::create(&self.log_root, child_id)?;
+        cw.append(
+            EventBuilder::new(EventKind::GoalUpdate).payload(Payload::Inline(
+                serde_json::to_vec(&serde_json::json!({
+                    "mission": mission, "child_of": parent_stream, "done": false,
+                }))
+                .expect("json! values serialize"),
+            )),
+        )?;
+        drop(cw);
+        let overhead_ms = t0.elapsed().as_secs_f64() * 1000.0;
+        Ok((
+            Child {
+                stream_id: child_id,
+                mission: mission.to_string(),
+                work_dir: self.log_root.join("work").join(mission),
+            },
+            overhead_ms,
+        ))
+    }
+
     pub fn run_to_completion(&self, child: &Child) -> Result<ChildReport, SpawnError> {
         let kernel = hs_kernel::Kernel::load_with_log(&self.kernel_config, &self.log_root)?;
         let mut l = hs_loop::InnerLoop::with_stream(
@@ -128,6 +161,12 @@ impl Spawner {
             self.feedback,
             self.max_steps,
         )?;
+        // A child is a full operator: same native tool set as the
+        // interactive surface, including delegation (the depth guard
+        // in hs-plugin-swarm bounds the tree).
+        let mut tools = hs_loop::toolschema::tb_tools();
+        tools.push(hs_loop::toolschema::agent_spawn_tool());
+        l.set_tools(serde_json::Value::Array(tools));
         let r = l.run_mission(&child.mission)?;
         Ok(ChildReport {
             stream_id: child.stream_id,

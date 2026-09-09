@@ -189,6 +189,8 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         // The free-form path provably cannot (live proof: 39 prose replies
         // in 40 steps under explicit nudges).
         let mut native_tools = crate::toolschema::tb_tools();
+        // Eric's five #5: the interactive surface offers delegation.
+        native_tools.push(crate::toolschema::agent_spawn_tool());
         let merged_config;
         let config = if let Ok(servers_toml) = std::env::var("HS_MCP_SERVERS") {
             let (fragment, native) =
@@ -262,6 +264,8 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
     ) -> Result<Self, LoopError> {
         let mut mcp_catalog = String::new();
         let mut native_tools = crate::toolschema::tb_tools();
+        // Eric's five #5: the interactive surface offers delegation.
+        native_tools.push(crate::toolschema::agent_spawn_tool());
         let merged_config;
         let config = if let Ok(servers_toml) = std::env::var("HS_MCP_SERVERS") {
             let (fragment, native) =

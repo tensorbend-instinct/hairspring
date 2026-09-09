@@ -113,6 +113,18 @@ fn builtin_tools_inner() -> Vec<Value> {
 /// patch). checker.run is never model-visible: it runs automatically after
 /// answer.submit. Same blind stop authority as swe blind mode: the agent's
 /// own .hs/checks decide completion; official tests are hidden and external.
+/// Eric's five #5: delegation tool, offered on the interactive
+/// surface only (repl native_tools) - benchmark runners keep the
+/// fixed tb tool set.
+pub fn agent_spawn_tool() -> Value {
+    f(
+        "agent.spawn",
+        "Delegate a self-contained subtask to a child sub-agent that runs the same harness on its own stream and blocks until it finishes; returns the child's report (passed, steps, cost). Use for separable subtasks that benefit from a fresh context. The parent stream linkage is injected by the harness - never pass parent_stream yourself.",
+        json!({"type":"object","properties":{
+            "mission":{"type":"string","description":"the delegated task, self-contained"}},"required":["mission"]}),
+    )
+}
+
 pub fn tb_tools() -> Vec<Value> {
     vec![
         f(

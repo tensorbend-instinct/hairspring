@@ -5,6 +5,10 @@ version = "0.1.0"
 edition.workspace = true
 license.workspace = true
 
+[[bin]]
+name = "hs-plugin-swarm"
+path = "src/bin/hs-plugin-swarm.rs"
+
 [dependencies]
 hs-core = { path = "../hs-core" }
 hs-log = { path = "../hs-log" }

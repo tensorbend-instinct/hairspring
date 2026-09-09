@@ -494,6 +494,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let mut opts = parse_opts(&args)?;
     std::fs::create_dir_all(&opts.dir)?;
+    // Eric's five #5: the agent.spawn tool plugin learns the session's
+    // log root + kernel config from the environment (plugin processes
+    // only see env + args; the loop injects the per-call parent
+    // stream id itself).
+    std::env::set_var("HS_SWARM_LOG_ROOT", &opts.dir);
+    std::env::set_var("HS_SWARM_CONFIG", &opts.config);
+    std::env::set_var("HS_SWARM_FEEDBACK", if opts.feedback { "1" } else { "0" });
+    std::env::set_var("HS_SWARM_MAX_STEPS", opts.max_steps.to_string());
 
     // UI gap #7: `--resume` with no id lists prior sessions and lets the
     // operator pick one instead of pasting a raw stream uuid.
