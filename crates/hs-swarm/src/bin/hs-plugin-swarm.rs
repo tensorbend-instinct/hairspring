@@ -41,7 +41,19 @@ fn running_count(dir: &std::path::Path) -> usize {
         })
 }
 
+/// Process start stamp, captured at `main()` entry. Children are
+/// THREADS of this process, so a registry marker stamped BEFORE this
+/// stamp cannot belong to a living child: it died with the plugin
+/// process the kernel respawned us to replace. Poll reports such a
+/// marker "lost" instead of "running" forever (hostile-pass finding).
+static PROCESS_START_MS: std::sync::OnceLock<i64> = std::sync::OnceLock::new();
+
 fn main() {
+    PROCESS_START_MS.get_or_init(|| {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis() as i64)
+    });
     // One binary, two registered names: the kernel validates the
     // describe handshake against the config slot name, so the poll
     // entry spawns us as `hs-plugin-swarm --as agent.spawn_poll`.
@@ -72,7 +84,22 @@ fn main() {
                     v["status"] = serde_json::json!("done");
                     return v;
                 }
-                if dir.join(format!("{cid}.spawn.json")).exists() {
+                let marker_path = dir.join(format!("{cid}.spawn.json"));
+                if marker_path.exists() {
+                    let stale = std::fs::read_to_string(&marker_path)
+                        .ok()
+                        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+                        .and_then(|v| v["started_at_ms"].as_i64())
+                        .is_some_and(|ms| {
+                            ms < *PROCESS_START_MS.get().unwrap_or(&i64::MAX)
+                        });
+                    if stale {
+                        return serde_json::json!({
+                            "status": "lost",
+                            "child_stream_id": cid,
+                            "reason": "marker predates this plugin process: the child died with the plugin that owned it",
+                        });
+                    }
                     return serde_json::json!({"status": "running"});
                 }
                 return serde_json::json!({"$error": format!(
