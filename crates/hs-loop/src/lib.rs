@@ -416,6 +416,55 @@ impl InnerLoop {
         self.progress_path = Some(path.to_path_buf());
     }
 
+    /// Fix 4: the wall guard. A wall-killed mission is a failure,
+    /// same as a budget-killed one. Booking here keeps the evidence:
+    /// the mission exits cleanly, the runner pulls the run dir, and
+    /// the official verifier still grades the final machine state.
+    /// Called from the step loop AND the passing-close join loop -
+    /// before 675e2883's follow-up the join loop had no wall check,
+    /// so a wedged child (plugin thread stuck, report never written)
+    /// hung the parent past its own guard (hostile-pass finding,
+    /// 2026-09-08). Returns Some(result) when the wall was exceeded.
+    fn wall_kill_close(
+        &mut self,
+        mission: &str,
+        steps: u32,
+        model_calls: u32,
+        answer_path: &std::path::Path,
+    ) -> Result<Option<MissionResult>, LoopError> {
+        if let (Some(w), Some(t0)) = (self.wall_secs, self.mission_started) {
+            let elapsed = t0.elapsed().as_secs();
+            if elapsed >= w {
+                self.writer.append(
+                    EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                        serde_json::to_vec(&serde_json::json!({
+                            "wall_killed": true, "wall_secs": w,
+                            "elapsed_secs": elapsed,
+                            "cost_micros": self.cost_total_micros,
+                        }))
+                        .expect("json! values serialize"),
+                    )),
+                )?;
+                self.checkpoint(steps, model_calls);
+                self.close_goal(mission, false, "wall_killed")?;
+                return Ok(Some(MissionResult {
+                    passed: false,
+                    steps,
+                    model_calls,
+                    stream_id: self.stream_id,
+                    answer_path: answer_path.to_path_buf(),
+                    budget_killed: false,
+                    cost_micros: self
+                        .cost_total_micros
+                        .saturating_sub(self.mission_cost_start),
+                    harness_error: None,
+                    outcome: "wall_killed".to_string(),
+                }));
+            }
+        }
+        Ok(None)
+    }
+
     fn checkpoint(&self, steps: u32, model_calls: u32) {
         if let Some(p) = &self.progress_path {
             let body = serde_json::json!({
@@ -899,33 +948,8 @@ impl InnerLoop {
             // runner pulls the run dir, and the official verifier still
             // grades the final machine state. A wall-killed mission is a
             // failure, same as a budget-killed one.
-            if let (Some(w), Some(t0)) = (self.wall_secs, self.mission_started) {
-                let elapsed = t0.elapsed().as_secs();
-                if elapsed >= w {
-                    self.writer.append(
-                        EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
-                            serde_json::to_vec(&serde_json::json!({
-                                "wall_killed": true, "wall_secs": w,
-                                "elapsed_secs": elapsed,
-                                "cost_micros": self.cost_total_micros,
-                            }))
-                            .expect("json! values serialize"),
-                        )),
-                    )?;
-                    self.checkpoint(steps, model_calls);
-                    self.close_goal(mission, false, "wall_killed")?;
-                    return Ok(MissionResult {
-                        passed: false,
-                        steps,
-                        model_calls,
-                        stream_id: self.stream_id,
-                        answer_path,
-                        budget_killed: false,
-            cost_micros: self.cost_total_micros.saturating_sub(self.mission_cost_start),
-                        harness_error: None,
-                        outcome: "wall_killed".to_string(),
-                    });
-                }
+            if let Some(res) = self.wall_kill_close(mission, steps, model_calls, &answer_path)? {
+                return Ok(res);
             }
             self.writer.append(
                 EventBuilder::new(EventKind::ModelCall)
@@ -1561,13 +1585,20 @@ impl InnerLoop {
                 // Async delegation: join every running child before
                 // the passing close so its cost lands in these books
                 // and the panel sees the finish. Bounded by each
-                // child's own max_steps; the wall guard is the
-                // backstop for a wedged child.
+                // child's own max_steps; the wall guard is enforced
+                // INSIDE the loop - a wedged child must not hang the
+                // passing close past the mission's wall.
                 while !self.pending_children.is_empty() {
                     let _ = self.poll_children();
-                    if !self.pending_children.is_empty() {
-                        std::thread::sleep(std::time::Duration::from_millis(50));
+                    if self.pending_children.is_empty() {
+                        break;
                     }
+                    if let Some(res) =
+                        self.wall_kill_close(mission, steps, model_calls, &answer_path)?
+                    {
+                        return Ok(res);
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(50));
                 }
                 self.close_goal(mission, true, outcome)?;
                 self.checkpoint(steps, model_calls);

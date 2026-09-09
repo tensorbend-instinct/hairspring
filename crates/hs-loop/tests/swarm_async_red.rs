@@ -19,6 +19,10 @@ use hs_loop::uipaint::UiEvent;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
+/// HS_SEQMODEL_SCRIPT + HS_SWARM_* are process-global: the mission
+/// tests in this binary serialize on this lock.
+static SERIAL: Mutex<()> = Mutex::new(());
+
 fn write_fixture(dir: &std::path::Path) {
     std::fs::create_dir_all(dir).unwrap();
     let toml = r#"
@@ -98,6 +102,7 @@ fn stream_texts(log_root: &std::path::Path) -> std::collections::HashMap<String,
 
 #[test]
 fn r1_children_run_concurrently_and_join_at_close() {
+    let _serial = SERIAL.lock().unwrap();
     let dir = std::env::temp_dir().join("swarm-async-r1");
     let _ = std::fs::remove_dir_all(&dir);
     write_fixture(&dir);
@@ -197,4 +202,103 @@ fn r1_children_run_concurrently_and_join_at_close() {
         .filter(|e| e.as_ref().unwrap().file_name().to_string_lossy().ends_with(".report.json"))
         .count();
     assert_eq!(reports, 2, "both completion reports on disk");
+}
+
+/// Hostile-pass finding (2026-09-08): the passing-close JOIN loop had
+/// no wall check - a wedged child (plugin thread stuck, report never
+/// written) hung the parent FOREVER, the wall guard notwithstanding
+/// (it was only evaluated per step; the comment claimed it was the
+/// backstop). RED proof: with a 30s-wedging child model and a 3s
+/// wall, this test only passes if the mission returns at the wall.
+#[test]
+fn r2_wedged_child_cannot_hang_the_join_past_the_wall() {
+    let _serial = SERIAL.lock().unwrap();
+    let dir = std::env::temp_dir().join("swarm-async-r2");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let toml = r#"
+[[tools]]
+name = "answer.submit"
+command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-answersubmit"]
+subjects = ["*"]
+
+[[tools]]
+name = "checker.run"
+command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-liechecker"]
+subjects = ["*"]
+
+[[tools]]
+name = "agent.spawn"
+command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-swarm"]
+subjects = ["*"]
+
+[[tools]]
+name = "agent.spawn_poll"
+command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-swarm", "--as", "agent.spawn_poll"]
+subjects = ["*"]
+
+[[models]]
+name = "scripted"
+command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted"]
+default = true
+subjects = ["*"]
+
+[[models]]
+name = "wedged"
+command = ["/bin/sh", "-c", "HS_SCRIPTED_NAME=wedged HS_SEQMODEL_DELAY_MS=30000 exec /mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted"]
+subjects = ["*"]
+"#;
+    std::fs::write(dir.join("hairspring.toml"), toml).unwrap();
+    // The wedge is a scripted plugin with a 30s per-call delay: it
+    // handshakes at kernel load like any model, then hangs INSIDE
+    // the child's first call - the parent must not wait for it.
+    std::fs::write(
+        dir.join("script.jsonl"),
+        "{\"tool\":\"agent.spawn\",\"args\":{\"mission\":\"wedged child\",\"model\":\"wedged\"}}\n",
+    )
+    .unwrap();
+    std::env::remove_var("HS_SWARM_DEPTH");
+    std::env::set_var("HS_ANSWER_RAW", "1");
+    std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1");
+    std::env::set_var("HS_SEQMODEL_SCRIPT", dir.join("script.jsonl"));
+    std::env::set_var("HS_SWARM_LOG_ROOT", dir.join("run"));
+    std::env::set_var("HS_SWARM_CONFIG", dir.join("hairspring.toml"));
+
+    let events: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+    let cap = events.clone();
+    let mut s = load_session(&dir.join("hairspring.toml"), &dir.join("run"), false, 12, None, None)
+        .unwrap();
+    s.set_wall_secs(3);
+    s.set_ui_sink(Box::new(move |ev: UiEvent| {
+        cap.lock().unwrap().push(format!("{ev:?}"));
+    }));
+
+    let t0 = Instant::now();
+    let r = s.run_goal("delegate to a wedged child").unwrap();
+    let wall = t0.elapsed();
+
+    // The wall guard MUST cut the join: mission returns at ~3s, not
+    // at the wedge's 30s (and never "never").
+    assert!(
+        wall.as_secs_f64() < 15.0,
+        "wall guard cut the join (wall {wall:?}, wedge 30s)"
+    );
+    assert!(!r.passed, "a wall-killed mission is a failure: {r:?}");
+    assert_eq!(r.outcome, "wall_killed", "honest outcome: {r:?}");
+
+    let streams = stream_texts(&dir.join("run"));
+    let parent = streams.get(&r.stream_id.to_string()).expect("parent stream");
+    assert!(
+        parent.contains("\"wall_killed\":true"),
+        "wall kill booked on the parent stream"
+    );
+    // Honesty: the still-running child is NEVER booked as finished.
+    let ev = events.lock().unwrap();
+    assert!(
+        !ev.iter().any(|e| e.starts_with("SubAgentFinished")),
+        "wedged child must not be booked finished: {ev:?}"
+    );
+    drop(ev);
+    // The wedged plugin self-cleans when this process exits (stdin
+    // EOF); the orphaned `sleep 30` reaps itself. No pkill needed.
 }
