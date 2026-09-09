@@ -778,6 +778,7 @@ impl InnerLoop {
         let started = std::time::Instant::now();
         let done = |output: serde_json::Value| {
             Some(ToolCallOutcome {
+                resolved: None,
                 output,
                 latency_ms: u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX),
             })
@@ -889,6 +890,7 @@ impl InnerLoop {
         let started = std::time::Instant::now();
         if self.memory_store.is_none() {
             return ToolCallOutcome {
+                resolved: None,
                 output: serde_json::json!({
                     "error": "memory.recall: no memory store attached to this session"
                 }),
@@ -945,6 +947,7 @@ impl InnerLoop {
             });
         }
         ToolCallOutcome {
+            resolved: None,
             output,
             latency_ms: u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX),
         }
@@ -1706,20 +1709,30 @@ impl InnerLoop {
                                 }
                             }
                         }
+                        // D2 (dance #94): book the CANONICAL name the call
+                        // actually dispatched to, plus the emitted variant
+                        // when it differed - the ledger tells the truth
+                        // about both the model's emission and the
+                        // resolution (live DeepSeek emitted answer_write /
+                        // term.exec / term_exec shapes).
+                        let effective = tool_out.resolved.clone().unwrap_or_else(|| tool.clone());
+                        let mut rec = serde_json::json!({
+                            "plugin": effective, "args": args, "result": tool_out.output,
+                        });
+                        if effective != tool {
+                            rec["requested_as"] = serde_json::json!(tool);
+                        }
                         let ev = self.writer.append(
                             EventBuilder::new(EventKind::ToolCall)
                                 .payload(Payload::Inline(
-                                    serde_json::to_vec(&serde_json::json!({
-                                        "plugin": tool, "args": args, "result": tool_out.output,
-                                    }))
-                                    .expect("json! values serialize"),
+                                    serde_json::to_vec(&rec).expect("json! values serialize"),
                                 ))
                                 .latency_ms(tool_out.latency_ms),
                         )?;
                         // D2: exact duplicate (tool, args) calls get flagged
                         // with the prior seq - an explicit, correctable
                         // signal instead of a silent re-read loop (P3)
-                        if let Some(prior) = self.ledger.find_duplicate(&tool, &args) {
+                        if let Some(prior) = self.ledger.find_duplicate(&effective, &args) {
                             let note = format!(
                                 "duplicate call: identical {tool} args already served at seq {prior} - that result is in your transcript/ledger; do not re-run it"
                             );
@@ -1733,13 +1746,13 @@ impl InnerLoop {
                             )?;
                             pending_feedback.push(note);
                         }
-                        self.ledger.apply_tool_call(ev.seq, &tool, &args, &tool_out.output);
+                        self.ledger.apply_tool_call(ev.seq, &effective, &args, &tool_out.output);
                         // Post-B8: guardrail escalation - same-class
                         // edit-path violations are counted per class; from
                         // the second fire on, an escalating steer is
                         // injected (B8's model retried the forbidden class
                         // 6 times against the bare refusal).
-                        if tool == "repo.exec"
+                        if effective == "repo.exec"
                             && let Some(class) = repexec::extract_gate_class(&tool_out.output.to_string())
                                 && let Some(note) = self.guardrail_escalator.record(&class) {
                                     self.writer.append(

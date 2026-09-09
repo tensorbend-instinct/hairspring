@@ -1,6 +1,6 @@
 //! Dance #94 RED (Eric 2026-09-09, live DeepSeek-v4-pro failure record):
 //! the REPL advertised the hardcoded Terminal-Bench tool surface
-//! (tb_tools: term.exec, ...) regardless of which tools the run config
+//! (`tb_tools`: `term.exec`, ...) regardless of which tools the run config
 //! actually registered. Live cost: 58 model calls, $8.81 ledger spend, zero
 //! files written - the model called the advertised term.exec, the kernel
 //! answered "unknown tool" (never registered), and repo.exec/edit.patch
@@ -11,7 +11,7 @@
 //! dispatchable, by construction. No second hand-written menu.
 //!
 //! D2: dispatch normalizes the observed demangled mistake shapes
-//! (term.exec where term__exec was served, term_exec, term) against the
+//! (`term.exec` where `term__exec` was served, `term_exec`, `term`) against the
 //! registered names. D3: an unknown-tool error must TEACH - it names every
 //! tool the caller may use.
 
@@ -199,17 +199,20 @@ default = true
     let reader = hs_log::StreamReader::open(log.path(), r.stream_id).unwrap();
     let events: Vec<_> = reader.events().unwrap();
 
-    // D2: the demangled answer_write call dispatched to answer.write.
+    // D2: the demangled answer_write call dispatched to answer.write, and
+    // the ledger tells the truth about both names.
     let dispatched_write = events.iter().any(|e| {
         e.kind == hs_core::EventKind::ToolCall && {
             let b = reader.resolve_payload(e).unwrap();
             let s = String::from_utf8_lossy(&b);
-            s.contains("\"plugin\": \"answer.write\"") || s.contains("\"plugin\":\"answer.write\"")
+            s.contains("\"plugin\":\"answer.write\"")
+                && s.contains("\"requested_as\":\"answer_write\"")
+                && s.contains("\"written\":true")
         }
     });
     assert!(
         dispatched_write,
-        "demangled variant answer_write must resolve to registered answer.write"
+        "demangled variant answer_write must resolve to registered answer.write          (ledger books canonical plugin + requested_as)"
     );
 
     // D3: the bogus.noop error the model is SHOWN names the valid tools.

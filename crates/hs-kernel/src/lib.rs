@@ -109,6 +109,10 @@ struct ConfigFile {
 pub struct ToolCallOutcome {
     pub output: serde_json::Value,
     pub latency_ms: u32,
+    /// D2 (dance #94): Some(canonical) when the caller's name was a
+    /// demangled variant that resolved to a registered tool; None on an
+    /// exact-name call. Booked so the ledger shows both names.
+    pub resolved: Option<String>,
 }
 #[derive(Debug)]
 pub struct ModelOutcome {
@@ -510,6 +514,39 @@ impl Kernel {
         args: serde_json::Value,
     ) -> Result<ToolCallOutcome, KernelError> {
         let mut tools = self.tools.borrow_mut();
+        // D2 (dance #94, live DeepSeek failure 2026-09-09): real models
+        // demangle the wire name (term__exec -> term.exec / term_exec /
+        // term EXEC). Resolve the observed mistake shapes against the
+        // registry instead of hard-failing: exact name first, then the
+        // "__"->"." and "_"->"." variants, only when the candidate is
+        // registered (never guess beyond the registry).
+        let orig_name = name.to_string();
+        let resolved: String = if tools.contains_key(name) {
+            name.to_string()
+        } else {
+            let c1 = name.replace("__", ".");
+            let c2 = name.replace('_', ".");
+            [&c1, &c2]
+                .into_iter()
+                .find(|c| tools.contains_key(c.as_str()))
+                .map_or_else(|| name.to_string(), ToString::to_string)
+        };
+        let name = resolved.as_str();
+        if !tools.contains_key(name) {
+            // D3: an unknown-tool error must TEACH - name every tool the
+            // caller may use, so the next call can be right. The live
+            // model retried the identical wrong call 8 times on
+            // "unknown tool: term.exec" alone.
+            let valid: Vec<String> = tools
+                .values()
+                .filter(|s| Self::visible(&s.entry, subject))
+                .map(|s| s.entry.name.clone())
+                .collect();
+            return Err(KernelError::UnknownTool(format!(
+                "{name}. Valid tools for you: {} - call them by these exact names",
+                valid.join(", ")
+            )));
+        }
         let slot = tools
             .get_mut(name)
             .ok_or_else(|| KernelError::UnknownTool(name.into()))?;
@@ -555,6 +592,7 @@ impl Kernel {
                 Ok(ToolCallOutcome {
                     output: r,
                     latency_ms,
+                    resolved: (resolved != orig_name).then_some(resolved.clone()),
                 })
             }
             Err(e) => {

@@ -178,6 +178,62 @@ pub fn tb_tools() -> Vec<Value> {
     ]
 }
 
+
+/// Generic fallback schema for a registry tool with no authored schema:
+/// the menu must still name it so advertised == dispatchable (D1).
+fn generic_schema(name: &str) -> Value {
+    f(
+        name,
+        "Registered plugin tool; call with a JSON args object (see the harness contract for this tool's argument shape).",
+        json!({"type":"object"}),
+    )
+}
+
+/// Authored schema for one registry tool name, or None when the name has
+/// no hand-written schema (`generic_schema` covers it). Keyed by the REAL
+/// plugin name so the advertised surface derives from the registry (D1,
+/// dance #94) - never from a flavor-seeded list that can drift apart.
+#[must_use]
+pub fn schema_for(name: &str, edit_path: &str) -> Option<Value> {
+    // Reuse the authored builders: both flavor lists contain per-name
+    // schemas; builtin carries repo.exec/edit.*, tb carries term.exec.
+    let authored = builtin_tools_with_edit(edit_path)
+        .into_iter()
+        .chain(tb_tools())
+        .collect::<Vec<_>>();
+    authored
+        .into_iter()
+        .find(|t| t["function"]["name"].as_str() == Some(name))
+}
+
+/// D1: derive the model-facing surface from the kernel's registry.
+/// `registered` = `kernel.list_tools(subject)` names; `discovered` = MCP
+/// native schemas (server-authored, keyed by `mcp.<server>.<tool>`); every
+/// other registered name uses its authored schema or the generic
+/// fallback. The result contains EXACTLY the registered names - no more,
+/// no fewer - so advertised == dispatchable by construction.
+#[must_use]
+pub fn schemas_for_registry(
+    registered: &[String],
+    discovered: &[Value],
+    edit_path: &str,
+) -> Vec<Value> {
+    let mut out = Vec::with_capacity(registered.len());
+    for name in registered {
+        if let Some(t) = discovered
+            .iter()
+            .find(|t| t["function"]["name"].as_str() == Some(name.as_str()))
+        {
+            out.push(t.clone());
+        } else if let Some(t) = schema_for(name, edit_path) {
+            out.push(t);
+        } else {
+            out.push(generic_schema(name));
+        }
+    }
+    out
+}
+
 /// One MCP-discovered tool in native shape. The input schema comes from the
 /// server's tools/list verbatim; an absent schema degrades to an open object.
 #[must_use]

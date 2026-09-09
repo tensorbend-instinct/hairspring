@@ -206,16 +206,17 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         // tool_choice:"required" holds the model on-protocol by construction.
         // The free-form path provably cannot (live proof: 39 prose replies
         // in 40 steps under explicit nudges).
-        let mut native_tools = crate::toolschema::tb_tools();
-        // Eric's five #5: the interactive surface offers delegation.
-        native_tools.push(crate::toolschema::agent_spawn_tool());
-        native_tools.push(crate::toolschema::agent_spawn_poll_tool());
+        // D1 (dance #94): the advertised surface is DERIVED from the kernel
+        // registry below (schemas_for_registry), never seeded from a flavor
+        // list - a hardcoded tb_tools seed advertised term.exec to a SWE
+        // config that never registered it (live DeepSeek failure 2026-09-09).
+        let mut mcp_native: Vec<serde_json::Value> = Vec::new();
         let merged_config;
         let config = if let Ok(servers_toml) = std::env::var("HS_MCP_SERVERS") {
             let (fragment, native) =
                 crate::mcpbridge::discover_mcp_tools(std::path::Path::new(&servers_toml))
                     .map_err(LoopError::Visibility)?;
-            native_tools.extend(native.iter().cloned());
+            mcp_native.extend(native.iter().cloned());
             for t in &native {
                 mcp_catalog.push_str(&format!(
                     "- {}: {}\n",
@@ -234,6 +235,16 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         Self::wire_tool_env(log_root)?;
         let kernel = swe_kernel(config, log_root)?;
         require_visibility(&kernel).map_err(LoopError::Visibility)?;
+        let registered: Vec<String> = kernel
+            .list_tools("operator")
+            .into_iter()
+            .map(|e| e.name)
+            .collect();
+        let mut native_tools =
+            crate::toolschema::schemas_for_registry(&registered, &mcp_native, "applypatch");
+        // Eric's five #5: the interactive surface offers delegation.
+        native_tools.push(crate::toolschema::agent_spawn_tool());
+        native_tools.push(crate::toolschema::agent_spawn_poll_tool());
         let mut inner = InnerLoop::new(kernel, log_root, feedback, max_steps)?;
         if let Some(tokens) = Self::configured_context_tokens(config) {
             inner.set_context_budget_tokens(tokens * 3 / 4);
@@ -302,16 +313,15 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         stream_id: uuid::Uuid,
     ) -> Result<Self, LoopError> {
         let mut mcp_catalog = String::new();
-        let mut native_tools = crate::toolschema::tb_tools();
-        // Eric's five #5: the interactive surface offers delegation.
-        native_tools.push(crate::toolschema::agent_spawn_tool());
-        native_tools.push(crate::toolschema::agent_spawn_poll_tool());
+        // D1 (dance #94): advertised surface derives from the registry
+        // below, same as load() - never a flavor-seeded list.
+        let mut mcp_native: Vec<serde_json::Value> = Vec::new();
         let merged_config;
         let config = if let Ok(servers_toml) = std::env::var("HS_MCP_SERVERS") {
             let (fragment, native) =
                 crate::mcpbridge::discover_mcp_tools(std::path::Path::new(&servers_toml))
                     .map_err(LoopError::Visibility)?;
-            native_tools.extend(native.iter().cloned());
+            mcp_native.extend(native.iter().cloned());
             for t in &native {
                 mcp_catalog.push_str(&format!(
                     "- {}: {}\n",
@@ -330,6 +340,16 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         Self::wire_tool_env(log_root)?;
         let kernel = swe_kernel(config, log_root)?;
         require_visibility(&kernel).map_err(LoopError::Visibility)?;
+        let registered: Vec<String> = kernel
+            .list_tools("operator")
+            .into_iter()
+            .map(|e| e.name)
+            .collect();
+        let mut native_tools =
+            crate::toolschema::schemas_for_registry(&registered, &mcp_native, "applypatch");
+        // Eric's five #5: the interactive surface offers delegation.
+        native_tools.push(crate::toolschema::agent_spawn_tool());
+        native_tools.push(crate::toolschema::agent_spawn_poll_tool());
         let mut inner = InnerLoop::with_stream(kernel, log_root, stream_id, feedback, max_steps)?;
         if let Some(tokens) = Self::configured_context_tokens(config) {
             inner.set_context_budget_tokens(tokens * 3 / 4);

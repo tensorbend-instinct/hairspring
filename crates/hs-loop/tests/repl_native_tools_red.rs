@@ -58,13 +58,21 @@ fn repl_delivers_native_schemas_builtin_and_mcp() {
     let session = ReplSession::load(&test_config(dir.path()), log.path(), false, 4)
         .expect("session load");
     let names = session.native_tool_names();
+    // D1 (dance #94): the session advertises exactly what THIS config
+    // registered (plus loop internals) - no flavor seeding. The old law
+    // asserted term.exec/answer.submit regardless of config; that hardcoded
+    // surface is what failed live (2026-09-09).
     assert!(
-        names.iter().any(|n| n == "answer.submit"),
-        "builtin answer.submit schema delivered: {names:?}"
+        names.iter().any(|n| n == "answer.write"),
+        "registered answer.write advertised: {names:?}"
     );
     assert!(
-        names.iter().any(|n| n == "term.exec"),
-        "builtin term.exec schema delivered: {names:?}"
+        names.iter().any(|n| n == "checker.run"),
+        "registered checker.run advertised: {names:?}"
+    );
+    assert!(
+        !names.iter().any(|n| n == "term.exec"),
+        "unregistered term.exec must NOT be advertised: {names:?}"
     );
     drop(session);
 
@@ -97,7 +105,7 @@ fn repl_delivers_native_schemas_builtin_and_mcp() {
         "mcp tool in the native delivery: {names2:?}"
     );
     assert!(
-        names2.iter().any(|n| n == "term.exec"),
-        "builtins ride along too: {names2:?}"
+        names2.iter().any(|n| n == "checker.run"),
+        "registered tools ride along too: {names2:?}"
     );
 }
