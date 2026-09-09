@@ -90,7 +90,14 @@ fn exec_without_answer_is_clean_feedback() {
     let ans = ws.path().join("answer.txt");
     let r = hs_loop::repexec::run_sandboxed(ws.path(), &ans, "cat app.py", 30);
     assert_eq!(r["applied"], false);
-    assert!(r["note"].as_str().unwrap_or("").contains("no patch"), "{r}");
+    // D7: the guard states the precondition plainly.
+    assert!(
+        r["note"]
+            .as_str()
+            .unwrap_or("")
+            .contains("repo.exec runs build/test against the candidate patch"),
+        "{r}"
+    );
 }
 
 #[test]

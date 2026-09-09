@@ -94,7 +94,9 @@ default = true
         })
         .collect();
     assert_eq!(results.len(), 1, "one term.exec call: {results:?}");
-    let want = log.path().canonicalize().unwrap();
+    // D6: the session work area is <run>/work (harness state stays
+    // outside the tool anchor).
+    let want = log.path().join("work").canonicalize().unwrap();
     let expect = format!("exit=0 stdout={}", want.display());
     assert!(
         results[0].trim_end() == expect,

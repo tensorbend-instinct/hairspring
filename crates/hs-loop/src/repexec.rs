@@ -144,7 +144,7 @@ fn prep(ws: &Path, answer_path: &Path) -> Result<Option<PathBuf>, Value> {
         Ok(s) => s,
         Err(_) => {
             return Err(
-                json!({"applied": false, "note": "no patch to test yet - build your fix first (edit.patch), then exec (or pass args.diff inline)"}),
+                json!({"applied": false, "note": "repo.exec runs build/test against the candidate patch written by edit.patch. No patch exists yet - write your fix with edit.patch first, then run repo.exec again (or pass args.diff inline)"}),
             );
         }
     };

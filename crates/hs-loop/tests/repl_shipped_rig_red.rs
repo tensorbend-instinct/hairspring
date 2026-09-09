@@ -67,7 +67,8 @@ subjects = ["*"]
         "the shipped tb rig passes: declare checks with term.exec, submit, checker green: {r:?}"
     );
     assert!(
-        dir.join("run/.hs/checks").exists(),
+        // D6: the live workdir is the work area under the run root.
+        dir.join("run/work/.hs/checks").exists(),
         "checks declared on the live workdir"
     );
 }
