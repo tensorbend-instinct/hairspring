@@ -156,6 +156,50 @@ fn prep(ws: &Path, answer_path: &Path) -> Result<Option<PathBuf>, Value> {
     prep_diff(ws, &patch)
 }
 
+/// Test-only fault injection for the transient-spawn class (flake hunt,
+/// suite-m46): the first N `prep_attempt` calls to git fail with `WouldBlock`,
+/// letting a RED test pin the retry recovery deterministically.
+fn transient_spawn_failures_left() -> usize {
+    std::env::var("HS_REPEXEC_TEST_FAIL_GIT_SPAWNS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0)
+}
+
+fn git_spawn(ws: &Path, args: &[&str]) -> Result<std::process::Output, std::io::Error> {
+    static FAILS_LEFT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(usize::MAX);
+    let left = FAILS_LEFT.load(std::sync::atomic::Ordering::Relaxed);
+    let cfg = transient_spawn_failures_left();
+    // usize::MAX = uninitialized; latch the env value exactly once.
+    if left == usize::MAX {
+        FAILS_LEFT.store(cfg, std::sync::atomic::Ordering::Relaxed);
+    }
+    if FAILS_LEFT
+        .fetch_update(
+            std::sync::atomic::Ordering::Relaxed,
+            std::sync::atomic::Ordering::Relaxed,
+            |v| (v > 0).then(|| v - 1),
+        )
+        .is_ok()
+    {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::WouldBlock,
+            "injected transient spawn failure (HS_REPEXEC_TEST_FAIL_GIT_SPAWNS)",
+        ));
+    }
+    Command::new("git").args(args).current_dir(ws).output()
+}
+
+/// One worktree-add attempt; the error Value is the machinery arm.
+fn worktree_add_once(ws: &Path, scratch: &Path) -> Result<(), Value> {
+    match git_spawn(ws, &["worktree", "add", "--detach", &scratch.display().to_string(), "HEAD"])
+    {
+        Ok(o) if o.status.success() => Ok(()),
+        Ok(o) => Err(json!({"$error": format!("scratch worktree: {}", String::from_utf8_lossy(&o.stderr))})),
+        Err(e) => Err(json!({"$error": format!("scratch worktree: {e}")})),
+    }
+}
+
 /// Prep from a diff the model supplies inline (T4: test before the first
 /// answer.write). Same scratch-worktree semantics as prep.
 fn prep_diff(ws: &Path, patch: &str) -> Result<Option<PathBuf>, Value> {
@@ -168,32 +212,46 @@ fn prep_diff(ws: &Path, patch: &str) -> Result<Option<PathBuf>, Value> {
         .arg(&scratch)
         .current_dir(ws)
         .output();
-    match Command::new("git")
-        .args(["worktree", "add", "--detach"])
-        .arg(&scratch)
-        .arg("HEAD")
-        .current_dir(ws)
-        .output()
-    {
-        Ok(o) if o.status.success() => {}
-        Ok(o) => {
-            return Err(
-                json!({"$error": format!("scratch worktree: {}", String::from_utf8_lossy(&o.stderr))}),
-            );
-        }
-        Err(e) => return Err(json!({"$error": format!("scratch worktree: {e}")})),
-    }
-    match hs_bench::apply_model_patch(&scratch, patch) {
-        Ok(hs_bench::ApplyResult::Applied) => Ok(Some(scratch)),
-        Ok(hs_bench::ApplyResult::NoApply(msg)) => {
-            cleanup(ws, &scratch);
-            Err(json!({"applied": false, "apply_error": msg}))
-        }
-        Err(e) => {
-            cleanup(ws, &scratch);
-            Err(json!({"$error": format!("apply machinery: {e:?}")}))
+    // Transient machinery failures (spawn EAGAIN, one-shot worktree errors)
+    // get bounded retries instead of failing the mission on a load hiccup;
+    // $error machinery arms ONLY - verdict arms (applied:false) never retry.
+    let mut last_err: Option<Value> = None;
+    let mut added = false;
+    for attempt in 0..3u32 {
+        match worktree_add_once(ws, &scratch) {
+            Ok(()) => {
+                added = true;
+                break;
+            }
+            Err(e) => {
+                last_err = Some(e);
+                if attempt < 2 {
+                    std::thread::sleep(std::time::Duration::from_millis(25 * (u64::from(attempt) + 1)));
+                }
+            }
         }
     }
+    if !added {
+        return Err(last_err.unwrap_or_else(|| json!({"$error": "scratch worktree: retries exhausted"})));
+    }
+    let mut last_apply_err: Option<Value> = None;
+    for attempt in 0..3u32 {
+        match hs_bench::apply_model_patch(&scratch, patch) {
+            Ok(hs_bench::ApplyResult::Applied) => return Ok(Some(scratch)),
+            Ok(hs_bench::ApplyResult::NoApply(msg)) => {
+                cleanup(ws, &scratch);
+                return Err(json!({"applied": false, "apply_error": msg}));
+            }
+            Err(e) => {
+                last_apply_err = Some(json!({"$error": format!("apply machinery: {e:?}")}));
+                if attempt < 2 {
+                    std::thread::sleep(std::time::Duration::from_millis(25 * (u64::from(attempt) + 1)));
+                }
+            }
+        }
+    }
+    cleanup(ws, &scratch);
+    Err(last_apply_err.unwrap_or_else(|| json!({"$error": "apply machinery: retries exhausted"})))
 }
 
 fn cleanup(ws: &Path, scratch: &Path) {
