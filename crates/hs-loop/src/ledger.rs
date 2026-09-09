@@ -90,24 +90,56 @@ fn merge_range(ranges: &mut Vec<(u32, u32)>, lo: u32, hi: u32) {
     }
 }
 
-/// Bounded output tail for a recorded run (F7): the verifier audits
-/// recorded evidence, and a run rendered without its output is
-/// indistinguishable from a bare claim. Whitespace-collapsed, last 160
-/// chars (the verdict line lives at the tail for test runners).
-fn output_tail(result: &Value) -> String {
-    let flat = result["stdout"]
-        .as_str()
-        .unwrap_or("")
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ");
-    flat.chars()
-        .rev()
-        .take(160)
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-        .collect()
+/// Bounded evidence block for a recorded run (F7; D11, run-of-record
+/// 2026-09-09): the verifier audits RECORDED evidence and its own prompt
+/// defines a bare banner as fabricated ("a prose claim of test output with
+/// no recorded run is fabricated: refute"). A tail-only 160-char render
+/// showed exactly that - diff loops are silent on success and print their
+/// prose banner LAST, so the mechanical per-check lines and stderr were
+/// cut and three rounds refuted blocking=unverifiable on a deliverable the
+/// sealed grader scores 9/9. The row renders the exit code, byte counts,
+/// stderr, and a head+tail window of stdout; truncation is marked, never
+/// silent. Whitespace-collapsed.
+const STDOUT_HEAD_CHARS: usize = 200;
+const STDOUT_TAIL_CHARS: usize = 280;
+const STDERR_TAIL_CHARS: usize = 200;
+
+fn collapse(s: &str) -> String {
+    s.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// First `head` + last `tail` chars of `flat`, with the elided middle
+/// marked. Returns (original byte count, rendered body).
+fn head_tail(flat: &str, head: usize, tail: usize) -> (usize, String) {
+    let chars: Vec<char> = flat.chars().collect();
+    if chars.len() <= head + tail + 24 {
+        (flat.len(), flat.to_string())
+    } else {
+        let h: String = chars.iter().take(head).collect();
+        let t: String = chars.iter().skip(chars.len() - tail).collect();
+        (
+            flat.len(),
+            format!("{h} ...[+{} chars]... {t}", chars.len() - head - tail),
+        )
+    }
+}
+
+fn evidence_block(result: &Value) -> String {
+    let mut s = String::new();
+    if let Some(e) = result["exit_code"].as_i64() {
+        s.push_str(&format!(" exit={e}"));
+    }
+    let stdout = result["stdout"].as_str().unwrap_or("");
+    if !stdout.trim().is_empty() {
+        let (n, body) = head_tail(&collapse(stdout), STDOUT_HEAD_CHARS, STDOUT_TAIL_CHARS);
+        s.push_str(&format!(" [stdout={n}B: {body}]"));
+    }
+    let stderr = result["stderr"].as_str().unwrap_or("");
+    if !stderr.trim().is_empty() {
+        let (n, body) = head_tail(&collapse(stderr), 0, STDERR_TAIL_CHARS);
+        s.push_str(&format!(" [stderr={n}B: {body}]"));
+    }
+    s
 }
 
 impl Ledger {
@@ -165,7 +197,7 @@ impl Ledger {
                         .take(60)
                         .collect();
                     let ok = result["exit_code"].as_i64() == Some(0);
-                    self.test_runs.push((seq, cmd, ok, output_tail(result)));
+                    self.test_runs.push((seq, cmd, ok, evidence_block(result)));
                 }
             }
             "repo.exec" => {
@@ -177,7 +209,7 @@ impl Ledger {
                         .take(60)
                         .collect();
                     let ok = result["exit_code"].as_i64() == Some(0);
-                    self.test_runs.push((seq, cmd, ok, output_tail(result)));
+                    self.test_runs.push((seq, cmd, ok, evidence_block(result)));
                 }
             }
             "checker.run" => {
@@ -308,13 +340,8 @@ impl Ledger {
                 } else {
                     ""
                 };
-                let ev_tail = if tail.is_empty() {
-                    String::new()
-                } else {
-                    format!(" [{tail}]")
-                };
                 s.push_str(&format!(
-                    "\"{cmd}\" {}@seq{seq}{stale}{ev_tail}; ",
+                    "\"{cmd}\" {}@seq{seq}{stale}{tail}; ",
                     if *ok { "PASS" } else { "FAIL" }
                 ));
             }
