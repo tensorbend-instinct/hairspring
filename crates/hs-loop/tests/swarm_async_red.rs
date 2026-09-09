@@ -314,3 +314,108 @@ subjects = ["*"]
     // The wedged plugin self-cleans when this process exits (stdin
     // EOF); the orphaned `sleep 30` reaps itself. No pkill needed.
 }
+
+/// Hostile-pass finding (2026-09-08, swarm poll honesty arc): when the
+/// swarm plugin DIES mid-child (kernel respawns it via `spawn_fresh`),
+/// the registry marker predates the new process and poll reports
+/// "lost" (9cd69c6). The parent must CONSUME that verdict - book the
+/// child failed and close the mission - not hold it pending until the
+/// wall guard. RED pre-fix: the lost child is ignored in `poll_children`
+/// and the mission ends `wall_killed`. GREEN: the mission passes on its
+/// own merits with the child reported lost.
+#[test]
+fn r3_lost_child_is_consumed_not_wall_ground() {
+    let _serial = SERIAL.lock().unwrap();
+    let dir = std::env::temp_dir().join("swarm-async-r3");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let toml = r#"
+[[tools]]
+name = "answer.submit"
+command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-answersubmit"]
+subjects = ["*"]
+
+[[tools]]
+name = "checker.run"
+command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-liechecker"]
+subjects = ["*"]
+
+[[tools]]
+name = "agent.spawn"
+command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-swarm"]
+subjects = ["*"]
+
+[[tools]]
+name = "agent.spawn_poll"
+command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-swarm", "--as", "agent.spawn_poll"]
+subjects = ["*"]
+
+[[models]]
+name = "scripted"
+command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted"]
+default = true
+subjects = ["*"]
+
+[[models]]
+name = "slow"
+command = ["/bin/sh", "-c", "HS_SCRIPTED_NAME=slow HS_SEQMODEL_DELAY_MS=15000 exec /mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted"]
+subjects = ["*"]
+"#;
+    std::fs::write(dir.join("hairspring.toml"), toml).unwrap();
+    std::fs::write(
+        dir.join("script.jsonl"),
+        "{\"tool\":\"agent.spawn\",\"args\":{\"mission\":\"slow child\",\"model\":\"slow\"}}\n{\"tool\":\"agent.spawn_poll\",\"args\":{\"child_stream_id\":\"placeholder\"}}\n",
+    )
+    .unwrap();
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SWARM_DEPTH") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_ANSWER_RAW", "1") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", dir.join("script.jsonl")) };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SWARM_LOG_ROOT", dir.join("run")) };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SWARM_CONFIG", dir.join("hairspring.toml")) };
+
+    let events: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+    let cap = events.clone();
+    let mut s = load_session(&dir.join("hairspring.toml"), &dir.join("run"), false, 12, None, None)
+        .unwrap();
+    s.set_wall_secs(8);
+    s.set_ui_sink(Box::new(move |ev: UiEvent| {
+        cap.lock().unwrap().push(format!("{ev:?}"));
+    }));
+
+    // Kill the swarm plugin ~1.5s in: the child (a thread of that
+    // process, mid-15s-wedge) dies with it. The kernel respawns the
+    // plugin on the next poll, and the pre-dated marker must read LOST.
+    let mission = std::thread::spawn(move || {
+        let t0 = Instant::now();
+        let r = s.run_goal("delegate then survive the plugin dying").unwrap();
+        (r, t0.elapsed())
+    });
+    std::thread::sleep(std::time::Duration::from_millis(1500));
+    let _ = std::process::Command::new("pkill")
+        .args(["-f", "hs-plugin-swarm"])
+        .status();
+    let (r, wall) = mission.join().unwrap();
+
+    assert!(
+        wall.as_secs_f64() < 14.0,
+        "lost child consumed promptly, not ground against the wall (wall {wall:?}, child wedge 15s)"
+    );
+    assert!(
+        r.passed,
+        "mission stands on its own answer once the lost child is booked: {r:?}"
+    );
+    assert_ne!(r.outcome, "wall_killed", "no wall grind: {r:?}");
+    let evs = events.lock().unwrap();
+    assert!(
+        evs.iter()
+            .any(|e| e.contains("SubAgentFinished") && e.contains("ok: false")),
+        "the lost child is booked failed for the panel: {evs:?}"
+    );
+}

@@ -582,6 +582,22 @@ impl InnerLoop {
                         v["cost_usd_micros"].as_i64().unwrap_or(0) as f64 / 1e6
                     ));
                 }
+                // A child the plugin reports LOST died with the plugin
+                // process that owned it (marker predates the process) -
+                // book the honest failure NOW instead of burning every
+                // remaining step and the wall guard on a corpse.
+                Ok(v) if v["status"].as_str() == Some("lost") => {
+                    let pc = self.pending_children.remove(i);
+                    if let Some(sink) = self.ui_sink.as_mut() {
+                        sink(uipaint::UiEvent::SubAgentFinished { child, ok: false });
+                    }
+                    let short: String = child.to_string().chars().take(8).collect();
+                    updates.push(format!(
+                        "child {short} (\"{}\") LOST - its plugin process died mid-run ({}); re-delegate if the work still matters",
+                        pc.mission,
+                        v["reason"].as_str().unwrap_or("stale registry marker"),
+                    ));
+                }
                 // Still running, or a transient query failure (retried
                 // next step; the wall guard bounds a wedged plugin).
                 _ => i += 1,
