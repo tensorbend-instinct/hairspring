@@ -164,6 +164,11 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         unsafe {
             std::env::set_var("HS_TERM_WORKDIR", log_root);
             std::env::set_var("HS_SWE_WORKSPACE", log_root);
+            // The REPL serves the tb surface (tb_tools: term.exec works
+            // the LIVE machine, no edit.patch candidate), so the blind
+            // checker must run its .hs/checks against the real workdir
+            // too - candidate mode could never be satisfied here.
+            std::env::set_var("HS_SELFCHECK_DIRECT", "1");
         }
         Ok(())
     }

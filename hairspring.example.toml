@@ -4,28 +4,22 @@
 # ~/.config/hairspring/hairspring.toml with @PREFIX@ replaced by the
 # real install prefix - edit that copy, not this template.
 #
+# The REPL serves the terminal surface: term.exec runs commands on the
+# live machine (state persists), repo.read/repo.search inspect the
+# workdir, notes.scratch holds durable notes, answer.submit finishes.
+# checker.run is the BLIND self-check rig, triggered by answer.submit
+# (the model never calls it directly): the agent declares its own
+# verification commands, one per line, in .hs/checks in the workdir,
+# and the checker is green only when every one passes. No ground truth
+# enters the mission.
+#
 # Required env for live models:
 #   HS_DEEPSEEK_API_KEY       - DeepSeek API key
-#   HS_SWE_WORKSPACE          - repo checkout the agent may work on
 #     (or HS_DEEPSEEK_API_KEY_FILE pointing at a file holding the key)
-#
-# checker.run is the BLIND self-check rig: the agent declares its own
-# verification commands (.hs/checks in its candidate) and the checker is
-# green only when every one passes. No ground truth enters the mission.
 
 [[tools]]
-name = "answer.write"
-command = ["@PREFIX@/bin/hs-plugin-answer"]
-subjects = ["*"]
-
-[[tools]]
-name = "answer.submit"
-command = ["@PREFIX@/bin/hs-plugin-answersubmit"]
-subjects = ["*"]
-
-[[tools]]
-name = "checker.run"
-command = ["@PREFIX@/bin/hs-plugin-selfcheck"]
+name = "term.exec"
+command = ["@PREFIX@/bin/hs-plugin-termexec"]
 subjects = ["*"]
 
 [[tools]]
@@ -39,18 +33,18 @@ command = ["@PREFIX@/bin/hs-plugin-reposearch"]
 subjects = ["*"]
 
 [[tools]]
-name = "repo.exec"
-command = ["@PREFIX@/bin/hs-plugin-repoexec"]
-subjects = ["*"]
-
-[[tools]]
-name = "edit.apply"
-command = ["@PREFIX@/bin/hs-plugin-editapply"]
-subjects = ["*"]
-
-[[tools]]
 name = "notes.scratch"
 command = ["@PREFIX@/bin/hs-plugin-notescratch"]
+subjects = ["*"]
+
+[[tools]]
+name = "answer.submit"
+command = ["@PREFIX@/bin/hs-plugin-answersubmit"]
+subjects = ["*"]
+
+[[tools]]
+name = "checker.run"
+command = ["@PREFIX@/bin/hs-plugin-selfcheck"]
 subjects = ["*"]
 
 # Async sub-agent delegation: agent.spawn returns immediately, children
