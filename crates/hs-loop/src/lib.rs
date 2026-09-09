@@ -40,6 +40,8 @@ pub enum LoopError {
     /// `require_visibility` refused the run: kernel has no log root (the
     /// production startup gate - no blind runs).
     Visibility(String),
+    /// The world plane (snapshot/restore) refused the operation.
+    World(String),
 }
 impl From<std::io::Error> for LoopError {
     fn from(e: std::io::Error) -> Self {
@@ -64,6 +66,7 @@ impl std::fmt::Display for LoopError {
             Self::ModelOutput(e) => write!(f, "model output: {e}"),
             Self::Io(e) => write!(f, "io: {e}"),
             Self::Visibility(e) => write!(f, "visibility: {e}"),
+            Self::World(e) => write!(f, "world: {e}"),
         }
     }
 }
@@ -652,6 +655,73 @@ impl InnerLoop {
     /// B1 (v5 D3 + cut #10): tool dispatch. D3's K plane is consulted by
     /// the model as a builtin tool - it never reaches the plugin bus and
     /// is never pre-passed into prompts.
+    /// The session's mission workdir (`log_root/work/<mission-id>`): the
+    /// sandbox filesystem state recovery tiers B and C restore. The
+    /// substrate (streams + blobs) is durable separately and never
+    /// snapshotted.
+    #[must_use]
+    pub fn work_dir(&self) -> std::path::PathBuf {
+        self.log_root.join("work")
+    }
+
+    /// Recovery tier B (spec v5 "Recovery tiers"): snapshot the mission
+    /// workdir into the content-addressed store. `World::snapshot` books
+    /// the `SnapshotRef` on the world stream; a `SnapshotRef` also lands on
+    /// the MISSION stream so the mission's own evidence chain names the
+    /// state it can be restored from.
+    pub fn snapshot_workdir(&mut self) -> Result<hs_world::SnapshotReport, LoopError> {
+        if self.world.is_none() {
+            self.attach_world();
+        }
+        let rep = self
+            .world
+            .as_ref()
+            .expect("attach_world just ran")
+            .snapshot(&self.work_dir())
+            .map_err(|e| LoopError::World(format!("{e:?}")))?;
+        self.writer.append(
+            EventBuilder::new(EventKind::SnapshotRef).payload(Payload::Inline(
+                serde_json::to_vec(&serde_json::json!({
+                    "snapshot_id": rep.snapshot_id,
+                    "tier": "B",
+                    "files": rep.files,
+                    "bytes": rep.bytes,
+                    "took_ms": rep.took_ms,
+                }))
+                .expect("json! values serialize"),
+            )),
+        )?;
+        Ok(rep)
+    }
+
+    /// Recovery tier B restore: hash-verified, byte-exact rehydration of
+    /// the mission workdir ("process and filesystem state back"), with the
+    /// recovery BOOKED on the mission stream and measured - B6b's
+    /// `T_mission` R term reads this, it is never assumed.
+    pub fn restore_workdir(&mut self, snapshot_id: &str) -> Result<hs_world::SnapshotReport, LoopError> {
+        if self.world.is_none() {
+            self.attach_world();
+        }
+        let t0 = std::time::Instant::now();
+        let rep = self
+            .world
+            .as_ref()
+            .expect("attach_world just ran")
+            .restore(snapshot_id, &self.work_dir())
+            .map_err(|e| LoopError::World(format!("{e:?}")))?;
+        let duration_ms = t0.elapsed().as_millis();
+        self.writer.append(
+            EventBuilder::new(EventKind::Observation).payload(Payload::Inline(
+                format!(
+                    "recovery tier=B restore snapshot_id={} files={} duration_ms={duration_ms}",
+                    rep.snapshot_id, rep.files
+                )
+                .into_bytes(),
+            )),
+        )?;
+        Ok(rep)
+    }
+
     /// B2 (v5 gate 6): join the shared world plane (one world stream in
     /// this substrate). Called by every REPL session; missions then reach
     /// the world through the world.* tools below.

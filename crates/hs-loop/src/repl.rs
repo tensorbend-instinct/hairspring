@@ -17,6 +17,11 @@ pub enum ReplCommand {
     Help,
     /// Steps/cost/stream of the current session.
     Status,
+    /// Recovery tier B: snapshot the mission workdir (books `snapshot_ref`).
+    Snapshot,
+    /// Recovery tier B: hash-verified restore from a snapshot id (books
+    /// the recovery on the mission stream).
+    Restore(String),
     /// Print the input history (preloaded + this session's lines).
     History,
     /// Print the latest mission's answer artifact.
@@ -33,6 +38,10 @@ pub fn parse_command(line: &str) -> ReplCommand {
         ":quit" | ":q" | ":exit" => ReplCommand::Quit,
         ":help" | ":h" | ":?" => ReplCommand::Help,
         ":status" => ReplCommand::Status,
+        ":snapshot" => ReplCommand::Snapshot,
+        t if t.starts_with(":restore") => ReplCommand::Restore(
+            t.trim_start_matches(":restore").trim().to_string(),
+        ),
         ":history" => ReplCommand::History,
         ":last" => ReplCommand::LastAnswer,
         _ if t.starts_with(':') => ReplCommand::Unknown(t.to_string()),
@@ -70,6 +79,8 @@ pub fn goal_slug(goal: &str) -> String {
 pub const REPL_HELP: &str = "hairspring REPL - run the harness on a goal, end to end
   <text>    run <text> as a goal (mission) on the loaded kernel
   :status   steps, model calls, cost, stream id of the current session
+  :snapshot snapshot the mission workdir (recovery tier B, books snapshot_ref)
+  :restore <id>  restore the workdir from a snapshot (tier B, hash-verified)
   :history  input history - preloaded from this dir's prior sessions
   :last     print the latest mission's answer artifact
   :help     this text
@@ -430,6 +441,21 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
     }
 
     /// Configured models as (name, `is_default`) for the picker.
+    /// Recovery tier B: snapshot the mission workdir into the
+    /// content-addressed store (evidence: `SnapshotRef` events).
+    pub fn snapshot_workdir(&mut self) -> Result<hs_world::SnapshotReport, LoopError> {
+        self.inner.snapshot_workdir()
+    }
+    /// Recovery tier B: hash-verified, byte-exact workdir restore,
+    /// booked and measured on the mission stream.
+    pub fn restore_workdir(
+        &mut self,
+        snapshot_id: &str,
+    ) -> Result<hs_world::SnapshotReport, LoopError> {
+        self.inner.restore_workdir(snapshot_id)
+    }
+
+    
     pub fn model_names(&self) -> Vec<(String, bool)> {
         self.inner.model_names()
     }
@@ -636,6 +662,67 @@ pub fn list_sessions(log_root: &Path) -> Vec<SessionInfo> {
 
 
 /// M16: the picker never offers the session you are already in.
+/// Recovery tier C (spec v5 "Recovery tiers" C: "VM recycled or lost -
+/// full fidelity comes from the log plus [snapshots]"). Recreate the
+/// mission from the durable substrate ALONE: resume the most recent
+/// mission stream, restore its newest `SnapshotRef` into a fresh workdir,
+/// book the recovery honestly measured (tier budgets are "reported
+/// honestly", never rounded down). Returns what was recreated so the
+/// caller resumes the session on `recover.stream`.
+pub struct ColdRecovery {
+    pub stream: uuid::Uuid,
+    pub snapshot_id: Option<String>,
+    pub files_restored: u64,
+    pub duration_ms: u64,
+}
+pub fn cold_recover(run: &Path) -> Result<ColdRecovery, LoopError> {
+    let t0 = std::time::Instant::now();
+    let info = list_sessions(run)
+        .into_iter()
+        .next()
+        .ok_or_else(|| LoopError::Visibility(format!("no streams under {}", run.display())))?;
+    let reader = hs_log::StreamReader::open(run, info.id)?;
+    let events = reader.events()?;
+    let snapshot_id = events
+        .iter()
+        .rev()
+        .filter(|e| e.kind == hs_core::EventKind::SnapshotRef)
+        .find_map(|e| {
+            reader
+                .resolve_payload(e)
+                .ok()
+                .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
+                .and_then(|v| v.get("snapshot_id")?.as_str().map(str::to_string))
+        });
+    let mut files_restored = 0u64;
+    if let Some(id) = &snapshot_id {
+        let world = hs_world::World::open(run).map_err(|e| LoopError::World(format!("{e:?}")))?;
+        let rep = world
+            .restore(id, &run.join("work"))
+            .map_err(|e| LoopError::World(format!("{e:?}")))?;
+        files_restored = rep.files;
+    }
+    let duration_ms = t0.elapsed().as_millis() as u64;
+    let mut w = hs_log::StreamWriter::resume(run, info.id)?.writer;
+    w.append(
+        hs_core::EventBuilder::new(hs_core::EventKind::Observation).payload(
+            hs_core::Payload::Inline(
+                format!(
+                    "recovery tier=C cold-recreate snapshot_id={} files={files_restored} duration_ms={duration_ms}",
+                    snapshot_id.clone().unwrap_or_else(|| "none".to_string())
+                )
+                .into_bytes(),
+            ),
+        ),
+    )?;
+    Ok(ColdRecovery {
+        stream: info.id,
+        snapshot_id,
+        files_restored,
+        duration_ms,
+    })
+}
+
 /// Resuming your own live stream would fork state mid-run; pi/omp
 /// pickers never list it. Same listing as `list_sessions`, minus the
 /// active stream id. A foreign id excludes nothing.
@@ -669,7 +756,8 @@ pub fn session_line(i: usize, info: &SessionInfo) -> String {
 /// complete their commands at the prompt; hs-repl made the operator
 /// type them from memory). Pure prefix function so it is testable
 /// without a TTY; `CommandCompleter` adapts it to rustyline.
-pub const REPL_COMMANDS: &[&str] = &[":help", ":history", ":last", ":quit", ":status"];
+pub const REPL_COMMANDS: &[&str] =
+    &[":help", ":history", ":last", ":quit", ":restore", ":snapshot", ":status"];
 
 /// Completions for a command prefix. Only colon-prefixed input
 /// completes; goal text never does.
@@ -929,6 +1017,26 @@ pub fn run_interactive<E: Editor + ?Sized>(
             ReplCommand::LastAnswer => match session.last_answer() {
                 Some(a) => println!("{a}"),
                 None => eprintln!("no mission has run yet"),
+            },
+            ReplCommand::Snapshot => match session.snapshot_workdir() {
+                Ok(r) => println!(
+                    "{}",
+                    serde_json::to_string(&serde_json::json!({
+                        "snapshot_id": r.snapshot_id, "files": r.files, "bytes": r.bytes,
+                    }))
+                    .expect("json! values serialize")
+                ),
+                Err(e) => eprintln!("snapshot failed: {e}"),
+            },
+            ReplCommand::Restore(id) => match session.restore_workdir(&id) {
+                Ok(r) => println!(
+                    "{}",
+                    serde_json::to_string(&serde_json::json!({
+                        "restored": r.snapshot_id, "files": r.files, "bytes": r.bytes,
+                    }))
+                    .expect("json! values serialize")
+                ),
+                Err(e) => eprintln!("restore failed: {e}"),
             },
             ReplCommand::Unknown(c) => {
                 eprintln!("unknown command {c} (:help lists commands)");

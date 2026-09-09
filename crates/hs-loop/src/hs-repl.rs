@@ -146,6 +146,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Some(a) => println!("{a}"),
                         None => eprintln!("no mission has run yet"),
                     },
+                    ReplCommand::Snapshot => match session.snapshot_workdir() {
+                        Ok(r) => println!(
+                            "{}",
+                            serde_json::to_string(&serde_json::json!({
+                                "snapshot_id": r.snapshot_id, "files": r.files, "bytes": r.bytes,
+                            }))
+                            .expect("json! values serialize")
+                        ),
+                        Err(e) => eprintln!("snapshot failed: {e}"),
+                    },
+                    ReplCommand::Restore(id) => match session.restore_workdir(&id) {
+                        Ok(r) => println!(
+                            "{}",
+                            serde_json::to_string(&serde_json::json!({
+                                "restored": r.snapshot_id, "files": r.files, "bytes": r.bytes,
+                            }))
+                            .expect("json! values serialize")
+                        ),
+                        Err(e) => eprintln!("restore failed: {e}"),
+                    },
                     ReplCommand::Unknown(c) => {
                         eprintln!("unknown command {c} (:help lists commands)")
                     }
