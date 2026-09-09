@@ -1,2 +1,11 @@
-target/
-ops/subset/__pycache__/
+# Build output (slashless: matches the directory AND box-local symlinks)
+target
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Local bench/session output - never committed (spec: no test sessions)
+/realbench/
+/run/

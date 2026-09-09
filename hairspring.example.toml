@@ -1,65 +1,80 @@
-# HAIRSPRING example rig for hs-repl: one live model + the repo tools.
-# BLIND completion mode (the mode results are proved in, Eric 2026-09-07):
-# the mission's stop authority is the agent's OWN declared checks - the agent
-# writes its verification commands, one per line, into .hs/checks in its
-# candidate (harness machinery; it never joins the submitted patch), and
-# checker.run is green only when every one passes. No ground-truth
-# FAIL_TO_PASS enters the mission: it grades after the fact, outside
-# (hs-swe-run --mode blind --grade-cmd "..."). The f2p rig remains available
-# for development: swap checker.run to ./target/debug/hs-plugin-swecheck and
-# set HS_SWE_F2P.
+# HAIRSPRING rig for hs-repl: tools + models the loop can use.
 #
-# Required env:
-#   HS_DEEPSEEK_API_KEY_FILE  - file holding the DeepSeek API key
-#                               (or HS_DEEPSEEK_API_KEY with the key itself)
-#   HS_SWE_WORKSPACE          - the repo checkout the agent works on
-# Optional env (f2p dev rig only):
-#   HS_SWE_F2P / HS_SWE_P2P / HS_SWE_SETUP - ground-truth commands for swecheck
+# install.sh writes a copy of this file to
+# ~/.config/hairspring/hairspring.toml with @PREFIX@ replaced by the
+# real install prefix - edit that copy, not this template.
 #
-# One-shot:  target/debug/hs-repl run --goal "your goal" --config hairspring.example.toml --dir /tmp/hs-run
-# Interactive: target/debug/hs-repl --config hairspring.example.toml --dir /tmp/hs-run
+# Required env for live models:
+#   HS_DEEPSEEK_API_KEY       - DeepSeek API key
+#   HS_SWE_WORKSPACE          - repo checkout the agent may work on
+#     (or HS_DEEPSEEK_API_KEY_FILE pointing at a file holding the key)
+#
+# checker.run is the BLIND self-check rig: the agent declares its own
+# verification commands (.hs/checks in its candidate) and the checker is
+# green only when every one passes. No ground truth enters the mission.
 
 [[tools]]
 name = "answer.write"
-command = ["./target/debug/hs-plugin-answer"]
+command = ["@PREFIX@/bin/hs-plugin-answer"]
 subjects = ["*"]
 
 [[tools]]
 name = "answer.submit"
-command = ["./target/debug/hs-plugin-answersubmit"]
+command = ["@PREFIX@/bin/hs-plugin-answersubmit"]
 subjects = ["*"]
 
 [[tools]]
 name = "checker.run"
-command = ["./target/debug/hs-plugin-selfcheck"]
+command = ["@PREFIX@/bin/hs-plugin-selfcheck"]
 subjects = ["*"]
 
 [[tools]]
 name = "repo.read"
-command = ["./target/debug/hs-plugin-fileread"]
+command = ["@PREFIX@/bin/hs-plugin-fileread"]
 subjects = ["*"]
 
 [[tools]]
 name = "repo.search"
-command = ["./target/debug/hs-plugin-reposearch"]
+command = ["@PREFIX@/bin/hs-plugin-reposearch"]
 subjects = ["*"]
 
 [[tools]]
 name = "repo.exec"
-command = ["./target/debug/hs-plugin-repoexec"]
+command = ["@PREFIX@/bin/hs-plugin-repoexec"]
 subjects = ["*"]
 
 [[tools]]
 name = "edit.apply"
-command = ["./target/debug/hs-plugin-editapply"]
+command = ["@PREFIX@/bin/hs-plugin-editapply"]
 subjects = ["*"]
 
 [[tools]]
 name = "notes.scratch"
-command = ["./target/debug/hs-plugin-notescratch"]
+command = ["@PREFIX@/bin/hs-plugin-notescratch"]
+subjects = ["*"]
+
+# Async sub-agent delegation: agent.spawn returns immediately, children
+# run concurrently, agent.spawn_poll reports their outcomes.
+[[tools]]
+name = "agent.spawn"
+command = ["@PREFIX@/bin/hs-plugin-swarm"]
+subjects = ["*"]
+
+[[tools]]
+name = "agent.spawn_poll"
+command = ["@PREFIX@/bin/hs-plugin-swarm", "--as", "agent.spawn_poll"]
 subjects = ["*"]
 
 [[models]]
 name = "deepseek"
-command = ["./target/debug/hs-plugin-deepseek"]
+command = ["@PREFIX@/bin/hs-plugin-deepseek"]
 default = true
+subjects = ["*"]
+
+# Offline model for a zero-network trial: replays a fixed script, then
+# answers. Uncomment default here (and comment it above) to try the loop
+# with no API key.
+[[models]]
+name = "scripted"
+command = ["@PREFIX@/bin/hs-plugin-scripted"]
+subjects = ["*"]
