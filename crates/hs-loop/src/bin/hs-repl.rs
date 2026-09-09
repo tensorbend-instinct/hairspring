@@ -307,6 +307,13 @@ fn run_fullscreen(
                         }
                         Err(e) => st.push_transcript_line(&format!("mission failed: {e}")),
                     }
+                    // Eric's five #1: the mission finished - run the
+                    // head of the queued goals next, if any.
+                    if let Some(next) = st.next_queued_goal() {
+                        running = true;
+                        st.push_goal_echo(&next);
+                        let _ = goal_tx.send(UiCmd::Goal(next));
+                    }
                 }
                 TuiMsg::Switched(r) => match r {
                     Ok((label, short, id)) => {
@@ -400,9 +407,9 @@ fn run_fullscreen(
                                 st.push_goal_echo(&t);
                                 let _ = goal_tx.send(UiCmd::Goal(t));
                             } else {
-                                st.push_transcript_line(
-                                    "(mission in flight - queued input is a later milestone)",
-                                );
+                                // Eric's five #1: mid-mission goals
+                                // QUEUE (FIFO) instead of dropping.
+                                st.queue_goal(&t);
                             }
                         }
                     }

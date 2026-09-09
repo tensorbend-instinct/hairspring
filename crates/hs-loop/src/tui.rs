@@ -91,7 +91,7 @@ pub fn kind_glyph(k: EventKind) -> char {
 /// REPL_HELP, which advertised :status/:history/:last as dead ends
 /// and never mentioned :resume/:agents.
 pub const TUI_HELP: &str = "hairspring - full-screen surface
-  <text>    run <text> as a goal (mission)
+  <text>    run <text> as a goal (queues behind a running mission)
   :status   model, missions, steps, calls, cost, stream of this session
   :history  goals you have submitted this session
   :last     the latest mission's answer artifact
@@ -933,6 +933,10 @@ pub struct TuiState {
     pub agents_panel: bool,
     /// Recent stream events, oldest first; the rail ticker shows the tail.
     pub ticker: VecDeque<EventKind>,
+    /// Eric's five #1: goals submitted while a mission runs queue here
+    /// FIFO instead of being dropped. Drained by the bin's event loop
+    /// when the in-flight mission reports Done.
+    pub queued_goals: VecDeque<String>,
     /// Surface theme (M9): every style on the surface derives from it;
     /// the bin fills it from HS_THEME.
     pub theme: crate::uipaint::Theme,
@@ -959,6 +963,7 @@ impl Default for TuiState {
             agents: DelegationGraph::new(),
             agents_panel: false,
             ticker: VecDeque::new(),
+            queued_goals: VecDeque::new(),
             theme: crate::uipaint::Theme::dark(),
             model_label: "hs".to_string(),
             missions_run: 0,
@@ -1142,6 +1147,27 @@ impl TuiState {
 
     /// M11: echo a submitted goal; multi-line goals keep their line
     /// breaks (one transcript line per goal line).
+    /// Queue a goal submitted mid-mission; echoes its 1-based
+    /// position so the operator sees the work was accepted. Returns
+    /// the position.
+    pub fn queue_goal(&mut self, goal: &str) -> usize {
+        self.queued_goals.push_back(goal.to_string());
+        let pos = self.queued_goals.len();
+        self.push_transcript_line(&format!("queued #{pos} › {goal}"));
+        pos
+    }
+
+    /// Pop the next queued goal (FIFO) for dispatch after the running
+    /// mission reports Done.
+    pub fn next_queued_goal(&mut self) -> Option<String> {
+        self.queued_goals.pop_front()
+    }
+
+    /// How many goals wait behind the running mission.
+    pub fn queued_count(&self) -> usize {
+        self.queued_goals.len()
+    }
+
     pub fn push_goal_echo(&mut self, text: &str) {
         for (i, line) in text.lines().enumerate() {
             if i == 0 {
