@@ -1,12 +1,10 @@
 //! RED: a LOST child's registry marker must not occupy a delegation
-//! concurrency slot forever. Children are threads of the plugin
-//! process; when the owning plugin dies, its markers
-//! (<id>.spawn.json with no <id>.report.json) outlive it. Poll
-//! already reports such markers "lost" (they predate the surviving
-//! process), but the spawn-side cap check counted them as RUNNING:
-//! after `max_children` plugin deaths every spawn was refused on a
-//! completely empty pipeline. Fix: `running_count` applies the same
-//! stale-vs-process-start predicate as poll.
+//! concurrency slot forever. Children are threads of their OWNER
+//! plugin process; when the owner dies, its markers (<id>.spawn.json
+//! with no <id>.report.json) outlive it. After the owner-proof fix,
+//! poll's "lost" verdict and the spawn-side cap are driven by the SAME
+//! predicate (owner alive with matching /proc start tick) - a dead
+//! owner's marker frees its slot, a live owner's marker holds it.
 
 use std::io::Write;
 use std::process::{Command, Stdio};
@@ -34,32 +32,60 @@ fn spawn_once(dir: &std::path::Path) -> String {
     String::from_utf8_lossy(&out.stdout).into_owned()
 }
 
-fn plant_marker(dir: &std::path::Path, cid: &str, started_at_ms: i64) {
+fn proc_start_ticks(pid: u32) -> u64 {
+    // /proc/<pid>/stat field 22 (starttime, ticks since boot); comm may
+    // contain parens/spaces, so anchor on the last ')'.
+    let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).unwrap();
+    stat.rsplit(") ")
+        .next()
+        .unwrap()
+        .split_whitespace()
+        .nth(19)
+        .unwrap()
+        .parse()
+        .unwrap()
+}
+
+fn owner_marker(dir: &std::path::Path, cid: &str, pid: u32, ticks: u64) {
     let swarm = dir.join("swarm");
     std::fs::create_dir_all(&swarm).unwrap();
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64;
     std::fs::write(
         swarm.join(format!("{cid}.spawn.json")),
         format!(
-            "{{\"child_stream_id\":\"{cid}\",\"parent_stream\":\"p\",\"mission\":\"m\",\"started_at_ms\":{started_at_ms}}}"
+            "{{\"child_stream_id\":\"{cid}\",\"parent_stream\":\"p\",\"mission\":\"m\",\"started_at_ms\":{now_ms},\"owner_pid\":{pid},\"owner_start_ticks\":{ticks}}}"
         ),
     )
     .unwrap();
 }
 
 #[test]
-fn r1_stale_corpse_marker_does_not_consume_a_concurrency_slot() {
+fn r1_dead_owners_marker_does_not_consume_a_concurrency_slot() {
     let dir = std::env::temp_dir().join("swarm-cap-r1");
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     // Minimal kernel config so the call reaches the cap check.
     std::fs::write(dir.join("hairspring.toml"), "[[models]]\nname = \"none\"\n").unwrap();
-    // Corpse: stamped long before ANY process started now; poll reports
-    // it "lost". Cap = 1 and this is the only marker.
-    plant_marker(&dir, "deadbeef-0000-0000-0000-00000000dead", 1_000_000);
+    // A real process stands in for the owning plugin; kill it so the
+    // marker is a corpse (owner dead). Cap = 1 and this is the only
+    // marker.
+    let mut owner = Command::new("sleep")
+        .arg("30")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let ticks = proc_start_ticks(owner.id());
+    let _ = owner.kill();
+    let _ = owner.wait();
+    owner_marker(&dir, "deadbeef-0000-0000-0000-00000000dead", owner.id(), ticks);
     let body = spawn_once(&dir);
     assert!(
         !body.contains("concurrency limit"),
-        "a dead plugin's marker must not hold the only slot: {body}"
+        "a dead owner's marker must not hold the only slot: {body}"
     );
     assert!(
         body.contains("child_stream_id") || body.contains("spawn:"),
@@ -68,17 +94,26 @@ fn r1_stale_corpse_marker_does_not_consume_a_concurrency_slot() {
 }
 
 #[test]
-fn r2_fresh_marker_from_the_living_plugin_still_refuses_at_cap() {
+fn r2_live_owners_marker_still_refuses_at_cap() {
     let dir = std::env::temp_dir().join("swarm-cap-r2");
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(dir.join("hairspring.toml"), "[[models]]\nname = \"none\"\n").unwrap();
-    // Future stamp: exactly what a thread-of-this-process marker looks
-    // like relative to the plugin's own start. It must still count.
-    plant_marker(&dir, "11111111-1111-4111-8111-111111111111", i64::MAX / 2);
+    // A LIVE owner: exactly what a marker for a child whose owner
+    // process is running looks like. It must hold its slot.
+    let mut owner = Command::new("sleep")
+        .arg("30")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let ticks = proc_start_ticks(owner.id());
+    owner_marker(&dir, "11111111-1111-4111-8111-111111111111", owner.id(), ticks);
     let body = spawn_once(&dir);
+    let _ = owner.kill();
+    let _ = owner.wait();
     assert!(
         body.contains("concurrency limit"),
-        "a genuinely running child must hold its slot: {body}"
+        "a child with a live owner must hold its slot: {body}"
     );
 }

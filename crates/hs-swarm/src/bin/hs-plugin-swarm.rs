@@ -40,47 +40,79 @@ fn running_count(dir: &std::path::Path) -> usize {
                     if dir.join(n.replace(".spawn.json", ".report.json")).exists() {
                         return false; // finished: report written
                     }
-                    // Children are threads of this process: a marker
-                    // stamped BEFORE it started belongs to a dead plugin,
-                    // and poll already reports that child "lost". A corpse
-                    // must not occupy a concurrency slot forever, so apply
-                    // the same predicate here. Keep the read cheap: only
-                    // candidates left.
+                    // Children are threads of their owner process; when
+                    // the owner is dead (or the marker cannot prove it),
+                    // poll reports the child "lost". A corpse must not
+                    // occupy a concurrency slot forever, so apply the same
+                    // predicate here. Keep the read cheap: only candidates
+                    // left.
                     !marker_is_corpse(&dir.join(&n))
                 })
                 .count()
         })
 }
 
-/// A registry marker is a corpse when it cannot prove it belongs to a
-/// child of THIS process: unparseable (killed mid-write), missing its
-/// `started_at_ms` stamp, or stamped before this process started. Honesty
-/// rule (poll's "lost" arm + the spawn cap): an undecidable marker names a
-/// DEAD child - it must never read as running and never hold a slot.
+/// A registry marker is a corpse when it cannot prove its OWNER process
+/// is alive: unparseable (killed mid-write), missing its owner proof
+/// (`owner_pid` + `owner_start_ticks`), the owner pid absent from
+/// /proc, or the pid present with a DIFFERENT start tick (owner died,
+/// pid reused). Honesty rule (poll's "lost" arm + the spawn cap): an
+/// undecidable marker names a DEAD child - children are threads of the
+/// owner process, so they cannot outlive it. The owner identity must
+/// come from the marker, never from the reader's own lifetime: spawn
+/// and poll are SEPARATE processes (the kernel registers the two names
+/// as two commands), so comparing against the reader's start time
+/// misjudges every child the moment poll restarts (live -> "lost")
+/// and every corpse while only spawn restarts (dead -> "running").
 fn marker_is_corpse(marker_path: &std::path::Path) -> bool {
-    let start = *PROCESS_START_MS.get().unwrap_or(&0);
     match std::fs::read_to_string(marker_path) {
         Ok(s) => match serde_json::from_str::<serde_json::Value>(&s) {
-            Ok(v) => v["started_at_ms"].as_i64().is_none_or(|ms| ms < start),
+            Ok(v) => {
+                let (Some(pid), Some(ticks)) =
+                    (v["owner_pid"].as_u64(), v["owner_start_ticks"].as_u64())
+                else {
+                    return true; // no verifiable owner = dead
+                };
+                !owner_process_alive(pid as u32, ticks)
+            }
             Err(_) => true, // corrupt JSON: killed mid-write
         },
         Err(_) => true, // unreadable: cannot prove liveness
     }
 }
 
-/// Process start stamp, captured at `main()` entry. Children are
-/// THREADS of this process, so a registry marker stamped BEFORE this
-/// stamp cannot belong to a living child: it died with the plugin
-/// process the kernel respawned us to replace. Poll reports such a
-/// marker "lost" instead of "running" forever (hostile-pass finding).
-static PROCESS_START_MS: std::sync::OnceLock<i64> = std::sync::OnceLock::new();
+/// This process's own /proc start ticks (for the ownership proof
+/// written into every marker).
+fn own_start_ticks() -> Option<u64> {
+    let stat = std::fs::read_to_string("/proc/self/stat").ok()?;
+    stat.rsplit(") ").next()?.split_whitespace().nth(19)?.parse().ok()
+}
+
+/// Is the owner process alive? /proc/<pid>/stat: comm (field 2) may
+/// contain spaces and parens, so anchor on the last ')' - the first
+/// token after it is state (field 3), starttime (ticks since boot) is
+/// index 19. A ZOMBIE still owns a /proc entry with its ORIGINAL start
+/// ticks (a killed plugin lingers until its parent reaps it), so a tick
+/// match alone would read a reaped-but-unwaited plugin as RUNNING
+/// forever (r3 wall-grind, 2026-09-09). Zombie/dead state = not alive.
+fn owner_process_alive(pid: u32, start_ticks: u64) -> bool {
+    let Some(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok() else {
+        return false;
+    };
+    let Some(after) = stat.rsplit(") ").next() else {
+        return false;
+    };
+    let mut fields = after.split_whitespace();
+    match fields.next() {
+        // Z (zombie: killed, unreaped) and X/x (dead) are the only states
+        // in which the owner's THREADS are gone. D/T/S/R are all living:
+        // a frozen or disk-sleeping plugin still owns its child threads.
+        Some("Z" | "X" | "x") | None => false,
+        Some(_) => fields.nth(18).and_then(|t| t.parse::<u64>().ok()) == Some(start_ticks),
+    }
+}
 
 fn main() {
-    PROCESS_START_MS.get_or_init(|| {
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.as_millis() as i64)
-    });
     // One binary, two registered names: the kernel validates the
     // describe handshake against the config slot name, so the poll
     // entry spawns us as `hs-plugin-swarm --as agent.spawn_poll`.
@@ -204,6 +236,12 @@ fn main() {
                         "started_at_ms": std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
                             .map_or(0, |d| d.as_millis() as i64),
+                        // Ownership proof: this process owns the child
+                        // threads; a reader in ANY other process can then
+                        // verify liveness (pid + start tick) instead of
+                        // guessing from its own lifetime.
+                        "owner_pid": std::process::id(),
+                        "owner_start_ticks": own_start_ticks().unwrap_or(0),
                     });
                     if let Err(e) = std::fs::write(
                         dir.join(format!("{child_id}.spawn.json")),

@@ -56,29 +56,52 @@ fn r1_stale_marker_from_a_dead_plugin_reports_lost_not_running() {
 }
 
 #[test]
-fn r2_fresh_marker_from_the_living_plugin_still_reports_running() {
+fn r2_live_owner_marker_reports_running() {
+    // The honest contract: a marker that names a verifiably ALIVE owner
+    // process (pid + /proc start ticks) reports running from a reader in
+    // ANY process. This test previously faked freshness with a FUTURE
+    // started_at_ms - the only representation the old reader-lifetime
+    // predicate could express. Owner-proof markers make the real
+    // scenario testable. (Full live-owner cycle incl. dead-owner and
+    // pid-reuse arms lives in spawn_registry_owner_red.rs.)
     let dir = std::env::temp_dir().join("swarm-poll-stale-r2");
     let _ = std::fs::remove_dir_all(&dir);
     let swarm = dir.join("swarm");
     std::fs::create_dir_all(&swarm).unwrap();
     let cid = "00000000-0000-0000-0000-000000000002";
-    // Stamped in the future relative to process start (i.e. by THIS or a
-    // later-started plugin): the child can still be alive.
-    let future_ms = std::time::SystemTime::now()
+    let mut owner = std::process::Command::new("sleep")
+        .arg("30")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .unwrap();
+    let stat = std::fs::read_to_string(format!("/proc/{}/stat", owner.id())).unwrap();
+    let ticks: u64 = stat
+        .rsplit(") ")
+        .next()
+        .unwrap()
+        .split_whitespace()
+        .nth(19)
+        .unwrap()
+        .parse()
+        .unwrap();
+    let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
-        .as_millis() as i64
-        + 60_000;
+        .as_millis() as i64;
     std::fs::write(
         swarm.join(format!("{cid}.spawn.json")),
         format!(
-            "{{\"child_stream_id\":\"{cid}\",\"parent_stream\":\"p\",\"mission\":\"m\",\"started_at_ms\":{future_ms}}}"
+            "{{\"child_stream_id\":\"{cid}\",\"parent_stream\":\"p\",\"mission\":\"m\",\"started_at_ms\":{now_ms},\"owner_pid\":{},\"owner_start_ticks\":{ticks}}}",
+            owner.id()
         ),
     )
     .unwrap();
     let body = poll_once(&dir, cid);
+    let _ = owner.kill();
+    let _ = owner.wait();
     assert!(
         body.contains("\"running\""),
-        "a marker from a living plugin reports running, got: {body}"
+        "a marker with a live owner reports running, got: {body}"
     );
 }
