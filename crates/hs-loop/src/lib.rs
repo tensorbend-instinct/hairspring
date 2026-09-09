@@ -974,12 +974,20 @@ impl InnerLoop {
                             {
                                 let cmission =
                                     out["mission"].as_str().unwrap_or("").to_string();
+                                // The child's model is Spawn-payload
+                                // provenance: reported by the spawner,
+                                // never inferred by the UI.
+                                let cmodel = out["model"]
+                                    .as_str()
+                                    .unwrap_or("(unknown)")
+                                    .to_string();
                                 self.writer.append(
                                     EventBuilder::new(EventKind::Spawn).payload(
                                         Payload::Inline(
                                             serde_json::to_vec(&serde_json::json!({
                                                 "child_stream_id": cid,
                                                 "mission": cmission,
+                                                "model": cmodel,
                                             }))
                                             .expect("json! values serialize"),
                                         ),
@@ -988,7 +996,9 @@ impl InnerLoop {
                                 if let Some(sink) = self.ui_sink.as_mut() {
                                     sink(uipaint::UiEvent::SubAgentSpawned {
                                         child: cid,
+                                        parent: Some(self.stream_id),
                                         mission: cmission,
+                                        model: cmodel,
                                     });
                                     sink(uipaint::UiEvent::SubAgentFinished {
                                         child: cid,

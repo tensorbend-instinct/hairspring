@@ -109,8 +109,13 @@ fn r1_delegation_runs_a_real_child_and_books_it() {
     );
 
     let parent = ledgers.get(&r.stream_id.to_string()).expect("parent stream");
-    // The parent stream records the Spawn event naming the child.
+    // The parent stream records the Spawn event naming the child AND
+    // the child's model (delegation provenance, spawner-reported).
     assert!(parent.contains("Spawn"), "parent books the Spawn event");
+    assert!(
+        parent.contains("\"model\":\"scripted\""),
+        "Spawn payload carries the child's model"
+    );
     let child_id = {
         const KEY: &str = "\"child_stream_id\":\"";
         let m = parent.find(KEY).expect("Spawn names the child") + KEY.len();

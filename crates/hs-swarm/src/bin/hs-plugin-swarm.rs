@@ -68,6 +68,7 @@ fn main() {
                     Ok(rep) => serde_json::json!({
                         "child_stream_id": rep.stream_id.to_string(),
                         "mission": rep.mission,
+                        "model": rep.model,
                         "passed": rep.passed,
                         "steps": rep.steps,
                         "cost_usd_micros": rep.cost_usd_micros,

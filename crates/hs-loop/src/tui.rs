@@ -571,10 +571,15 @@ pub enum AgentStatus {
     Failed,
 }
 
-/// One delegated sub-agent.
+/// One delegated sub-agent: the Spawn provenance (parent edge, model),
+/// not just the child id.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AgentNode {
     pub stream_id: uuid::Uuid,
+    /// The delegating stream (None = the operator's own stream).
+    pub parent: Option<uuid::Uuid>,
+    /// The model the child runs, from the Spawn payload.
+    pub model: String,
     pub mission: String,
     pub status: AgentStatus,
 }
@@ -594,17 +599,49 @@ impl DelegationGraph {
         &self.nodes
     }
 
-    /// Record a Spawn: child stream + mission, status Running.
-    pub fn note_spawn(&mut self, child: uuid::Uuid, mission: &str) {
+    /// Record a Spawn: child stream + parent edge + model + mission,
+    /// status Running.
+    pub fn note_spawn(
+        &mut self,
+        child: uuid::Uuid,
+        parent: Option<uuid::Uuid>,
+        mission: &str,
+        model: &str,
+    ) {
         if let Some(n) = self.nodes.iter_mut().find(|n| n.stream_id == child) {
             n.mission = mission.to_string();
+            n.model = model.to_string();
+            n.parent = parent;
             return;
         }
         self.nodes.push(AgentNode {
             stream_id: child,
+            parent,
+            model: model.to_string(),
             mission: mission.to_string(),
             status: AgentStatus::Running,
         });
+    }
+
+    /// Depth in the delegation tree: ancestors present in the graph.
+    /// Cycle-safe (a corrupt graph renders flat rather than hanging).
+    fn depth(&self, node: &AgentNode) -> usize {
+        let mut d = 0;
+        let mut cur = node.parent;
+        let mut seen = std::collections::HashSet::new();
+        while let Some(p) = cur {
+            if !seen.insert(p) {
+                break;
+            }
+            match self.nodes.iter().find(|n| n.stream_id == p) {
+                Some(n) => {
+                    d += 1;
+                    cur = n.parent;
+                }
+                None => break,
+            }
+        }
+        d
     }
 
     /// Record a child completion; newest knowledge wins.
@@ -646,7 +683,14 @@ impl DelegationGraph {
                 .and_then(|m| m.as_str())
                 .unwrap_or("(delegation)")
                 .to_string();
-            g.note_spawn(child, &mission);
+            // Streams booked before the model field existed read as
+            // unknown, never as an invented name.
+            let model = v
+                .get("model")
+                .and_then(|m| m.as_str())
+                .unwrap_or("(unknown)")
+                .to_string();
+            g.note_spawn(child, Some(stream), &mission, &model);
             // Completion: the child stream's latest GoalUpdate done flag.
             if let Ok(cr) = hs_log::StreamReader::open(log_root, child) {
                 if let Ok(cevents) = cr.events() {
@@ -1098,8 +1142,13 @@ impl TuiState {
                 self.push_ticker(EventKind::ToolCall);
                 self.push_transcript_line(&format!("\u{25b6} {plugin}  {args_summary}"));
             }
-            U::SubAgentSpawned { child, mission } => {
-                self.agents.note_spawn(*child, mission);
+            U::SubAgentSpawned {
+                child,
+                parent,
+                mission,
+                model,
+            } => {
+                self.agents.note_spawn(*child, *parent, mission, model);
                 self.push_ticker(EventKind::Spawn);
             }
             U::SubAgentFinished { child, ok } => {
@@ -1581,7 +1630,30 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
         let box_h = (nodes.len() as u16 + 2).min(viewport.height.max(3));
         let rect = Rect::new(area.width - box_w, viewport.y, box_w, box_h);
         f.render_widget(ratatui::widgets::Clear, rect);
-        let lines: Vec<Line> = nodes
+        // Indented tree: parents before children, depth from the
+        // parent chain, model on every node.
+        let mut order: Vec<&AgentNode> = Vec::with_capacity(nodes.len());
+        let mut stack: Vec<&AgentNode> = nodes
+            .iter()
+            .filter(|n| n.parent.is_none() || !nodes.iter().any(|m| Some(m.stream_id) == n.parent))
+            .collect();
+        stack.reverse();
+        let mut visited = std::collections::HashSet::new();
+        while let Some(n) = stack.pop() {
+            if !visited.insert(n.stream_id) {
+                continue;
+            }
+            order.push(n);
+            let mut kids: Vec<&AgentNode> = nodes
+                .iter()
+                .filter(|k| k.parent == Some(n.stream_id))
+                .collect();
+            kids.reverse();
+            for k in kids {
+                stack.push(k);
+            }
+        }
+        let lines: Vec<Line> = order
             .iter()
             .map(|n| {
                 let (glyph, style) = match n.status {
@@ -1590,10 +1662,16 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
                     AgentStatus::Failed => ("\u{2717}", Style::default().fg(Color::Red)),
                 };
                 let short: String = n.stream_id.to_string().chars().take(8).collect();
+                let indent = "  ".repeat(state.agents.depth(n));
                 Line::from(vec![
+                    Span::raw(indent),
                     Span::styled(format!("{glyph} "), style),
                     Span::styled(short, Style::default().add_modifier(Modifier::DIM)),
                     Span::raw(format!("  {}", n.mission)),
+                    Span::styled(
+                        format!("  \u{00b7} {}", n.model),
+                        Style::default().add_modifier(Modifier::DIM),
+                    ),
                 ])
             })
             .collect();

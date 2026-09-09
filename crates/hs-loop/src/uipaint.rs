@@ -169,7 +169,11 @@ pub enum UiEvent {
     /// UI gap #10 M6: a sub-agent was delegated to (hs-swarm Spawn).
     SubAgentSpawned {
         child: uuid::Uuid,
+        /// The delegating stream (None = the operator's own stream).
+        parent: Option<uuid::Uuid>,
         mission: String,
+        /// The model the child runs (Spawn-payload provenance).
+        model: String,
     },
     /// UI gap #10 M6: a delegated sub-agent finished.
     SubAgentFinished { child: uuid::Uuid, ok: bool },
@@ -292,12 +296,19 @@ impl<'a, W: Write> Painter<'a, W> {
                 );
                 let _ = writeln!(self.out);
             }
-            UiEvent::SubAgentSpawned { child, mission } => {
+            UiEvent::SubAgentSpawned {
+                child,
+                mission,
+                model,
+                ..
+            } => {
                 let dim = self.theme.dim.clone();
                 let tool = self.theme.tool.clone();
                 let short: String = child.to_string().chars().take(8).collect();
                 self.paint(&tool, "\u{2b21} agent ");
                 self.paint(&dim, &short);
+                let dim2 = self.theme.dim.clone();
+                self.paint(&dim2, &format!(" \u{00b7} {model}"));
                 self.paint(&dim, &format!("  {mission}"));
                 let _ = writeln!(self.out);
             }

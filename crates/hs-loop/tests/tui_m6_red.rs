@@ -12,7 +12,7 @@ use ratatui::{backend::TestBackend, Terminal};
 fn r1_spawn_and_completion() {
     let mut g = DelegationGraph::new();
     let child = uuid::Uuid::new_v4();
-    g.note_spawn(child, "research the cache layer");
+    g.note_spawn(child, None, "research the cache layer", "m-alpha");
     assert_eq!(g.nodes().len(), 1);
     assert_eq!(g.nodes()[0].mission, "research the cache layer");
     assert_eq!(g.nodes()[0].status, tui::AgentStatus::Running);
@@ -88,7 +88,7 @@ fn r3_agents_panel_overlay() {
     }
 
     let child = uuid::Uuid::new_v4();
-    st.agents.note_spawn(child, "delegate the lexer rewrite");
+    st.agents.note_spawn(child, None, "delegate the lexer rewrite", "m-alpha");
     st.toggle_agents_panel();
     st.toggle_agents_panel(); // was toggled on above with empty graph; ensure open
     term.draw(|f| tui::render_skeleton(f, &st)).unwrap();
@@ -114,7 +114,9 @@ fn r4_ui_event_spawn_seam() {
     let child = uuid::Uuid::new_v4();
     st.on_ui_event(&hs_loop::uipaint::UiEvent::SubAgentSpawned {
         child,
+        parent: None,
         mission: "scout the failing test".into(),
+        model: "m-alpha".into(),
     });
     assert_eq!(st.agents.nodes().len(), 1);
     st.on_ui_event(&hs_loop::uipaint::UiEvent::SubAgentFinished { child, ok: true });

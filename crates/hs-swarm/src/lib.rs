@@ -21,6 +21,9 @@ pub struct Child {
 pub struct ChildReport {
     pub stream_id: uuid::Uuid,
     pub mission: String,
+    /// The child's default model, from its own kernel config - the
+    /// spawner reports it so the UI never invents delegation context.
+    pub model: String,
     pub passed: bool,
     pub steps: u32,
     pub cost_usd_micros: i64,
@@ -154,6 +157,12 @@ impl Spawner {
 
     pub fn run_to_completion(&self, child: &Child) -> Result<ChildReport, SpawnError> {
         let kernel = hs_kernel::Kernel::load_with_log(&self.kernel_config, &self.log_root)?;
+        let model = kernel
+            .model_names()
+            .into_iter()
+            .find(|(_, is_default)| *is_default)
+            .map(|(name, _)| name)
+            .unwrap_or_else(|| "(unknown)".to_string());
         let mut l = hs_loop::InnerLoop::with_stream(
             kernel,
             &self.log_root,
@@ -171,6 +180,7 @@ impl Spawner {
         Ok(ChildReport {
             stream_id: child.stream_id,
             mission: child.mission.clone(),
+            model,
             passed: r.passed,
             steps: r.steps,
             cost_usd_micros: l.total_cost_micros() as i64,
