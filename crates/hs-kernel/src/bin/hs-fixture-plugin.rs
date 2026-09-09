@@ -5,6 +5,7 @@
 //!   rail-crash    rail: exits(1) on any rail.hook
 //!   flaky-tool    tool "flaky": exits(42) on first tool.call, works after
 //!   dies-always   tool: appends to state file (arg3) at startup, exits(1) on every tool.call
+//!   dies-stderr   tool: eprints dying words at startup, exits(1) on every tool.call
 //!   dies-unless-flag  tool: exits(1) on tool.call unless flag file (arg3) exists; then replies "revived"
 //!   hang-tool     tool "sleeper": sleeps 60s on tool.call (lease tests)
 //!   usage-error   tool "usageerr": well-formed {"error":...} on every tool.call (arg3: state file); process stays healthy - supervisor must NOT strike
@@ -18,6 +19,9 @@ fn main() {
     let name_override = std::env::args().nth(2);
     if mode == "stderr-spew" {
         eprintln!("fixture-stderr-marker: spew plugin starting");
+    }
+    if mode == "dies-stderr" {
+        eprintln!("dying-words-marker: HS_DYING_API_KEY not set (fixture standing in for a real plugin's missing-key death)");
     }
     if mode == "usage-error"
         && let Some(state) = std::env::args().nth(2) {
@@ -57,6 +61,9 @@ fn main() {
                 "dies-always" => {
                     serde_json::json!({"id": id, "result": {"name": "zombie", "kind": "tool", "version": "0.1.0"}})
                 }
+                "dies-stderr" => {
+                    serde_json::json!({"id": id, "result": {"name": "dying", "kind": "tool", "version": "0.1.0"}})
+                }
                 "dies-unless-flag" => {
                     serde_json::json!({"id": id, "result": {"name": "revivable", "kind": "tool", "version": "0.1.0"}})
                 }
@@ -87,7 +94,7 @@ fn main() {
                     .to_string();
                 serde_json::json!({"id": id, "result": {"output": text}})
             }
-            ("dies-always", "tool.call") => {
+            ("dies-always" | "dies-stderr", "tool.call") => {
                 std::process::exit(1);
             }
             ("dies-unless-flag", "tool.call") => {

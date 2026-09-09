@@ -40,14 +40,31 @@ fn artifact_on_disk(prompt: &str) -> bool {
     !b.is_empty() && b != "<none>"
 }
 
-fn main() {
-    let script: Vec<String> = std::fs::read_to_string(std::env::var("HS_SEQMODEL_SCRIPT").unwrap())
-        .unwrap()
+/// The script loads LAZILY, per call, never at startup (stranger-path
+/// burns 2026-09-09, runs 1+2): the shipped example config wires this
+/// plugin as the offline trial model, and a startup panic on the missing
+/// env killed the whole kernel - EVERY run, key or no key - with a naked
+/// `plugin exited (EOF)`. Inert until called: describe always answers; a
+/// call without a script gets a `$error` naming exactly what to set.
+fn load_script() -> Result<Vec<String>, String> {
+    let path = std::env::var("HS_SEQMODEL_SCRIPT").map_err(|_| {
+        "HS_SEQMODEL_SCRIPT not set - point it at a .jsonl file of scripted          model replies (the repo ships examples/seqmodel-demo.jsonl)"
+            .to_string()
+    })?;
+    let text = std::fs::read_to_string(&path)
+        .map_err(|e| format!("HS_SEQMODEL_SCRIPT {path}: {e}"))?;
+    let script: Vec<String> = text
         .lines()
         .filter(|l| !l.trim().is_empty())
         .map(std::string::ToString::to_string)
         .collect();
-    assert!(!script.is_empty(), "empty seqmodel script");
+    if script.is_empty() {
+        return Err(format!("HS_SEQMODEL_SCRIPT {path}: empty script"));
+    }
+    Ok(script)
+}
+
+fn main() {
     let deltas = std::env::var("HS_SEQMODEL_DELTAS").as_deref() == Ok("1");
     let mut n = 0usize;
     // Per-instance identity: a fixture wiring the same binary as
@@ -76,6 +93,10 @@ fn main() {
                         "cost_usd_micros": 500
                     });
                 }
+                let script = match load_script() {
+                    Ok(s) => s,
+                    Err(e) => return serde_json::json!({"$error": e}),
+                };
                 // Eric's five #2/#3: the provider is PROMPT-AWARE - it
                 // answers what the request asks, not just the next
                 // script line. Pre-fix the verifier (offered

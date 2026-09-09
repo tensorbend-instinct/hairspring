@@ -232,8 +232,17 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
             std::env::set_var("HS_SWE_WORKSPACE", &work);
             if live_machine {
                 std::env::set_var("HS_SELFCHECK_DIRECT", "1");
+                // Stranger-path burn (2026-09-09, run dir /tmp/hs-demo): on
+                // the live surface the submission is the machine state plus
+                // the agent's summary (tb semantics) - without
+                // HS_ANSWER_RAW the answersubmit plugin demanded a
+                // candidate-worktree diff ("make your fix with edit.patch
+                // first", a tool this surface does not register) and every
+                // live-surface mission ran to steps_exhausted.
+                std::env::set_var("HS_ANSWER_RAW", "1");
             } else if candidate_surface {
                 std::env::remove_var("HS_SELFCHECK_DIRECT");
+                std::env::remove_var("HS_ANSWER_RAW");
             }
         }
         Ok(())

@@ -5,6 +5,7 @@
 #
 # Layout it creates:
 #   ~/.local/share/hairspring/bin   the hs-repl binary + runtime plugins
+#   ~/.local/share/hairspring/seqmodel-demo.jsonl  the offline demo script
 #   ~/.local/bin/hairspring         the command on your PATH
 #   ~/.config/hairspring/hairspring.toml  your rig (created once, then yours)
 set -eu
@@ -33,6 +34,7 @@ mkdir -p "$PREFIX/bin" "$BINLINK_DIR" "$CONFIG_DIR"
 for b in $BINS; do
     cp "$SRC/target/release/$b" "$PREFIX/bin/$b"
 done
+cp "$SRC/examples/seqmodel-demo.jsonl" "$PREFIX/seqmodel-demo.jsonl"
 ln -sf "$PREFIX/bin/hs-repl" "$BINLINK_DIR/hairspring"
 
 if [ ! -f "$CONFIG_DIR/hairspring.toml" ]; then
@@ -49,6 +51,10 @@ Installed. Next:
   3. Run a mission:       hairspring run --goal "your goal" --config $CONFIG_DIR/hairspring.toml --dir /tmp/hs-run
      Interactive TUI:     hairspring --config $CONFIG_DIR/hairspring.toml --dir /tmp/hs-run
 
-No API key? The config ships an offline "scripted" model - swap
-default = true onto it to try the loop with zero network.
+No API key? Offline demo mission (zero network):
+  export HS_SEQMODEL_SCRIPT=$PREFIX/seqmodel-demo.jsonl
+  In $CONFIG_DIR/hairspring.toml, move default = true from the
+  deepseek model to the scripted model (it has a commented line ready),
+  then:
+  hairspring run --goal "write hello.txt containing hello" --config $CONFIG_DIR/hairspring.toml --dir /tmp/hs-demo
 MSG

@@ -1,5 +1,5 @@
 //! Real-model plugin "deepseek": `DeepSeek` via api.deepseek.com (OpenAI-shaped).
-//! Key from `HS_GLM_API_KEY` or `HS_GLM_API_KEY_FILE` (vault-populated).
+//! Key from `HS_DEEPSEEK_API_KEY` or `HS_DEEPSEEK_API_KEY_FILE`.
 //! Used by the real-model ablation re-run; the unit suite stays on the
 //! scripted benchmodel.
 include!("shared/sdk.rs");

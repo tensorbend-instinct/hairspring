@@ -148,6 +148,12 @@ struct PluginProc {
     lines: std::sync::mpsc::Receiver<Result<String, String>>,
     next_id: u64,
     lease: std::time::Duration,
+    /// Where this process's stderr was captured at spawn (when a log root
+    /// is configured). A dead plugin's dying words live here; the EOF error
+    /// surfaces their tail so the console failure says what to fix
+    /// (stranger-path burn 2026-09-09: a missing model API key printed
+    /// only `plugin exited (EOF)`).
+    stderr_path: Option<std::path::PathBuf>,
 }
 
 impl PluginProc {
@@ -213,7 +219,28 @@ impl PluginProc {
             lines: rx,
             next_id: 0,
             lease: std::time::Duration::from_secs(lease_secs.unwrap_or(DEFAULT_LEASE_SECS)),
+            stderr_path: stderr_log.map(std::path::Path::to_path_buf),
         })
+    }
+
+    /// The EOF error: `plugin exited (EOF)` plus the tail of the plugin's
+    /// captured stderr when a log path exists - a dying plugin's own words
+    /// (missing key, bad arg, panic message) are the actionable part.
+    fn eof_detail(&self) -> String {
+        let base = "plugin exited (EOF)".to_string();
+        let Some(p) = &self.stderr_path else {
+            return base;
+        };
+        let Ok(bytes) = std::fs::read(p) else {
+            return format!("{base} (stderr log {} unreadable)", p.display());
+        };
+        let start = bytes.len().saturating_sub(600);
+        let tail = String::from_utf8_lossy(&bytes[start..]);
+        let tail = tail.trim();
+        if tail.is_empty() {
+            return format!("{base} (stderr log {} empty)", p.display());
+        }
+        format!("{base}; stderr {}: {tail}", p.display())
     }
 
     /// One request/response round trip. A dead plugin (EOF / no response /
@@ -252,7 +279,7 @@ impl PluginProc {
                 }
             };
             if line.is_empty() {
-                return Err(KernelError::Plugin("plugin exited (EOF)".into()));
+                return Err(KernelError::Plugin(self.eof_detail()));
             }
             let v: serde_json::Value = serde_json::from_str(&line)
                 .map_err(|e| KernelError::Protocol(format!("bad json from plugin: {e}")))?;

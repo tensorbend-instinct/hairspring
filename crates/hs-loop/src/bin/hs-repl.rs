@@ -516,8 +516,39 @@ fn run_fullscreen(
 }
 
 
+const USAGE: &str = "hairspring - the HAIRSPRING loop: one-shot missions and the interactive REPL
+
+USAGE:
+  hairspring run --goal \"<goal>\" --config <rig.toml> --dir <run-dir> [flags]
+  hairspring --config <rig.toml> --dir <run-dir> [flags]     (interactive REPL)
+
+FLAGS:
+  --config <path>        rig config (tools + models); install.sh wrote one to
+                         ~/.config/hairspring/hairspring.toml
+  --dir <path>           run directory (streams/, work/, stderr/ plugin logs)
+  --goal <text>          one-shot mission (run mode); omit for the REPL
+  --feedback on          mission memory feedback (default off)
+  --max-steps <n>        step cap per mission (default 25)
+  --budget-micros <n>    per-mission spend cap in USD micros
+  --wall-secs <n>        wall-clock cap per mission
+  --resume [stream-id]   resume a prior session (bare: pick from a list)
+  --fork <stream-id>     fork a prior session
+  -h, --help             print this text
+
+Live models need their key env (e.g. HS_DEEPSEEK_API_KEY). For a
+zero-network trial run the scripted model instead - see the README's
+offline quickstart (HS_SEQMODEL_SCRIPT + examples/seqmodel-demo.jsonl).
+";
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
+    // Stranger-path burn (2026-09-09): `--help` must not fall into
+    // parse_opts and panic on `--config required` - the first command a
+    // new user runs prints usage and exits 0.
+    if args.iter().skip(1).any(|a| a == "--help" || a == "-h") {
+        print!("{USAGE}");
+        return Ok(());
+    }
     let one_shot_goal = if args.get(1).map(std::string::String::as_str) == Some("run") {
         Some(arg(&args, "--goal").expect("--goal required in run mode"))
     } else {

@@ -38,9 +38,29 @@ hairspring run --goal "fix the off-by-one in src/parser.rs" \
 hairspring --config ~/.config/hairspring/hairspring.toml --dir /tmp/hs-run
 ```
 
-No API key? The shipped config includes an offline `scripted` model; make it
-the default to try the loop with zero network. In the TUI, `:agents` shows
-live sub-agent delegations mid-run.
+In the TUI, `:agents` shows live sub-agent delegations mid-run.
+
+### Offline trial (no API key)
+
+The install ships a scripted model that replays a fixed two-step demo
+mission with zero network. Point it at the installed script and make it
+the default:
+
+```sh
+export HS_SEQMODEL_SCRIPT=~/.local/share/hairspring/seqmodel-demo.jsonl
+# in ~/.config/hairspring/hairspring.toml: comment `default = true` on the
+# deepseek model, uncomment it on the scripted model (line ready)
+
+hairspring run --goal "write hello.txt containing hello" \
+    --config ~/.config/hairspring/hairspring.toml --dir /tmp/hs-demo
+```
+
+The demo writes `hello.txt` under `/tmp/hs-demo/work`, declares its own
+check, and submits - a full graded mission with no provider. Without
+`HS_SEQMODEL_SCRIPT` the scripted model stays inert: missions that call it
+get an error naming the variable, and live models are unaffected. A missing
+or wrong live key fails the mission with a message naming the key env var -
+check the run's `stderr/` logs for a plugin's own dying words.
 
 ## Architecture
 

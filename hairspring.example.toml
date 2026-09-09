@@ -66,9 +66,17 @@ default = true
 subjects = ["*"]
 
 # Offline model for a zero-network trial: replays a fixed script, then
-# answers. Uncomment default here (and comment it above) to try the loop
-# with no API key.
+# answers. To try the loop with no API key:
+#   1. export HS_SEQMODEL_SCRIPT=@PREFIX@/seqmodel-demo.jsonl
+#      (installed by install.sh; the script pairs with this exact run:
+#      hairspring run --goal "write hello.txt containing hello" \
+#          --config <this file> --dir /tmp/hs-demo)
+#   2. comment out `default = true` on the deepseek model above and
+#      uncomment the line below.
+# Without HS_SEQMODEL_SCRIPT the model stays inert: missions that call it
+# get an error naming the variable, other models are unaffected.
 [[models]]
 name = "scripted"
 command = ["@PREFIX@/bin/hs-plugin-scripted"]
+# default = true
 subjects = ["*"]
