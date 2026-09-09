@@ -46,17 +46,26 @@ fn running_count(dir: &std::path::Path) -> usize {
                     // must not occupy a concurrency slot forever, so apply
                     // the same predicate here. Keep the read cheap: only
                     // candidates left.
-                    let stale = std::fs::read_to_string(dir.join(&n))
-                        .ok()
-                        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
-                        .and_then(|v| v["started_at_ms"].as_i64())
-                        .is_some_and(|ms| {
-                            ms < *PROCESS_START_MS.get().unwrap_or(&i64::MAX)
-                        });
-                    !stale
+                    !marker_is_corpse(&dir.join(&n))
                 })
                 .count()
         })
+}
+
+/// A registry marker is a corpse when it cannot prove it belongs to a
+/// child of THIS process: unparseable (killed mid-write), missing its
+/// `started_at_ms` stamp, or stamped before this process started. Honesty
+/// rule (poll's "lost" arm + the spawn cap): an undecidable marker names a
+/// DEAD child - it must never read as running and never hold a slot.
+fn marker_is_corpse(marker_path: &std::path::Path) -> bool {
+    let start = *PROCESS_START_MS.get().unwrap_or(&0);
+    match std::fs::read_to_string(marker_path) {
+        Ok(s) => match serde_json::from_str::<serde_json::Value>(&s) {
+            Ok(v) => v["started_at_ms"].as_i64().is_none_or(|ms| ms < start),
+            Err(_) => true, // corrupt JSON: killed mid-write
+        },
+        Err(_) => true, // unreadable: cannot prove liveness
+    }
 }
 
 /// Process start stamp, captured at `main()` entry. Children are
@@ -104,18 +113,11 @@ fn main() {
                 }
                 let marker_path = dir.join(format!("{cid}.spawn.json"));
                 if marker_path.exists() {
-                    let stale = std::fs::read_to_string(&marker_path)
-                        .ok()
-                        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
-                        .and_then(|v| v["started_at_ms"].as_i64())
-                        .is_some_and(|ms| {
-                            ms < *PROCESS_START_MS.get().unwrap_or(&i64::MAX)
-                        });
-                    if stale {
+                    if marker_is_corpse(&marker_path) {
                         return serde_json::json!({
                             "status": "lost",
                             "child_stream_id": cid,
-                            "reason": "marker predates this plugin process: the child died with the plugin that owned it",
+                            "reason": "marker predates this plugin process or is unreadable/corrupt: the child it names is dead (a marker killed mid-write is never evidence of a live child)",
                         });
                     }
                     return serde_json::json!({"status": "running"});

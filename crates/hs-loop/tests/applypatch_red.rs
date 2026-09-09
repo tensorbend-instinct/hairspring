@@ -11,13 +11,16 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn fixture_ws() -> PathBuf {
+    // Uniqueness contract: clock nanos REPEAT across threads on this
+    // fleet (measured dup values, see commit ef0312e); a pid+nanos dir
+    // name collided here (concurrent `git init` on the same dir:
+    // "cannot copy ... description: File exists"). pid + process-local
+    // atomic counter is deterministic and can never collide cross-thread.
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
     let uniq = format!(
         "applypatch-{}-{}",
         std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     );
     let ws = std::env::temp_dir().join(uniq);
     std::fs::create_dir_all(ws.join("src")).unwrap();

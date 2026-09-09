@@ -69,6 +69,34 @@ fn stream_of(dir: &std::path::Path) -> uuid::Uuid {
     uuid::Uuid::parse_str(&entries.pop().unwrap()).unwrap()
 }
 
+
+// Poll until the victim has durably committed >= n events (observable
+// readiness), with a bounded budget. Replaces a fixed 500 ms sleep that
+// self-aborted this test ("kill landed too early") whenever the box was
+// under parallel-suite load: spawn + first steps can exceed 500/40 ms
+// per step under contention. Torn mid-write reads retry next poll.
+fn wait_for_events(dir: &std::path::Path, n: usize, budget: Duration) -> usize {
+    let t0 = Instant::now();
+    loop {
+        let count = std::fs::read_dir(dir.join("streams"))
+            .ok()
+            .and_then(|mut it| it.next())
+            .and_then(Result::ok)
+            .and_then(|e| uuid::Uuid::parse_str(&e.file_name().to_string_lossy()).ok())
+            .and_then(|sid| StreamReader::open(dir, sid).ok())
+            .and_then(|r| r.events().ok())
+            .map_or(0, |ev| ev.len());
+        if count >= n {
+            return count;
+        }
+        assert!(
+            t0.elapsed() < budget,
+            "victim never reached {n} events in {budget:?}: demo broken or environment too slow"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
 #[test]
 fn gate1_proof_1_kill_mid_run_resume_zero_loss() {
     // Reference: uninterrupted run.
@@ -105,7 +133,9 @@ fn gate1_proof_1_kill_mid_run_resume_zero_loss() {
         .stderr(Stdio::piped())
         .spawn()
         .unwrap();
-    std::thread::sleep(Duration::from_millis(500));
+    // Kill only once the victim observably has >= 5 committed steps:
+    // no wall-clock assumption about step pacing under load.
+    wait_for_events(dir.path(), 5, Duration::from_secs(10));
     child.kill().unwrap(); // SIGKILL: no atexit, no flush, no mercy
     let status = child.wait().unwrap();
     assert!(!status.success());
