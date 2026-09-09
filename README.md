@@ -85,6 +85,12 @@ The event log is the spine: plugins never write it, the loop is its only
 writer, and a crash at any point leaves consistent provenance on every
 stream.
 
+A note on the comments: doc comments cite the project's internal design
+spec by gate and section ("gate 3", "spec section 10 row 7") and live
+incidents by date. The spec itself is not in this repo; the anchors are
+kept so every fix stays traceable to the incident and design section that
+motivated it.
+
 ## Development
 
 ```sh

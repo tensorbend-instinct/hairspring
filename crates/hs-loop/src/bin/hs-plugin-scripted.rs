@@ -1,7 +1,11 @@
-//! Phase 1 test model "seqmodel": scripted completions from a file
-//! (`HS_SEQMODEL_SCRIPT`), one JSON line per model.call, cycling on the last
-//! line when the script runs out. This isolates loop behavior (supervisor
-//! aborts, progress booking) from any real model.
+//! Scripted model plugin (serves "scripted"): completions replayed from a
+//! file (`HS_SEQMODEL_SCRIPT`), one JSON line per model.call, cycling on
+//! the last line when the script runs out. Two jobs: the suite's
+//! deterministic model (loop mechanics isolated from any real model), and
+//! the shipped OFFLINE trial model - the example config wires it so a new
+//! user can run a full mission with zero network (see the README's offline
+//! trial). The script loads lazily per call: without the env var the
+//! plugin stays inert and names what to set.
 include!("shared/sdk.rs");
 
 /// The `ANSWER_PATH` value out of the operator prompt's volatile tail.

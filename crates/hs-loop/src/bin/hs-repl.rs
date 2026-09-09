@@ -560,14 +560,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // log root + kernel config from the environment (plugin processes
     // only see env + args; the loop injects the per-call parent
     // stream id itself).
-    // FIXME: Audit that the environment access only happens in single-threaded code.
-    unsafe { std::env::set_var("HS_SWARM_LOG_ROOT", &opts.dir) };
-    // FIXME: Audit that the environment access only happens in single-threaded code.
-    unsafe { std::env::set_var("HS_SWARM_CONFIG", &opts.config) };
-    // FIXME: Audit that the environment access only happens in single-threaded code.
-    unsafe { std::env::set_var("HS_SWARM_FEEDBACK", if opts.feedback { "1" } else { "0" }) };
-    // FIXME: Audit that the environment access only happens in single-threaded code.
-    unsafe { std::env::set_var("HS_SWARM_MAX_STEPS", opts.max_steps.to_string()) };
+    // SAFETY: all four set_var calls run here at the top of main, before
+    // build_session spawns any plugin process and before any thread
+    // exists - the process env is only ever read afterwards.
+    unsafe {
+        std::env::set_var("HS_SWARM_LOG_ROOT", &opts.dir);
+        std::env::set_var("HS_SWARM_CONFIG", &opts.config);
+        std::env::set_var("HS_SWARM_FEEDBACK", if opts.feedback { "1" } else { "0" });
+        std::env::set_var("HS_SWARM_MAX_STEPS", opts.max_steps.to_string());
+    }
 
     // UI gap #7: `--resume` with no id lists prior sessions and lets the
     // operator pick one instead of pasting a raw stream uuid.
