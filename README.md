@@ -48,6 +48,8 @@ the default:
 
 ```sh
 export HS_SEQMODEL_SCRIPT=~/.local/share/hairspring/seqmodel-demo.jsonl
+export HS_SCRIPTED_PROMPT_AWARE=1   # scripted model answers the verifier
+                                    # audit honestly, not just replay lines
 # in ~/.config/hairspring/hairspring.toml: comment `default = true` on the
 # deepseek model, uncomment it on the scripted model (line ready)
 
@@ -56,7 +58,8 @@ hairspring run --goal "write hello.txt containing hello" \
 ```
 
 The demo writes `hello.txt` under `/tmp/hs-demo/work`, declares its own
-check, and submits - a full graded mission with no provider. Without
+check, submits, and closes `verified` (checker green + verifier audit) - a
+full graded mission with no provider. Without
 `HS_SEQMODEL_SCRIPT` the scripted model stays inert: missions that call it
 get an error naming the variable, and live models are unaffected. A missing
 or wrong live key fails the mission with a message naming the key env var -

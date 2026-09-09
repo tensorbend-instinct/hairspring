@@ -181,3 +181,51 @@ fn t3_scripted_model_without_env_stays_alive_and_says_why() {
     let _ = child.wait();
 }
 
+/// T4: the OFFLINE DEMO's verifier round. The mission verifier is not a
+/// plugin - it is a model call carrying the `verdict.submit` schema. A
+/// dumb-replay script answers it with a replayed mission line and the
+/// mission closes `verifier_malfunction` (observed live on the stranger
+/// demo, 2026-09-09: `passed=true` but a broken-sounding outcome on the
+/// first run a new user ever sees). The scripted model's prompt-aware
+/// mode (`HS_SCRIPTED_PROMPT_AWARE=1`) answers the verdict schema honestly
+/// - the offline trial docs must opt in, and this pins the outcome the
+///   docs promise: `verified`.
+#[test]
+fn t4_offline_demo_closes_verified_in_prompt_aware_mode() {
+    let _g = ENV_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let dir = tempfile::tempdir().unwrap();
+    let log = tempfile::tempdir().unwrap();
+    let goal = "write hello.txt containing hello";
+    let answer = log
+        .path()
+        .join("work")
+        .join(goal_slug(goal))
+        .join("answer.txt");
+    let line1 = "{\"tool\":\"term.exec\",\"args\":{\"command\":\"printf 'hello\\n' > hello.txt && mkdir -p .hs && printf 'grep -q hello hello.txt\\n' > .hs/checks\"}}";
+    let line2 = format!(
+        "{{\"tool\":\"answer.submit\",\"args\":{{\"path\":\"{}\",\"summary\":\"wrote hello.txt containing hello; verified by the declared grep check\"}}}}",
+        answer.display()
+    );
+    let script = write(dir.path(), "script.jsonl", &format!("{line1}\n{line2}\n"));
+    unsafe {
+        std::env::remove_var("HS_MCP_SERVERS");
+        std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+        std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1");
+    }
+    let mut session = ReplSession::load(&live_config(dir.path()), log.path(), false, 8)
+        .expect("session load over the shipped terminal surface");
+    unsafe {
+        std::env::remove_var("HS_SEQMODEL_SCRIPT");
+        std::env::remove_var("HS_SCRIPTED_PROMPT_AWARE");
+    }
+    let r = session.run_goal(goal).expect("mission runs to a result");
+    assert!(r.passed, "the offline demo passes: {r:?}");
+    assert_eq!(
+        r.outcome, "verified",
+        "the offline trial docs promise a clean close - the scripted \
+         model's prompt-aware mode answers verdict.submit honestly \
+         (live stranger demo without it closed verifier_malfunction): {r:?}"
+    );
+}

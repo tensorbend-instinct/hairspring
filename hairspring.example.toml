@@ -68,7 +68,9 @@ subjects = ["*"]
 # Offline model for a zero-network trial: replays a fixed script, then
 # answers. To try the loop with no API key:
 #   1. export HS_SEQMODEL_SCRIPT=@PREFIX@/seqmodel-demo.jsonl
-#      (installed by install.sh; the script pairs with this exact run:
+#      export HS_SCRIPTED_PROMPT_AWARE=1   (answers the verifier audit
+#      honestly - without it the demo closes verifier_malfunction)
+#      (the script is installed by install.sh and pairs with this exact run:
 #      hairspring run --goal "write hello.txt containing hello" \
 #          --config <this file> --dir /tmp/hs-demo)
 #   2. comment out `default = true` on the deepseek model above and

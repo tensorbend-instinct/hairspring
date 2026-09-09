@@ -53,6 +53,7 @@ Installed. Next:
 
 No API key? Offline demo mission (zero network):
   export HS_SEQMODEL_SCRIPT=$PREFIX/seqmodel-demo.jsonl
+  export HS_SCRIPTED_PROMPT_AWARE=1
   In $CONFIG_DIR/hairspring.toml, move default = true from the
   deepseek model to the scripted model (it has a commented line ready),
   then:
