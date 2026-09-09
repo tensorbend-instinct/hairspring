@@ -29,6 +29,7 @@ fn r1_model_call_end_commits_inflight_answer() {
         model: "m".into(),
         input_tokens: 10,
         output_tokens: 5,
+        cost_usd_micros: 100,
     });
     assert!(
         !st.answer_inflight.is_empty(),
@@ -52,6 +53,7 @@ fn r2_successive_calls_commit_separately() {
         model: "m".into(),
         input_tokens: 1,
         output_tokens: 1,
+        cost_usd_micros: 100,
     });
     // M19: the next call's start is the disposition boundary that
     // commits the first call's prose.
@@ -61,6 +63,7 @@ fn r2_successive_calls_commit_separately() {
         model: "m".into(),
         input_tokens: 1,
         output_tokens: 1,
+        cost_usd_micros: 100,
     });
     st.commit_answer_tail();
     let text = transcript_text(&st);
@@ -87,6 +90,7 @@ fn r3_empty_inflight_commits_nothing() {
         model: "m".into(),
         input_tokens: 1,
         output_tokens: 1,
+        cost_usd_micros: 100,
     });
     assert_eq!(
         st.transcript.len(),
@@ -105,6 +109,7 @@ fn r4_flushed_block_renders_markdown() {
         model: "m".into(),
         input_tokens: 1,
         output_tokens: 1,
+        cost_usd_micros: 100,
     });
     st.commit_answer_tail(); // M19: flush at the disposition boundary
     let text = transcript_text(&st);

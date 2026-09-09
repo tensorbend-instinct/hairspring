@@ -21,7 +21,7 @@ fn model_start() -> UiEvent {
     UiEvent::ModelCallStart { model: "scripted".into() }
 }
 fn model_end() -> UiEvent {
-    UiEvent::ModelCallEnd { model: "scripted".into(), input_tokens: 10, output_tokens: 5 }
+    UiEvent::ModelCallEnd { model: "scripted".into(), input_tokens: 10, output_tokens: 5, cost_usd_micros: 100 }
 }
 fn tool_start() -> UiEvent {
     UiEvent::ToolCallStart { plugin: "term.exec".into(), args_summary: "ls".into() }

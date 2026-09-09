@@ -848,12 +848,6 @@ fn extract_mission_text(v: &serde_json::Value) -> Option<String> {
     None
 }
 
-/// Cost rate mirror of the line-mode metering (micro-dollars per
-/// token). Kept identical to repl.rs vitals accounting: the HUD must
-/// agree with the line-mode status bar.
-const COST_MICROS_PER_INPUT_TOKEN: u64 = 3;
-const COST_MICROS_PER_OUTPUT_TOKEN: u64 = 15;
-
 /// M4: the picker overlay state (resume picker first, model/theme
 /// pickers later). Entries are pre-rendered display lines; selection
 /// is an index.
@@ -1164,16 +1158,16 @@ impl TuiState {
                 self.push_ticker(EventKind::ModelCall);
             }
             U::ModelCallEnd {
-                input_tokens,
-                output_tokens,
-                ..
+                cost_usd_micros, ..
             } => {
                 // M17: the END of a call is not a phase - the rail keeps
                 // whatever the call start lit (Plan, or Reflect after an
                 // observation). Pre-M17 this forced Reflect every time.
                 self.total_model_calls += 1;
-                self.total_cost_micros += input_tokens * COST_MICROS_PER_INPUT_TOKEN
-                    + output_tokens * COST_MICROS_PER_OUTPUT_TOKEN;
+                // D12: book what the provider REPORTED, never a token-rate
+                // estimate - the done/resume path reads the recorded
+                // cost_usd_micros, so live and done tell one truth.
+                self.total_cost_micros += (*cost_usd_micros).max(0) as u64;
                 // M19: do NOT commit here - whether this call was prose
                 // or wire JSON is only known when the NEXT event lands
                 // (ToolCallStart drops it, anything else commits it).

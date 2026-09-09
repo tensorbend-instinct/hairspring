@@ -16,6 +16,7 @@ fn flush_code_span(st: &mut TuiState) -> ratatui::style::Style {
         model: "m".into(),
         input_tokens: 1,
         output_tokens: 1,
+        cost_usd_micros: 100,
     });
     // M19: the call boundary no longer commits; the disposition
     // boundary does (mission end here).

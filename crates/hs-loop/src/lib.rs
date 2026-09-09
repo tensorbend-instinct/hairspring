@@ -1376,6 +1376,7 @@ impl InnerLoop {
                                         model: out.model.clone(),
                                         input_tokens: out.input_tokens,
                                         output_tokens: out.output_tokens,
+                                        cost_usd_micros: out.cost_usd_micros,
                                     });
                                 }
                                 let _ = self.writer.append(
@@ -1478,6 +1479,7 @@ impl InnerLoop {
                     model: out.model.clone(),
                     input_tokens: out.input_tokens,
                     output_tokens: out.output_tokens,
+                    cost_usd_micros: out.cost_usd_micros,
                 });
             }
             // T5c: checkpoint EVERY step after the model-call accounting,
@@ -2056,6 +2058,7 @@ impl InnerLoop {
                                     model: vout.model.clone(),
                                     input_tokens: vout.input_tokens,
                                     output_tokens: vout.output_tokens,
+                                    cost_usd_micros: vout.cost_usd_micros,
                                 });
                             }
                             self.writer.append(

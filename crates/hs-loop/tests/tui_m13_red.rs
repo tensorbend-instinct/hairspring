@@ -27,6 +27,7 @@ fn r1_mission_done_does_not_double_count_calls() {
             model: "scripted".to_string(),
             input_tokens: 52,
             output_tokens: 9,
+            cost_usd_micros: 700,
         });
     }
     st.mission_done(2, 1_400);

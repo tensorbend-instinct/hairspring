@@ -10,7 +10,7 @@ fn model_start() -> UiEvent {
     UiEvent::ModelCallStart { model: "m".into() }
 }
 fn model_end() -> UiEvent {
-    UiEvent::ModelCallEnd { model: "m".into(), input_tokens: 1, output_tokens: 1 }
+    UiEvent::ModelCallEnd { model: "m".into(), input_tokens: 1, output_tokens: 1, cost_usd_micros: 100 }
 }
 fn tool_start() -> UiEvent {
     UiEvent::ToolCallStart { plugin: "term.exec".into(), args_summary: "ls".into() }
@@ -68,6 +68,7 @@ fn r3_vitals_from_events() {
         model: "deepseek-v4".into(),
         input_tokens: 1000,
         output_tokens: 500,
+        cost_usd_micros: 100,
     });
     assert_eq!(st.model_label, "deepseek-v4");
     assert_eq!(st.total_model_calls, 1);

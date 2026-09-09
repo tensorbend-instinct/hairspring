@@ -89,11 +89,16 @@ fn r1_model_calls_emit_start_and_end() {
                 model,
                 input_tokens,
                 output_tokens,
+                cost_usd_micros,
             } => {
                 assert!(!model.is_empty(), "ModelCallEnd carries the model name");
                 assert!(
                     *input_tokens > 0 && *output_tokens > 0,
                     "ModelCallEnd carries provider token counts"
+                );
+                assert!(
+                    *cost_usd_micros > 0,
+                    "ModelCallEnd carries the provider-reported cost (D12)"
                 );
             }
             _ => unreachable!(),

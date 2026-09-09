@@ -152,11 +152,14 @@ impl Theme {
 pub enum UiEvent {
     /// A model call started (per mission step).
     ModelCallStart { model: String },
-    /// A model call finished; token counts as reported by the provider.
+    /// A model call finished; token counts and cost as reported by the
+    /// provider (D12: the HUD books the provider cost, never a token-rate
+    /// estimate - live and done must tell one truth).
     ModelCallEnd {
         model: String,
         input_tokens: u64,
         output_tokens: u64,
+        cost_usd_micros: i64,
     },
     /// A tool call is about to execute.
     ToolCallStart {
@@ -288,6 +291,7 @@ impl<'a, W: Write> Painter<'a, W> {
                 model: _,
                 input_tokens,
                 output_tokens,
+                cost_usd_micros: _,
             } => {
                 let dim = self.theme.dim.clone();
                 self.paint(

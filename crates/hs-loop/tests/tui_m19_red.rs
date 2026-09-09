@@ -18,7 +18,7 @@ use hs_loop::uipaint::UiEvent;
 const TOOL_JSON: &str = "{\"tool\":\"answer.write\",\"args\":{\"path\":\"/tmp/x\",\"content\":\"A\"}}\n";
 
 fn model_end() -> UiEvent {
-    UiEvent::ModelCallEnd { model: "m".into(), input_tokens: 1, output_tokens: 1 }
+    UiEvent::ModelCallEnd { model: "m".into(), input_tokens: 1, output_tokens: 1, cost_usd_micros: 100 }
 }
 fn tool_start() -> UiEvent {
     UiEvent::ToolCallStart { plugin: "answer.write".into(), args_summary: "/tmp/x".into() }
