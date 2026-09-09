@@ -191,6 +191,7 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         let mut native_tools = crate::toolschema::tb_tools();
         // Eric's five #5: the interactive surface offers delegation.
         native_tools.push(crate::toolschema::agent_spawn_tool());
+        native_tools.push(crate::toolschema::agent_spawn_poll_tool());
         let merged_config;
         let config = if let Ok(servers_toml) = std::env::var("HS_MCP_SERVERS") {
             let (fragment, native) =
@@ -266,6 +267,7 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         let mut native_tools = crate::toolschema::tb_tools();
         // Eric's five #5: the interactive surface offers delegation.
         native_tools.push(crate::toolschema::agent_spawn_tool());
+        native_tools.push(crate::toolschema::agent_spawn_poll_tool());
         let merged_config;
         let config = if let Ok(servers_toml) = std::env::var("HS_MCP_SERVERS") {
             let (fragment, native) =

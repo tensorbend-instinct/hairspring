@@ -13,6 +13,11 @@ use std::time::Instant;
 pub struct Child {
     pub stream_id: uuid::Uuid,
     pub mission: String,
+    /// Optional delegation-time model override (must be registered in
+    /// the kernel config); None = the config's default model.
+    pub model: Option<String>,
+    /// This child's delegation depth (parent's + 1), set at spawn.
+    pub depth: u32,
     pub work_dir: PathBuf,
 }
 
@@ -34,6 +39,7 @@ pub enum SpawnError {
     Log(hs_log::LogError),
     Kernel(hs_kernel::KernelError),
     Loop(hs_loop::LoopError),
+    Config(String),
 }
 
 impl From<hs_log::LogError> for SpawnError {
@@ -114,6 +120,8 @@ impl Spawner {
             Child {
                 stream_id: child_id,
                 mission: mission.to_string(),
+                model: None,
+                depth: 0,
                 work_dir: self.log_root.join("work").join(mission),
             },
             overhead_ms,
@@ -130,10 +138,12 @@ impl Spawner {
     pub fn spawn_child(
         &self,
         parent_stream: uuid::Uuid,
+        child_id: uuid::Uuid,
         mission: &str,
+        model: Option<&str>,
+        depth: u32,
     ) -> Result<(Child, f64), SpawnError> {
         let t0 = Instant::now();
-        let child_id = uuid::Uuid::new_v4();
         let mut cw = StreamWriter::create(&self.log_root, child_id)?;
         cw.append(
             EventBuilder::new(EventKind::GoalUpdate).payload(Payload::Inline(
@@ -149,6 +159,8 @@ impl Spawner {
             Child {
                 stream_id: child_id,
                 mission: mission.to_string(),
+                model: model.map(|m| m.to_string()),
+                depth,
                 work_dir: self.log_root.join("work").join(mission),
             },
             overhead_ms,
@@ -157,12 +169,22 @@ impl Spawner {
 
     pub fn run_to_completion(&self, child: &Child) -> Result<ChildReport, SpawnError> {
         let kernel = hs_kernel::Kernel::load_with_log(&self.kernel_config, &self.log_root)?;
-        let model = kernel
-            .model_names()
-            .into_iter()
-            .find(|(_, is_default)| *is_default)
-            .map(|(name, _)| name)
-            .unwrap_or_else(|| "(unknown)".to_string());
+        let model = match &child.model {
+            Some(name) => {
+                if !kernel.has_model(name) {
+                    return Err(SpawnError::Config(format!(
+                        "agent.spawn: model \"{name}\" is not registered in the kernel config"
+                    )));
+                }
+                name.clone()
+            }
+            None => kernel
+                .model_names()
+                .into_iter()
+                .find(|(_, is_default)| *is_default)
+                .map(|(name, _)| name)
+                .unwrap_or_else(|| "(unknown)".to_string()),
+        };
         let mut l = hs_loop::InnerLoop::with_stream(
             kernel,
             &self.log_root,
@@ -176,6 +198,11 @@ impl Spawner {
         let mut tools = hs_loop::toolschema::tb_tools();
         tools.push(hs_loop::toolschema::agent_spawn_tool());
         l.set_tools(serde_json::Value::Array(tools));
+        l.set_model_override(child.model.clone())?;
+        // The child loop knows its own depth explicitly - env is
+        // process-global and this loop shares the parent's plugin
+        // process with concurrent sibling threads.
+        l.set_swarm_depth(child.depth);
         let r = l.run_mission(&child.mission)?;
         Ok(ChildReport {
             stream_id: child.stream_id,

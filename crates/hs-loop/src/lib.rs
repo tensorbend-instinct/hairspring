@@ -98,6 +98,15 @@ pub struct MissionResult {
     pub outcome: String,
 }
 
+/// A delegated child still running (async delegation, Eric ruling
+/// 2026-09-08): the loop booked its Spawn at mint time and learns the
+/// outcome by polling agent.spawn_poll at step boundaries.
+pub struct PendingChild {
+    pub child: uuid::Uuid,
+    pub mission: String,
+    pub model: String,
+}
+
 pub struct InnerLoop {
     kernel: Kernel,
     writer: StreamWriter,
@@ -150,6 +159,16 @@ pub struct InnerLoop {
     /// M10: last model name seen, so ModelCallStart can carry it before
     /// the call returns.
     last_model: Option<String>,
+    /// Async delegation: children spawned by THIS mission, still
+    /// running. Joined before a passing close; their costs land in
+    /// this mission's books.
+    pending_children: Vec<PendingChild>,
+    /// This loop's delegation depth: seeded from HS_SWARM_DEPTH for a
+    /// root session, set explicitly for children (their loops share
+    /// the parent's plugin process - env is process-global and would
+    /// race sibling threads). Injected into agent.spawn args; the
+    /// model never fabricates it.
+    swarm_depth: u32,
 }
 
 /// D1/W2: input budget from the VERIFIED provider context, minus an
@@ -187,6 +206,11 @@ impl InnerLoop {
             budget_micros: None,
             tools: None,
             model_override: None,
+            pending_children: Vec::new(),
+            swarm_depth: std::env::var("HS_SWARM_DEPTH")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(0),
             progress_path: None,
             ledger: Default::default(),
             context_budget_chars: DEFAULT_CONTEXT_BUDGET_TOKENS * 4,
@@ -228,6 +252,11 @@ impl InnerLoop {
             budget_micros: None,
             tools: None,
             model_override: None,
+            pending_children: Vec::new(),
+            swarm_depth: std::env::var("HS_SWARM_DEPTH")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(0),
             progress_path: None,
             ledger: Default::default(),
             context_budget_chars: DEFAULT_CONTEXT_BUDGET_TOKENS * 4,
@@ -328,6 +357,12 @@ impl InnerLoop {
     /// Eric's five #4: override which configured model serves
     /// operator calls from the next call onward. None restores the
     /// config default; an unknown name is rejected, naming it.
+    /// Async delegation: a child loop's depth is its parent's + 1,
+    /// set by the spawner before the mission runs.
+    pub fn set_swarm_depth(&mut self, depth: u32) {
+        self.swarm_depth = depth;
+    }
+
     pub fn set_model_override(&mut self, model: Option<String>) -> Result<(), LoopError> {
         if let Some(m) = &model {
             if !self.kernel.has_model(m) {
@@ -464,6 +499,49 @@ impl InnerLoop {
     }
 
     /// Run one mission to a checker verdict, the step cap, or the budget cap.
+    /// Poll every running child once (quiet query - never booked).
+    /// Finished children fold their cost into this mission's books,
+    /// emit SubAgentFinished for the panel, and return an ungated
+    /// delegation update for the operator's next prompt.
+    fn poll_children(&mut self) -> Vec<String> {
+        let mut updates = Vec::new();
+        let mut i = 0;
+        while i < self.pending_children.len() {
+            let child = self.pending_children[i].child;
+            let out = self.kernel.query_tool(
+                "operator",
+                "agent.spawn_poll",
+                serde_json::json!({"child_stream_id": child.to_string()}),
+            );
+            match out {
+                Ok(v) if v["status"].as_str() == Some("done") => {
+                    let pc = self.pending_children.remove(i);
+                    let ok = v["passed"].as_bool().unwrap_or(false);
+                    if let Some(c) = v["cost_usd_micros"].as_i64() {
+                        if c > 0 {
+                            self.cost_total_micros =
+                                self.cost_total_micros.saturating_add(c as u64);
+                        }
+                    }
+                    if let Some(sink) = self.ui_sink.as_mut() {
+                        sink(uipaint::UiEvent::SubAgentFinished { child, ok });
+                    }
+                    let short: String = child.to_string().chars().take(8).collect();
+                    updates.push(format!(
+                        "child {short} (\"{}\") finished - passed={ok}, steps={}, cost ${:.4}; its stream holds the full record",
+                        pc.mission,
+                        v["steps"].as_i64().unwrap_or(0),
+                        v["cost_usd_micros"].as_i64().unwrap_or(0) as f64 / 1e6
+                    ));
+                }
+                // Still running, or a transient query failure (retried
+                // next step; the wall guard bounds a wedged plugin).
+                _ => i += 1,
+            }
+        }
+        updates
+    }
+
     pub fn run_mission(&mut self, mission: &str) -> Result<MissionResult, LoopError> {
         self.run_mission_full(mission, mission)
     }
@@ -519,6 +597,8 @@ impl InnerLoop {
                 });
             }
             steps = step;
+            // Async delegation: finished children land here, every step.
+            let delegation_updates = self.poll_children();
             // observe + drain_feedback: what the world said since last step
             let artifact = std::fs::read_to_string(&answer_path).unwrap_or_default();
             let drained = std::mem::take(&mut pending_feedback);
@@ -563,6 +643,15 @@ impl InnerLoop {
                     volatile.push_str(&format!("- {f}\n"));
                 }
                 injected = true;
+            }
+            // Delegation updates are mission events, never gated by
+            // feedback mode: the model delegated and owns the outcome.
+            if !delegation_updates.is_empty() {
+                volatile.push_str("DELEGATION UPDATES (children you spawned):
+");
+                for u in &delegation_updates {
+                    volatile.push_str(&format!("- {u}\n"));
+                }
             }
             // Gap #2: drained operator steering rides the volatile tail
             // like FEEDBACK - the operator's fresh mid-mission user turn.
@@ -935,8 +1024,74 @@ impl InnerLoop {
                     // so a spawned child links to THIS mission. The model
                     // never fabricates delegation provenance.
                     if tool == "agent.spawn" {
+                        // Async delegation (Eric ruling 2026-09-08,
+                        // D2): the loop mints the child id and books
+                        // Spawn BEFORE the call - a crash at any later
+                        // point leaves consistent provenance on both
+                        // streams (child stream carries child_of).
+                        // Pre-flight: without agent.spawn_poll the
+                        // outcome could never arrive - fail loudly now.
+                        if !self
+                            .kernel
+                            .list_tools("operator")
+                            .iter()
+                            .any(|t| t.name == "agent.spawn_poll")
+                        {
+                            // Mirror the tool-error path exactly: the
+                            // model gets its tool result + feedback.
+                            let msg = format!(
+                                "tool {tool} failed: agent.spawn requires agent.spawn_poll registered (same hs-plugin-swarm binary) - async delegation polls outcomes through it"
+                            );
+                            self.writer.append(
+                                EventBuilder::new(EventKind::ToolCall).payload(
+                                    Payload::Inline(
+                                        serde_json::to_vec(&serde_json::json!({
+                                            "plugin": tool, "args": args, "error": msg,
+                                        }))
+                                        .expect("json! values serialize"),
+                                    ),
+                                ),
+                            )?;
+                            pending_feedback.push(format!("harness: {msg}"));
+                            continue;
+                        }
+                        let child_id = uuid::Uuid::new_v4();
+                        let cmission =
+                            args["mission"].as_str().unwrap_or("").to_string();
+                        let cmodel = args["model"]
+                            .as_str()
+                            .map(|m| m.to_string())
+                            .unwrap_or_else(|| {
+                                self.kernel
+                                    .model_names()
+                                    .into_iter()
+                                    .find(|(_, d)| *d)
+                                    .map(|(n, _)| n)
+                                    .unwrap_or_else(|| "(unknown)".to_string())
+                            });
+                        self.writer.append(
+                            EventBuilder::new(EventKind::Spawn).payload(Payload::Inline(
+                                serde_json::to_vec(&serde_json::json!({
+                                    "child_stream_id": child_id,
+                                    "mission": cmission,
+                                    "model": cmodel,
+                                }))
+                                .expect("json! values serialize"),
+                            )),
+                        )?;
+                        if let Some(sink) = self.ui_sink.as_mut() {
+                            sink(uipaint::UiEvent::SubAgentSpawned {
+                                child: child_id,
+                                parent: Some(self.stream_id),
+                                mission: cmission,
+                                model: cmodel,
+                            });
+                        }
                         args["parent_stream"] =
                             serde_json::json!(self.stream_id.to_string());
+                        args["child_stream_id"] =
+                            serde_json::json!(child_id.to_string());
+                        args["depth"] = serde_json::json!(self.swarm_depth);
                     }
                     if let Some(sink) = self.ui_sink.as_mut() {
                         sink(uipaint::UiEvent::ToolCallStart {
@@ -960,56 +1115,52 @@ impl InnerLoop {
                                 elapsed_ms: tool_out.latency_ms as u64,
                             });
                         }
-                        // Eric's five #5: on a successful delegation the
-                        // loop books the Spawn link on its OWN stream
-                        // (single writer), raises the live graph events
-                        // for the :agents panel, and folds the child's
-                        // cost into this mission's books so the $ guard
-                        // stays honest across delegation.
+                        // Async delegation (Eric ruling 2026-09-08):
+                        // Spawn was booked BEFORE the call. A running
+                        // child registers as pending (its outcome
+                        // arrives via poll); a refused/failed spawn
+                        // gets its ledger repair + panel finish NOW so
+                        // no phantom Running node survives.
                         if tool == "agent.spawn" {
                             let out = &tool_out.output;
-                            if let Some(cid) = out["child_stream_id"]
+                            let failed = out["$error"].is_string()
+                                || out["error"].is_string();
+                            if let Some(cid) = args["child_stream_id"]
                                 .as_str()
                                 .and_then(|v| uuid::Uuid::parse_str(v).ok())
                             {
-                                let cmission =
-                                    out["mission"].as_str().unwrap_or("").to_string();
-                                // The child's model is Spawn-payload
-                                // provenance: reported by the spawner,
-                                // never inferred by the UI.
-                                let cmodel = out["model"]
-                                    .as_str()
-                                    .unwrap_or("(unknown)")
-                                    .to_string();
-                                self.writer.append(
-                                    EventBuilder::new(EventKind::Spawn).payload(
-                                        Payload::Inline(
-                                            serde_json::to_vec(&serde_json::json!({
-                                                "child_stream_id": cid,
-                                                "mission": cmission,
-                                                "model": cmodel,
-                                            }))
-                                            .expect("json! values serialize"),
-                                        ),
-                                    ),
-                                )?;
-                                if let Some(sink) = self.ui_sink.as_mut() {
-                                    sink(uipaint::UiEvent::SubAgentSpawned {
+                                if failed {
+                                    let _ = self.writer.append(
+                                        EventBuilder::new(EventKind::Observation)
+                                            .payload(Payload::Inline(
+                                                serde_json::to_vec(&serde_json::json!({
+                                                    "spawn_failed": cid,
+                                                    "detail": out["$error"]
+                                                        .as_str()
+                                                        .or_else(|| out["error"].as_str())
+                                                        .unwrap_or(""),
+                                                }))
+                                                .expect("json! values serialize"),
+                                            )),
+                                    );
+                                    if let Some(sink) = self.ui_sink.as_mut() {
+                                        sink(uipaint::UiEvent::SubAgentFinished {
+                                            child: cid,
+                                            ok: false,
+                                        });
+                                    }
+                                } else {
+                                    self.pending_children.push(PendingChild {
                                         child: cid,
-                                        parent: Some(self.stream_id),
-                                        mission: cmission,
-                                        model: cmodel,
+                                        mission: args["mission"]
+                                            .as_str()
+                                            .unwrap_or("")
+                                            .to_string(),
+                                        model: out["model"]
+                                            .as_str()
+                                            .unwrap_or("(unknown)")
+                                            .to_string(),
                                     });
-                                    sink(uipaint::UiEvent::SubAgentFinished {
-                                        child: cid,
-                                        ok: out["passed"].as_bool().unwrap_or(false),
-                                    });
-                                }
-                            }
-                            if let Some(c) = out["cost_usd_micros"].as_i64() {
-                                if c > 0 {
-                                    self.cost_total_micros =
-                                        self.cost_total_micros.saturating_add(c as u64);
                                 }
                             }
                         }
@@ -1145,6 +1296,32 @@ impl InnerLoop {
                                     .expect("json! values serialize"),
                                 )),
                         )?;
+                        // Async delegation: the Spawn was pre-booked -
+                        // repair the provenance so no phantom Running
+                        // child survives on the stream or the panel.
+                        if tool == "agent.spawn" {
+                            if let Some(cid) = args["child_stream_id"]
+                                .as_str()
+                                .and_then(|v| uuid::Uuid::parse_str(v).ok())
+                            {
+                                let _ = self.writer.append(
+                                    EventBuilder::new(EventKind::Observation).payload(
+                                        Payload::Inline(
+                                            serde_json::to_vec(&serde_json::json!({
+                                                "spawn_failed": cid, "detail": msg,
+                                            }))
+                                            .expect("json! values serialize"),
+                                        ),
+                                    ),
+                                );
+                                if let Some(sink) = self.ui_sink.as_mut() {
+                                    sink(uipaint::UiEvent::SubAgentFinished {
+                                        child: cid,
+                                        ok: false,
+                                    });
+                                }
+                            }
+                        }
                         Some(msg)
                     }
                 }
@@ -1381,6 +1558,17 @@ impl InnerLoop {
                         )),
                     )?;
                 }
+                // Async delegation: join every running child before
+                // the passing close so its cost lands in these books
+                // and the panel sees the finish. Bounded by each
+                // child's own max_steps; the wall guard is the
+                // backstop for a wedged child.
+                while !self.pending_children.is_empty() {
+                    let _ = self.poll_children();
+                    if !self.pending_children.is_empty() {
+                        std::thread::sleep(std::time::Duration::from_millis(50));
+                    }
+                }
                 self.close_goal(mission, true, outcome)?;
                 self.checkpoint(steps, model_calls);
                 return Ok(MissionResult {
@@ -1404,6 +1592,8 @@ impl InnerLoop {
             }
             self.checkpoint(steps, model_calls);
         }
+        // Fold whatever children already finished (non-blocking).
+        let _ = self.poll_children();
         self.close_goal(mission, false, "steps_exhausted")?;
         Ok(MissionResult {
             passed: false,

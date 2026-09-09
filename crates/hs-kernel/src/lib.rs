@@ -568,6 +568,35 @@ impl Kernel {
         }
     }
 
+    /// Quiet tool query: dispatch without booking or rails. For
+    /// loop-internal bookkeeping (e.g. polling a delegation registry) -
+    /// never for mission work: anything the mission depends on must go
+    /// through call_tool so the ledger records it.
+    pub fn query_tool(
+        &self,
+        subject: &str,
+        name: &str,
+        args: serde_json::Value,
+    ) -> Result<serde_json::Value, KernelError> {
+        {
+            let tools = self.tools.borrow();
+            let slot = tools
+                .get(name)
+                .ok_or_else(|| KernelError::UnknownTool(name.into()))?;
+            if !Self::visible(&slot.entry, subject) {
+                return Err(KernelError::Gated {
+                    name: name.into(),
+                    subject: subject.into(),
+                });
+            }
+        }
+        let mut tools = self.tools.borrow_mut();
+        tools
+            .get_mut(name)
+            .expect("existence checked above")
+            .call("tool.call", serde_json::json!({"args": args}), &mut None)
+    }
+
     pub fn call_model(
         &self,
         subject: &str,

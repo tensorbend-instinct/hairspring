@@ -119,9 +119,19 @@ fn builtin_tools_inner() -> Vec<Value> {
 pub fn agent_spawn_tool() -> Value {
     f(
         "agent.spawn",
-        "Delegate a self-contained subtask to a child sub-agent that runs the same harness on its own stream and blocks until it finishes; returns the child's report (passed, steps, cost). Use for separable subtasks that benefit from a fresh context. The parent stream linkage is injected by the harness - never pass parent_stream yourself.",
+        "Delegate a self-contained subtask to a child sub-agent that runs the same harness on its own stream CONCURRENTLY: the call returns as soon as the child is running (status running, its stream id), and the harness tells you when it finishes (a delegation update names passed, steps, cost). Delegate every separable subtask as soon as you know it, then keep working; never poll for completion yourself. Optionally name a different registered model for the child. The parent linkage and stream id are injected by the harness - never pass parent_stream or child_stream_id yourself.",
         json!({"type":"object","properties":{
-            "mission":{"type":"string","description":"the delegated task, self-contained"}},"required":["mission"]}),
+            "mission":{"type":"string","description":"the delegated task, self-contained"},
+            "model":{"type":"string","description":"optional: a registered model name for the child (default: the parent's default)"}},"required":["mission"]}),
+    )
+}
+
+pub fn agent_spawn_poll_tool() -> Value {
+    f(
+        "agent.spawn_poll",
+        "Harness-internal: query a delegated child's state (running, or done with its report). The loop polls this at step boundaries; models should never call it - a delegation update arrives on its own.",
+        json!({"type":"object","properties":{
+            "child_stream_id":{"type":"string","description":"the running child's stream id"}},"required":["child_stream_id"]}),
     )
 }
 

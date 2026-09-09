@@ -36,6 +36,11 @@ name = "agent.spawn"
 command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-swarm"]
 subjects = ["*"]
 
+[[tools]]
+name = "agent.spawn_poll"
+command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-swarm", "--as", "agent.spawn_poll"]
+subjects = ["*"]
+
 [[models]]
 name = "scripted"
 command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted"]
