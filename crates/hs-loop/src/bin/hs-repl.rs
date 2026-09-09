@@ -172,11 +172,13 @@ fn run_fullscreen(
         Delta(String),
         Done(Result<(hs_loop::MissionResult, u64), String>),
         Switched(Result<(String, String, uuid::Uuid), String>),
+        ModelSet(Result<String, String>),
     }
 
     enum UiCmd {
         Goal(String),
         Switch(uuid::Uuid),
+        SetModel(String),
     }
 
     let (tx, rx) = mpsc::channel::<TuiMsg>();
@@ -197,6 +199,9 @@ fn run_fullscreen(
     };
 
     let mut session = session;
+    // Eric's five #4: the :models picker entries, captured before the
+    // session moves to the worker thread.
+    let model_entries: Vec<(String, bool)> = session.model_names();
     {
         let txu = tx.clone();
         session.set_ui_sink(Box::new(move |ev| {
@@ -221,6 +226,13 @@ fn run_fullscreen(
                         .map(|m| (m, session.total_cost_micros()))
                         .map_err(|e| e.to_string());
                     let _ = tx.send(TuiMsg::Done(r));
+                }
+                UiCmd::SetModel(name) => {
+                    let r = session
+                        .set_model_override(Some(name.clone()))
+                        .map(|_| name)
+                        .map_err(|e| e.to_string());
+                    let _ = tx.send(TuiMsg::ModelSet(r));
                 }
                 UiCmd::Switch(id) => {
                     match hs_loop::repl::ReplSession::load_resume(
@@ -332,6 +344,15 @@ fn run_fullscreen(
                     }
                     Err(e) => st.push_transcript_line(&format!("resume failed: {e}")),
                 },
+                TuiMsg::ModelSet(r) => match r {
+                    Ok(name) => {
+                        st.model_label = name.clone();
+                        st.push_transcript_line(&format!(
+                            "model › {name} (next mission onward)"
+                        ));
+                    }
+                    Err(e) => st.push_transcript_line(&format!("model switch failed: {e}")),
+                },
             }
         }
         if event::poll(Duration::from_millis(60))? {
@@ -343,7 +364,21 @@ fn run_fullscreen(
                     match tui::handle_key(&mut st, k) {
                         tui::KeyAction::Continue | tui::KeyAction::ToggleAgents => {}
                         tui::KeyAction::Quit => break,
-                        tui::KeyAction::Picked(choice) => {
+                        tui::KeyAction::Picked(tui::PickerKind::Models, choice) => {
+                            let name = choice.split(' ').next().unwrap_or("").to_string();
+                            if !name.is_empty() {
+                                let _ = goal_tx.send(UiCmd::SetModel(name));
+                            }
+                        }
+                        tui::KeyAction::Picked(tui::PickerKind::Themes, choice) => {
+                            if let Some((n, th)) = hs_loop::uipaint::available_themes()
+                                .into_iter()
+                                .find(|(n, _)| *n == choice)
+                            {
+                                st.set_theme(n, th);
+                            }
+                        }
+                        tui::KeyAction::Picked(tui::PickerKind::Resume, choice) => {
                             if let Some(id) =
                                 resolve_resume_choice(&st, &resume_sessions, &choice)
                             {
@@ -378,6 +413,28 @@ fn run_fullscreen(
                                         st.push_transcript_line(&format!("  {e}"));
                                     }
                                 }
+                            } else if t == ":models" {
+                                let entries: Vec<String> = model_entries
+                                    .iter()
+                                    .map(|(n, d)| {
+                                        let tag = if *n == st.model_label {
+                                            " (current)"
+                                        } else if *d {
+                                            " (default)"
+                                        } else {
+                                            ""
+                                        };
+                                        format!("{n}{tag}")
+                                    })
+                                    .collect();
+                                st.open_picker_kind(tui::PickerKind::Models, entries);
+                            } else if t == ":theme" {
+                                let entries: Vec<String> =
+                                    hs_loop::uipaint::available_themes()
+                                        .iter()
+                                        .map(|(n, _)| n.to_string())
+                                        .collect();
+                                st.open_picker_kind(tui::PickerKind::Themes, entries);
                             } else if t == ":last" {
                                 match &last_answer {
                                     Some(p) => {

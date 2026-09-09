@@ -140,6 +140,10 @@ pub struct InnerLoop {
     /// the operator call (native tool calling; Eric 2026-09-05). None = the
     /// model gets no tools param (legacy/text missions, unit fixtures).
     tools: Option<serde_json::Value>,
+    /// Eric's five #4: operator model override (None = config
+    /// default). Applies to every operator-subject call: mission
+    /// steps, the verdict audit, and distillation.
+    model_override: Option<String>,
     /// UI batch 1: typed mission UI events for the REPL painter.
     /// None = silent (old behavior).
     ui_sink: Option<uipaint::UiSink>,
@@ -182,6 +186,7 @@ impl InnerLoop {
             mission_cost_start: 0,
             budget_micros: None,
             tools: None,
+            model_override: None,
             progress_path: None,
             ledger: Default::default(),
             context_budget_chars: DEFAULT_CONTEXT_BUDGET_TOKENS * 4,
@@ -222,6 +227,7 @@ impl InnerLoop {
             mission_cost_start: 0,
             budget_micros: None,
             tools: None,
+            model_override: None,
             progress_path: None,
             ledger: Default::default(),
             context_budget_chars: DEFAULT_CONTEXT_BUDGET_TOKENS * 4,
@@ -317,6 +323,24 @@ impl InnerLoop {
     /// MCP-discovered), delivered via the provider API's tools parameter.
     pub fn set_tools(&mut self, tools: serde_json::Value) {
         self.tools = Some(tools);
+    }
+
+    /// Eric's five #4: override which configured model serves
+    /// operator calls from the next call onward. None restores the
+    /// config default; an unknown name is rejected, naming it.
+    pub fn set_model_override(&mut self, model: Option<String>) -> Result<(), LoopError> {
+        if let Some(m) = &model {
+            if !self.kernel.has_model(m) {
+                return Err(LoopError::Visibility(format!("unknown model: {m}")));
+            }
+        }
+        self.model_override = model;
+        Ok(())
+    }
+
+    /// Configured models as (name, is_default) for the picker.
+    pub fn model_names(&self) -> Vec<(String, bool)> {
+        self.kernel.model_names()
     }
 
     /// The native schemas currently delivered on operator model calls
@@ -632,7 +656,7 @@ impl InnerLoop {
                                 });
                             }
                             if let Ok(out) =
-                                self.kernel.call_model("operator", None, &distill_prompt)
+                                self.kernel.call_model("operator", self.model_override.as_deref(), &distill_prompt)
                             {
                                 model_calls += 1;
                                 self.cost_total_micros += out.cost_usd_micros.max(0) as u64;
@@ -706,7 +730,7 @@ impl InnerLoop {
             // the only model round trip in the step
             let out = match self.kernel.call_model_messages(
                 "operator",
-                None,
+                self.model_override.as_deref(),
                 &messages,
                 self.tools.as_ref(),
             ) {
@@ -1166,7 +1190,7 @@ impl InnerLoop {
                     }
                     match self.kernel.call_model_with(
                         "operator",
-                        None,
+                        self.model_override.as_deref(),
                         &vprompt,
                         Some(&verdict_tools),
                     ) {

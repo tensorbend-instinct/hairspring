@@ -35,6 +35,12 @@ pub struct Theme {
     pub bullet: String,
 }
 
+/// The built-in theme catalog as (name, theme) pairs, for the
+/// :theme picker. Custom TOML themes stay boot-time (HS_THEME).
+pub fn available_themes() -> Vec<(&'static str, Theme)> {
+    vec![("dark", Theme::dark()), ("light", Theme::light())]
+}
+
 impl Theme {
     /// The HAIRSPRING dark theme (the original hand-tuned codes).
     pub fn dark() -> Self {

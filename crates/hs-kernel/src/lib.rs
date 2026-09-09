@@ -684,6 +684,24 @@ impl Kernel {
         Ok(out)
     }
 
+    /// Whether a model with this name is configured.
+    pub fn has_model(&self, name: &str) -> bool {
+        self.models.borrow().contains_key(name)
+    }
+
+    /// Configured models as (name, is_default), sorted by name so the
+    /// picker order is stable.
+    pub fn model_names(&self) -> Vec<(String, bool)> {
+        let mut v: Vec<(String, bool)> = self
+            .models
+            .borrow()
+            .values()
+            .map(|s| (s.entry.name.clone(), s.entry.default))
+            .collect();
+        v.sort();
+        v
+    }
+
     pub fn call_model_messages(
         &self,
         subject: &str,

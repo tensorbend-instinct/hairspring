@@ -63,7 +63,10 @@ fn r2_picker_navigation() {
     assert_eq!(st.picker_selected(), Some(2), "clamped at the last entry");
     st.picker_up();
     assert_eq!(st.picker_selected(), Some(1));
-    assert_eq!(st.picker_take(), Some("b".to_string()));
+    assert_eq!(
+        st.picker_take(),
+        Some((hs_loop::tui::PickerKind::Resume, "b".to_string()))
+    );
     assert_eq!(st.picker_selected(), None, "closed after take");
     st.open_picker(vec!["x".to_string()]);
     st.picker_cancel();

@@ -50,8 +50,15 @@ fn main() {
     assert!(!script.is_empty(), "empty seqmodel script");
     let deltas = std::env::var("HS_SEQMODEL_DELTAS").as_deref() == Ok("1");
     let mut n = 0usize;
+    // Per-instance identity: a fixture wiring the same binary as
+    // several models (model-override tests) names each copy via env.
+    let serve_name =
+        std::env::var("HS_SCRIPTED_NAME").unwrap_or_else(|_| "scripted".to_string());
+    // serve_ext wants 'static; the plugin process lives exactly as
+    // long as this one leaked name.
+    let serve_name: &'static str = Box::leak(serve_name.into_boxed_str());
     serve_ext(
-        "scripted",
+        serve_name,
         "model",
         &mut move |method, params, emit| match method {
             "model.call" => {

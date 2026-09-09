@@ -96,6 +96,8 @@ pub const TUI_HELP: &str = "hairspring - full-screen surface
   :history  goals you have submitted this session
   :last     the latest mission's answer artifact
   :resume   pick a prior session to continue
+  :models   pick the operator model (next mission onward)
+  :theme    pick the surface theme
   :agents   toggle the delegation graph panel
   :help     this text
   :quit     exit (Ctrl+C works too)
@@ -446,8 +448,8 @@ pub enum KeyAction {
     Continue,
     /// Editor submitted a line (mission text or a caller command).
     Submit(String),
-    /// Picker chose an entry.
-    Picked(String),
+    /// Picker chose an entry (kind, entry text).
+    Picked(PickerKind, String),
     /// ":agents" toggled the delegation panel.
     ToggleAgents,
     /// Ctrl+C or ":quit".
@@ -473,7 +475,7 @@ pub fn handle_key(state: &mut TuiState, key: ratatui::crossterm::event::KeyEvent
             }
             KeyCode::Enter => {
                 return match state.picker_take() {
-                    Some(choice) => KeyAction::Picked(choice),
+                    Some(choice) => KeyAction::Picked(choice.0, choice.1),
                     None => KeyAction::Continue,
                 };
             }
@@ -791,6 +793,20 @@ pub struct PickerState {
     pub entries: Vec<String>,
     /// Current selection.
     pub selected: usize,
+    /// What the picker is choosing (M29: resume, model, or theme).
+    pub kind: PickerKind,
+}
+
+/// Which chooser an open picker serves (Eric's five #4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PickerKind {
+    /// A prior session to resume.
+    #[default]
+    Resume,
+    /// The operator model for subsequent missions.
+    Models,
+    /// The surface theme.
+    Themes,
 }
 
 /// Cap on ticker entries kept; the rail shows the tail.
@@ -1209,7 +1225,11 @@ impl TuiState {
         if entries.is_empty() {
             self.picker = None;
         } else {
-            self.picker = Some(PickerState { entries, selected: 0 });
+            self.picker = Some(PickerState {
+                entries,
+                selected: 0,
+                kind: PickerKind::Resume,
+            });
         }
     }
 
@@ -1231,9 +1251,29 @@ impl TuiState {
     }
 
     /// Take the selected entry and close the overlay.
-    pub fn picker_take(&mut self) -> Option<String> {
+    pub fn picker_take(&mut self) -> Option<(PickerKind, String)> {
         let p = self.picker.take()?;
-        p.entries.get(p.selected).cloned()
+        p.entries.get(p.selected).cloned().map(|e| (p.kind, e))
+    }
+
+    /// Open the picker for a specific chooser (M29).
+    pub fn open_picker_kind(&mut self, kind: PickerKind, entries: Vec<String>) {
+        if entries.is_empty() {
+            self.picker = None;
+        } else {
+            self.picker = Some(PickerState {
+                entries,
+                selected: 0,
+                kind,
+            });
+        }
+    }
+
+    /// Live theme switch: recolors from the next frame and echoes the
+    /// choice in the transcript.
+    pub fn set_theme(&mut self, name: &str, theme: crate::uipaint::Theme) {
+        self.theme = theme;
+        self.push_transcript_line(&format!("theme › {name}"));
     }
 
     /// Close the overlay without a choice.
@@ -1524,7 +1564,11 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .title(" resume ");
+            .title(match p.kind {
+                PickerKind::Resume => " resume ",
+                PickerKind::Models => " models ",
+                PickerKind::Themes => " theme ",
+            });
         f.render_widget(Paragraph::new(lines).block(block), rect);
     }
 

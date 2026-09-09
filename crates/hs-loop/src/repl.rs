@@ -370,6 +370,17 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
     /// UI gap #1: the session vitals snapshot an ambient status bar
     /// paints after every beat - model, mission/step/call counters,
     /// metered cost, wall time, stream id.
+    /// Eric's five #4: switch the operator model from the next
+    /// mission onward (None restores the config default).
+    pub fn set_model_override(&mut self, model: Option<String>) -> Result<(), LoopError> {
+        self.inner.set_model_override(model)
+    }
+
+    /// Configured models as (name, is_default) for the picker.
+    pub fn model_names(&self) -> Vec<(String, bool)> {
+        self.inner.model_names()
+    }
+
     pub fn vitals(&self) -> SessionVitals {
         SessionVitals {
             model_label: self.model_label.clone(),
