@@ -466,6 +466,7 @@ impl Scorer {
         std::fs::create_dir_all(log_root).map_err(hs_log::LogError::Io)?;
         let stream = Uuid::new_v4();
         let writer = StreamWriter::create(log_root, stream)?;
+        hs_log::register_stream(log_root, "scorer", stream)?;
         Ok(Scorer {
             writer,
             log_root: log_root.to_path_buf(),
@@ -475,6 +476,13 @@ impl Scorer {
             frozen: false,
             pinned: None,
         })
+    }
+
+    /// This scorer's canonical stream. Registered under the `scorer`
+    /// role at creation (B8 discovery for off-process read surfaces).
+    #[must_use]
+    pub fn stream(&self) -> Uuid {
+        self.stream
     }
 
     fn emit(&mut self, kind: EventKind, body: &str) -> Event {

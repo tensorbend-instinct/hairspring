@@ -723,3 +723,34 @@ pub mod testing {
         out.sync_all().unwrap();
     }
 }
+
+/// Role-based stream registry (B8): components that mint their own
+/// substrate streams (the scorer, the selfmod loop) publish them under
+/// a well-known role so off-process read surfaces (the TUI views) can
+/// discover the records without an in-process handoff. Entries live at
+/// `<log_root>/registry/<role>.stream`; re-registering replaces (a fresh
+/// cycle owns its role).
+pub fn register_stream(log_root: &Path, role: &str, stream: Uuid) -> Result<(), LogError> {
+    if role.is_empty()
+        || !role
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return Err(LogError::Io(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("stream registry role must be a path-safe name: {role:?}"),
+        )));
+    }
+    let dir = log_root.join("registry");
+    std::fs::create_dir_all(&dir)?;
+    std::fs::write(dir.join(format!("{role}.stream")), stream.to_string())?;
+    Ok(())
+}
+
+/// The stream registered for `role` under this log root, if any.
+#[must_use]
+pub fn registered_stream(log_root: &Path, role: &str) -> Option<Uuid> {
+    let body =
+        std::fs::read_to_string(log_root.join("registry").join(format!("{role}.stream"))).ok()?;
+    Uuid::parse_str(body.trim()).ok()
+}

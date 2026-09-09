@@ -195,6 +195,7 @@ impl SelfModLoop {
         let log_root = world.log_root().to_path_buf();
         let stream = Uuid::new_v4();
         let writer = StreamWriter::create(&log_root, stream).expect("selfmod stream");
+        hs_log::register_stream(&log_root, "selfmod", stream).expect("selfmod stream registry");
         SelfModLoop {
             world,
             scorer,
@@ -210,6 +211,13 @@ impl SelfModLoop {
 
     pub fn current_policy(&self) -> &PolicyLayer {
         &self.current
+    }
+
+    /// This loop's substrate stream. Registered under the `selfmod`
+    /// role at creation (B8 discovery for off-process read surfaces).
+    #[must_use]
+    pub fn stream(&self) -> Uuid {
+        self.stream
     }
 
     fn emit(&mut self, kind: EventKind, body: &str) -> Result<(), SelfModError> {
