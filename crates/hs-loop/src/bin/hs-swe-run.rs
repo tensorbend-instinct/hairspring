@@ -322,6 +322,12 @@ default = true
     });
     let mut l = hs_loop::InnerLoop::new(kernel, &log_root, feedback, max_steps).expect("loop");
     l.set_budget_micros(budget_micros);
+    // B1 (v5 cut #10): when the bench attaches the K plane, the model
+    // consults it through the memory.recall tool - no blind pre-pass.
+    let memory_db_early = arg(&args, "--memory-db").map(std::path::PathBuf::from);
+    if memory_db_early.is_some() {
+        native_tools.push(hs_loop::toolschema::memory_recall_tool());
+    }
     l.set_tools(serde_json::Value::Array(native_tools));
     if let Some(w) = wall_secs {
         l.set_wall_secs(w);
@@ -335,7 +341,7 @@ default = true
         && !goal_cmds.is_empty() {
             l.set_goal_evaluator(std::path::Path::new(&ws), goal_cmds.clone());
         }
-    let memory_db = arg(&args, "--memory-db").map(std::path::PathBuf::from);
+    let memory_db = memory_db_early;
     if let Some(db) = &memory_db {
         l.set_memory_db(db);
     }

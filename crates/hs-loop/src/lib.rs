@@ -26,7 +26,7 @@ pub mod tui;
 pub mod uipaint;
 
 use hs_core::{EventBuilder, EventKind, Payload};
-use hs_kernel::{Kernel, KernelError};
+use hs_kernel::{Kernel, KernelError, ToolCallOutcome};
 use hs_log::{LogError, StreamWriter};
 use std::path::{Path, PathBuf};
 
@@ -107,6 +107,25 @@ pub struct PendingChild {
     pub model: String,
 }
 
+/// B1 (v5 D3): one in-flight speculation - the args the prefetch
+/// predictor expects the next `memory.recall` to carry, its already
+/// computed result, and the estimated token cost the fetch burned.
+/// Resolved to a booked `Prefetch` event (hit/miss + cost) at the next
+/// recall, or to a not-consumed miss at mission close.
+struct PrefetchCache {
+    args: serde_json::Value,
+    result: serde_json::Value,
+    tokens_est: u32,
+}
+
+/// B1 (v5 D3): minimum resolved prefetches before self-retirement is
+/// evaluated, and the hit-rate crossover below which the predictor
+/// retires itself ("if the K hit rate falls below the logging cost
+/// crossover, the prefetch predictor turns itself off - that is the
+/// system working"). Tunable; booked on every Prefetch event.
+const PREFETCH_MIN_SAMPLES: u32 = 4;
+const PREFETCH_COST_CROSSOVER: f64 = 0.5;
+
 pub struct InnerLoop {
     kernel: Kernel,
     writer: StreamWriter,
@@ -159,6 +178,14 @@ pub struct InnerLoop {
     /// M10: last model name seen, so `ModelCallStart` can carry it before
     /// the call returns.
     last_model: Option<String>,
+    /// B1 (v5 D3): prefetch predictor state - the outstanding
+    /// speculation, its resolved hit/miss tallies, and whether the
+    /// predictor is still running (it retires itself below
+    /// `PREFETCH_COST_CROSSOVER` once `PREFETCH_MIN_SAMPLES` resolve).
+    prefetch: Option<PrefetchCache>,
+    prefetch_hits: u32,
+    prefetch_misses: u32,
+    prefetch_enabled: bool,
     /// Async delegation: children spawned by THIS mission, still
     /// running. Joined before a passing close; their costs land in
     /// this mission's books.
@@ -228,6 +255,10 @@ impl InnerLoop {
             mission_started: None,
             ui_sink: None,
             last_model: None,
+            prefetch: None,
+            prefetch_hits: 0,
+            prefetch_misses: 0,
+            prefetch_enabled: true,
         })
     }
 
@@ -274,6 +305,10 @@ impl InnerLoop {
             mission_started: None,
             ui_sink: None,
             last_model: None,
+            prefetch: None,
+            prefetch_hits: 0,
+            prefetch_misses: 0,
+            prefetch_enabled: true,
         })
     }
 
@@ -389,8 +424,9 @@ impl InnerLoop {
     /// step. An external wall-clock kill (timeout, OOM, SIGKILL) then books
     /// from the checkpoint via `book_wall_kill` instead of writing a
     /// 0-step result for a run that did real work.
-    /// D3: attach the typed memory plane; the assembler retrieves top-k
-    /// records into every prompt (with `source_seqs` provenance).
+    /// B1 (v5 D3 + cut #10): attach the typed memory plane K. The model
+    /// consults it through the `memory.recall` tool - K is never pre-passed
+    /// into prompts; every mission close distills its trajectory into K.
     pub fn set_memory_db(&mut self, path: &Path) {
         self.memory_store = Some(Box::new(
             hs_memory::sqlite::SqliteMemoryStore::open(path).expect("memory db open"),
@@ -505,7 +541,163 @@ impl InnerLoop {
     /// [0,0,0,0] after two completed missions). `outcome` names the
     /// ending; hs-swarm's spawn-time `GoalUpdate` {done:false} carries
     /// no outcome, so an OPEN goal is never mistaken for a failed one.
+    /// B1 (v5 D3 + cut #10): tool dispatch. D3's K plane is consulted by
+    /// the model as a builtin tool - it never reaches the plugin bus and
+    /// is never pre-passed into prompts.
+    fn dispatch_tool(
+        &mut self,
+        tool: &str,
+        args: &serde_json::Value,
+    ) -> Result<ToolCallOutcome, KernelError> {
+        if tool == "memory.recall" {
+            return Ok(self.memory_recall(args));
+        }
+        self.kernel.call_tool("operator", tool, args.clone())
+    }
+
+    /// B1: serve one `memory.recall`. Resolution order: evaluate the
+    /// outstanding prefetch (identical args = the speculation hit and the
+    /// result is reused), serve from K, then - while the predictor is still
+    /// running - speculatively pre-fetch the predicted next query (the
+    /// last-query predictor) so it rides this call's tail and not the
+    /// next model call's round trip. Every resolved speculation is booked
+    /// with hit/miss, its estimated token cost, and the predictor's
+    /// retirement flag.
+    fn memory_recall(&mut self, args: &serde_json::Value) -> ToolCallOutcome {
+        let started = std::time::Instant::now();
+        if self.memory_store.is_none() {
+            return ToolCallOutcome {
+                output: serde_json::json!({
+                    "error": "memory.recall: no memory store attached to this session"
+                }),
+                latency_ms: u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX),
+            };
+        }
+        let k = usize::try_from(
+            args.get("k")
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or(5)
+                .clamp(1, 50),
+        )
+        .unwrap_or(5);
+        let want = serde_json::json!({"k": k});
+        let mut cached: Option<serde_json::Value> = None;
+        if let Some(pref) = self.prefetch.take() {
+            let hit = pref.args == want;
+            if hit {
+                self.prefetch_hits += 1;
+                cached = Some(pref.result);
+            } else {
+                self.prefetch_misses += 1;
+            }
+            let total = self.prefetch_hits + self.prefetch_misses;
+            let retired = self.prefetch_enabled
+                && total >= PREFETCH_MIN_SAMPLES
+                && (f64::from(self.prefetch_hits) / f64::from(total)) < PREFETCH_COST_CROSSOVER;
+            if retired {
+                self.prefetch_enabled = false;
+            }
+            let _ = self.writer.append(
+                EventBuilder::new(EventKind::Prefetch).payload(Payload::Inline(
+                    serde_json::to_vec(&serde_json::json!({
+                        "predicted": pref.args, "hit": hit,
+                        "tokens_est": pref.tokens_est,
+                        "hits": self.prefetch_hits, "misses": self.prefetch_misses,
+                        "crossover": PREFETCH_COST_CROSSOVER,
+                        "predictor_retired": retired,
+                    }))
+                    .expect("json! values serialize"),
+                )),
+            );
+        }
+        let output = cached.unwrap_or_else(|| self.fetch_memory(k));
+        if self.prefetch_enabled && output.get("error").is_none() {
+            let tokens_est =
+                u32::try_from(output.to_string().len().div_ceil(4)).unwrap_or(u32::MAX).max(1);
+            self.prefetch = Some(PrefetchCache {
+                args: want,
+                result: output.clone(),
+                tokens_est,
+            });
+        }
+        ToolCallOutcome {
+            output,
+            latency_ms: u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX),
+        }
+    }
+
+    /// B1: read-side of the K query - top-k by importance then recency
+    /// (the `MemoryStore` contract), served as records with seq refs so
+    /// the model can quote provenance.
+    fn fetch_memory(&self, k: usize) -> serde_json::Value {
+        let Some(store) = &self.memory_store else {
+            return serde_json::json!({"error": "memory.recall: no memory store attached to this session"});
+        };
+        match store.top_k("operator", k) {
+            Ok(recs) => {
+                let rows: Vec<serde_json::Value> = recs
+                    .iter()
+                    .map(|r| {
+                        serde_json::json!({
+                            "id": r.id, "kind": r.kind, "agent_id": r.agent_id,
+                            "mission_id": r.mission_id, "content": r.content,
+                            "importance": r.importance, "expires_at": r.expires_at,
+                            "source_seqs": r.source_seqs, "created_at": r.created_at,
+                        })
+                    })
+                    .collect();
+                serde_json::json!({"count": rows.len(), "records": rows})
+            }
+            Err(e) => serde_json::json!({"error": format!("memory.recall: {e}")}),
+        }
+    }
+
     fn close_goal(&mut self, mission: &str, done: bool, outcome: &str) -> Result<(), LoopError> {
+        // B1: close-side K bookkeeping runs BEFORE the terminal
+        // GoalUpdate, which must stay the mission's last event (M12:
+        // the resume picker and the delegation graph read the LAST
+        // event as the goal's state).
+        // B1: an unresolved speculation at close is speculative work the
+        // next model call never cashed - resolve it as not-consumed (a
+        // miss in the predictor's books) with its cost visible.
+        if let Some(pref) = self.prefetch.take() {
+            self.prefetch_misses += 1;
+            self.writer.append(
+                EventBuilder::new(EventKind::Prefetch).payload(Payload::Inline(
+                    serde_json::to_vec(&serde_json::json!({
+                        "predicted": pref.args, "hit": false, "consumed": false,
+                        "tokens_est": pref.tokens_est,
+                        "hits": self.prefetch_hits, "misses": self.prefetch_misses,
+                    }))
+                    .expect("json! values serialize"),
+                )),
+            )?;
+        }
+        // B1 (v5 close contract): EVERY mission close distills its
+        // trajectory into K - deterministic extraction today, the LLM
+        // handoff distiller plugs into the same provenance contract
+        // later. The booking makes the write auditable from the log.
+        if self.memory_store.is_some() {
+            let records =
+                hs_memory::extract::extract_stream(&self.log_root, self.stream_id, mission, "operator");
+            let mut written = 0usize;
+            if let Some(store) = &self.memory_store {
+                for r in records {
+                    if store.put(r).is_ok() {
+                        written += 1;
+                    }
+                }
+            }
+            self.writer.append(
+                EventBuilder::new(EventKind::Observation).payload(Payload::Inline(
+                    serde_json::to_vec(&serde_json::json!({
+                        "memory_distilled": written, "mission": mission,
+                        "outcome": outcome,
+                    }))
+                    .expect("json! values serialize"),
+                )),
+            )?;
+        }
         self.writer.append(
             EventBuilder::new(EventKind::GoalUpdate).payload(Payload::Inline(
                 serde_json::to_vec(&serde_json::json!({
@@ -759,29 +951,6 @@ impl InnerLoop {
                     && let Ok(events) = reader.events() {
                         volatile.push_str("LEDGER (your work so far, always current):\n");
                         volatile.push_str(&self.ledger.summary());
-                        if let Some(store) = &self.memory_store
-                            && let Ok(recs) = store.top_k("operator", 5)
-                                && !recs.is_empty() {
-                                    volatile.push_str("MEMORY (earlier missions):\n");
-                                    let mut budget = 2000usize;
-                                    for r in &recs {
-                                        let line = format!(
-                                            "- [{} seqs:{}] {}\n",
-                                            r.kind,
-                                            r.source_seqs
-                                                .iter()
-                                                .map(u64::to_string)
-                                                .collect::<Vec<_>>()
-                                                .join(","),
-                                            r.content
-                                        );
-                                        if line.len() > budget {
-                                            break;
-                                        }
-                                        budget -= line.len();
-                                        volatile.push_str(&line);
-                                    }
-                                }
                         let mut asm = assembler::assemble_messages(
                             &reader,
                             &events,
@@ -1140,7 +1309,7 @@ impl InnerLoop {
                             args_summary: uipaint::summarize_args(&args),
                         });
                     }
-                    match self.kernel.call_tool("operator", &tool, args.clone()) {
+                    match self.dispatch_tool(&tool, &args) {
                     Ok(tool_out) => {
                         if let Some(sink) = self.ui_sink.as_mut() {
                             let ok = tool_out.output.get("error").is_none_or(serde_json::Value::is_null)

@@ -227,6 +227,16 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         if let Some(tokens) = Self::configured_context_tokens(config) {
             inner.set_context_budget_tokens(tokens * 3 / 4);
         }
+        // B1 (v5 D3): every REPL session owns the shared K plane at
+        // <dir>/memory.db; the model consults it via the memory.recall
+        // tool (cut #10: consulted, never pre-passed) and every mission
+        // close distills into it, so each session compounds. If the db
+        // cannot be created the tool simply is not offered (fail-open).
+        let memory_db = log_root.join("memory.db");
+        if hs_memory::sqlite::SqliteMemoryStore::open(&memory_db).is_ok() {
+            native_tools.push(crate::toolschema::memory_recall_tool());
+            inner.set_memory_db(&memory_db);
+        }
         inner.set_tools(serde_json::Value::Array(native_tools));
         let model_label = Self::configured_model_label(config).unwrap_or_else(|| "?".to_string());
         Ok(ReplSession {
@@ -302,6 +312,16 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         let mut inner = InnerLoop::with_stream(kernel, log_root, stream_id, feedback, max_steps)?;
         if let Some(tokens) = Self::configured_context_tokens(config) {
             inner.set_context_budget_tokens(tokens * 3 / 4);
+        }
+        // B1 (v5 D3): every REPL session owns the shared K plane at
+        // <dir>/memory.db; the model consults it via the memory.recall
+        // tool (cut #10: consulted, never pre-passed) and every mission
+        // close distills into it, so each session compounds. If the db
+        // cannot be created the tool simply is not offered (fail-open).
+        let memory_db = log_root.join("memory.db");
+        if hs_memory::sqlite::SqliteMemoryStore::open(&memory_db).is_ok() {
+            native_tools.push(crate::toolschema::memory_recall_tool());
+            inner.set_memory_db(&memory_db);
         }
         inner.set_tools(serde_json::Value::Array(native_tools));
         let model_label = Self::configured_model_label(config).unwrap_or_else(|| "?".to_string());

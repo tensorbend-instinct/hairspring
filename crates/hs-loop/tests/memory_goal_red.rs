@@ -1,7 +1,9 @@
 //! RED acceptance gates for Phase 3 (D3 typed memory plane + D6 goal
 //! evaluator), from the design doc's TDD plan.
 //!
-//! T6 `memory_roundtrip`: mission A's extracted memory record is retrieved
+//! T6 `memory_roundtrip`: B1/v5 contract (cut #10) - mission A's trajectory is distilled into K
+//!    BY THE LOOP at close; mission B consults K through the memory.recall tool and is served the
+//!    record with its `source_seqs`; nothing memory-shaped is pre-passed into prompts.
 //!    into mission B's context with its `source_seqs` intact.
 //! T7 `goal_evaluator_stops_green`: a mission stops when acceptance is
 //!    verifiably green (patch applies + F2P passes in the sandbox); it
@@ -79,10 +81,17 @@ fn model_prompts(log: &std::path::Path, stream: uuid::Uuid) -> Vec<String> {
 
 #[test]
 fn t6_memory_roundtrip_across_missions() {
+    // B1/v5 contract (cut #10): K is consulted by the model through the
+    // memory.recall tool - the loop NEVER pre-passes top-k records into
+    // prompts - and EVERY mission close distills its trajectory into K
+    // itself ("every mission close writes ... into the K store"). This is
+    // the same cross-mission roundtrip the retired test proved through
+    // the removed mandatory injection.
     let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    // --- mission A: passes in one step ---
+    // --- mission A: passes in one step; the LOOP distills it at close ---
     let dir_a = tempfile::tempdir().unwrap();
     let log_a = tempfile::tempdir().unwrap();
+    let db = tempfile::tempdir().unwrap().keep().join("memory.db");
     let answer_a = log_a.path().join("work").join("task-0").join("answer.txt");
     let script = write_script(
         dir_a.path(),
@@ -91,72 +100,69 @@ fn t6_memory_roundtrip_across_missions() {
     );
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let mut la = rig(dir_a.path(), log_a.path(), CHECKER, 4);
-    let stream_a = la.stream_id();
+    la.set_memory_db(&db);
     let ra = la.run_mission("task-0").unwrap();
     assert!(ra.passed, "mission A passes: {ra:?}");
 
-    // --- post-mission extraction (D3): trajectory -> typed records ---
-    let records = hs_memory::extract::extract_stream(log_a.path(), stream_a, "task-0", "operator");
-    assert!(!records.is_empty(), "extraction yields records");
+    // close-time distillation (v5): records with mandatory provenance,
+    // written by the loop itself - no external extraction call anywhere.
+    let store = hs_memory::sqlite::SqliteMemoryStore::open(&db).unwrap();
+    let records = store.top_k("operator", 5).unwrap();
+    assert!(!records.is_empty(), "mission A close distilled records");
     assert!(
         records.iter().all(|r| !r.source_seqs.is_empty()),
         "provenance mandatory: {records:?}"
     );
-    assert!(
-        records.iter().any(|r| r.kind == "episodic"),
-        "an episodic record: {records:?}"
-    );
 
-    let db = tempfile::tempdir().unwrap().keep().join("memory.db");
-    let store = hs_memory::sqlite::SqliteMemoryStore::open(&db).unwrap();
-    for r in records {
-        store.put(r).unwrap();
-    }
-
-    // --- mission B: the assembler retrieves mission A's record ---
+    // --- mission B: the agent CONSULTS K; mission A's record is served ---
     let dir_b = tempfile::tempdir().unwrap();
     let log_b = tempfile::tempdir().unwrap();
     let answer_b = log_b.path().join("work").join("task-0").join("answer.txt");
     let script = write_script(
         dir_b.path(),
-        &[serde_json::json!(
-        {"tool":"answer.write","args":{"path":answer_b.display().to_string(),"content":"blind"}})],
+        &[
+            serde_json::json!({"tool":"memory.recall","args":{"k":3}}),
+            serde_json::json!({"tool":"answer.write","args":{"path":answer_b.display().to_string(),"content":"blind"}}),
+        ],
     );
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
-    let mut lb = rig(dir_b.path(), log_b.path(), CHECKER, 2);
+    let mut lb = rig(dir_b.path(), log_b.path(), CHECKER, 4);
     lb.set_memory_db(&db);
     let stream_b = lb.stream_id();
     let _ = lb.run_mission("task-0").unwrap();
 
-    let prompts = model_prompts(log_b.path(), stream_b);
-    let p = prompts.last().expect("a prompt in mission B");
-    assert!(
-        p.contains("MEMORY (earlier missions)"),
-        "memory block assembled: {p}"
-    );
-    assert!(
-        p.contains("task-0"),
-        "mission A's record content retrieved: {p}"
-    );
-    // provenance rides along: the seq refs from mission A's log
-    let first = store
-        .top_k("operator", 5)
+    // the recall's ToolCall event carries mission A's record + provenance
+    let reader = hs_log::StreamReader::open(log_b.path(), stream_b).unwrap();
+    let recall = reader
+        .events()
         .unwrap()
-        .into_iter()
-        .next()
-        .unwrap();
-    let seqref = format!(
-        "seqs:{}",
-        first
-            .source_seqs
-            .iter()
-            .map(std::string::ToString::to_string)
-            .collect::<Vec<_>>()
-            .join(",")
-    );
+        .iter()
+        .filter(|e| e.kind == EventKind::ToolCall)
+        .filter_map(|e| reader.resolve_payload(e).ok())
+        .map(|b| String::from_utf8_lossy(&b).into_owned())
+        .find(|p| p.contains("\"plugin\":\"memory.recall\""))
+        .expect("mission B consulted K via the memory.recall tool");
+    let marker = &records[0].content[..records[0].content.len().min(24)];
+    assert!(recall.contains(marker), "K served mission A's record: {recall}");
     assert!(
-        p.contains(&seqref),
-        "source_seqs intact in the prompt: {seqref} in {p}"
+        recall.contains("\"source_seqs\":["),
+        "provenance rides the tool result: {recall}"
+    );
+    // the result reaches the model's next turn via transcript replay -
+    // that is the retrieval: consulted, served, visible.
+    let prompts = model_prompts(log_b.path(), stream_b);
+    let last = prompts.last().expect("a prompt in mission B");
+    assert!(
+        last.contains(marker),
+        "memory.recall result visible in the model's next turn: {last}"
+    );
+    // cut #10: NOTHING memory-shaped enters a prompt the model never
+    // asked for. The mandatory MEMORY pre-pass is gone.
+    assert!(
+        prompts
+            .iter()
+            .all(|p| !p.contains("MEMORY (earlier missions)")),
+        "no mandatory memory pre-pass survives"
     );
 }
 

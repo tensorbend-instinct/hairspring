@@ -235,3 +235,17 @@ pub fn verdict_tool() -> Value {
         },"required":["refuted","blocking","findings"]}),
     )
 }
+
+/// B1 (v5 D3 + cut #10): the K memory plane as a consulted tool. The
+/// agent decides when to recall; nothing from earlier missions is
+/// pre-passed into its context. Retrieval runs against the session's
+/// attached `MemoryStore` inside the loop (never the plugin bus); every
+/// record carries `source_seqs` provenance into the event log.
+#[must_use]
+pub fn memory_recall_tool() -> Value {
+    f(
+        "memory.recall",
+        "Query K, the cross-mission typed memory plane (design D3). Returns top-k records from EARLIER missions by importance then recency - what the team has already learned - each with source_seqs pointing into the event log so you can chase provenance. Nothing from prior missions reaches you automatically: call this BEFORE re-deriving anything a past mission may have established. k defaults to 5.",
+        json!({"type":"object","properties":{"k":{"type":"integer","description":"records to return, 1..=50 (default 5)"}}}),
+    )
+}
