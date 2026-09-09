@@ -34,8 +34,26 @@ fn running_count(dir: &std::path::Path) -> usize {
             rd.filter_map(std::result::Result::ok)
                 .filter(|e| {
                     let n = e.file_name().to_string_lossy().to_string();
-                    n.ends_with(".spawn.json")
-                        && !dir.join(n.replace(".spawn.json", ".report.json")).exists()
+                    if !n.ends_with(".spawn.json") {
+                        return false;
+                    }
+                    if dir.join(n.replace(".spawn.json", ".report.json")).exists() {
+                        return false; // finished: report written
+                    }
+                    // Children are threads of this process: a marker
+                    // stamped BEFORE it started belongs to a dead plugin,
+                    // and poll already reports that child "lost". A corpse
+                    // must not occupy a concurrency slot forever, so apply
+                    // the same predicate here. Keep the read cheap: only
+                    // candidates left.
+                    let stale = std::fs::read_to_string(dir.join(&n))
+                        .ok()
+                        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+                        .and_then(|v| v["started_at_ms"].as_i64())
+                        .is_some_and(|ms| {
+                            ms < *PROCESS_START_MS.get().unwrap_or(&i64::MAX)
+                        });
+                    !stale
                 })
                 .count()
         })
