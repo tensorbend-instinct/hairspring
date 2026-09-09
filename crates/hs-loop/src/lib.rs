@@ -13,6 +13,7 @@ pub mod evolve;
 pub mod goal;
 pub mod ledger;
 pub mod mcpbridge;
+pub mod mission_time;
 pub mod msgfmt;
 pub mod realmodel;
 pub mod repexec;

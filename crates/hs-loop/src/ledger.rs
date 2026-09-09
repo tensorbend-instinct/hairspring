@@ -40,7 +40,7 @@ fn args_hash(args: &Value) -> u64 {
 /// Doom-loop hashing ignores whitespace-only differences: "sh check.sh" and
 /// "sh  check.sh" are the same stuck call (Grok `doom_loop_telemetry`,
 /// adapted).
-fn normalize_strings(v: &Value, out: &mut String) {
+pub(crate) fn normalize_strings(v: &Value, out: &mut String) {
     match v {
         Value::String(s) => {
             out.push('"');
