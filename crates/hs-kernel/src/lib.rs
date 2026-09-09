@@ -145,7 +145,7 @@ impl PluginProc {
     /// spawn + optional stderr capture: a wedged or dying plugin must leave
     /// its stderr somewhere an operator can read (conan-17302, 2026-09-07:
     /// 19 min of silence with stderr wired to /dev/null). Falls back to
-    /// Stdio::null when no log path is configured - never pipe: an
+    /// `Stdio::null` when no log path is configured - never pipe: an
     /// undrained pipe is itself a wedge vector.
     fn spawn(
         command: &[String],
@@ -168,8 +168,7 @@ impl PluginProc {
                         .create(true)
                         .append(true)
                         .open(p)
-                        .map(Stdio::from)
-                        .unwrap_or(Stdio::null())
+                        .map_or(Stdio::null(), Stdio::from)
                 }
                 None => Stdio::null(),
             })
@@ -209,7 +208,7 @@ impl PluginProc {
     }
 
     /// One request/response round trip. A dead plugin (EOF / no response /
-    /// write failure) is reported as PluginError so the caller can respawn
+    /// write failure) is reported as `PluginError` so the caller can respawn
     /// and retry exactly once.
     fn call(
         &mut self,
@@ -220,8 +219,8 @@ impl PluginProc {
         self.next_id += 1;
         let id = self.next_id;
         let req = serde_json::json!({"id": id, "method": method, "params": params});
-        writeln!(self.stdin, "{}", req)
-            .and_then(|_| self.stdin.flush())
+        writeln!(self.stdin, "{req}")
+            .and_then(|()| self.stdin.flush())
             .map_err(|e| KernelError::Plugin(format!("write: {e}")))?;
         // Gap #3: streaming. The response may be preceded by interstitial
         // {"id":N,"delta":"..."} frames (a streaming model's incremental
@@ -294,8 +293,7 @@ impl PluginSlot {
         let log = self.stderr_dir.as_ref().map(|d| {
             let nanos = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .map(|t| t.as_nanos())
-                .unwrap_or(0);
+                .map_or(0, |t| t.as_nanos());
             d.join(format!("{}-{}.stderr.log", self.entry.name, nanos))
         });
         PluginProc::spawn(&self.entry.command, self.entry.lease_secs, log.as_deref())
@@ -304,8 +302,8 @@ impl PluginSlot {
     /// Supervisor contract (phase 1, design D4): every attempt starts by
     /// ensuring a live process - a None slot respawns from config, so a
     /// previously dead slot recovers the moment the plugin can spawn again.
-    /// Bounded retries: after MAX_STRIKES consecutive failures the call
-    /// returns PluginDead naming the plugin and the most recent real cause.
+    /// Bounded retries: after `MAX_STRIKES` consecutive failures the call
+    /// returns `PluginDead` naming the plugin and the most recent real cause.
     /// Any success resets the strike counter.
     fn call(
         &mut self,
@@ -366,8 +364,8 @@ pub struct Kernel {
     log: RefCell<Option<StreamWriter>>,
     log_root: Option<PathBuf>,
     stream_id: RefCell<Option<uuid::Uuid>>,
-    /// Gap #3: streaming-delta sink (see DeltaSink). When set, model.call
-    /// params carry "stream_deltas": true.
+    /// Gap #3: streaming-delta sink (see `DeltaSink`). When set, model.call
+    /// params carry "`stream_deltas"`: true.
     delta_sink: RefCell<Option<DeltaSink>>,
 }
 
@@ -376,7 +374,7 @@ impl Kernel {
         Self::load_inner(config, None)
     }
 
-    /// True when this kernel was built with a log root (load_with_log):
+    /// True when this kernel was built with a log root (`load_with_log)`:
     /// dispatch records and plugin stderr capture are active only then.
     pub fn has_log_root(&self) -> bool {
         self.log_root.is_some()
@@ -396,7 +394,7 @@ impl Kernel {
             models: RefCell::new(HashMap::new()),
             rails: RefCell::new(vec![]),
             log: RefCell::new(None),
-            log_root: log_root.map(|p| p.to_path_buf()),
+            log_root: log_root.map(std::path::Path::to_path_buf),
             stream_id: RefCell::new(None),
             delta_sink: RefCell::new(None),
         };
@@ -410,8 +408,7 @@ impl Kernel {
             |entry: &PluginEntry, kind: &'static str| -> Result<PluginSlot, KernelError> {
                 let nanos = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
-                    .map(|t| t.as_nanos())
-                    .unwrap_or(0);
+                    .map_or(0, |t| t.as_nanos());
                 let log = stderr_dir
                     .as_ref()
                     .map(|d| d.join(format!("{}-{}.stderr.log", entry.name, nanos)));
@@ -571,7 +568,7 @@ impl Kernel {
     /// Quiet tool query: dispatch without booking or rails. For
     /// loop-internal bookkeeping (e.g. polling a delegation registry) -
     /// never for mission work: anything the mission depends on must go
-    /// through call_tool so the ledger records it.
+    /// through `call_tool` so the ledger records it.
     pub fn query_tool(
         &self,
         subject: &str,
@@ -607,13 +604,13 @@ impl Kernel {
     }
 
     /// Gap #3: register the streaming-delta sink. From the next model call
-    /// on, params carry "stream_deltas": true and each interstitial delta
+    /// on, params carry "`stream_deltas"`: true and each interstitial delta
     /// frame is forwarded to the sink as it arrives.
     pub fn set_delta_sink(&self, sink: DeltaSink) {
         *self.delta_sink.borrow_mut() = Some(sink);
     }
 
-    /// call_model + native tool schemas: tools is passed to the model
+    /// `call_model` + native tool schemas: tools is passed to the model
     /// plugin and on to the provider's tools parameter (native tool
     /// calling). None = no tools param (distill, verifier, fixtures).
     pub fn call_model_with(
@@ -718,7 +715,7 @@ impl Kernel {
         self.models.borrow().contains_key(name)
     }
 
-    /// Configured models as (name, is_default), sorted by name so the
+    /// Configured models as (name, `is_default`), sorted by name so the
     /// picker order is stable.
     pub fn model_names(&self) -> Vec<(String, bool)> {
         let mut v: Vec<(String, bool)> = self
@@ -913,6 +910,7 @@ pub mod testing {
     use std::path::Path;
 
     /// Read the single stream in a kernel log dir.
+    #[must_use]
     pub fn read_only_stream(log_root: &Path) -> Vec<Event> {
         let mut entries: Vec<_> = std::fs::read_dir(log_root.join("streams"))
             .unwrap()
@@ -925,6 +923,7 @@ pub mod testing {
 }
 pub use testing::read_only_stream;
 
+#[allow(clippy::missing_fields_in_debug)] // deliberately minimal: config_path identifies the instance
 impl std::fmt::Debug for Kernel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Kernel")

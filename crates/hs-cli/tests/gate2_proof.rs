@@ -163,7 +163,7 @@ command = ["{MODEL2}"]
         .iter()
         .map(|e| match &e.payload {
             hs_core::Payload::Inline(b) => String::from_utf8_lossy(b).into_owned(),
-            other => format!("{:?}", other),
+            other => format!("{other:?}"),
         })
         .collect::<String>();
     assert!(

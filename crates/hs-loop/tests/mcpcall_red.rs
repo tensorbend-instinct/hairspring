@@ -1,7 +1,7 @@
 //! RED contract tests: hs-plugin-mcpcall - the per-call MCP bridge.
 //! Spawns the named server (child-process transport), handshakes via rmcp,
 //! lists or calls one tool, kills the child. Audit stays automatic because
-//! the kernel invokes this bin per tool call (ToolCall events). Fixture:
+//! the kernel invokes this bin per tool call (`ToolCall` events). Fixture:
 //! in-tree hs-mcp-fixture server with one tool, echo.
 
 use std::process::Command;

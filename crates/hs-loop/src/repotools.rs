@@ -56,9 +56,9 @@ pub fn read_repo_file(ws: &Path, rel: &str) -> Result<serde_json::Value, String>
 }
 
 /// Ranged read: 1-indexed `start_line`, `max_lines` window (default: from
-/// line 1, up to WINDOW_LINES). A byte backstop (READ_CAP) still applies so
+/// line 1, up to `WINDOW_LINES`). A byte backstop (`READ_CAP`) still applies so
 /// one giant minified line cannot blow the context. `truncated` means more
-/// content exists beyond `end_line` - page forward with start_line=end+1.
+/// content exists beyond `end_line` - page forward with `start_line=end+1`.
 pub const WINDOW_LINES: u64 = 400;
 
 pub fn read_repo_window(
@@ -134,7 +134,7 @@ pub fn search_repo(ws: &Path, pattern: &str) -> Result<serde_json::Value, String
                 continue;
             }
             if ig
-                .matched(&path, ent.file_type().map(|t| t.is_dir()).unwrap_or(false))
+                .matched(&path, ent.file_type().is_ok_and(|t| t.is_dir()))
                 .is_ignore()
             {
                 continue;
@@ -154,7 +154,7 @@ pub fn search_repo(ws: &Path, pattern: &str) -> Result<serde_json::Value, String
                     _ => continue,
                 }
             }
-            let size = ent.metadata().map(|m| m.len()).unwrap_or(0);
+            let size = ent.metadata().map_or(0, |m| m.len());
             if size > SEARCH_FILE_CAP {
                 continue;
             }
@@ -162,9 +162,7 @@ pub fn search_repo(ws: &Path, pattern: &str) -> Result<serde_json::Value, String
                 continue; // binary or unreadable
             };
             let rel = path
-                .strip_prefix(&ws_canon)
-                .map(|p| p.to_string_lossy().to_string())
-                .unwrap_or_else(|_| name.to_string());
+                .strip_prefix(&ws_canon).map_or_else(|_| name.to_string(), |p| p.to_string_lossy().to_string());
             for (i, line) in text.lines().enumerate() {
                 if line.contains(pattern) {
                     matches.push(json!({

@@ -7,6 +7,7 @@ use crate::NewMemoryRecord;
 use hs_core::EventKind;
 use std::path::Path;
 
+#[must_use]
 pub fn extract_stream(
     log_root: &Path,
     stream_id: uuid::Uuid,

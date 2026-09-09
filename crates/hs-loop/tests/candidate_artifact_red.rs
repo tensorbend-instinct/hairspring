@@ -4,7 +4,7 @@
 //! Live evidence (conan-17302, fixed-build rerun): the pre-6398fc8f eval
 //! flow stranded .hs-eval.patch inside the ws, where it was COMMITTED into
 //! the ws HEAD. The candidate worktree branches from that HEAD, so the
-//! artifact is tracked there; read_cumulative then deleted the worktree copy
+//! artifact is tracked there; `read_cumulative` then deleted the worktree copy
 //! and ran `git add -A`, staging a spurious "delete .hs-eval.patch" hunk.
 //! The rerun agent inherited that poisoned candidate and burned ~30 steps
 //! fighting the phantom deletion. Falsifiable: apply one real edit through

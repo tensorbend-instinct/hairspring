@@ -1,5 +1,5 @@
 //! RED (2026-09-06): spec v5 recovery tier B - snapshot restore. "Sandbox
-//! dead; snapshot exists -> restore from snapshot_ref; process and
+//! dead; snapshot exists -> restore from `snapshot_ref`; process and
 //! filesystem state back. < 60 s warm-cache; cold measured and reported,
 //! not rounded down." Eric's bar: no toy snapshots - the primitive captures
 //! the FULL tree (source, .git, venv, build artifacts), restore is

@@ -45,10 +45,10 @@ impl std::fmt::Debug for CriticReply {
     }
 }
 
-/// The critic's model interface. Scripted in tests, DeepSeek in prod.
+/// The critic's model interface. Scripted in tests, `DeepSeek` in prod.
 pub trait CriticModel {
     fn step(&mut self, messages: &[Value]) -> Result<CriticReply, String>;
-    /// Cumulative (input_tokens, output_tokens, cost_micros).
+    /// Cumulative (`input_tokens`, `output_tokens`, `cost_micros`).
     fn usage(&self) -> (u64, u64, u64) {
         (0, 0, 0)
     }
@@ -69,11 +69,12 @@ impl Default for RefuteConfig {
 }
 
 impl RefuteConfig {
+    #[must_use]
     pub fn from_env() -> Self {
         let d = Self::default();
         let g = |k: &str, cur: u64| std::env::var(k).ok().and_then(|v| v.parse().ok()).unwrap_or(cur);
         Self {
-            max_steps: g("HS_CRITIC_MAX_STEPS", d.max_steps as u64) as u32,
+            max_steps: g("HS_CRITIC_MAX_STEPS", u64::from(d.max_steps)) as u32,
             wall_secs: g("HS_CRITIC_WALL_SECS", d.wall_secs),
             budget_micros: g("HS_CRITIC_BUDGET_MICROS", d.budget_micros),
             cmd_timeout_secs: g("HS_CRITIC_CMD_TIMEOUT_SECS", d.cmd_timeout_secs),
@@ -95,6 +96,7 @@ pub struct RefuteOutcome {
 /// Lenient verdict parse: first JSON object in the text carrying a bool
 /// "refuted". The model is told to reply with only the object; prose
 /// around it is tolerated, a missing/malformed object is not.
+#[must_use]
 pub fn parse_verdict(text: &str) -> Option<(bool, String)> {
     let start = text.find('{')?;
     let end = text.rfind('}')?;
@@ -190,7 +192,7 @@ pub fn refute(
                     let result_text = tail(
                         &format!(
                             "exit {}\nstdout:\n{}\nstderr:\n{}",
-                            o["exit_code"].as_i64().map(|c| c.to_string()).unwrap_or_else(|| "?".into()),
+                            o["exit_code"].as_i64().map_or_else(|| "?".into(), |c| c.to_string()),
                             o["stdout"].as_str().unwrap_or(""),
                             o["stderr"].as_str().unwrap_or("")
                         ),
@@ -206,6 +208,7 @@ pub fn refute(
 
 /// The checker.run gate: phase 1 the author's declared checks, phase 2 the
 /// independent critic. Phase 2 runs only when phase 1 is green.
+#[must_use]
 pub fn checker_gate(ws: &Path) -> Value {
     let phase1 = crate::selfcheck::check(ws);
     if phase1["passed"].as_bool() != Some(true) {
@@ -270,17 +273,21 @@ pub struct ScriptedCritic {
 }
 
 impl ScriptedCritic {
+    #[must_use]
     pub fn new(replies: Vec<CriticReply>) -> Self {
         Self { replies: replies.into(), err: None, seen: vec![], seen_count: 0 }
     }
+    #[must_use]
     pub fn failing(err: &str) -> Self {
         Self { replies: Default::default(), err: Some(err.to_string()), seen: vec![], seen_count: 0 }
     }
+    #[must_use]
     pub fn seen_tool_results(&self) -> &Vec<String> {
         &self.seen
     }
-    /// HS_CRITIC_SCRIPT: "|"-separated segments, each "tool:<cmd>",
+    /// `HS_CRITIC_SCRIPT`: "|"-separated segments, each "tool:<cmd>",
     /// "refute:<reason>", or "clean". Test seam only - never set in prod.
+    #[must_use]
     pub fn from_env() -> Option<Self> {
         let s = std::env::var("HS_CRITIC_SCRIPT").ok()?;
         let mut replies = vec![];

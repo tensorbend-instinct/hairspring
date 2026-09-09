@@ -123,6 +123,7 @@ pub fn compute_replacements(
 ///
 /// Replacements are applied in **reverse order** so that earlier replacements
 /// don't shift the positions of later ones.
+#[must_use]
 pub fn apply_replacements(
     mut lines: Vec<String>,
     replacements: &[(usize, usize, Vec<String>)],

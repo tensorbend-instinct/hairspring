@@ -8,9 +8,9 @@
 //!
 //! Contract: a call's streamed text is held in flight (still rendered
 //! live - M11 streaming is untouched) until the call's disposition is
-//! known. ToolCallStart DROPS the held text (the beat narrates it);
+//! known. `ToolCallStart` DROPS the held text (the beat narrates it);
 //! any other disposition commits it as before; mission end commits
-//! whatever remains via commit_answer_tail().
+//! whatever remains via `commit_answer_tail()`.
 
 use hs_loop::tui::TuiState;
 use hs_loop::uipaint::UiEvent;

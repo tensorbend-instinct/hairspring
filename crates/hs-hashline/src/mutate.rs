@@ -215,6 +215,7 @@ pub fn apply_mutation(lines: &mut Vec<String>, mutation: &Mutation) -> MutationR
 
 /// Generate an "insert lines above" mutation: insert `count` boilerplate
 /// lines before `before_idx`.
+#[must_use]
 pub fn gen_insert_above(before_idx: usize, count: usize) -> Mutation {
     let lines: Vec<String> = (0..count)
         .map(|i| format!("// inserted line {i}"))
@@ -223,11 +224,13 @@ pub fn gen_insert_above(before_idx: usize, count: usize) -> Mutation {
 }
 
 /// Generate a "delete lines" mutation.
+#[must_use]
 pub fn gen_delete(start_idx: usize, count: usize) -> Mutation {
     Mutation::DeleteLines { start_idx, count }
 }
 
 /// Generate a local token edit on a single line.
+#[must_use]
 pub fn gen_token_edit(line_idx: usize, new_content: &str) -> Mutation {
     Mutation::EditLine {
         line_idx,
@@ -236,6 +239,7 @@ pub fn gen_token_edit(line_idx: usize, new_content: &str) -> Mutation {
 }
 
 /// Generate a formatter-style re-indentation.
+#[must_use]
 pub fn gen_reindent(line_idx: usize, new_indent: &str) -> Mutation {
     Mutation::ReindentLine {
         line_idx,
@@ -244,15 +248,17 @@ pub fn gen_reindent(line_idx: usize, new_indent: &str) -> Mutation {
 }
 
 /// Generate a range rewrite replacing `start_idx..end_idx` with new content.
+#[must_use]
 pub fn gen_range_rewrite(start_idx: usize, end_idx: usize, new_lines: &[&str]) -> Mutation {
     Mutation::RangeRewrite {
         start_idx,
         end_idx,
-        new_lines: new_lines.iter().map(|s| s.to_string()).collect(),
+        new_lines: new_lines.iter().map(std::string::ToString::to_string).collect(),
     }
 }
 
 /// Generate a boilerplate-insertion mutation: insert repeated identical lines.
+#[must_use]
 pub fn gen_boilerplate_insert(before_idx: usize, line: &str, count: usize) -> Mutation {
     Mutation::InsertLines {
         before_idx,

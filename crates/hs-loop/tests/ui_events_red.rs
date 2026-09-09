@@ -1,8 +1,8 @@
 //! UI gap #10 M10 RED: the loop must EMIT model-call UI events.
 //!
-//! Live-proof finding (tmux, HS_SEQMODEL_DELAY_MS=350): the HUD held
+//! Live-proof finding (tmux, `HS_SEQMODEL_DELAY_MS=350)`: the HUD held
 //! "0 calls" for the whole mission and the phase rail never moved -
-//! InnerLoop emits ToolCallStart/ToolCallEnd but never
+//! `InnerLoop` emits ToolCallStart/ToolCallEnd but never
 //! ModelCallStart/ModelCallEnd, so M5's derivation had nothing to
 //! consume until the mission summary landed.
 

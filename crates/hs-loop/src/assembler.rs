@@ -1,5 +1,5 @@
 //! D1 token-budgeted context assembler (replaces the 60KB char window).
-//! The transcript is a PROJECTION of the stream's own ToolCall events:
+//! The transcript is a PROJECTION of the stream's own `ToolCall` events:
 //! everything that fits the budget stays verbatim; only over-budget missions
 //! compress, and compression is a pointer into the always-resident LEDGER
 //! plus the source event range (audit refs), never a bare tally.
@@ -21,8 +21,9 @@ pub struct Assembly {
     pub compressed: Option<Compressed>,
 }
 
-/// Build the transcript block from the stream's ToolCall events.
-/// `budget_chars` = context_budget_tokens * 4 (the loop owns the token config).
+/// Build the transcript block from the stream's `ToolCall` events.
+/// `budget_chars` = `context_budget_tokens` * 4 (the loop owns the token config).
+#[must_use]
 pub fn assemble(
     reader: &hs_log::StreamReader,
     events: &[hs_core::Event],
@@ -110,8 +111,8 @@ pub fn assemble(
 
 /// Native-messages variant of the transcript projection (structured-
 /// messages migration 2026-09-05): the same log-sourced, token-budgeted
-/// projection as assemble(), but each exchange is emitted as a native
-/// assistant(tool_calls) + tool pair, and over-budget compaction is a user
+/// projection as `assemble()`, but each exchange is emitted as a native
+/// `assistant(tool_calls)` + tool pair, and over-budget compaction is a user
 /// handoff message. No hand-rendered transcript text survives.
 pub struct AssemblyMessages {
     pub messages: Vec<serde_json::Value>,
@@ -125,13 +126,14 @@ struct Exchange {
     args: serde_json::Value,
     content: String,
     line: String,
-    /// The owning ModelCall's reasoning_content (thinking-mode pass-back;
+    /// The owning `ModelCall`'s `reasoning_content` (thinking-mode pass-back;
     /// empty when unrecorded).
     reasoning: String,
 }
 
-/// Build the history messages from the stream's ToolCall events.
-/// `budget_chars` = context_budget_tokens * 4 (the loop owns the config).
+/// Build the history messages from the stream's `ToolCall` events.
+/// `budget_chars` = `context_budget_tokens` * 4 (the loop owns the config).
+#[must_use]
 pub fn assemble_messages(
     reader: &hs_log::StreamReader,
     events: &[hs_core::Event],
@@ -145,7 +147,7 @@ pub fn assemble_messages(
     let mut reasoning_by_tc: std::collections::HashMap<u64, String> =
         std::collections::HashMap::new();
     let mut last_reasoning = String::new();
-    for e in events.iter() {
+    for e in events {
         match e.kind {
             EventKind::ModelCall => {
                 if let Ok(bytes) = reader.resolve_payload(e) {

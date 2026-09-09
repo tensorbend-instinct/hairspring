@@ -2,7 +2,7 @@
 //! candidate worktree; returns the cumulative diff vs base on every call.
 //! args: {edits:[{path, old, new}]} apply | {op:"diff"} read cumulative |
 //! {op:"reset"} discard. The raw unified-diff arg is retired (corrupt-patch
-//! failure class, measured 2026-09-05). Env: HS_SWE_WORKSPACE (required).
+//! failure class, measured 2026-09-05). Env: `HS_SWE_WORKSPACE` (required).
 include!("shared/sdk.rs");
 fn main() {
     serve("edit.apply", "tool", &mut |method, params| match method {
@@ -28,7 +28,7 @@ fn main() {
                                         path: p.to_string(),
                                         old: o.to_string(),
                                         new: n.to_string(),
-                                    })
+                                    });
                                 }
                                 _ => {
                                     return serde_json::json!({"$error": format!("edits[{i}] needs path, old and new strings")});
@@ -45,5 +45,5 @@ fn main() {
             }
         }
         _ => serde_json::json!({"$error": "unknown method"}),
-    })
+    });
 }

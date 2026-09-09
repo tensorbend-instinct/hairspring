@@ -4,7 +4,7 @@
 //! makes the operator paste a raw stream uuid into --resume.
 //!
 //! Contract: the REPL lists prior sessions from the log root (typed
-//! SessionInfo: id, event count, mission preview, mtime; newest first)
+//! `SessionInfo`: id, event count, mission preview, mtime; newest first)
 //! and maps a picker's numeric selection to a stream id. `--resume`
 //! with no id opens the picker on a TTY.
 
@@ -56,7 +56,7 @@ fn fake_info(id: &str, events: u64, preview: &str) -> SessionInfo {
 // NEWEST FIRST, each with its goal text as the preview.
 #[test]
 fn r1_lists_sessions_newest_first() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let config = scripted_config(dir.path());
@@ -123,7 +123,7 @@ fn r3_session_line() {
 // constructor must adopt the picked stream in every mode.
 #[test]
 fn r4_load_session_resume_adopts_stream() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let config = scripted_config(dir.path());

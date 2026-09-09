@@ -4,10 +4,10 @@
 //! pi/omp-class REPLs let you leave and come back: the conversation
 //! continues with its history intact. hs-repl today opens a FRESH stream
 //! on every invocation - a restarted session has amnesia even though the
-//! substrate (StreamWriter::resume, InnerLoop::with_stream) has supported
+//! substrate (`StreamWriter::resume`, `InnerLoop::with_stream`) has supported
 //! adoption since gate 5. That is the red.
 //!
-//! Contract: ReplSession::load_resume adopts an existing stream id. The
+//! Contract: `ReplSession::load_resume` adopts an existing stream id. The
 //! next mission appends to the SAME stream (sequence numbers continue,
 //! the hash chain verifies end to end), and the resumed mission's first
 //! prompt carries the PRIOR mission's tool-call transcript - the model
@@ -56,7 +56,7 @@ fn write_script(dir: &std::path::Path, name: &str, lines: &[serde_json::Value]) 
         &p,
         lines
             .iter()
-            .map(|l| l.to_string())
+            .map(std::string::ToString::to_string)
             .collect::<Vec<_>>()
             .join("\n"),
     )
@@ -84,7 +84,7 @@ fn model_call_prompts(log: &std::path::Path, stream: uuid::Uuid) -> Vec<String> 
 
 #[test]
 fn resumed_session_continues_stream_and_history() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let config = write_config(dir.path());
@@ -144,7 +144,7 @@ fn resumed_session_continues_stream_and_history() {
 /// carrying the parent's full transcript, parent untouched.
 #[test]
 fn forked_session_branches_history_and_leaves_parent_intact() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let config = write_config(dir.path());

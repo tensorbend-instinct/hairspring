@@ -102,7 +102,7 @@ fn apply_streaming(session: &mut ReplSession) {
 }
 
 /// UI gap #7: one constructor for every mode - --resume and --fork
-/// resolve through hs_loop::repl::load_session, so interactive and
+/// resolve through `hs_loop::repl::load_session`, so interactive and
 /// one-shot behave identically.
 fn build_session(opts: &Opts) -> Result<ReplSession, Box<dyn std::error::Error>> {
     let parse = |v: &Option<String>, flag: &str| -> Result<Option<uuid::Uuid>, Box<dyn std::error::Error>> {
@@ -146,10 +146,10 @@ fn apply_guards(session: &mut ReplSession, opts: &Opts) {
 
 
 /// UI gap #10: the full-screen surface. TTY stdin gets the ratatui
-/// surface by default (HS_TUI=off falls back to line mode); piped stdin
+/// surface by default (`HS_TUI=off` falls back to line mode); piped stdin
 /// always stays byte-plain line mode. The mission runner lives on a
 /// worker thread that owns the session; the UI thread owns the
-/// terminal and the TuiState.
+/// terminal and the `TuiState`.
 fn run_fullscreen(
     session: ReplSession,
     opts: &Opts,
@@ -230,7 +230,7 @@ fn run_fullscreen(
                 UiCmd::SetModel(name) => {
                     let r = session
                         .set_model_override(Some(name.clone()))
-                        .map(|_| name)
+                        .map(|()| name)
                         .map_err(|e| e.to_string());
                     let _ = tx.send(TuiMsg::ModelSet(r));
                 }
@@ -476,7 +476,7 @@ fn run_fullscreen(
                     MouseEventKind::ScrollDown => st.transcript_wheel_down(3),
                     _ => {}
                 },
-                Event::Resize(_, _) => {}
+                // Resize needs no redraw here; everything else is a no-op
                 _ => {}
             }
         }
@@ -487,7 +487,7 @@ fn run_fullscreen(
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
-    let one_shot_goal = if args.get(1).map(|s| s.as_str()) == Some("run") {
+    let one_shot_goal = if args.get(1).map(std::string::String::as_str) == Some("run") {
         Some(arg(&args, "--goal").expect("--goal required in run mode"))
     } else {
         None
@@ -532,38 +532,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    match one_shot_goal {
-        Some(goal) => {
-            // Gap #4: --resume <stream-id> continues a prior session's
-            // stream (history replays from the log); default opens fresh.
-            let mut session = build_session(&opts)?;
-            apply_guards(&mut session, &opts);
-            apply_streaming(&mut session);
-            let r = session
-                .run_goal(&goal)
-                .map_err(|e| format!("mission: {e}"))?;
-            hs_loop::repl::print_result(&r);
-        }
-        None => {
-            eprintln!("hairspring repl (:help for commands, :quit to exit)");
-            // UI gap #7: interactive honors --resume/--fork like one-shot
-            // (the picker resolves to a uuid above; previously the
-            // interactive arm ignored it and opened a fresh stream).
-            let mut session = build_session(&opts)?;
-            apply_guards(&mut session, &opts);
-            apply_streaming(&mut session);
-            use std::io::IsTerminal;
-            if tui_active {
-                run_fullscreen(session, &opts)?;
-            } else if std::io::stdin().is_terminal() {
-                let mut ed = hs_loop::repl::RustylineEditor::new(&opts.dir)
-                    .map_err(|e| format!("line editor: {e}"))?;
-                hs_loop::repl::run_interactive(&mut session, &mut ed)?;
-            } else {
-                let stdin = std::io::stdin();
-                let mut ed = hs_loop::repl::StdinEditor::new(&opts.dir, stdin.lock());
-                hs_loop::repl::run_interactive(&mut session, &mut ed)?;
-            }
+    if let Some(goal) = one_shot_goal {
+        // Gap #4: --resume <stream-id> continues a prior session's
+        // stream (history replays from the log); default opens fresh.
+        let mut session = build_session(&opts)?;
+        apply_guards(&mut session, &opts);
+        apply_streaming(&mut session);
+        let r = session
+            .run_goal(&goal)
+            .map_err(|e| format!("mission: {e}"))?;
+        hs_loop::repl::print_result(&r);
+    } else {
+        eprintln!("hairspring repl (:help for commands, :quit to exit)");
+        // UI gap #7: interactive honors --resume/--fork like one-shot
+        // (the picker resolves to a uuid above; previously the
+        // interactive arm ignored it and opened a fresh stream).
+        let mut session = build_session(&opts)?;
+        apply_guards(&mut session, &opts);
+        apply_streaming(&mut session);
+        use std::io::IsTerminal;
+        if tui_active {
+            run_fullscreen(session, &opts)?;
+        } else if std::io::stdin().is_terminal() {
+            let mut ed = hs_loop::repl::RustylineEditor::new(&opts.dir)
+                .map_err(|e| format!("line editor: {e}"))?;
+            hs_loop::repl::run_interactive(&mut session, &mut ed)?;
+        } else {
+            let stdin = std::io::stdin();
+            let mut ed = hs_loop::repl::StdinEditor::new(&opts.dir, stdin.lock());
+            hs_loop::repl::run_interactive(&mut session, &mut ed)?;
         }
     }
     Ok(())

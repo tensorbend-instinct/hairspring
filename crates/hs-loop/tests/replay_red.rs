@@ -6,12 +6,12 @@
 //! computes the submission with git.
 //!
 //! Fixtures (verbatim answer.write content args):
-//! - haystack8619_corrupt_hunk.txt: batch5 seq=51, trace error "corrupt
+//! - `haystack8619_corrupt_hunk.txt`: batch5 seq=51, trace error "corrupt
 //!   patch at line 19" (hunk header counts disagree with the hunk body -
 //!   file-independent, reproduces against an empty repo)
-//! - pdm3314_corrupt_hunk.txt: batch5 seq=105, trace error "corrupt patch
+//! - `pdm3314_corrupt_hunk.txt`: batch5 seq=105, trace error "corrupt patch
 //!   at line 44" (first of 76 corrupt-patch hits in that session)
-//! - haystack8609_empty_fence.txt: batch3 seq=121, a literal empty fence
+//! - `haystack8609_empty_fence.txt`: batch3 seq=121, a literal empty fence
 //!   ("```diff\n```"), trace error "empty patch" - a burned checker cycle
 use std::process::Command;
 

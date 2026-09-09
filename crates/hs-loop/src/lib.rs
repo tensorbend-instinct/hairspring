@@ -1,9 +1,9 @@
 //! HAIRSPRING gate 3 - the inner loop with semantic feedback (spec 6).
 //!
-//! One step: observe -> drain_feedback -> assemble -> model.call ->
+//! One step: observe -> `drain_feedback` -> assemble -> model.call ->
 //! validate -> submit -> checker verdict. The verdict is recorded as a
 //! feedback event in BOTH ablation arms; in the ON arm it is also injected
-//! into the next step's context (recorded as context_inject: what entered
+//! into the next step's context (recorded as `context_inject`: what entered
 //! the window, and why). Feedback never costs a model round trip.
 
 pub mod assembler;
@@ -36,7 +36,7 @@ pub enum LoopError {
     Log(LogError),
     ModelOutput(String),
     Io(std::io::Error),
-    /// require_visibility refused the run: kernel has no log root (the
+    /// `require_visibility` refused the run: kernel has no log root (the
     /// production startup gate - no blind runs).
     Visibility(String),
 }
@@ -81,26 +81,26 @@ pub struct MissionResult {
     /// M21: this mission's own provider-reported spend (micro-USD) -
     /// the delta of the loop's cumulative counter over the mission.
     /// The TUI done line prints THIS; the session total lives on
-    /// total_cost_micros().
+    /// `total_cost_micros()`.
     pub cost_micros: u64,
     /// Some(msg) when the mission aborted on a harness failure (phase 1:
-    /// a plugin declared PluginDead by the supervisor). The message names
+    /// a plugin declared `PluginDead` by the supervisor). The message names
     /// the plugin and the real cause. Harness-aborted missions book their
     /// steps-so-far; they are infrastructure failures, not model failures.
     pub harness_error: Option<String>,
     /// How the mission resolved (feedback integrity F2/F3): "verified"
-    /// (checker green + verifier audited and accepted), "ratchet_capped"
+    /// (checker green + verifier audited and accepted), "`ratchet_capped`"
     /// (checker green but the verifier refuted every round and the cap
-    /// freed the submit), "verifier_malfunction" (checker green, the
-    /// audit itself errored and never blocked), "budget_killed",
-    /// "steps_exhausted", "harness_error". A capped or malfunction pass
+    /// freed the submit), "`verifier_malfunction`" (checker green, the
+    /// audit itself errored and never blocked), "`budget_killed`",
+    /// "`steps_exhausted`", "`harness_error`". A capped or malfunction pass
     /// is never byte-identical to an audited one again.
     pub outcome: String,
 }
 
 /// A delegated child still running (async delegation, Eric ruling
 /// 2026-09-08): the loop booked its Spawn at mint time and learns the
-/// outcome by polling agent.spawn_poll at step boundaries.
+/// outcome by polling `agent.spawn_poll` at step boundaries.
 pub struct PendingChild {
     pub child: uuid::Uuid,
     pub mission: String,
@@ -131,7 +131,7 @@ pub struct InnerLoop {
     /// escalate (the bare refusal never landed with B8's model)
     guardrail_escalator: repexec::GuardrailEscalator,
     /// item 3: adversarial verifier state - rounds spent and the findings
-    /// the last refuted round handed back (the next round's PRIOR_GAPS)
+    /// the last refuted round handed back (the next round's `PRIOR_GAPS`)
     verifier_rounds: u32,
     prior_gaps: Vec<String>,
     /// Fix 4: mission wall budget (secs) + start instant, for the per-step
@@ -156,14 +156,14 @@ pub struct InnerLoop {
     /// UI batch 1: typed mission UI events for the REPL painter.
     /// None = silent (old behavior).
     ui_sink: Option<uipaint::UiSink>,
-    /// M10: last model name seen, so ModelCallStart can carry it before
+    /// M10: last model name seen, so `ModelCallStart` can carry it before
     /// the call returns.
     last_model: Option<String>,
     /// Async delegation: children spawned by THIS mission, still
     /// running. Joined before a passing close; their costs land in
     /// this mission's books.
     pending_children: Vec<PendingChild>,
-    /// This loop's delegation depth: seeded from HS_SWARM_DEPTH for a
+    /// This loop's delegation depth: seeded from `HS_SWARM_DEPTH` for a
     /// root session, set explicitly for children (their loops share
     /// the parent's plugin process - env is process-global and would
     /// race sibling threads). Injected into agent.spawn args; the
@@ -178,6 +178,7 @@ pub struct InnerLoop {
 /// conservatively; --context-budget-tokens overrides.
 pub const DEFAULT_CONTEXT_BUDGET_TOKENS: usize = 983_040;
 
+#[must_use]
 pub fn default_budget_for_model(model: &str) -> usize {
     match model {
         "kimi-k3" => 1_048_576 - 65_536,
@@ -299,7 +300,7 @@ impl InnerLoop {
     }
 
     /// Gap #3: register a streaming-delta sink on the kernel - model
-    /// output then surfaces incrementally (see hs_kernel::DeltaSink).
+    /// output then surfaces incrementally (see `hs_kernel::DeltaSink`).
     pub fn set_delta_sink(&mut self, sink: hs_kernel::DeltaSink) {
         self.kernel.set_delta_sink(sink);
     }
@@ -333,9 +334,9 @@ impl InnerLoop {
         };
         let lines: Vec<String> = body
             .lines()
-            .map(|l| l.trim())
+            .map(str::trim)
             .filter(|l| !l.is_empty())
-            .map(|l| l.to_string())
+            .map(std::string::ToString::to_string)
             .collect();
         // drained, not re-read: remove so a later step cannot re-consume
         let _ = std::fs::remove_file(path);
@@ -373,7 +374,7 @@ impl InnerLoop {
         Ok(())
     }
 
-    /// Configured models as (name, is_default) for the picker.
+    /// Configured models as (name, `is_default`) for the picker.
     pub fn model_names(&self) -> Vec<(String, bool)> {
         self.kernel.model_names()
     }
@@ -385,12 +386,12 @@ impl InnerLoop {
     }
 
     /// Wall-kill resilience (phase 1, design D6): when set, the loop writes
-    /// a JSON checkpoint of {steps, model_calls, cost_micros} after EVERY
+    /// a JSON checkpoint of {steps, `model_calls`, `cost_micros`} after EVERY
     /// step. An external wall-clock kill (timeout, OOM, SIGKILL) then books
     /// from the checkpoint via `book_wall_kill` instead of writing a
     /// 0-step result for a run that did real work.
     /// D3: attach the typed memory plane; the assembler retrieves top-k
-    /// records into every prompt (with source_seqs provenance).
+    /// records into every prompt (with `source_seqs` provenance).
     pub fn set_memory_db(&mut self, path: &Path) {
         self.memory_store = Some(Box::new(
             hs_memory::sqlite::SqliteMemoryStore::open(path).expect("memory db open"),
@@ -492,7 +493,7 @@ impl InnerLoop {
     }
 
     /// Abort the mission on a supervisor-declared dead ANSWER-PATH plugin:
-    /// book the harness_error as a Feedback event (trace-visible) and return
+    /// book the `harness_error` as a Feedback event (trace-visible) and return
     /// the partial result. This replaces the old behavior of feeding the
     /// error back and burning the remaining steps against a dead plugin (run
     /// 17117 lost ~24 calls that way).
@@ -500,10 +501,10 @@ impl InnerLoop {
     /// success or failure. The resume picker's operator-stream marker
     /// (Feedback|GoalUpdate) and the delegation graph's completion read
     /// both depend on it; before M12 only the checker-green stop path
-    /// wrote GoalUpdate, so plain REPL sessions were invisible to
+    /// wrote `GoalUpdate`, so plain REPL sessions were invisible to
     /// `:resume` (live-proof cap5, 2026-09-08: operator stream kinds
     /// [0,0,0,0] after two completed missions). `outcome` names the
-    /// ending; hs-swarm's spawn-time GoalUpdate {done:false} carries
+    /// ending; hs-swarm's spawn-time `GoalUpdate` {done:false} carries
     /// no outcome, so an OPEN goal is never mistaken for a failed one.
     fn close_goal(&mut self, mission: &str, done: bool, outcome: &str) -> Result<(), LoopError> {
         self.writer.append(
@@ -550,7 +551,7 @@ impl InnerLoop {
     /// Run one mission to a checker verdict, the step cap, or the budget cap.
     /// Poll every running child once (quiet query - never booked).
     /// Finished children fold their cost into this mission's books,
-    /// emit SubAgentFinished for the panel, and return an ungated
+    /// emit `SubAgentFinished` for the panel, and return an ungated
     /// delegation update for the operator's next prompt.
     fn poll_children(&mut self) -> Vec<String> {
         let mut updates = Vec::new();
@@ -1083,16 +1084,12 @@ impl InnerLoop {
                         let cmission =
                             args["mission"].as_str().unwrap_or("").to_string();
                         let cmodel = args["model"]
-                            .as_str()
-                            .map(|m| m.to_string())
-                            .unwrap_or_else(|| {
+                            .as_str().map_or_else(|| {
                                 self.kernel
                                     .model_names()
                                     .into_iter()
-                                    .find(|(_, d)| *d)
-                                    .map(|(n, _)| n)
-                                    .unwrap_or_else(|| "(unknown)".to_string())
-                            });
+                                    .find(|(_, d)| *d).map_or_else(|| "(unknown)".to_string(), |(n, _)| n)
+                            }, std::string::ToString::to_string);
                         self.writer.append(
                             EventBuilder::new(EventKind::Spawn).payload(Payload::Inline(
                                 serde_json::to_vec(&serde_json::json!({
@@ -1126,17 +1123,17 @@ impl InnerLoop {
                     match self.kernel.call_tool("operator", &tool, args.clone()) {
                     Ok(tool_out) => {
                         if let Some(sink) = self.ui_sink.as_mut() {
-                            let ok = tool_out.output.get("error").is_none_or(|e| e.is_null())
+                            let ok = tool_out.output.get("error").is_none_or(serde_json::Value::is_null)
                                 && tool_out
                                     .output
                                     .get("exit_code")
-                                    .and_then(|c| c.as_i64())
+                                    .and_then(serde_json::Value::as_i64)
                                     .is_none_or(|c| c == 0);
                             sink(uipaint::UiEvent::ToolCallEnd {
                                 plugin: tool.clone(),
                                 ok,
                                 output_summary: uipaint::summarize_output(&tool_out.output),
-                                elapsed_ms: tool_out.latency_ms as u64,
+                                elapsed_ms: u64::from(tool_out.latency_ms),
                             });
                         }
                         // Async delegation (Eric ruling 2026-09-08):
@@ -1487,74 +1484,71 @@ impl InnerLoop {
                                     .ok()
                                     .filter(|env| env["tool"].as_str() == Some("verdict.submit"))
                                     .map(|env| env["args"].clone());
-                            match verdict_args {
-                                Some(v) => match v["refuted"].as_bool() {
-                                    Some(false) => {
-                                        self.prior_gaps.clear();
-                                        self.writer.append(
-                                            EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
-                                                serde_json::to_vec(&serde_json::json!({
-                                                    "why": "verifier", "round": round, "verdict": "not_refuted",
-                                                }))
-                                                .expect("json! values serialize"),
-                                            )),
-                                        )?;
-                                    }
-                                    Some(true) => {
-                                        let findings: Vec<String> = v["findings"]
-                                            .as_array()
-                                            .map(|a| {
-                                                a.iter()
-                                                    .filter_map(|f| {
-                                                        f["detail"].as_str().map(String::from)
-                                                    })
-                                                    .collect()
-                                            })
-                                            .unwrap_or_default();
-                                        let blocking =
-                                            v["blocking"].as_str().unwrap_or("none").to_string();
-                                        self.prior_gaps = findings.clone();
-                                        self.writer.append(
-                                            EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
-                                                serde_json::to_vec(&serde_json::json!({
-                                                    "why": "verifier", "round": round, "verdict": "refuted",
-                                                    "findings": findings, "blocking": blocking,
-                                                }))
-                                                .expect("json! values serialize"),
-                                            )),
-                                        )?;
-                                        pending_feedback.push(format!(
-                                            "VERIFIER REFUTED (blocking={blocking}): {}",
-                                            findings.join("; ")
-                                        ));
-                                        self.checkpoint(steps, model_calls);
-                                        continue;
-                                    }
-                                    None => {
-                                        outcome = "verifier_malfunction";
-                                        self.writer.append(
-                                            EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
-                                                serde_json::to_vec(&serde_json::json!({
-                                                    "why": "verifier_error", "round": round,
-                                                    "detail": "verdict JSON missing the refuted field",
-                                                }))
-                                                .expect("json! values serialize"),
-                                            )),
-                                        )?;
-                                    }
-                                },
+                            if let Some(v) = verdict_args { match v["refuted"].as_bool() {
+                                Some(false) => {
+                                    self.prior_gaps.clear();
+                                    self.writer.append(
+                                        EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                                            serde_json::to_vec(&serde_json::json!({
+                                                "why": "verifier", "round": round, "verdict": "not_refuted",
+                                            }))
+                                            .expect("json! values serialize"),
+                                        )),
+                                    )?;
+                                }
+                                Some(true) => {
+                                    let findings: Vec<String> = v["findings"]
+                                        .as_array()
+                                        .map(|a| {
+                                            a.iter()
+                                                .filter_map(|f| {
+                                                    f["detail"].as_str().map(String::from)
+                                                })
+                                                .collect()
+                                        })
+                                        .unwrap_or_default();
+                                    let blocking =
+                                        v["blocking"].as_str().unwrap_or("none").to_string();
+                                    self.prior_gaps = findings.clone();
+                                    self.writer.append(
+                                        EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                                            serde_json::to_vec(&serde_json::json!({
+                                                "why": "verifier", "round": round, "verdict": "refuted",
+                                                "findings": findings, "blocking": blocking,
+                                            }))
+                                            .expect("json! values serialize"),
+                                        )),
+                                    )?;
+                                    pending_feedback.push(format!(
+                                        "VERIFIER REFUTED (blocking={blocking}): {}",
+                                        findings.join("; ")
+                                    ));
+                                    self.checkpoint(steps, model_calls);
+                                    continue;
+                                }
                                 None => {
                                     outcome = "verifier_malfunction";
                                     self.writer.append(
                                         EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
                                             serde_json::to_vec(&serde_json::json!({
                                                 "why": "verifier_error", "round": round,
-                                                "detail": "verdict was not a verdict.submit tool call (prose/wrong-tool reply)",
+                                                "detail": "verdict JSON missing the refuted field",
                                             }))
                                             .expect("json! values serialize"),
                                         )),
                                     )?;
                                 }
+                            } } else {
+                                outcome = "verifier_malfunction";
+                                self.writer.append(
+                                    EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                                        serde_json::to_vec(&serde_json::json!({
+                                            "why": "verifier_error", "round": round,
+                                            "detail": "verdict was not a verdict.submit tool call (prose/wrong-tool reply)",
+                                        }))
+                                        .expect("json! values serialize"),
+                                    )),
+                                )?;
                             }
                         }
                         Err(e) => {
@@ -1644,6 +1638,7 @@ impl InnerLoop {
 /// did real work up to `steps`, so the result row must carry it - the old
 /// runner wrote steps:0 on timeout, which both hid progress and poisoned
 /// per-step cost accounting.
+#[must_use]
 pub fn book_wall_kill(
     progress_path: &Path,
     instance_id: &str,
@@ -1669,7 +1664,7 @@ pub fn book_wall_kill(
 
 /// Item 3: the verifier's prompt. Audit-recorded-evidence only;
 /// default-refuted on uncertainty; anti-ratchet on re-rounds
-/// (the verifier design; Grok goal_verifier_prompt.md adapted).
+/// (the verifier design; Grok `goal_verifier_prompt.md` adapted).
 fn build_verifier_prompt(
     mission: &str,
     answer: &str,
@@ -1702,9 +1697,9 @@ fn build_verifier_prompt(
 
 /// The kernel constructor every production SWE runner path must use
 /// (hs-swe-run, swarm children). 2026-09-07 wiring gap: hs-swe-run built its
-/// kernel with Kernel::load (no log root), which silently disabled the
+/// kernel with `Kernel::load` (no log root), which silently disabled the
 /// af5f7b57 wedge-visibility records and stderr capture on the live path
-/// while the RED test proved them under load_with_log. One constructor keeps
+/// while the RED test proved them under `load_with_log`. One constructor keeps
 /// the log root non-optional on the run path.
 pub fn swe_kernel(
     config: &std::path::Path,
@@ -1734,6 +1729,7 @@ pub fn require_visibility(k: &hs_kernel::Kernel) -> Result<(), String> {
 /// re-apply. The label now says what it is and what writes it. Content is
 /// shown untrimmed except for the trailing newline run: structural
 /// whitespace (a blank context line) is load-bearing in diffs.
+#[must_use]
 pub fn artifact_section(answer_path: &std::path::Path, artifact: &str) -> String {
     let shown = if artifact.is_empty() {
         "<none>".to_string()

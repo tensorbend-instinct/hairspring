@@ -2,7 +2,7 @@
 //! its own signed-off design (the fullscreen gate design, Eric's
 //! addendum): nodes must carry the child's MODEL, and the graph must
 //! render as an INDENTED TREE (parent->child), not a flat list.
-//! Shipped: AgentNode{stream_id, mission, status} - no parent, no
+//! Shipped: `AgentNode{stream_id`, mission, status} - no parent, no
 //! model, flat render. This RED pins the documented contract.
 
 use hs_loop::tui::{self, DelegationGraph, TuiState};

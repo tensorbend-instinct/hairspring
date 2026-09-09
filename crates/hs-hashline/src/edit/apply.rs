@@ -10,7 +10,7 @@
 use std::path::Path;
 
 use super::range_policy;
-use super::types::*;
+use super::types::{HashlineEditError, HashlineEditErrorKind, HashlineEditOutput, HashlineOp, HashlineEditsApplied};
 use crate::anchor::split_lines;
 use crate::render::format_hashline_content;
 use crate::scheme::{
@@ -39,6 +39,7 @@ fn anchor_format_hint(scheme: &dyn AnchorScheme) -> (&'static str, String) {
 }
 
 /// Format an anchor's local+context as `"local:ctx"` or `"local"`.
+#[must_use]
 pub fn anchor_suffix(a: &Anchor) -> String {
     match &a.context {
         Some(ctx) => format!("{}:{ctx}", a.local),
@@ -116,7 +117,7 @@ struct ResolvedOp {
     original_idx: usize,
     /// Start line (0-based, inclusive).
     start: usize,
-    /// End line (0-based, exclusive). For insert_after, start == end (insertion point).
+    /// End line (0-based, exclusive). For `insert_after`, start == end (insertion point).
     end: usize,
     /// Replacement lines (empty = delete).
     new_lines: Vec<String>,
@@ -246,7 +247,7 @@ pub fn apply_edits(
             .then(b.original_idx.cmp(&a.original_idx))
     });
 
-    let mut result_lines: Vec<String> = lines.iter().map(|s| s.to_string()).collect();
+    let mut result_lines: Vec<String> = lines.iter().map(std::string::ToString::to_string).collect();
 
     // Collect each edit's affected region (0-based, pre-splice coordinates).
     // We record post-splice positions by tracking cumulative line-count shifts.
@@ -291,8 +292,7 @@ pub fn apply_edits(
     let snippet = build_snippet(&new_content, &edit_regions, total_new_lines, scheme);
     let snippet_start_line = edit_regions
         .first()
-        .map(|r| r.0.saturating_sub(SNIPPET_CONTEXT) + 1)
-        .unwrap_or(1);
+        .map_or(1, |r| r.0.saturating_sub(SNIPPET_CONTEXT) + 1);
 
     ApplyResult {
         output: HashlineEditOutput::EditsApplied(HashlineEditsApplied {
@@ -310,7 +310,7 @@ pub fn apply_edits(
 
 /// Maximum total snippet lines before switching to per-region snippets.
 /// When the contiguous range from first to last edit exceeds this, we show
-/// individual ±SNIPPET_CONTEXT windows separated by `... N lines not shown ...`.
+/// individual ±`SNIPPET_CONTEXT` windows separated by `... N lines not shown ...`.
 const MAX_CONTIGUOUS_SNIPPET: usize = 80;
 
 /// Build the snippet output for a batch of edits.
@@ -436,7 +436,7 @@ fn resolve_op(
             let new_lines: Vec<String> = if content.is_empty() {
                 vec![] // delete
             } else {
-                content.lines().map(|l| l.to_owned()).collect()
+                content.lines().map(std::borrow::ToOwned::to_owned).collect()
             };
 
             Ok(ResolvedOp {
@@ -471,7 +471,7 @@ fn resolve_op(
             let new_lines: Vec<String> = if content.is_empty() {
                 vec![String::new()] // blank line
             } else {
-                content.lines().map(|l| l.to_owned()).collect()
+                content.lines().map(std::borrow::ToOwned::to_owned).collect()
             };
 
             Ok(ResolvedOp {

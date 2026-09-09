@@ -34,7 +34,7 @@
 use std::path::PathBuf;
 
 use super::errors::ParseError;
-use ParseError::*;
+use ParseError::{InvalidPatchError, InvalidHunkError};
 
 // ─── Marker constants ────────────────────────────────────────────────
 
@@ -545,11 +545,11 @@ mod tests {
     fn test_parse_patch_update_without_explicit_context_marker() {
         assert_eq!(
             parse_patch_text(
-                r#"*** Begin Patch
+                r"*** Begin Patch
 *** Update File: file2.py
  import foo
 +bar
-*** End Patch"#,
+*** End Patch",
                 ParseMode::Strict
             )
             .unwrap()
@@ -569,11 +569,11 @@ mod tests {
 
     #[test]
     fn test_parse_patch_lenient_heredoc_variants() {
-        let patch_text = r#"*** Begin Patch
+        let patch_text = r"*** Begin Patch
 *** Update File: file2.py
  import foo
 +bar
-*** End Patch"#;
+*** End Patch";
         let expected_hunks = vec![Hunk::UpdateFile {
             path: PathBuf::from("file2.py"),
             move_path: None,
@@ -730,13 +730,13 @@ mod tests {
                 UpdateFileChunk {
                     change_context: Some("change_context".to_string()),
                     old_lines: vec![
-                        "".to_string(),
+                        String::new(),
                         "context".to_string(),
                         "remove".to_string(),
                         "context2".to_string()
                     ],
                     new_lines: vec![
-                        "".to_string(),
+                        String::new(),
                         "context".to_string(),
                         "add".to_string(),
                         "context2".to_string()

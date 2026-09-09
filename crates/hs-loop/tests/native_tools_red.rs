@@ -1,10 +1,10 @@
 //! RED-first: native tool-calling migration (Eric 2026-09-05, non-negotiable:
 //! no hand-rolled tool layer). Verified live against kimi-k3 through the
-//! production relay: native tools + tool_choice:"required" return
-//! finish_reason="tool_calls" with name+arguments (probe, 2026-09-05).
+//! production relay: native tools + `tool_choice:"required`" return
+//! `finish_reason="tool_calls`" with name+arguments (probe, 2026-09-05).
 //! The prompt must carry NO hand-rolled tool markup; tool delivery is the
 //! provider API's tools parameter; responses parse through the native
-//! tool_calls path; repo.search honors ignore files.
+//! `tool_calls` path; repo.search honors ignore files.
 
 use serde_json::json;
 

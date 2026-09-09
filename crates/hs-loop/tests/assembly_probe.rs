@@ -1,6 +1,6 @@
 //! Time-audit probe (Eric 2026-09-05): measure per-step prompt-assembly cost
 //! as the transcript grows. Scripted model fattens the stream with bigread
-//! every step; the probe prints assembly_ms per ModelCall from the stream.
+//! every step; the probe prints `assembly_ms` per `ModelCall` from the stream.
 use hs_core::EventKind;
 use hs_loop::*;
 

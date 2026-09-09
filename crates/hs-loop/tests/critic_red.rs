@@ -219,7 +219,7 @@ fn t10_critic_mode_prompt_discloses_critic() {
     assert!(!p.contains("FAIL_TO_PASS"));
 }
 
-/// U7: critic model selection. Default DeepSeek; "glm" selects the z.ai
+/// U7: critic model selection. Default `DeepSeek`; "glm" selects the z.ai
 /// provider (cross-family critic); unknown names are an error (fail-closed
 /// at the gate, never a silent fallback).
 #[test]

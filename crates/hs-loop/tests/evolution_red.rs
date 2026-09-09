@@ -55,7 +55,7 @@ fn task_dirs(base: &std::path::Path, name: &str) -> (std::path::PathBuf, std::pa
 
 #[test]
 fn d7_promote_only_verified_winners_reject_losers_rewind_restores() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let base = tempfile::tempdir().unwrap();
     let overlay = base.path().join("policy.toml");
     let journal = base.path().join("evolution.jsonl");
@@ -66,33 +66,30 @@ fn d7_promote_only_verified_winners_reject_losers_rewind_restores() {
         let (dir, log) = task_dirs(base.path(), &format!("{task}-{}", uuid::Uuid::new_v4()));
         let mut l = rig(&dir, &log, 3);
         let stream = l.stream_id();
-        let prompt = match template {
-            Some(t) => t.replace(
-                "{answer_path}",
-                &log.join("work")
+        let prompt = if let Some(t) = template { t.replace(
+            "{answer_path}",
+            &log.join("work")
+                .join(task)
+                .join("answer.txt")
+                .display()
+                .to_string(),
+        ) } else {
+            let args = PromptArgs {
+                ws: ".".into(),
+                problem_statement: "p".into(),
+                fail_to_pass: vec![],
+                repo_layout: String::new(),
+                nudge: String::new(),
+                answer_path: log
+                    .join("work")
                     .join(task)
                     .join("answer.txt")
                     .display()
                     .to_string(),
-            ),
-            None => {
-                let args = PromptArgs {
-                    ws: ".".into(),
-                    problem_statement: "p".into(),
-                    fail_to_pass: vec![],
-                    repo_layout: "".into(),
-                    nudge: "".into(),
-                    answer_path: log
-                        .join("work")
-                        .join(task)
-                        .join("answer.txt")
-                        .display()
-                        .to_string(),
-                    orientation: String::new(),
-                    mcp_tools: String::new(),
-                };
-                sweprompt::build_mission_prompt(None, &args)
-            }
+                orientation: String::new(),
+                mcp_tools: String::new(),
+            };
+            sweprompt::build_mission_prompt(None, &args)
         };
         let r = l.run_mission_full(task, &prompt).unwrap();
         evolve::BenchOutcome {

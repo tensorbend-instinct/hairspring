@@ -10,7 +10,7 @@
 //!   candidate exactly as it was. Candidate worktree + cumulative diff
 //!   machinery unchanged. The raw diff arg is retired with a steering error.
 //!
-//!   hs_loop::editapply::{EditBlock, apply_blocks}(ws, &[EditBlock]) -> Value
+//!   `hs_loop::editapply::{EditBlock`, `apply_blocks}(ws`, &[`EditBlock`]) -> Value
 
 use std::io::Write;
 use std::process::{Command, Stdio};
@@ -59,7 +59,7 @@ fn splice_single_block_applies_and_live_ws_untouched() {
         std::fs::read_to_string(d.path().join("app.py")).unwrap(),
         "x = 1\n"
     );
-    hs_loop::editapply::reset(d.path());
+    let _ = hs_loop::editapply::reset(d.path());
 }
 
 #[test]
@@ -80,7 +80,7 @@ fn splice_accumulates_across_calls_and_survives_reentry() {
     );
     let only = hs_loop::editapply::cumulative_diff(d.path());
     assert_eq!(only["has_candidate"], true, "{only}");
-    hs_loop::editapply::reset(d.path());
+    let _ = hs_loop::editapply::reset(d.path());
     assert_eq!(
         hs_loop::editapply::cumulative_diff(d.path())["has_candidate"],
         false
@@ -103,7 +103,7 @@ fn splice_old_not_found_is_clean_feedback_and_candidate_unchanged() {
         cd["cumulative_diff"].as_str().unwrap().contains("+x = 2"),
         "{cd}"
     );
-    hs_loop::editapply::reset(d.path());
+    let _ = hs_loop::editapply::reset(d.path());
 }
 
 #[test]
@@ -112,8 +112,8 @@ fn splice_ambiguous_old_demands_more_context() {
     let r = hs_loop::editapply::apply_blocks(d.path(), &[blk("dup.py", "a = 1\n", "a = 9\n")]);
     assert_eq!(r["applied"], false, "{r}");
     let e = r["error"].as_str().unwrap();
-    assert!(e.contains("2") && e.contains("context"), "{e}");
-    hs_loop::editapply::reset(d.path());
+    assert!(e.contains('2') && e.contains("context"), "{e}");
+    let _ = hs_loop::editapply::reset(d.path());
 }
 
 #[test]
@@ -124,7 +124,7 @@ fn splice_whitespace_fallback_applies_on_unique_fuzzy_match() {
     assert_eq!(r["applied"], true, "{r}");
     let cd = r["cumulative_diff"].as_str().unwrap();
     assert!(cd.contains("+y = 4"), "{cd}");
-    hs_loop::editapply::reset(d.path());
+    let _ = hs_loop::editapply::reset(d.path());
 }
 
 #[test]
@@ -164,8 +164,8 @@ fn splice_multi_file_one_call_all_or_nothing() {
             .contains("+x = 2"),
         "no partial writes"
     );
-    hs_loop::editapply::reset(d.path());
-    hs_loop::editapply::reset(d2.path());
+    let _ = hs_loop::editapply::reset(d.path());
+    let _ = hs_loop::editapply::reset(d2.path());
 }
 
 #[test]
@@ -173,7 +173,7 @@ fn splice_path_escape_rejected() {
     let d = mk_ws();
     let r = hs_loop::editapply::apply_blocks(d.path(), &[blk("../evil.py", "x\n", "y\n")]);
     assert_eq!(r["applied"], false, "{r}");
-    hs_loop::editapply::reset(d.path());
+    let _ = hs_loop::editapply::reset(d.path());
 }
 
 fn serve_roundtrip(
@@ -218,7 +218,7 @@ fn plugin_applies_edits_blocks() {
             .contains("+x = 2"),
         "{r:?}"
     );
-    hs_loop::editapply::reset(d.path());
+    let _ = hs_loop::editapply::reset(d.path());
 }
 
 #[test]
@@ -233,5 +233,5 @@ fn plugin_retires_raw_diff_with_steering_error() {
     assert!(!std::fs::read_to_string(d.path().join("app.py"))
         .unwrap()
         .contains("x = 2"));
-    hs_loop::editapply::reset(d.path());
+    let _ = hs_loop::editapply::reset(d.path());
 }

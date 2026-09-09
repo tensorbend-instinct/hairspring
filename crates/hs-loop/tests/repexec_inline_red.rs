@@ -2,9 +2,9 @@
 //! defect S3). Before this, repo.exec refused to run until the model had
 //! written an answer file - the model could not test a candidate patch, which
 //! forced blind answer.write submissions. New API:
-//!   hs_loop::repexec::run_sandboxed_with_diff(ws, diff_text, command, timeout)
+//!   `hs_loop::repexec::run_sandboxed_with_diff(ws`, `diff_text`, command, timeout)
 //! and the repo.exec plugin accepts args.diff (fenced or raw unified diff)
-//! as an alternative to args.path / HS_SWE_ANSWER. Sandbox semantics are
+//! as an alternative to args.path / `HS_SWE_ANSWER`. Sandbox semantics are
 //! identical: scratch worktree, bwrap, live ws untouched.
 
 use std::io::Write;

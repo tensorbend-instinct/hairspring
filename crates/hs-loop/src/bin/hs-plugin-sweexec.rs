@@ -11,12 +11,9 @@ fn main() {
     serve("sweexec", "model", &mut |method, params| match method {
         "model.call" => {
             let __pv;
-            let prompt = match params["prompt"].as_str() {
-                Some(p) => p,
-                None => {
-                    __pv = hs_loop::msgfmt::prompt_view(&params);
-                    __pv.as_str()
-                }
+            let prompt = if let Some(p) = params["prompt"].as_str() { p } else {
+                __pv = hs_loop::msgfmt::prompt_view(&params);
+                __pv.as_str()
             };
             let path = prompt
                 .lines()
@@ -56,5 +53,5 @@ fn main() {
             })
         }
         _ => serde_json::json!({"$error": "unknown method"}),
-    })
+    });
 }

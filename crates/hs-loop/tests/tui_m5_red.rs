@@ -1,5 +1,5 @@
 //! UI gap #10 M5: the loop rail goes LIVE - loop phase and the event
-//! ticker derive from the same UiEvent stream the line-mode Painter
+//! ticker derive from the same `UiEvent` stream the line-mode Painter
 //! consumes, not from hardcoded state.
 
 use hs_loop::tui::{LoopPhase, TuiState};

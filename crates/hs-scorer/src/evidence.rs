@@ -62,6 +62,7 @@ impl EvidenceClaim {
 
 /// Parse a Score event body: "tier01 candidate=<s> suite=<s> passed=<b> n/n".
 /// Returns (subject, passed).
+#[must_use]
 pub fn parse_score(body: &str) -> Option<(String, bool)> {
     let mut subject = None;
     let mut passed = None;
@@ -77,7 +78,8 @@ pub fn parse_score(body: &str) -> Option<(String, bool)> {
 }
 
 /// Parse a Regression event body:
-/// "regression subject=<s> verified_at=<uuid> regressed_at=<uuid>".
+/// "regression subject=<s> `verified_at`=<uuid> `regressed_at`=<uuid>".
+#[must_use]
 pub fn parse_regression(body: &str) -> Option<(String, Uuid, Uuid)> {
     let mut subject = None;
     let mut n = None;
@@ -104,12 +106,9 @@ pub fn project(events: &[Event], resolve: &dyn Fn(&Event) -> Option<String>) -> 
         match e.kind {
             EventKind::Score => {
                 if let Some((subject, passed)) = parse_score(&body) {
-                    let idx = match claims.iter().position(|c| c.subject == subject) {
-                        Some(i) => i,
-                        None => {
-                            claims.push(EvidenceClaim::for_subject(&subject));
-                            claims.len() - 1
-                        }
+                    let idx = if let Some(i) = claims.iter().position(|c| c.subject == subject) { i } else {
+                        claims.push(EvidenceClaim::for_subject(&subject));
+                        claims.len() - 1
                     };
                     if passed {
                         // re-verification after a regression supersedes it:
@@ -134,12 +133,9 @@ pub fn project(events: &[Event], resolve: &dyn Fn(&Event) -> Option<String>) -> 
             }
             EventKind::Regression => {
                 if let Some((subject, n, m)) = parse_regression(&body) {
-                    let idx = match claims.iter().position(|c| c.subject == subject) {
-                        Some(i) => i,
-                        None => {
-                            claims.push(EvidenceClaim::for_subject(&subject));
-                            claims.len() - 1
-                        }
+                    let idx = if let Some(i) = claims.iter().position(|c| c.subject == subject) { i } else {
+                        claims.push(EvidenceClaim::for_subject(&subject));
+                        claims.len() - 1
                     };
                     claims[idx].kind = ClaimKind::Regression;
                     claims[idx].verified_at = Some(n);

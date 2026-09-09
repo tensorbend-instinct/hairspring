@@ -51,7 +51,7 @@ where
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(tag = "op")]
 pub enum HashlineOp {
-    /// Replace one line (anchor) or a range (anchor + end_anchor) with new
+    /// Replace one line (anchor) or a range (anchor + `end_anchor`) with new
     /// content. Empty content deletes the line(s).
     #[serde(rename = "replace")]
     Replace {

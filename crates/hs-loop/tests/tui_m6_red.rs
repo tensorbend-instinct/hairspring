@@ -1,6 +1,6 @@
 //! UI gap #10 M6: the delegation graph. hs-swarm records delegations as
-//! Spawn events on the parent stream (child_stream_id + mission) and
-//! the child's completion as GoalUpdate {done:true} on the child
+//! Spawn events on the parent stream (`child_stream_id` + mission) and
+//! the child's completion as `GoalUpdate` {done:true} on the child
 //! stream. The full-screen surface renders that as a live agents panel:
 //! first-class loop substrate, not a bolt-on.
 

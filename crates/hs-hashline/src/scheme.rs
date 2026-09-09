@@ -84,6 +84,7 @@ impl Anchor {
     /// Render this anchor as a string suitable for output.
     ///
     /// Format: `"LINE:LOCAL"` or `"LINE:LOCAL:CONTEXT"`.
+    #[must_use]
     pub fn render(&self) -> String {
         match &self.context {
             Some(ctx) => format!("{}:{}:{}", self.line, self.local, ctx),
@@ -118,6 +119,7 @@ impl ParsedAnchor {
     ///
     /// Returns `None` if the string is malformed (non-numeric line number,
     /// missing components, etc.).
+    #[must_use]
     pub fn parse(s: &str) -> Option<Self> {
         let mut parts = s.splitn(3, ':');
         let line_str = parts.next()?;
@@ -137,7 +139,7 @@ impl ParsedAnchor {
             return None;
         }
 
-        let context = parts.next().map(|s| s.to_owned());
+        let context = parts.next().map(std::borrow::ToOwned::to_owned);
         // Validate context hash if present: must be non-empty lowercase ASCII letters.
         if let Some(ref ctx) = context
             && (ctx.is_empty() || !ctx.bytes().all(|b| b.is_ascii_lowercase()))
@@ -153,6 +155,7 @@ impl ParsedAnchor {
     }
 
     /// Render back to string form.
+    #[must_use]
     pub fn render(&self) -> String {
         match &self.context {
             Some(ctx) => format!("{}:{}:{}", self.line, self.local, ctx),
@@ -204,6 +207,7 @@ pub struct ContentOnly {
 
 impl ContentOnly {
     /// Create with default hash length (3 letters).
+    #[must_use]
     pub fn new() -> Self {
         Self {
             hash_len: DEFAULT_HASH_LEN,
@@ -215,6 +219,7 @@ impl ContentOnly {
     /// # Panics
     ///
     /// Panics if `hash_len` is not in `1..=4`.
+    #[must_use]
     pub fn with_hash_len(hash_len: usize) -> Self {
         assert!(
             hash_len > 0 && hash_len <= 4,
@@ -231,7 +236,7 @@ impl Default for ContentOnly {
 }
 
 impl AnchorScheme for ContentOnly {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "content_only_v1"
     }
 
@@ -295,6 +300,7 @@ pub struct ChunkFingerprint {
 
 impl ChunkFingerprint {
     /// Create with default parameters (3-letter hash, 16-line chunks).
+    #[must_use]
     pub fn new() -> Self {
         Self {
             hash_len: DEFAULT_HASH_LEN,
@@ -307,6 +313,7 @@ impl ChunkFingerprint {
     /// # Panics
     ///
     /// Panics if `hash_len` is not in `1..=4` or `chunk_size` is 0.
+    #[must_use]
     pub fn with_params(hash_len: usize, chunk_size: usize) -> Self {
         assert!(
             hash_len > 0 && hash_len <= 4,
@@ -343,7 +350,7 @@ impl Default for ChunkFingerprint {
 }
 
 impl AnchorScheme for ChunkFingerprint {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "chunk_v1"
     }
 
@@ -440,6 +447,7 @@ pub struct CheckpointChain {
 
 impl CheckpointChain {
     /// Create with default parameters (3-letter hash, 32-line checkpoints).
+    #[must_use]
     pub fn new() -> Self {
         Self {
             hash_len: DEFAULT_HASH_LEN,
@@ -452,6 +460,7 @@ impl CheckpointChain {
     /// # Panics
     ///
     /// Panics if `hash_len` is not in `1..=4` or `checkpoint_interval` is 0.
+    #[must_use]
     pub fn with_params(hash_len: usize, checkpoint_interval: usize) -> Self {
         assert!(
             hash_len > 0 && hash_len <= 4,
@@ -488,7 +497,7 @@ impl Default for CheckpointChain {
 }
 
 impl AnchorScheme for CheckpointChain {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "checkpoint_v1"
     }
 
@@ -846,7 +855,7 @@ mod tests {
     fn chunk_different_chunks_may_differ() {
         // 20 lines → chunk 0 (lines 1-16), chunk 1 (lines 17-20)
         let owned: Vec<String> = (0..20).map(|i| format!("line {i}")).collect();
-        let refs: Vec<&str> = owned.iter().map(|s| s.as_str()).collect();
+        let refs: Vec<&str> = owned.iter().map(std::string::String::as_str).collect();
 
         let scheme = ChunkFingerprint::new();
         let anchors = scheme.generate_anchors(&refs);
@@ -984,7 +993,7 @@ mod tests {
 
         match scheme.find_shifted(&parsed, &shifted, 5) {
             ShiftResult::Found { new_line } => assert_eq!(new_line, 4),
-            other => panic!("Expected Found, got {:?}", other),
+            other => panic!("Expected Found, got {other:?}"),
         }
     }
 
@@ -1023,7 +1032,7 @@ mod tests {
             ShiftResult::Ambiguous { candidates } => {
                 assert!(candidates.len() > 1);
             }
-            other => panic!("Expected Ambiguous, got {:?}", other),
+            other => panic!("Expected Ambiguous, got {other:?}"),
         }
     }
 
@@ -1143,7 +1152,7 @@ mod tests {
             ShiftResult::Ambiguous { candidates } => {
                 assert!(candidates.len() > 1);
             }
-            other => panic!("Expected Ambiguous for repetitive chunk, got {:?}", other),
+            other => panic!("Expected Ambiguous for repetitive chunk, got {other:?}"),
         }
     }
 
@@ -1187,37 +1196,37 @@ mod tests {
     #[test]
     #[should_panic(expected = "hash_len must be 1..=4")]
     fn content_only_invalid_hash_len_zero() {
-        ContentOnly::with_hash_len(0);
+        let _ = ContentOnly::with_hash_len(0);
     }
 
     #[test]
     #[should_panic(expected = "hash_len must be 1..=4")]
     fn content_only_invalid_hash_len_five() {
-        ContentOnly::with_hash_len(5);
+        let _ = ContentOnly::with_hash_len(5);
     }
 
     #[test]
     #[should_panic(expected = "hash_len must be 1..=4")]
     fn chunk_invalid_hash_len() {
-        ChunkFingerprint::with_params(0, 16);
+        let _ = ChunkFingerprint::with_params(0, 16);
     }
 
     #[test]
     #[should_panic(expected = "chunk_size must be > 0")]
     fn chunk_invalid_chunk_size() {
-        ChunkFingerprint::with_params(3, 0);
+        let _ = ChunkFingerprint::with_params(3, 0);
     }
 
     #[test]
     #[should_panic(expected = "hash_len must be 1..=4")]
     fn checkpoint_invalid_hash_len() {
-        CheckpointChain::with_params(0, 32);
+        let _ = CheckpointChain::with_params(0, 32);
     }
 
     #[test]
     #[should_panic(expected = "checkpoint_interval must be > 0")]
     fn checkpoint_invalid_interval() {
-        CheckpointChain::with_params(3, 0);
+        let _ = CheckpointChain::with_params(3, 0);
     }
 
     // -----------------------------------------------------------------------

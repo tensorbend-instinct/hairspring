@@ -1,6 +1,6 @@
 //! RED acceptance gates for BLIND completion mode (Eric 2026-09-07: "We want
 //! it proved on no fail to pass that's cheating"; parent: the ground-truth
-//! FAIL_TO_PASS must never enter the mission - prompt, checker, verifier, or
+//! `FAIL_TO_PASS` must never enter the mission - prompt, checker, verifier, or
 //! any stream payload the agent can see - and grades after the fact only).
 //!
 //! B1 blind mission: completes on the agent's own declared checks, no

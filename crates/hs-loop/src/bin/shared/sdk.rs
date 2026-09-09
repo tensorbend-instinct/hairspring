@@ -9,7 +9,7 @@ fn serve(
     kind: &'static str,
     handler: &mut dyn FnMut(&str, serde_json::Value) -> serde_json::Value,
 ) {
-    serve_ext(name, kind, &mut |m, p, _emit| handler(m, p))
+    serve_ext(name, kind, &mut |m, p, _emit| handler(m, p));
 }
 
 
@@ -37,7 +37,7 @@ fn serve_ext(
         let method = v["method"].as_str().unwrap_or("");
         let write_frame = |frame: serde_json::Value| {
             let mut out = stdout.lock();
-            writeln!(out, "{}", frame).unwrap();
+            writeln!(out, "{frame}").unwrap();
             out.flush().unwrap();
         };
         if method == "describe" {

@@ -24,10 +24,11 @@ const FNV_PRIME: u32 = 16_777_619;
 ///
 /// This is the low-level primitive — callers that want whitespace-normalized
 /// fingerprints should use [`line_hash`] instead.
+#[must_use]
 pub fn fnv1a_32(data: &[u8]) -> u32 {
     let mut h: u32 = FNV_OFFSET;
     for &byte in data {
-        h ^= byte as u32;
+        h ^= u32::from(byte);
         h = h.wrapping_mul(FNV_PRIME);
     }
     h
@@ -40,6 +41,7 @@ pub fn fnv1a_32(data: &[u8]) -> u32 {
 ///
 /// Returns the raw `u32` hash. Use [`encode_hash`] to convert to a compact
 /// letter-based anchor string.
+#[must_use]
 pub fn line_hash(line: &str) -> u32 {
     let mut h: u32 = FNV_OFFSET;
     let mut prev_ws = false;
@@ -47,12 +49,12 @@ pub fn line_hash(line: &str) -> u32 {
     for byte in line.trim().bytes() {
         if byte.is_ascii_whitespace() {
             if !prev_ws {
-                h ^= b' ' as u32;
+                h ^= u32::from(b' ');
                 h = h.wrapping_mul(FNV_PRIME);
                 prev_ws = true;
             }
         } else {
-            h ^= byte as u32;
+            h ^= u32::from(byte);
             h = h.wrapping_mul(FNV_PRIME);
             prev_ws = false;
         }
@@ -70,6 +72,7 @@ pub fn line_hash(line: &str) -> u32 {
 /// # Panics
 ///
 /// Panics if `len` is 0 or greater than 4.
+#[must_use]
 pub fn encode_hash(hash: u32, len: usize) -> String {
     assert!(len > 0 && len <= 4, "encode_hash: len must be 1..=4");
 
@@ -188,13 +191,13 @@ mod tests {
     #[test]
     #[should_panic(expected = "len must be 1..=4")]
     fn encode_hash_zero_len_panics() {
-        encode_hash(0, 0);
+        let _ = encode_hash(0, 0);
     }
 
     #[test]
     #[should_panic(expected = "len must be 1..=4")]
     fn encode_hash_five_len_panics() {
-        encode_hash(0, 5);
+        let _ = encode_hash(0, 5);
     }
 
     #[test]

@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 /// Event kinds from spec section 3, plus kinds reserved 2026-09-02 for
 /// gates 7-8 so no schema migration is needed later:
-/// - CapabilityDelta / FitnessDelta: scorer must distinguish a score change
+/// - `CapabilityDelta` / `FitnessDelta`: scorer must distinguish a score change
 ///   caused by swapping the model/harness (capability) from evolved-fitness
 ///   improvement (fitness); they are different event kinds.
 /// - Regression: "verified at event N, regressed at event M" bookkeeping.
@@ -40,13 +40,14 @@ pub enum EventKind {
     FitnessDelta = 65,    // gates 7-8: scorer-read fitness slope delta
     Regression = 66,      // reserved: gates 7-8
     /// spec v5: model/harness/executor swap transaction (old and new
-    /// binding refs + protocol step). Distinct from CapabilityDelta: a swap
+    /// binding refs + protocol step). Distinct from `CapabilityDelta`: a swap
     /// is a substrate binding change, never evidence of evolved improvement
     /// ("a vendor upgrade can never masquerade as evolved improvement").
     CapabilityChange = 67,
 }
 
 impl EventKind {
+    #[must_use]
     pub fn tag(self) -> u8 {
         self as u8
     }
@@ -128,19 +129,19 @@ impl std::error::Error for DecodeError {}
 struct Writer(Vec<u8>);
 impl Writer {
     fn u8(&mut self, v: u8) {
-        self.0.push(v)
+        self.0.push(v);
     }
     fn u32(&mut self, v: u32) {
-        self.0.extend(v.to_le_bytes())
+        self.0.extend(v.to_le_bytes());
     }
     fn u64(&mut self, v: u64) {
-        self.0.extend(v.to_le_bytes())
+        self.0.extend(v.to_le_bytes());
     }
     fn i64(&mut self, v: i64) {
-        self.0.extend(v.to_le_bytes())
+        self.0.extend(v.to_le_bytes());
     }
     fn raw(&mut self, v: &[u8]) {
-        self.0.extend(v)
+        self.0.extend(v);
     }
 }
 
@@ -181,6 +182,7 @@ impl<'a> Reader<'a> {
 
 impl Event {
     /// Canonical encoding of every field including `hash`.
+    #[must_use]
     pub fn encode(&self) -> Vec<u8> {
         let mut w = self.encode_body();
         w.raw(&self.hash);
@@ -229,10 +231,12 @@ impl Event {
         w
     }
 
+    #[must_use]
     pub fn compute_hash(&self) -> [u8; 32] {
         Sha256::digest(&self.encode_body().0).into()
     }
 
+    #[must_use]
     pub fn verify_hash(&self) -> bool {
         self.compute_hash() == self.hash
     }
@@ -290,11 +294,12 @@ impl Event {
 }
 
 /// Builder for the fields an appender chooses. The log writer assigns seq,
-/// prev_hash, and hash; nothing else may.
+/// `prev_hash`, and hash; nothing else may.
 pub struct EventBuilder {
     event: Event,
 }
 impl EventBuilder {
+    #[must_use]
     pub fn new(kind: EventKind) -> Self {
         EventBuilder {
             event: Event {
@@ -313,35 +318,43 @@ impl EventBuilder {
             },
         }
     }
+    #[must_use]
     pub fn payload(mut self, p: Payload) -> Self {
         self.event.payload = p;
         self
     }
+    #[must_use]
     pub fn parent(mut self, id: Uuid) -> Self {
         self.event.parent_event_id = Some(id);
         self
     }
+    #[must_use]
     pub fn latency_ms(mut self, v: u32) -> Self {
         self.event.latency_ms = v;
         self
     }
+    #[must_use]
     pub fn cost_usd_micros(mut self, v: i64) -> Self {
         self.event.cost_usd_micros = v;
         self
     }
+    #[must_use]
     pub fn sandbox_snap(mut self, id: Uuid) -> Self {
         self.event.sandbox_snap_id = Some(id);
         self
     }
+    #[must_use]
     pub fn ts_wall_ms(mut self, v: i64) -> Self {
         self.event.ts_wall_ms = v;
         self
     }
     /// Partial build for schema/unit tests: ids, seq, and chain fields left unset.
+    #[must_use]
     pub fn build_part(self) -> Event {
         self.event
     }
     /// Full build used by the log writer after it assigns chain fields.
+    #[must_use]
     pub fn build(self) -> Event {
         self.event
     }
@@ -350,7 +363,8 @@ impl EventBuilder {
 /// Test-only helpers exposing encoding layout without making it public API.
 pub mod testing {
     /// Byte offset of the kind tag in the canonical encoding:
-    /// 16 (event_id) + 16 (stream_id) + 8 (seq) + 8 (ts_wall_ms).
+    /// 16 (`event_id`) + 16 (`stream_id`) + 8 (seq) + 8 (`ts_wall_ms`).
+    #[must_use]
     pub fn kind_tag_offset(_encoded: &[u8]) -> usize {
         16 + 16 + 8 + 8
     }

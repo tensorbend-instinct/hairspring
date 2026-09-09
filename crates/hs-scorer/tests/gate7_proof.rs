@@ -77,8 +77,7 @@ fn plausibility_panel() -> JudgePanel {
         Box::new(ClosureJudge::new("judge-a", "family-x", |art, _task| {
             if art
                 .answer_text()
-                .map(|a| !a.is_empty() && a.contains('-'))
-                .unwrap_or(false)
+                .is_some_and(|a| !a.is_empty() && a.contains('-'))
             {
                 0.95
             } else {
@@ -86,14 +85,14 @@ fn plausibility_panel() -> JudgePanel {
             }
         })),
         Box::new(ClosureJudge::new("judge-b", "family-y", |art, _task| {
-            if art.answer_text().map(|a| !a.is_empty()).unwrap_or(false) {
+            if art.answer_text().is_some_and(|a| !a.is_empty()) {
                 0.90
             } else {
                 0.10
             }
         })),
         Box::new(ClosureJudge::new("judge-c", "family-z", |art, _task| {
-            if art.answer_text().map(|a| a.len() > 3).unwrap_or(false) {
+            if art.answer_text().is_some_and(|a| a.len() > 3) {
                 0.92
             } else {
                 0.08
@@ -134,7 +133,7 @@ fn gate7_proof_1_regression_caught_by_heldout_assay() {
     let v = scorer
         .held_out_assay(&champ, &heldout_suite(), &pin)
         .unwrap();
-    assert!(v.pass_rate == 1.0);
+    assert_eq!(v.pass_rate, 1.0);
     lineage.record(&champ, s0, s1, v.clone());
     lineage.promote(&champ, &v, &pin, &scorer).unwrap();
     assert_eq!(lineage.champion().unwrap().name(), "champ-v1");
@@ -312,7 +311,7 @@ fn gate7_proof_3_best_of_n_envelope_published() {
 
     let envelope = BestOfN::run(&family, &isolates, DecisionBudget { opportunities: 2 }).unwrap();
     assert_eq!(envelope.n(), n as u32);
-    assert!(envelope.decision_opportunities_per_isolate() == 2);
+    assert_eq!(envelope.decision_opportunities_per_isolate(), 2);
 
     // the collective candidate under test: the generalizer
     let candidate = Candidate::new("collective", generalizing_artifact());

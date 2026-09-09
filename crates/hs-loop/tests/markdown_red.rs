@@ -4,7 +4,7 @@
 //! lists bulleted. hs-repl prints raw deltas: "**bold**" stays literal
 //! asterisks on screen.
 //!
-//! Contract: a streaming markdown renderer (MarkdownStreamer) that eats
+//! Contract: a streaming markdown renderer (`MarkdownStreamer`) that eats
 //! deltas of ANY chunking (a token can split mid-construct) and emits
 //! semantically colored terminal text: constructs are styled, markers
 //! are consumed, and the rendered output is identical no matter how the
@@ -51,7 +51,7 @@ fn r2_chunk_split_invariance() {
     assert_eq!(whole, dripped, "1-byte drips must render identically");
     // split inside a **bold** construct and inside a fence opener
     let split_a = DOC.find("**bo").unwrap();
-    let a = render_all(&[&DOC[..split_a + 1], &DOC[split_a + 1..]], true);
+    let a = render_all(&[&DOC[..=split_a], &DOC[split_a + 1..]], true);
     assert_eq!(whole, a, "split mid-bold renders identically");
     let split_b = DOC.find("```").unwrap();
     let b = render_all(&[&DOC[..split_b + 2], &DOC[split_b + 2..]], true);

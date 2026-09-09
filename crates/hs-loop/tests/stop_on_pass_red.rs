@@ -1,6 +1,6 @@
 //! RED: terminate on a passing checker verdict (FIXLIST 2026-09-05 item 1).
 //! A7 passed checker.run at seq 158 but kept burning for 22 steps / $1.46
-//! because its goal evaluator went red ENVIRONMENTALLY (goal::verify re-runs
+//! because its goal evaluator went red ENVIRONMENTALLY (`goal::verify` re-runs
 //! the f2p tests through the exec sandbox, which has no pytest) and D6 lets
 //! a red goal evaluator veto the stop forever. New rule: a green checker.run
 //! verdict ends the mission (the adversarial verifier veto still runs after
@@ -112,9 +112,7 @@ default = true
     let mut saw_checker_pass = false;
     for e in &events {
         let p = String::from_utf8_lossy(&reader.resolve_payload(e).unwrap()).to_string();
-        if p.contains("\"plugin\":\"repo.exec\"") && p.contains("MUST_NOT_EXECUTE") {
-            panic!("no tool call may execute after the checker pass: {p}");
-        }
+        assert!(!(p.contains("\"plugin\":\"repo.exec\"") && p.contains("MUST_NOT_EXECUTE")), "no tool call may execute after the checker pass: {p}");
         if p.contains("\"passed\":true") {
             saw_checker_pass = true;
         }

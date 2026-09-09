@@ -4,10 +4,10 @@
 //!
 //! Validated live before wiring (box, 2026-09-07): hs-plugin-mcpcall
 //! driving uvx duckduckgo-mcp-server (no key) - mcp.ddg.search returned
-//! real results for "current stable Rust version", mcp.ddg.fetch_content
-//! returned clean text of https://releases.rs/ with pagination.
+//! real results for "current stable Rust version", `mcp.ddg.fetch_content`
+//! returned clean text of <https://releases.rs>/ with pagination.
 //!
-//! SWE-bench network lock (HS_SWE_NET=off) is untouched: nothing here
+//! SWE-bench network lock (`HS_SWE_NET=off`) is untouched: nothing here
 //! changes hs-swe-run or its builtin surface.
 
 use hs_loop::repl::run_one_shot;
@@ -41,7 +41,7 @@ fn servers_toml(dir: &std::path::Path) -> std::path::PathBuf {
 // like hs-swe-run's seam (driver_mission_calls_mcp_tool).
 #[test]
 fn t1_tb_runner_registers_mcp_tools() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let run_dir = dir.path().join("run");
     let ws = run_dir.join("ws");
@@ -113,7 +113,7 @@ fn t1_tb_runner_registers_mcp_tools() {
 // advertises it, so a real model can find it.
 #[test]
 fn t2_repl_mcp_tool_callable_and_advertised() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let servers = servers_toml(dir.path());

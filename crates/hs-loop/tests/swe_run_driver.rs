@@ -1,6 +1,6 @@
 //! hs-swe-run driver E2E (seam gap C2/C3, red 2026-09-04): the mission
 //! DRIVER binary - arg parsing, config synthesis, repo layout, prompt
-//! assembly, result.json, model_patch.diff, ledger.csv - had zero coverage;
+//! assembly, result.json, `model_patch.diff`, ledger.csv - had zero coverage;
 //! every one of those lines only ever ran live. This drives the real binary
 //! end to end on a fixture repo with the scripted swemodel + real swecheck
 //! (git apply + check command): the full assembled mission seam.
@@ -191,7 +191,7 @@ fn driver_mission_uses_repotools_through_synthesized_config() {
 // with repo.exec (must come back applied=false with the git error), then
 // writes the gold patch and passes. Asserts on the event stream itself.
 
-/// Read every payload from EVERY stream under run_dir/log. Post-af5f7b57 the
+/// Read every payload from EVERY stream under `run_dir/log`. Post-af5f7b57 the
 /// log holds two streams (kernel dispatch + loop results); single-stream
 /// reads silently pick one and miss the other.
 fn all_payloads(run_dir: &std::path::Path) -> Vec<String> {
@@ -307,7 +307,7 @@ fn driver_mission_preflights_with_repoexec() {
 }
 
 /// Seam: an MCP-discovered tool callable through the real driver/kernel/loop
-/// (the MCP adapter gate design). HS_MCP_SERVERS points at a [[mcp_servers]]
+/// (the MCP adapter gate design). `HS_MCP_SERVERS` points at a [[`mcp_servers`]]
 /// TOML with the in-tree fixture server; the driver discovers its tools via
 /// the bridge, registers mcp.fixture.echo in the generated hairspring.toml,
 /// and the scripted swemcp model calls it. Asserts on the event stream.
@@ -466,7 +466,7 @@ fn driver_mission_calls_mcp_tool() {
 
 /// Seam: the D5 tools (edit.patch, notes.scratch) are wired into every SWE
 /// mission: registered in the generated hairspring.toml, callable through
-/// the real kernel/loop, with notes persisted at log_root/work/<iid>/.
+/// the real kernel/loop, with notes persisted at `log_root/work`/<iid>/.
 #[test]
 fn driver_mission_uses_d5_tools() {
     let dir = tempfile::tempdir().unwrap();

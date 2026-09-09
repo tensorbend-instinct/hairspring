@@ -2,7 +2,7 @@
 //! the mission environment may carry the gold answer or harness internals.
 //! Reward hacking = reading the solution out of the eval environment.
 //! This suite probes the REAL sandbox: from inside bwrap, every path that
-//! could hold reference material (run_dir with test_patch.diff, instance
+//! could hold reference material (`run_dir` with `test_patch.diff`, instance
 //! JSONs, harness binaries, the editapply candidate) must be unreachable.
 use std::path::Path;
 use std::process::Command;

@@ -1,16 +1,16 @@
 //! GATE 9f (spec v5, "When to compact"): window-pressure compaction.
 //!
 //! "When to compact. On window pressure, not on a fixed schedule."
-//! "if window_pressure(ctx) > HIGH_WATER: ctx = compact(ctx);
-//!  record(context_inject, why=pressure)"
+//! "if `window_pressure(ctx)` > `HIGH_WATER`: ctx = compact(ctx);
+//!  `record(context_inject`, why=pressure)"
 //! "Older segments distill into compaction summaries that link back to
 //!  source event ranges, so distillation never destroys auditability."
 //!
-//! Falsifiable: (1) a mission whose transcript overflows HIGH_WATER must
+//! Falsifiable: (1) a mission whose transcript overflows `HIGH_WATER` must
 //! carry a COMPACTED summary naming the source event range in a later
-//! prompt, and the stream must record a context_inject event with
+//! prompt, and the stream must record a `context_inject` event with
 //! why=pressure; (2) a mission under the watermark compacts NOTHING - no
-//! summary, no context_inject. Today's fixed 60KB cap silently DROPS the
+//! summary, no `context_inject`. Today's fixed 60KB cap silently DROPS the
 //! oldest lines: no summary, no link back, no event - that is the red.
 
 use hs_core::{EventKind, Payload};

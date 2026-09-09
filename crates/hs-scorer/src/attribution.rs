@@ -2,23 +2,23 @@
 //! design rules): capability-vs-fitness attribution.
 //!
 //! A model or harness swap can lift every score overnight with zero evolved
-//! improvement. When a capability_change event sits between two assay
+//! improvement. When a `capability_change` event sits between two assay
 //! results, the delta is attributed to the swap, recorded against the NEW
 //! binding, and EXCLUDED from the fitness slope. The improvement-cadence
 //! protocol reads fitness deltas only: same substrate, same bindings,
 //! evolved policy.
 //!
-//! Projected from the canonical log (Score + CapabilityChange events) - a
+//! Projected from the canonical log (Score + `CapabilityChange` events) - a
 //! read path, never a parallel store. Single-writer discipline: whoever
 //! performs the swap records it on the scorer's stream via
-//! Scorer::record_capability_change before the next assay.
+//! `Scorer::record_capability_change` before the next assay.
 
 use hs_core::{Event, EventKind};
 use std::collections::HashMap;
 use uuid::Uuid;
 
 /// A score delta between consecutive assays of one candidate with NO
-/// capability_change between them: evolved improvement (or regression),
+/// `capability_change` between them: evolved improvement (or regression),
 /// same substrate, same bindings.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FitnessDeltaRec {
@@ -29,7 +29,7 @@ pub struct FitnessDeltaRec {
     pub delta: i64,
 }
 
-/// A score delta straddling a capability_change boundary: attributed to the
+/// A score delta straddling a `capability_change` boundary: attributed to the
 /// swap, recorded against the new binding, excluded from the fitness slope.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AttributedDelta {
@@ -64,11 +64,11 @@ fn parse_score(body: &str) -> Option<(String, u32, u32)> {
 
 fn parse_binding(body: &str) -> Option<String> {
     body.split_whitespace()
-        .find_map(|t| t.strip_prefix("binding=").map(|s| s.to_string()))
+        .find_map(|t| t.strip_prefix("binding=").map(std::string::ToString::to_string))
 }
 
 /// Walk the stream in order. Returns (fitness deltas, capability-attributed
-/// deltas). Boundary semantics are positional: ANY capability_change event
+/// deltas). Boundary semantics are positional: ANY `capability_change` event
 /// between two consecutive assays of the same candidate excludes that pair
 /// from fitness, regardless of whether the binding name changed.
 pub fn project(
@@ -96,7 +96,7 @@ pub fn project(
                     continue;
                 };
                 if let Some((pc, ptotal, pseq)) = last_score.get(&cand).copied() {
-                    let delta = correct as i64 - pc as i64;
+                    let delta = i64::from(correct) - i64::from(pc);
                     let boundary = last_cc.as_ref().filter(|(s, _, _)| *s > pseq);
                     match boundary {
                         None => fitness.push(FitnessDeltaRec {

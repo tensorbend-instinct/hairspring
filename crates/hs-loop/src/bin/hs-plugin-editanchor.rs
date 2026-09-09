@@ -2,7 +2,7 @@
 //! to the persistent candidate worktree; validated against the current file,
 //! returns a fresh-anchored snippet + cumulative diff. args: {path, edits}
 //! apply | {op:"diff"} read | {op:"reset"} discard.
-//! Env: HS_SWE_WORKSPACE (required).
+//! Env: `HS_SWE_WORKSPACE` (required).
 include!("shared/sdk.rs");
 fn main() {
     serve("edit.anchor", "tool", &mut |method, params| match method {

@@ -1,7 +1,7 @@
 //! UI gap #10 M2: the composer editor - a real multi-line editing
 //! surface inside the pinned box, replacing line-mode input on a TTY.
 //!
-//! Contract: an EditorState with cursor movement, insert/backspace,
+//! Contract: an `EditorState` with cursor movement, insert/backspace,
 //! newline (multi-line), submit-with-history, and rendering that puts
 //! the terminal cursor on the editor's cursor cell.
 

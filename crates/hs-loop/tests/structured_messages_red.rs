@@ -1,9 +1,9 @@
 //! Structured-messages migration RED (user directive 2026-09-05: "EVERYTHING
 //! native, transcript included - efficiency first"). The operator model call
 //! is a native chat messages array: a stable mission message, one
-//! assistant(tool_calls) + tool pair per history exchange (append-only, the
+//! `assistant(tool_calls)` + tool pair per history exchange (append-only, the
 //! KV-cacheable prefix), and a per-step mutable state tail (ATTEMPT budget,
-//! ANSWER_PATH, ARTIFACT, FEEDBACK, LEDGER, MEMORY) as the final user
+//! `ANSWER_PATH`, ARTIFACT, FEEDBACK, LEDGER, MEMORY) as the final user
 //! message. No hand-rendered transcript text anywhere. The verifier verdict
 //! is a native tool call (verdict.submit), not text-JSON in prose.
 
@@ -43,7 +43,7 @@ fn operator_message_payloads(ev: &[(EventKind, String)]) -> Vec<Vec<serde_json::
         .filter(|(k, p)| *k == EventKind::ModelCall && p.contains("\"messages\""))
         .filter_map(|(_, p)| serde_json::from_str::<serde_json::Value>(p).ok())
         .filter(|v| v["messages"].is_array())
-        .map(|v| v["messages"].as_array().unwrap().to_vec())
+        .map(|v| v["messages"].as_array().unwrap().clone())
         .collect()
 }
 
@@ -51,7 +51,7 @@ fn operator_message_payloads(ev: &[(EventKind, String)]) -> Vec<Vec<serde_json::
 /// step - never a hand-rendered text blob.
 #[test]
 fn operator_call_is_a_native_messages_array() {
-    let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let answer = log.path().join("work").join("task-0").join("answer.txt");
@@ -211,12 +211,12 @@ default = true
     );
 }
 
-/// assemble_messages: the log-sourced history becomes native message pairs
+/// `assemble_messages`: the log-sourced history becomes native message pairs
 /// under the token budget, with compaction of the oldest into a handoff
 /// message when over budget.
 #[test]
 fn assemble_messages_pairs_and_compaction() {
-    let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let answer = log.path().join("work").join("task-0").join("answer.txt");
@@ -302,7 +302,7 @@ default = true
 /// text-JSON parsed out of prose.
 #[test]
 fn verifier_verdict_is_a_native_tool_call() {
-    let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let ws = dir.path().join("ws");
@@ -405,7 +405,7 @@ default = true
 /// parsed verdict: no hand-rolled extraction survives.
 #[test]
 fn verifier_prose_reply_is_an_error_not_a_verdict() {
-    let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let answer = log.path().join("work").join("task-22").join("answer.txt");
@@ -460,7 +460,7 @@ default = true
     );
 }
 
-/// realmodel::build_body_messages: the messages array passes through
+/// `realmodel::build_body_messages`: the messages array passes through
 /// verbatim behind the system message; tools are wire-mapped; the provider
 /// enforces one tool call per reply.
 #[test]
@@ -492,12 +492,12 @@ fn build_body_messages_shape() {
     );
 }
 
-/// cached_tokens pass-through (cache-win observability): the provider's
-/// prompt-cache hit count must reach the operator ModelCall payload, so the
+/// `cached_tokens` pass-through (cache-win observability): the provider's
+/// prompt-cache hit count must reach the operator `ModelCall` payload, so the
 /// A-vs-B comparison can quantify the KV-cache win from the logs.
 #[test]
 fn cached_tokens_reach_the_model_call_payload() {
-    let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let answer = log.path().join("work").join("task-0").join("answer.txt");

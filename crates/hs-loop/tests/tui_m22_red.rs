@@ -1,6 +1,6 @@
 //! REPL UI gap #10 M22: the live done line hides the mission outcome.
-//! A mission that ends steps_exhausted / ratchet_capped /
-//! verifier_malfunction / harness_error prints the exact same
+//! A mission that ends `steps_exhausted` / `ratchet_capped` /
+//! `verifier_malfunction` / `harness_error` prints the exact same
 //! "done: N steps, N calls, $X" line as a verified one - failure is
 //! invisible live. Worse, the RESUME backfill (M14) prints the
 //! outcome - "done: ... $0.0014 (verified)" - so a resumed session
@@ -8,7 +8,7 @@
 //! formats, and the live one silently drops the single most important
 //! fact about how the mission ended. pi/omp surface failure loudly.
 //!
-//! Contract: mission_done_report takes the mission outcome and the
+//! Contract: `mission_done_report` takes the mission outcome and the
 //! live line matches the backfill format byte-for-byte:
 //! "── done: {steps} steps, {calls} calls, {cost} ({outcome})".
 

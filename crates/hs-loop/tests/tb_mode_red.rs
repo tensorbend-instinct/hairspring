@@ -11,7 +11,7 @@
 //! T2 selfcheck direct mode runs .hs/checks from the live workdir, green only
 //!    when every declared command passes; failures name the command.
 //! T3 the TB mission prompt teaches .hs/checks + term.exec, carries the task
-//!    instruction, and never mentions FAIL_TO_PASS.
+//!    instruction, and never mentions `FAIL_TO_PASS`.
 //! T4 a full TB mission on the scripted model completes: the agent's term.exec
 //!    edits land in the live workdir, selfcheck goes green, result passed.
 //! T5 a TB mission whose declared checks fail does NOT pass.

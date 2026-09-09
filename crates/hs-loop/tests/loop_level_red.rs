@@ -1,5 +1,5 @@
 //! Phase 1 RED (design D4 mission half + D6 budgets): when a plugin dies
-//! for good, the mission ABORTS as harness_error with partial progress
+//! for good, the mission ABORTS as `harness_error` with partial progress
 //! booked (never burns remaining steps against a dead plugin, never crashes
 //! the runner); and the loop checkpoints progress.json after every step so
 //! an external wall-clock kill can book steps-so-far instead of a 0-step row.
@@ -24,12 +24,12 @@ fn write(dir: &std::path::Path, name: &str, body: &str) -> std::path::PathBuf {
 
 /// T3 (mission half, REVISED by measurement run ab2/17123): death of an
 /// ANSWER-PATH plugin (answer.write, edit.apply) aborts the mission as
-/// harness_error with steps-so-far - without an answer path no mission can
+/// `harness_error` with steps-so-far - without an answer path no mission can
 /// land, so burning steps is pure loss (the old 17117 lesson). Death of any
 /// OTHER tool degrades instead of aborting: see T3b/T3c.
 #[test]
 fn mission_aborts_as_harness_error_when_answer_path_plugin_dies() {
-    let _g = SEQMODEL_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = SEQMODEL_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let answer = log.path().join("work").join("task-0").join("answer.txt");
@@ -100,7 +100,7 @@ default = true
 /// at 13 steps with edit.apply/answer.write fully usable.
 #[test]
 fn dead_non_answer_tool_degrades_and_mission_continues() {
-    let _g = SEQMODEL_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = SEQMODEL_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let answer = log.path().join("work").join("task-0").join("answer.txt");
@@ -166,10 +166,10 @@ default = true
 
 /// T3c: repeat calls to a dead tool short-circuit at the loop with
 /// feedback - the kernel is never asked to respawn it (loopfix state file
-/// counts real spawns: exactly MAX_STRIKES, no more).
+/// counts real spawns: exactly `MAX_STRIKES`, no more).
 #[test]
 fn repeat_calls_to_dead_tool_short_circuit_without_respawn() {
-    let _g = SEQMODEL_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = SEQMODEL_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let state = dir.path().join("zombie.state");
@@ -275,7 +275,7 @@ default = true
 /// rows for runs that did 19-25 real steps.
 #[test]
 fn progress_checkpointed_every_step_even_without_answer_writes() {
-    let _g = SEQMODEL_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = SEQMODEL_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let progress = log.path().join("progress.json");
@@ -347,7 +347,7 @@ fn wall_kill_books_partial_from_checkpoint() {
 /// the model blind: it read its way into the wall.
 #[test]
 fn step_header_carries_step_wall_and_cost_budgets() {
-    let _g = SEQMODEL_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = SEQMODEL_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let answer = log.path().join("work").join("task-b").join("answer.txt");
@@ -427,7 +427,7 @@ default = true
 /// verifying its work.
 #[test]
 fn convergence_nudge_at_half_and_three_quarter_steps_when_no_test_ran() {
-    let _g = SEQMODEL_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = SEQMODEL_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let answer = log.path().join("work").join("task-20").join("answer.txt");
@@ -512,7 +512,7 @@ default = true
 /// hail-mary submission is allowed (better than no answer).
 #[test]
 fn answer_write_rejected_until_the_model_has_verified() {
-    let _g = SEQMODEL_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = SEQMODEL_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     // real git workspace for repo.exec's scratch worktree
@@ -615,14 +615,14 @@ default = true
     assert!(
         prompts.len() >= 2 && prompts[1].contains("REJECTED"),
         "rejection feedback in the step-2 prompt: {}",
-        prompts.get(1).map(|p| &p[..p.len().min(500)]).unwrap_or("")
+        prompts.get(1).map_or("", |p| &p[..p.len().min(500)])
     );
     std::env::remove_var("HS_SWE_WORKSPACE");
 }
 
 #[test]
 fn answer_write_allowed_untested_on_the_last_step() {
-    let _g = SEQMODEL_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = SEQMODEL_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let answer = log.path().join("work").join("task-22").join("answer.txt");
@@ -666,13 +666,13 @@ default = true
     );
 }
 
-/// Item 4 (Eric's verifier slate, Grok doom_loop_telemetry adapted): a model
+/// Item 4 (Eric's verifier slate, Grok `doom_loop_telemetry` adapted): a model
 /// repeating effectively the same (tool, args) call is stuck. The harness
 /// detects the pattern in a sliding window and injects a DOOM LOOP recovery
 /// nudge - once, then again only on escalation, never every step.
 #[test]
 fn doom_loop_nudge_on_repeated_calls_once_then_escalation_only() {
-    let _g = SEQMODEL_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = SEQMODEL_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let answer = log.path().join("work").join("task-23").join("answer.txt");

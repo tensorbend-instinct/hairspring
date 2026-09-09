@@ -1,6 +1,6 @@
 //! Phase 1 RED (design D4): plugin supervisor contract.
 //! A dead plugin must be respawned from None with bounded retries; after 3
-//! strikes the slot reports PluginDead naming the plugin and the real cause;
+//! strikes the slot reports `PluginDead` naming the plugin and the real cause;
 //! a slot that failed out is NOT poisoned - it recovers when the plugin can
 //! spawn again. A hung plugin is killed by a per-call lease (the heartbeat).
 
@@ -39,7 +39,7 @@ subjects = ["*"]
 }
 
 /// T3a: a plugin that dies on every call produces, after bounded attempts,
-/// a PluginDead error that names the plugin and the real cause - not a
+/// a `PluginDead` error that names the plugin and the real cause - not a
 /// nameless stale error, and not an infinite respawn loop.
 #[test]
 fn dead_plugin_errors_with_name_and_bounded_attempts() {
@@ -142,7 +142,7 @@ lease_secs = 1
 
 /// Exploration is never punished (Eric 2026-09-05, ab2/17123): a
 /// well-formed {"error": ...} response from a HEALTHY plugin process is an
-/// application-level answer, not a crash. It must return as PluginApp, cost
+/// application-level answer, not a crash. It must return as `PluginApp`, cost
 /// zero strikes, and never kill the process - no matter how many times in a
 /// row it happens. Environment probes (pwd, which, echo, installs) hit
 /// exactly this path when a tool rejects the args.
@@ -182,7 +182,7 @@ subjects = ["*"]
     let lines: Vec<String> = std::fs::read_to_string(&state)
         .unwrap()
         .lines()
-        .map(|l| l.to_string())
+        .map(std::string::ToString::to_string)
         .collect();
     let spawns = lines.iter().filter(|l| *l == "spawn").count();
     let calls = lines.iter().filter(|l| *l == "call").count();

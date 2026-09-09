@@ -1,6 +1,6 @@
 //! RED: 429 resilience (user order 2026-09-05): honor the provider's
 //! Retry-After header, exponential backoff otherwise, generous attempt
-//! budget (HS_REALMODEL_MAX_ATTEMPTS, default 12) - a 429 should nearly
+//! budget (`HS_REALMODEL_MAX_ATTEMPTS`, default 12) - a 429 should nearly
 //! never kill a mission. Fatal 4xx (contract bugs like 400) fail fast.
 
 use hs_loop::realmodel::*;

@@ -1,7 +1,7 @@
 //! RED (2026-09-06): Codex-format edit.patch + computed answer.submit.
 //!
 //! The model never authors diff syntax: it edits the persistent candidate
-//! with the Codex apply_patch grammar (vendored, hs-applypatch crate) and
+//! with the Codex `apply_patch` grammar (vendored, hs-applypatch crate) and
 //! answer.submit computes the final unified diff with git. This kills the
 //! session's observed failure classes by construction: corrupt hand-written
 //! hunks (8619 seq=51, 3314 seq=105), empty fenced submissions (8609

@@ -4,7 +4,7 @@
 //!
 //! M1 contract: a four-region layout - transcript viewport (grows),
 //! one-row loop rail, pinned composer box (3 rows), one-row HUD - that
-//! renders into a ratatui TestBackend deterministically. Line mode stays
+//! renders into a ratatui `TestBackend` deterministically. Line mode stays
 //! for piped stdin; this module is TTY-only at the bin seam.
 
 use hs_loop::tui::{self, LoopPhase};

@@ -1,20 +1,20 @@
 //! GATE 8 BENCHMARK PREP 2 - mission adapter, offline (no paid model calls).
 //!
-//! A BenchInstance becomes a real workspace: clone the repo, check out the
-//! base commit, apply the model's patch, run FAIL_TO_PASS/PASS_TO_PASS.
-//! Result taxonomy matches SWE-bench: resolved / unresolved / no_apply
-//! (patch did not apply is NOT a test failure) / budget_killed.
+//! A `BenchInstance` becomes a real workspace: clone the repo, check out the
+//! base commit, apply the model's patch, run `FAIL_TO_PASS/PASS_TO_PASS`.
+//! Result taxonomy matches SWE-bench: resolved / unresolved / `no_apply`
+//! (patch did not apply is NOT a test failure) / `budget_killed`.
 //!
 //! Falsifiable: if a patch that git cannot apply is reported as a test
 //! failure, the taxonomy is broken. If a gold patch on a real fixture repo
-//! does not flip its FAIL_TO_PASS test, the plumbing is broken.
+//! does not flip its `FAIL_TO_PASS` test, the plumbing is broken.
 
 use hs_bench::*;
 use std::path::Path;
 use std::process::Command;
 
-/// Build a tiny local git repo: code.txt "broken" + tests/test_fix.sh that
-/// passes only when code.txt contains "fixed". Returns (repo_path, base_commit).
+/// Build a tiny local git repo: code.txt "broken" + `tests/test_fix.sh` that
+/// passes only when code.txt contains "fixed". Returns (`repo_path`, `base_commit`).
 fn make_fixture_repo(dir: &Path) -> (PathBuf2, String) {
     let repo = dir.join("repo");
     std::fs::create_dir_all(repo.join("tests")).unwrap();

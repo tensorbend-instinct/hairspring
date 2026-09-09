@@ -3,8 +3,8 @@
 //! (`hs-repl`, one goal per line, `:`-prefixed commands).
 //!
 //! This module is the testable core; the bin is a thin stdin/stdout shell
-//! over it. Everything here reuses the production machinery: swe_kernel +
-//! InnerLoop, require_visibility gate included.
+//! over it. Everything here reuses the production machinery: `swe_kernel` +
+//! `InnerLoop`, `require_visibility` gate included.
 
 use crate::{require_visibility, swe_kernel, InnerLoop, LoopError, MissionResult};
 use std::path::{Path, PathBuf};
@@ -26,6 +26,7 @@ pub enum ReplCommand {
     Unknown(String),
 }
 
+#[must_use]
 pub fn parse_command(line: &str) -> ReplCommand {
     let t = line.trim();
     match t {
@@ -41,11 +42,12 @@ pub fn parse_command(line: &str) -> ReplCommand {
 
 /// Path-safe mission id from goal text: lowercase, alnum runs joined by
 /// single dashes, capped at 40 chars. The id names the work dir
-/// (log_root/work/<id>/answer.txt), so it must never contain separators.
+/// (`log_root/work`/<id>/answer.txt), so it must never contain separators.
+#[must_use]
 pub fn goal_slug(goal: &str) -> String {
     let mut out = String::with_capacity(goal.len().min(41));
     let mut dash = false;
-    for c in goal.chars().flat_map(|c| c.to_lowercase()) {
+    for c in goal.chars().flat_map(char::to_lowercase) {
         if c.is_ascii_alphanumeric() {
             out.push(c);
             dash = false;
@@ -117,7 +119,7 @@ impl ReplSession {
 /// REPL session blows the provider's context (400) long before the
 /// assembler's compactor would ever fire.
 /// UI gap #1: the configured default model's NAME, for the status bar.
-/// Same TOML stanza walk as configured_context_tokens.
+/// Same TOML stanza walk as `configured_context_tokens`.
 fn configured_model_label(config: &Path) -> Option<String> {
     let text = std::fs::read_to_string(config).ok()?;
     let v: toml::Value = toml::from_str(&text).ok()?;
@@ -126,7 +128,7 @@ fn configured_model_label(config: &Path) -> Option<String> {
         .iter()
         .find(|m| {
             m.get("default")
-                .and_then(|d| d.as_bool())
+                .and_then(toml::Value::as_bool)
                 .unwrap_or(false)
         })
         .or(models.first())?;
@@ -141,7 +143,7 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         .iter()
         .find(|m| {
             m.get("default")
-                .and_then(|d| d.as_bool())
+                .and_then(toml::Value::as_bool)
                 .unwrap_or(false)
         })
         .or(models.first())?;
@@ -152,13 +154,13 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
 }
 
     /// Tool-env wiring (live defect 2026-09-08): hs-tb-run sets
-    /// HS_TERM_WORKDIR/HS_SWE_WORKSPACE for every plugin the kernel
+    /// `HS_TERM_WORKDIR/HS_SWE_WORKSPACE` for every plugin the kernel
     /// spawns; hs-repl never did, so term.exec fell back to /app and
     /// died `spawn: No such file or directory` on any host without one.
     /// The REPL wires it itself: the session dir IS the working
     /// directory, stable across missions - the operator exports nothing.
     /// Plugins are long-lived processes spawned at kernel load, so this
-    /// must run BEFORE swe_kernel.
+    /// must run BEFORE `swe_kernel`.
     fn wire_tool_env(log_root: &Path) -> Result<(), LoopError> {
         std::fs::create_dir_all(log_root)?;
         unsafe {
@@ -173,7 +175,7 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         Ok(())
     }
 
-    /// Load the kernel from `config`, gated by require_visibility (the
+    /// Load the kernel from `config`, gated by `require_visibility` (the
     /// production startup rule: no blind runs), and build the loop on
     /// `log_root`.
     pub fn load(
@@ -242,7 +244,7 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
     }
 
     /// Gap #4 (fork): branch an existing stream into a new linked stream
-    /// carrying the parent's full transcript (hs_log::StreamWriter::fork),
+    /// carrying the parent's full transcript (`hs_log::StreamWriter::fork`),
     /// then run missions on the branch. The parent stream is untouched.
     pub fn load_fork(
         config: &Path,
@@ -251,16 +253,16 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         max_steps: u32,
         parent: uuid::Uuid,
     ) -> Result<Self, LoopError> {
-        let (child, _w) = hs_log::StreamWriter::fork(log_root, parent)?;
-        drop(_w);
+        let (child, child_writer) = hs_log::StreamWriter::fork(log_root, parent)?;
+        drop(child_writer);
         Self::load_resume(config, log_root, feedback, max_steps, child)
     }
 
     /// Gap #4 (resume): adopt an existing stream instead of opening a fresh
-    /// one. The substrate (StreamWriter::resume via InnerLoop::with_stream)
+    /// one. The substrate (`StreamWriter::resume` via `InnerLoop::with_stream`)
     /// recovers sequence + hash-chain state, so new missions append to the
     /// same stream and their prompts replay the prior transcript from the
-    /// log. Config/MCP/native-tool setup is identical to load().
+    /// log. Config/MCP/native-tool setup is identical to `load()`.
     pub fn load_resume(
         config: &Path,
         log_root: &Path,
@@ -344,8 +346,8 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         };
         let r = self.inner.run_mission_full(&id, &prompt)?;
         self.missions_run += 1;
-        self.total_steps += r.steps as u64;
-        self.total_model_calls += r.model_calls as u64;
+        self.total_steps += u64::from(r.steps);
+        self.total_model_calls += u64::from(r.model_calls);
         self.used_ids.insert(id);
         self.last_answer_path = Some(r.answer_path.clone());
         Ok(r)
@@ -387,7 +389,7 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         self.inner.set_model_override(model)
     }
 
-    /// Configured models as (name, is_default) for the picker.
+    /// Configured models as (name, `is_default`) for the picker.
     pub fn model_names(&self) -> Vec<(String, bool)> {
         self.inner.model_names()
     }
@@ -502,9 +504,10 @@ fn truncate60(s: &str) -> String {
     t
 }
 
-/// Every resumable session under log_root, newest first. Streams that
+/// Every resumable session under `log_root`, newest first. Streams that
 /// fail to open or read are skipped - the picker lists what resume can
 /// actually adopt.
+#[must_use]
 pub fn list_sessions(log_root: &Path) -> Vec<SessionInfo> {
     let mut out = Vec::new();
     let Ok(rd) = std::fs::read_dir(log_root.join("streams")) else {
@@ -585,8 +588,9 @@ pub fn list_sessions(log_root: &Path) -> Vec<SessionInfo> {
 
 /// M16: the picker never offers the session you are already in.
 /// Resuming your own live stream would fork state mid-run; pi/omp
-/// pickers never list it. Same listing as list_sessions, minus the
+/// pickers never list it. Same listing as `list_sessions`, minus the
 /// active stream id. A foreign id excludes nothing.
+#[must_use]
 pub fn list_sessions_excluding(log_root: &Path, current: uuid::Uuid) -> Vec<SessionInfo> {
     list_sessions(log_root)
         .into_iter()
@@ -596,6 +600,7 @@ pub fn list_sessions_excluding(log_root: &Path, current: uuid::Uuid) -> Vec<Sess
 
 /// Map a picker's 1-based numeric selection to a stream id. Anything
 /// else - zero, out of range, non-numeric - selects nothing.
+#[must_use]
 pub fn pick_session(infos: &[SessionInfo], input: &str) -> Option<uuid::Uuid> {
     let n: usize = input.trim().parse().ok()?;
     if n == 0 || n > infos.len() {
@@ -605,6 +610,7 @@ pub fn pick_session(infos: &[SessionInfo], input: &str) -> Option<uuid::Uuid> {
 }
 
 /// One numbered picker line: short id, event count, mission preview.
+#[must_use]
 pub fn session_line(i: usize, info: &SessionInfo) -> String {
     let short: String = info.id.to_string().chars().take(8).collect();
     format!("{i}) {short}  {} events  {}", info.events, info.preview)
@@ -613,11 +619,12 @@ pub fn session_line(i: usize, info: &SessionInfo) -> String {
 /// UI gap #6: tab completion for the REPL's :commands (pi/omp
 /// complete their commands at the prompt; hs-repl made the operator
 /// type them from memory). Pure prefix function so it is testable
-/// without a TTY; CommandCompleter adapts it to rustyline.
+/// without a TTY; `CommandCompleter` adapts it to rustyline.
 pub const REPL_COMMANDS: &[&str] = &[":help", ":history", ":last", ":quit", ":status"];
 
 /// Completions for a command prefix. Only colon-prefixed input
 /// completes; goal text never does.
+#[must_use]
 pub fn command_completions(prefix: &str) -> Vec<String> {
     if !prefix.starts_with(':') {
         return Vec::new();
@@ -625,7 +632,7 @@ pub fn command_completions(prefix: &str) -> Vec<String> {
     REPL_COMMANDS
         .iter()
         .filter(|c| c.starts_with(prefix))
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
         .collect()
 }
 
@@ -664,7 +671,7 @@ impl rustyline::Helper for CommandCompleter {}
 /// Gap #5: line editing. The interactive loop reads through an Editor:
 /// a rustyline-backed TTY editor (real editing keys) or a piped-stdin
 /// fallback. HAIRSPRING owns the history lifecycle: every accepted line
-/// is appended to <session dir>/.hs_repl_history and preloaded by the
+/// is appended to <session dir>/.`hs_repl_history` and preloaded by the
 /// next session on the same dir - up-arrow works across restarts.
 pub trait Editor {
     /// One line of input, None on EOF/Ctrl-C.
@@ -677,7 +684,7 @@ const HISTORY_FILE: &str = ".hs_repl_history";
 
 fn load_history(log_root: &Path) -> Vec<String> {
     std::fs::read_to_string(log_root.join(HISTORY_FILE))
-        .map(|b| b.lines().map(|l| l.to_string()).collect())
+        .map(|b| b.lines().map(std::string::ToString::to_string).collect())
         .unwrap_or_default()
 }
 
@@ -692,7 +699,7 @@ fn append_history(log_root: &Path, line: &str) {
     }
 }
 
-/// Non-TTY editor: plain lines from any BufRead, history still
+/// Non-TTY editor: plain lines from any `BufRead`, history still
 /// recorded and preloaded. The prompt goes to stderr (stdout stays
 /// clean for result JSON).
 pub struct StdinEditor<R: std::io::BufRead> {
@@ -759,8 +766,8 @@ impl Editor for RustylineEditor {
     fn read_line(&mut self, prompt: &str) -> std::io::Result<Option<String>> {
         match self.rl.readline(prompt) {
             Ok(line) => Ok(Some(line)),
-            Err(rustyline::error::ReadlineError::Interrupted)
-            | Err(rustyline::error::ReadlineError::Eof) => Ok(None),
+            Err(rustyline::error::ReadlineError::Interrupted |
+rustyline::error::ReadlineError::Eof) => Ok(None),
             Err(e) => Err(std::io::Error::other(e)),
         }
     }
@@ -825,8 +832,7 @@ pub fn run_interactive<E: Editor + ?Sized>(
     let cols: usize = std::env::var("COLUMNS")
         .ok()
         .and_then(|v| v.parse().ok())
-        .map(|c: usize| c.clamp(40, 120))
-        .unwrap_or(72);
+        .map_or(72, |c: usize| c.clamp(40, 120));
     let prompt = if color { crate::uipaint::EDITOR_PROMPT } else { "hs> " };
     let theme = crate::uipaint::Theme::from_env();
     loop {
@@ -876,7 +882,7 @@ pub fn run_interactive<E: Editor + ?Sized>(
                 None => eprintln!("no mission has run yet"),
             },
             ReplCommand::Unknown(c) => {
-                eprintln!("unknown command {c} (:help lists commands)")
+                eprintln!("unknown command {c} (:help lists commands)");
             }
             ReplCommand::Goal(goal) => {
                 match session.run_goal(&goal) {

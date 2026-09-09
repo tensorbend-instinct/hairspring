@@ -29,6 +29,7 @@ fn tail(bytes: &[u8]) -> String {
 /// /root/.git-credentials is masked with /dev/null, and --clearenv keeps
 /// mission env (HS_*, keys) out. pid/ipc stay unshared so a mission cannot
 /// signal or shm-snoop harness processes.
+#[must_use]
 pub fn sandbox_argv(scratch: &Path, _out_f: &Path, _err_f: &Path, cmd: &str) -> Vec<String> {
     // out/err paths inside the sandbox: the scratch is mounted at /ws
     // Group the command: `a; b >file` redirects ONLY the last simple
@@ -59,7 +60,7 @@ pub fn sandbox_argv(scratch: &Path, _out_f: &Path, _err_f: &Path, cmd: &str) -> 
         "/bin",
     ]
     .iter()
-    .map(|s| s.to_string())
+    .map(std::string::ToString::to_string)
     .collect();
     // Egress switch (2026-09-06, contamination re-baseline prep): default is
     // host network; HS_SWE_NET=off drops --share-net so bwrap unshares the
@@ -119,8 +120,9 @@ pub fn sandbox_argv(scratch: &Path, _out_f: &Path, _err_f: &Path, cmd: &str) -> 
     v
 }
 
-/// Extract one unified diff from model-supplied text: a ```diff fence, or
+/// Extract one unified diff from model-supplied text: a `diff` fence, or
 /// the raw diff itself (starts with "diff --git" or "--- ").
+#[must_use]
 pub fn extract_diff(raw: &str) -> Option<String> {
     if let Some(p) = hs_bench::extract_patch(raw) {
         return Some(p);
@@ -148,7 +150,7 @@ fn prep(ws: &Path, answer_path: &Path) -> Result<Option<PathBuf>, Value> {
     };
     let Some(patch) = extract_diff(&raw) else {
         return Err(
-            json!({"applied": false, "note": "no diff found in the current answer - wrap one unified diff in a ```diff fence"}),
+            json!({"applied": false, "note": "no diff found in the current answer - wrap one unified diff in a `diff` fence"}),
         );
     };
     prep_diff(ws, &patch)
@@ -159,8 +161,7 @@ fn prep(ws: &Path, answer_path: &Path) -> Result<Option<PathBuf>, Value> {
 fn prep_diff(ws: &Path, patch: &str) -> Result<Option<PathBuf>, Value> {
     let uniq = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
+        .map_or(0, |d| d.as_nanos());
     let scratch = std::env::temp_dir().join(format!("repexec-{}-{}", std::process::id(), uniq));
     let _ = Command::new("git")
         .args(["worktree", "remove", "--force"])
@@ -196,7 +197,7 @@ fn prep_diff(ws: &Path, patch: &str) -> Result<Option<PathBuf>, Value> {
 }
 
 fn cleanup(ws: &Path, scratch: &Path) {
-    cleanup_scratch(ws, scratch, true)
+    cleanup_scratch(ws, scratch, true);
 }
 
 fn cleanup_scratch(ws: &Path, scratch: &Path, worktree: bool) {
@@ -224,10 +225,13 @@ fn cleanup_scratch(ws: &Path, scratch: &Path, worktree: bool) {
 /// --check included) or writes a raw .diff/.patch file (redirection, tee,
 /// cp/mv/install destination). Reads of diff files, `git diff` to stdout,
 /// and every other command stay allowed.
+#[must_use]
 pub fn edit_path_violation(command: &str) -> Option<String> {
     let is_diff_target = |t: &str| {
         let t = t.trim_matches(|c| c == '"' || c == '\'');
-        t.ends_with(".diff") || t.ends_with(".patch")
+        std::path::Path::new(t)
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("diff") || e.eq_ignore_ascii_case("patch"))
     };
     // Per simple-command segment (split on shell operators) so arguments of
     // one command are never attributed to another.
@@ -266,7 +270,7 @@ pub fn edit_path_violation(command: &str) -> Option<String> {
                         break;
                     }
                 }
-                if toks.get(j).map(|s| s.as_str()) == Some("apply") {
+                if toks.get(j).map(std::string::String::as_str) == Some("apply") {
                     return Some("git apply invocation".to_string());
                 }
             }
@@ -319,6 +323,7 @@ fn edit_gate(command: &str, patch_mode: bool) -> Option<Value> {
 }
 
 /// Open-shell exec in the sandbox. `command` is arbitrary by design.
+#[must_use]
 pub fn run_sandboxed(ws: &Path, answer_path: &Path, command: &str, timeout_secs: u64) -> Value {
     if let Some(v) = edit_gate(command, true) {
         return v;
@@ -327,12 +332,13 @@ pub fn run_sandboxed(ws: &Path, answer_path: &Path, command: &str, timeout_secs:
 }
 
 /// Open-shell exec against an inline diff (T4: test-before-first-submit).
+#[must_use]
 pub fn run_sandboxed_with_diff(ws: &Path, diff: &str, command: &str, timeout_secs: u64) -> Value {
     if let Some(v) = edit_gate(command, true) {
         return v;
     }
     let Some(patch) = extract_diff(diff) else {
-        return json!({"applied": false, "note": "no unified diff in args.diff - pass one unified diff, raw or in a ```diff fence"});
+        return json!({"applied": false, "note": "no unified diff in args.diff - pass one unified diff, raw or in a `diff` fence"});
     };
     run_with_prep(prep_diff(ws, &patch), ws, command, timeout_secs, true)
 }
@@ -364,8 +370,7 @@ pub fn run_sandboxed_no_patch(ws: &Path, command: &str, timeout_secs: u64) -> Va
 fn scratch_clone(ws: &Path) -> Result<PathBuf, Value> {
     let uniq = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
+        .map_or(0, |d| d.as_nanos());
     let scratch = std::env::temp_dir().join(format!("repsh-{}-{}", std::process::id(), uniq));
     let _ = std::fs::remove_dir_all(&scratch);
     match Command::new("git")
@@ -443,17 +448,19 @@ fn run_with_prep(
 /// evaluator's f2p). The bwrap sandbox exists to contain MODEL commands;
 /// the goal evaluator runs harness-fixed commands, and mission venvs live
 /// under /home which bwrap never binds (forensic item 1, 2026-09-06: every
-/// session's goal evaluation died at exit 127 and recorded env_limited).
+/// session's goal evaluation died at exit 127 and recorded `env_limited`).
 /// Same scratch-worktree prep, same timeout discipline, exec on the host
 /// exactly where the standalone checker runs.
 /// Egress-off predicate (contamination re-baseline, 2026-09-06).
+#[must_use]
 pub fn egress_off() -> bool {
     std::env::var("HS_SWE_NET").as_deref() == Ok("off")
 }
 
 /// The host-side eval command, wrapped for the egress policy. With
-/// HS_SWE_NET=off the f2p evaluator also loses network (unshare -n), so a
+/// `HS_SWE_NET=off` the f2p evaluator also loses network (unshare -n), so a
 /// test suite cannot fetch reference material either.
+#[must_use]
 pub fn host_command_wrapper(command: &str) -> String {
     if egress_off() {
         format!("unshare -n sh -c {}", shell_quote(command))
@@ -466,6 +473,7 @@ fn shell_quote(c: &str) -> String {
     format!("'{}'", c.replace('\'', "'\\''"))
 }
 
+#[must_use]
 pub fn run_host(ws: &Path, answer_path: &Path, command: &str, timeout_secs: u64) -> Value {
     let scratch = match prep(ws, answer_path) {
         Ok(Some(s)) => s,
@@ -527,6 +535,7 @@ pub fn run_host(ws: &Path, answer_path: &Path, command: &str, timeout_secs: u64)
 /// Map a guardrail reason to its stable violation class - escalation and
 /// telemetry count per class, not per exact command (the args change on
 /// every retry; the class does not).
+#[must_use]
 pub fn violation_class(reason: &str) -> String {
     if reason.starts_with("git apply") {
         "git_apply".to_string()
@@ -538,7 +547,8 @@ pub fn violation_class(reason: &str) -> String {
 }
 
 /// Pull the violation class back out of a gate result string (the loop
-/// counts escalations from the ToolCall output, not from internals).
+/// counts escalations from the `ToolCall` output, not from internals).
+#[must_use]
 pub fn extract_gate_class(output: &str) -> Option<String> {
     if !output.contains("forbidden edit path") {
         return None;
@@ -546,14 +556,13 @@ pub fn extract_gate_class(output: &str) -> Option<String> {
     let pos = output.find("class: ")? + "class: ".len();
     let end = output[pos..]
         .find([',', ')', ' ', '\\', '"'])
-        .map(|i| pos + i)
-        .unwrap_or(output.len());
+        .map_or(output.len(), |i| pos + i);
     Some(output[pos..end].to_string())
 }
 
 /// Post-B8 escalation (B8: 6 same-class fires, the bare steer never
 /// landed). The first fire speaks through the gate's own error; from the
-/// SECOND same-class fire on, record() returns an escalating steer for
+/// SECOND same-class fire on, `record()` returns an escalating steer for
 /// the loop to inject as feedback.
 #[derive(Default)]
 pub struct GuardrailEscalator {
@@ -561,6 +570,7 @@ pub struct GuardrailEscalator {
 }
 
 impl GuardrailEscalator {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }

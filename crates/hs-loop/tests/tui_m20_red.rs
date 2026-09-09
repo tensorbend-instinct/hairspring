@@ -7,7 +7,7 @@
 //! under M19's hold-until-disposition). pi/omp never print a summary
 //! above the answer it summarizes.
 //!
-//! Contract: one TuiState method owns mission-end sequencing - the
+//! Contract: one `TuiState` method owns mission-end sequencing - the
 //! held answer commits FIRST, the done line follows it.
 
 use hs_loop::tui::TuiState;

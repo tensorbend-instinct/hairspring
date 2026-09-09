@@ -6,8 +6,8 @@
 //! - champion status is decided by the held-out tier ONLY (cheap gates run
 //!   first; no candidate becomes champion on self-adjacent evidence);
 //! - scorer version + assay conditions are pinned BEFORE mutation and every
-//!   promotion is bound to that pin (scorer_pin event; replayable verdicts);
-//! - canary outcomes are substrate events (canary_result); a scorer whose
+//!   promotion is bound to that pin (`scorer_pin` event; replayable verdicts);
+//! - canary outcomes are substrate events (`canary_result`); a scorer whose
 //!   canary error rises is frozen for promotion decisions until re-anchored;
 //! - the best-of-N envelope is endpoint-wise with identical decision
 //!   opportunities, and the comparison is published win or lose.
@@ -32,12 +32,14 @@ pub struct Task {
     expected: String,
 }
 impl Task {
+    #[must_use]
     pub fn new(id: String, secret: String) -> Self {
         Task {
             id,
             expected: secret,
         }
     }
+    #[must_use]
     pub fn secret(&self) -> &str {
         &self.expected
     }
@@ -49,15 +51,18 @@ pub struct TaskSuite {
     tasks: Vec<Task>,
 }
 impl TaskSuite {
+    #[must_use]
     pub fn new(name: &str, tasks: Vec<Task>) -> Self {
         TaskSuite {
             name: name.into(),
             tasks,
         }
     }
+    #[must_use]
     pub fn tasks(&self) -> &[Task] {
         &self.tasks
     }
+    #[must_use]
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -86,6 +91,7 @@ impl Artifact {
             current: Rc::new(RefCell::new(None)),
         }
     }
+    #[must_use]
     pub fn memorized(table: BTreeMap<String, String>) -> Self {
         Artifact {
             answerer: Rc::new(Answerer::Table(table)),
@@ -102,6 +108,7 @@ impl Artifact {
         *self.current.borrow_mut() = a.clone();
         a
     }
+    #[must_use]
     pub fn answer_text(&self) -> Option<String> {
         self.current.borrow().clone()
     }
@@ -113,15 +120,18 @@ pub struct Candidate {
     artifact: Artifact,
 }
 impl Candidate {
+    #[must_use]
     pub fn new(name: &str, artifact: Artifact) -> Self {
         Candidate {
             name: name.into(),
             artifact,
         }
     }
+    #[must_use]
     pub fn name(&self) -> &str {
         &self.name
     }
+    #[must_use]
     pub fn artifact(&self) -> &Artifact {
         &self.artifact
     }
@@ -165,6 +175,7 @@ pub struct JudgePanel {
     judges: Vec<Box<dyn Judge>>,
 }
 impl JudgePanel {
+    #[must_use]
     pub fn new(judges: Vec<Box<dyn Judge>>) -> Self {
         JudgePanel { judges }
     }
@@ -201,9 +212,11 @@ pub struct AssayVerdict {
     pin_hash: [u8; 32],
 }
 impl AssayVerdict {
+    #[must_use]
     pub fn pin_hash(&self) -> [u8; 32] {
         self.pin_hash
     }
+    #[must_use]
     pub fn passed(&self) -> bool {
         self.pass_rate == 1.0
     }
@@ -212,7 +225,7 @@ impl AssayVerdict {
 // ----------------------------------------------------------------- pins ---
 
 /// Scorer version + assay conditions, frozen BEFORE mutation (spec: a
-/// mutation cannot move its own goalposts; recorded as a scorer_pin event).
+/// mutation cannot move its own goalposts; recorded as a `scorer_pin` event).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ScorerPin {
     scorer_version: String,
@@ -220,6 +233,7 @@ pub struct ScorerPin {
     hash: [u8; 32],
 }
 impl ScorerPin {
+    #[must_use]
     pub fn hash(&self) -> [u8; 32] {
         self.hash
     }
@@ -241,6 +255,7 @@ pub struct Canary {
     ground_truth_good: bool,
 }
 impl Canary {
+    #[must_use]
     pub fn known_good(id: &str, artifact: Artifact) -> Self {
         Canary {
             id: id.into(),
@@ -248,6 +263,7 @@ impl Canary {
             ground_truth_good: true,
         }
     }
+    #[must_use]
     pub fn known_bad(id: &str, artifact: Artifact) -> Self {
         Canary {
             id: id.into(),
@@ -261,6 +277,7 @@ pub struct CanarySuite {
     canaries: Vec<Canary>,
 }
 impl CanarySuite {
+    #[must_use]
     pub fn new(canaries: Vec<Canary>) -> Self {
         CanarySuite { canaries }
     }
@@ -340,6 +357,7 @@ impl Lineage {
             verdict,
         });
     }
+    #[must_use]
     pub fn champion(&self) -> Option<&Candidate> {
         let name = self.champion.as_ref()?;
         self.entries
@@ -373,8 +391,7 @@ impl Lineage {
                     .entries
                     .iter()
                     .find(|e| &e.candidate.name == name)
-                    .map(|e| e.verdict.pass_rate)
-                    .unwrap_or(0.0);
+                    .map_or(0.0, |e| e.verdict.pass_rate);
                 verdict.pass_rate >= champ_rate
             }
         };
@@ -465,6 +482,7 @@ impl Scorer {
     /// "An artifact says what exists; evidence says what is known about it."
     /// The proposer in the evolutionary loop consumes THIS, not raw
     /// artifacts: what is verified, what is failing, what regressed.
+    #[must_use]
     pub fn evidence_state(&self) -> Vec<EvidenceClaim> {
         let events = self.log_events();
         let reader = StreamReader::open(&self.log_root, self.stream)
@@ -477,6 +495,7 @@ impl Scorer {
         })
     }
 
+    #[must_use]
     pub fn open_failures(&self) -> Vec<EvidenceClaim> {
         self.evidence_state()
             .into_iter()
@@ -484,6 +503,7 @@ impl Scorer {
             .collect()
     }
 
+    #[must_use]
     pub fn regressions(&self) -> Vec<EvidenceClaim> {
         self.evidence_state()
             .into_iter()
@@ -491,6 +511,7 @@ impl Scorer {
             .collect()
     }
 
+    #[must_use]
     pub fn verified_claims(&self) -> Vec<EvidenceClaim> {
         self.evidence_state()
             .into_iter()
@@ -501,19 +522,20 @@ impl Scorer {
     }
 
     /// GATE 9e (spec v5): record a capability swap as a first-class
-    /// capability_change event on this stream. Single-writer discipline:
+    /// `capability_change` event on this stream. Single-writer discipline:
     /// whoever performs the swap (migration transaction, operator) records
     /// it BEFORE the next assay so attribution sees the boundary.
     pub fn record_capability_change(&mut self, binding: &str, reason: &str) -> Event {
         self.emit(
             EventKind::CapabilityChange,
-            &format!("capability_change binding={} reason={}", binding, reason),
+            &format!("capability_change binding={binding} reason={reason}"),
         )
     }
 
     /// GATE 9e (spec v5): fitness slope, projected from the canonical log.
-    /// Only deltas with NO capability_change between the two assays -
+    /// Only deltas with NO `capability_change` between the two assays -
     /// same substrate, same bindings, evolved policy.
+    #[must_use]
     pub fn fitness_deltas(&self) -> Vec<attribution::FitnessDeltaRec> {
         let events = self.log_events();
         let reader = StreamReader::open(&self.log_root, self.stream)
@@ -527,9 +549,10 @@ impl Scorer {
         .0
     }
 
-    /// GATE 9e (spec v5): deltas straddling a capability_change boundary,
+    /// GATE 9e (spec v5): deltas straddling a `capability_change` boundary,
     /// attributed to the swap and recorded against the new binding. Never
     /// counted as evolved improvement.
+    #[must_use]
     pub fn capability_attributed(&self) -> Vec<attribution::AttributedDelta> {
         let events = self.log_events();
         let reader = StreamReader::open(&self.log_root, self.stream)
@@ -544,7 +567,7 @@ impl Scorer {
     }
 
     /// Pin scorer version + assay conditions BEFORE any mutation; recorded
-    /// as a scorer_pin substrate event.
+    /// as a `scorer_pin` substrate event.
     pub fn pin(&mut self) -> ScorerPin {
         self.pin_with_conditions(&self.config.assay_conditions.clone())
     }
@@ -702,14 +725,14 @@ impl Scorer {
                     passed += 1;
                 }
             }
-            passed as f64 / suite.tasks().len() as f64
+            f64::from(passed) / suite.tasks().len() as f64
         };
         let total = suite.tasks().len() as u32;
         let v = AssayVerdict {
             candidate: cand.name().to_string(),
             suite: suite.name().to_string(),
             pass_rate,
-            tasks_passed: (pass_rate * total as f64).round() as u32,
+            tasks_passed: (pass_rate * f64::from(total)).round() as u32,
             tasks_total: total,
             pin_hash: pin.hash(),
         };
@@ -755,7 +778,7 @@ impl Scorer {
 
     /// Canary suite: known-ground-truth control group for the scorer. Any
     /// canary error above threshold freezes the scorer for promotion until
-    /// re-anchored. canary_result events are substrate events.
+    /// re-anchored. `canary_result` events are substrate events.
     pub fn run_canaries(
         &mut self,
         suite: &CanarySuite,
@@ -793,6 +816,7 @@ impl Scorer {
         })
     }
 
+    #[must_use]
     pub fn is_frozen(&self) -> bool {
         self.frozen
     }
@@ -804,6 +828,7 @@ impl Scorer {
         self.drift = Some(kind);
     }
 
+    #[must_use]
     pub fn log_events(&self) -> Vec<Event> {
         StreamReader::open(&self.log_root, self.stream)
             .and_then(|r| r.events())
@@ -849,7 +874,7 @@ impl BestOfN {
                 correct as f64 / family.tasks().len() as f64
             })
             .collect();
-        let best = rates.iter().cloned().fold(0.0f64, f64::max);
+        let best = rates.iter().copied().fold(0.0f64, f64::max);
         Ok(BestOfN {
             pass_rate: best,
             n: isolates.len() as u32,
@@ -857,9 +882,11 @@ impl BestOfN {
             isolate_rates: rates,
         })
     }
+    #[must_use]
     pub fn n(&self) -> u32 {
         self.n
     }
+    #[must_use]
     pub fn decision_opportunities_per_isolate(&self) -> u32 {
         self.opportunities
     }
@@ -926,15 +953,19 @@ pub struct Comparison {
     artifact_path: PathBuf,
 }
 impl Comparison {
+    #[must_use]
     pub fn envelope_pass_rate(&self) -> f64 {
         self.envelope
     }
+    #[must_use]
     pub fn candidate_pass_rate(&self) -> f64 {
         self.candidate
     }
+    #[must_use]
     pub fn verdict(&self) -> EnvelopeVerdict {
         self.verdict
     }
+    #[must_use]
     pub fn artifact_path(&self) -> &Path {
         &self.artifact_path
     }

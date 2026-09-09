@@ -76,7 +76,7 @@ impl Checker {
             "method": "tool.call",
             "params": {"args": {"path": answer_path.display().to_string()}},
         });
-        writeln!(self.stdin, "{}", call).unwrap();
+        writeln!(self.stdin, "{call}").unwrap();
         self.stdin.flush().unwrap();
         let mut line = String::new();
         self.stdout.read_line(&mut line).unwrap();
@@ -93,7 +93,7 @@ impl Drop for Checker {
 
 fn write_answer(dir: &Path, name: &str, diff_body: &str) -> std::path::PathBuf {
     let p = dir.join(name);
-    std::fs::write(&p, format!("```diff\n{}\n```\n", diff_body)).unwrap();
+    std::fs::write(&p, format!("```diff\n{diff_body}\n```\n")).unwrap();
     p
 }
 

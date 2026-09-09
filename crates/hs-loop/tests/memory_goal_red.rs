@@ -1,15 +1,15 @@
 //! RED acceptance gates for Phase 3 (D3 typed memory plane + D6 goal
 //! evaluator), from the design doc's TDD plan.
 //!
-//! T6 memory_roundtrip: mission A's extracted memory record is retrieved
-//!    into mission B's context with its source_seqs intact.
-//! T7 goal_evaluator_stops_green: a mission stops when acceptance is
+//! T6 `memory_roundtrip`: mission A's extracted memory record is retrieved
+//!    into mission B's context with its `source_seqs` intact.
+//! T7 `goal_evaluator_stops_green`: a mission stops when acceptance is
 //!    verifiably green (patch applies + F2P passes in the sandbox); it
 //!    REFUSES to stop when BOTH the checker and the goal evaluator are red.
 //!    (Revised post-A7, FIXLIST 2026-09-05 item 1: a green checker.run
 //!    verdict now ENDS the mission even against a red goal evaluator - the
 //!    old lie-checker refusal was retired by user directive; the conflict
-//!    path is covered by tests/stop_on_pass_red.rs.)
+//!    path is covered by `tests/stop_on_pass_red.rs`.)
 
 use hs_core::EventKind;
 use hs_loop::*;
@@ -57,7 +57,7 @@ fn write_script(dir: &std::path::Path, lines: &[serde_json::Value]) -> std::path
         &p,
         lines
             .iter()
-            .map(|l| l.to_string())
+            .map(std::string::ToString::to_string)
             .collect::<Vec<_>>()
             .join("\n"),
     )
@@ -79,7 +79,7 @@ fn model_prompts(log: &std::path::Path, stream: uuid::Uuid) -> Vec<String> {
 
 #[test]
 fn t6_memory_roundtrip_across_missions() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     // --- mission A: passes in one step ---
     let dir_a = tempfile::tempdir().unwrap();
     let log_a = tempfile::tempdir().unwrap();
@@ -150,7 +150,7 @@ fn t6_memory_roundtrip_across_missions() {
         first
             .source_seqs
             .iter()
-            .map(|s| s.to_string())
+            .map(std::string::ToString::to_string)
             .collect::<Vec<_>>()
             .join(",")
     );
@@ -189,7 +189,7 @@ fn mk_ws(dir: &std::path::Path) -> std::path::PathBuf {
 
 #[test]
 fn t7_goal_evaluator_stops_green_refuses_red() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let ws = mk_ws(dir.path());
     let fix = "```diff\n--- a/code.txt\n+++ b/code.txt\n@@ -1 +1 @@\n-broken\n+fixed\n```";

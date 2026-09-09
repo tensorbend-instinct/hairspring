@@ -21,6 +21,7 @@ pub enum RangeSize {
 }
 
 impl RangeSize {
+    #[must_use]
     pub fn classify(line_count: usize) -> Self {
         if line_count <= SMALL_MAX {
             Self::Small
@@ -33,6 +34,7 @@ impl RangeSize {
 }
 
 /// Evaluate a range edit and return a warning for medium or large ranges.
+#[must_use]
 pub fn range_warning(start: usize, end: usize) -> Option<String> {
     let count = end.saturating_sub(start);
     match RangeSize::classify(count) {

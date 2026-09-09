@@ -75,8 +75,9 @@ impl HashlineSchemeParams {
     }
 
     /// Generate example anchor strings for use in tool descriptions.
-    /// Returns (single_anchor, line_with_anchor) based on the configured scheme.
+    /// Returns (`single_anchor`, `line_with_anchor`) based on the configured scheme.
     /// Returns `(anchor, read_line1, read_line2, grep_match, grep_context)`.
+    #[must_use]
     pub fn example_anchors(&self) -> ExampleAnchors {
         let len = self.hash_len.clamp(1, 4);
         let hash = &"abcd"[..len];
@@ -100,6 +101,7 @@ impl HashlineSchemeParams {
     }
 
     /// Replace description placeholders with scheme-appropriate examples.
+    #[must_use]
     pub fn render_description(&self, template: &str) -> String {
         let ex = self.example_anchors();
         template

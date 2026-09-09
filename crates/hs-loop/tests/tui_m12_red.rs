@@ -3,16 +3,16 @@
 //! graph learns failures.
 //!
 //! Live-proof finding (2026-09-08, tmux cap5): after two completed
-//! scripted missions, `:resume" reported "no prior sessions in this
+//! scripted missions, `:resume` reported "no prior sessions in this
 //! dir to resume". Probe of the real run dir: the operator stream was
-//! kinds [0,0,0,0] (ModelCall only) - GoalUpdate is emitted only on
+//! `kinds` [0,0,0,0] (`ModelCall` only) - `GoalUpdate` is emitted only on
 //! the checker-green stop path (lib.rs), so a mission ending exhausted,
 //! budget/wall-killed, interrupted, or harness-aborted leaves a stream
 //! the picker filter (Feedback|GoalUpdate) is blind to. Plain
 //! conversational sessions are the COMMON REPL case.
 //!
 //! Semantics constraint: hs-swarm's Spawner writes a spawn-time
-//! GoalUpdate {done:false} as the child's FIRST event ("open goal").
+//! `GoalUpdate` {done:false} as the child's FIRST event ("open goal").
 //! A terminal close is therefore done:true OR an `outcome` key;
 //! spawn-time done:false alone stays Running in the graph.
 

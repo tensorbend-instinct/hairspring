@@ -2,15 +2,15 @@
 //! The verify17092 run burned 4 model calls on "no answer path" - the model
 //! uses repo.exec as a general shell (git log, grep, pwd) with NO candidate
 //! diff, and the contract rejected anything without a diff/path. New contract:
-//! no diff + no path + no HS_SWE_ANSWER = scratch shell against a pristine
-//! clone of the workspace (exit_code/stdout/stderr, applied=false,
-//! scratch=true). The diff path (args.diff / args.path / HS_SWE_ANSWER) stays
+//! no diff + no path + no `HS_SWE_ANSWER` = scratch shell against a pristine
+//! clone of the workspace (`exit_code/stdout/stderr`, applied=false,
+//! scratch=true). The diff path (args.diff / args.path / `HS_SWE_ANSWER`) stays
 //! the candidate-testing path, unchanged.
 //!
 //! Levels:
-//! - unit: hs_loop::repexec::run_sandboxed_no_patch against a real git ws
+//! - unit: `hs_loop::repexec::run_sandboxed_no_patch` against a real git ws
 //! - mission: a scripted model uses repo.exec as a general shell through the
-//!   real loop/kernel/plugin path; the stream must show exit_code 0 and no
+//!   real loop/kernel/plugin path; the stream must show `exit_code` 0 and no
 //!   "$error" (this fails RED against the old plugin contract)
 
 use hs_loop::*;
@@ -59,7 +59,7 @@ fn scratch_shell_runs_general_commands_against_pristine_clone() {
         out.contains("init"),
         "git log works inside the sandbox (self-contained clone): {out}"
     );
-    assert!(out.contains("1"), "grep sees HEAD content: {out}");
+    assert!(out.contains('1'), "grep sees HEAD content: {out}");
     assert!(r.get("$error").is_none(), "no contract error: {r}");
     // live workspace untouched
     assert_eq!(
@@ -81,7 +81,7 @@ fn scratch_shell_enforces_timeout() {
 
 /// Mission level: the verify17092 failure shape, replayed. Scripted model
 /// calls repo.exec with a bare shell command (no diff, no path, no
-/// HS_SWE_ANSWER) exactly as kimi-k3 did; under the old contract the result
+/// `HS_SWE_ANSWER`) exactly as kimi-k3 did; under the old contract the result
 /// is {"$error": "no answer path..."}. Then it verifies a candidate diff and
 /// writes the answer, so the mission passes. Asserts on the event stream.
 #[test]

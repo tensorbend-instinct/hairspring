@@ -16,3 +16,56 @@ license = "Proprietary"
 
 [profile.release]
 debug = true
+
+# --- Lint policy (2026-09-08) -------------------------------------------------
+# Rubric: "The Rust Programming Language" 3rd ed (latest print edition,
+# No Starch 2024-12; doc.rust-lang.org/book tracks stable, here 1.98), the
+# rust-lang API Guidelines (rust-lang.github.io/api-guidelines), and the
+# Cargo book. Clippy pedantic is ON workspace-wide; every allow below is a
+# deliberate, audited waiver with its reason - not a blind spot.
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+# The API Guidelines doc lints target PUBLISHED library APIs (C-DOC-ERRORS /
+# C-DOC-PANICS). hs-* are internal workspace crates and plugin binaries;
+# error/panic conditions live at crate roots and public boundaries, not
+# per-function boilerplate.
+missing-errors-doc = "allow"
+missing-panics-doc = "allow"
+# Money is integer USD micros end to end (hs-loop/ledger). f64 casts are
+# scoring ratios/percentages where 2^-52 relative error is immaterial;
+# u16/u32 truncation sites are terminal dims, display widths, line counts
+# and latency-ms - domains bounded by construction (audited hs-loop
+# ledger/tui/critic, hs-kernel latency, hs-scorer ratios).
+cast-precision-loss = "allow"
+cast-possible-truncation = "allow"
+cast-possible-wrap = "allow"
+cast-sign-loss = "allow"
+# Scorer gates compare against exact design constants by design.
+float-cmp = "allow"
+# parent/child, cand/conf naming is the swarm domain language.
+similar-names = "allow"
+# Stream-payload matches keep forward-compatible default arms on purpose:
+# a new event kind must not break older readers.
+match-wildcard-for-single-variants = "allow"
+wildcard-enum-match-arm = "allow"
+# Large dispatch fns (TUI event loop, REPL) are one-screen match tables;
+# splitting hurts readability more than the line count costs.
+too-many-lines = "allow"
+# Helper fns sit adjacent to their single use site on purpose.
+items-after-statements = "allow"
+# must_use is applied by hand where discarding is almost certainly a bug
+# (API Guidelines C-MUST-USE); the candidate heuristic over-marks
+# side-effect calls (e.g. Artifact::answer) and panic tests.
+must-use-candidate = "allow"
+# Style-only classes with no semantic content; dispositions reviewed per
+# class, sweeps land incrementally to keep diffs reviewable.
+manual-let-else = "allow"
+needless-pass-by-value = "allow"
+trivially-copy-pass-by-ref = "allow"
+format-push-string = "allow"
+format-collect = "allow"
+assigning-clones = "allow"
+default-trait-access = "allow"
+many-single-char-names = "allow"
+struct-field-names = "allow"
+needless-continue = "allow"

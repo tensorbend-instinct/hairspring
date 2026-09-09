@@ -5,9 +5,9 @@
 //! provider through the REAL configured endpoint with compression offered,
 //! and asserts a decodable completion comes back.
 //!
-//! Gated: runs only when HS_LIVE_SMOKE=1 (costs one real completion,
-//! ~$0.001 metered). Requires the GLM key via HS_GLM_API_KEY or
-//! HS_GLM_API_KEY_FILE and a reachable HS_GLM_BASE_URL (or the default).
+//! Gated: runs only when `HS_LIVE_SMOKE=1` (costs one real completion,
+//! ~$0.001 metered). Requires the GLM key via `HS_GLM_API_KEY` or
+//! `HS_GLM_API_KEY_FILE` and a reachable `HS_GLM_BASE_URL` (or the default).
 //! Never runs in the default suite.
 
 #[test]

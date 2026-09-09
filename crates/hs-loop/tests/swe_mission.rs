@@ -2,7 +2,7 @@
 //!
 //! A full repo+patch mission through the REAL inner loop: model emits a JSON
 //! tool call carrying a diff; swecheck applies it in a git workspace and
-//! runs the FAIL_TO_PASS command; failure feedback names the failure; the
+//! runs the `FAIL_TO_PASS` command; failure feedback names the failure; the
 //! next attempt repairs. Falsifiable: if a no-diff answer can pass, or
 //! feedback does not reach the model, the SWE mission shape is broken.
 

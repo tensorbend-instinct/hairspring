@@ -1,7 +1,7 @@
 //! Blind-mode stop authority (Eric 2026-09-07: "no fail to pass - that's
 //! cheating"). The agent declares its OWN verification commands, one per
 //! line, in `.hs/checks` at the candidate root; checker.run is green only
-//! when every declared command exits 0. Ground-truth FAIL_TO_PASS never
+//! when every declared command exits 0. Ground-truth `FAIL_TO_PASS` never
 //! enters the mission - it grades after the fact, outside (hs-swe-run
 //! --grade-cmd). Sufficiency of the agent's checks is what the adversarial
 //! verifier audits from the transcript.

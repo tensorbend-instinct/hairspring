@@ -3,12 +3,12 @@
 //! MISSION BEHAVIOR, not mechanism (Eric's law: the old compaction tests
 //! measured buffer size; these measure what the model experiences).
 //!
-//! T1 no_context_wipe_50_steps: a 50-step mission whose transcript fits the
-//!    200k-token budget emits ZERO ContextInject why=pressure events, and the
+//! T1 `no_context_wipe_50_steps`: a 50-step mission whose transcript fits the
+//!    200k-token budget emits ZERO `ContextInject` why=pressure events, and the
 //!    final prompt still carries the FIRST tool result verbatim.
-//! T2 dup_read_flagged: an identical (tool,args) repeat produces an explicit
+//! T2 `dup_read_flagged`: an identical (tool,args) repeat produces an explicit
 //!    duplicate note naming the prior seq, visible in a later prompt.
-//! T8 ledger_bounded: the ledger summary stays under 2k tokens (8000 chars)
+//! T8 `ledger_bounded`: the ledger summary stays under 2k tokens (8000 chars)
 //!    at step 50, 100, 200.
 
 use hs_core::EventKind;
@@ -61,7 +61,7 @@ fn write_script(dir: &std::path::Path, lines: &[serde_json::Value]) -> std::path
         &p,
         lines
             .iter()
-            .map(|l| l.to_string())
+            .map(std::string::ToString::to_string)
             .collect::<Vec<_>>()
             .join("\n"),
     )
@@ -87,7 +87,7 @@ fn stream_events(log: &std::path::Path, stream: uuid::Uuid) -> Vec<(EventKind, S
 
 #[test]
 fn t1_no_context_wipe_50_steps() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     // 49 big reads (~8KB each => ~400KB transcript, far over the old 60KB
@@ -132,7 +132,7 @@ fn t1_no_context_wipe_50_steps() {
 
 #[test]
 fn t2_dup_read_flagged_with_prior_seq() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let answer_path = log.path().join("work").join("task-0").join("answer.txt");
@@ -198,7 +198,7 @@ fn t8_ledger_summary_bounded_at_200_steps() {
                 seq,
                 "repo.exec",
                 &serde_json::json!({"command": format!("cargo test --test t{}", seq % 11)}),
-                &serde_json::json!({"applied": true, "exit_code": (seq % 3 == 0) as i32}),
+                &serde_json::json!({"applied": true, "exit_code": i32::from(seq % 3 == 0)}),
             );
         }
         for probe in [50, 100, 200] {
@@ -222,7 +222,7 @@ fn t8_ledger_summary_bounded_at_200_steps() {
 /// distillation call is booked to the log with its cost.
 #[test]
 fn d1_handoff_summary_four_elements() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let mut lines: Vec<serde_json::Value> = (1..=8)

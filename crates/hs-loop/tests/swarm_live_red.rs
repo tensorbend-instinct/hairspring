@@ -1,16 +1,16 @@
 //! Eric's five #5 (2026-09-08): live multi-agent delegation. hs-swarm
-//! is a complete delegation engine (Spawner::spawn writes a Spawn
+//! is a complete delegation engine (`Spawner::spawn` writes a Spawn
 //! event on the parent stream and creates the child's stream;
-//! run_to_completion runs the child mission on its own stream) with
+//! `run_to_completion` runs the child mission on its own stream) with
 //! ZERO callers: no agent.spawn tool exists, and the TUI's delegation
-//! graph consumes UiEvent::SubAgentSpawned/Finished which nothing
+//! graph consumes `UiEvent::SubAgentSpawned/Finished` which nothing
 //! emits. This test wires the path end to end through the ONE legal
 //! shape: a tool the model calls.
 //!
 //! Contract: a mission whose model calls agent.spawn {mission}
 //! delegates a child mission on the same substrate - the child runs
 //! for real (own stream, own answer), the parent stream records the
-//! Spawn link, the ui_sink sees SubAgentSpawned AND SubAgentFinished
+//! Spawn link, the `ui_sink` sees `SubAgentSpawned` AND `SubAgentFinished`
 //! (the :agents panel's live feed), and the child's cost lands in the
 //! parent's books so the $ guard stays honest across delegation.
 

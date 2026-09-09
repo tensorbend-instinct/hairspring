@@ -1,5 +1,5 @@
 //! SWE mission tool "repo.read": sandboxed read-only file access.
-//! Workspace from HS_SWE_WORKSPACE (spawned per-mission by the runner).
+//! Workspace from `HS_SWE_WORKSPACE` (spawned per-mission by the runner).
 include!("shared/sdk.rs");
 fn main() {
     serve("repo.read", "tool", &mut |method, params| match method {
@@ -34,5 +34,5 @@ fn main() {
             }
         }
         _ => serde_json::json!({"$error": "unknown method"}),
-    })
+    });
 }

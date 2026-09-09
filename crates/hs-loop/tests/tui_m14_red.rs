@@ -2,8 +2,8 @@
 //! history. v2 cap6 proved the switch works (HUD follows the resumed
 //! stream) but the screen showed only "resumed stream X" - pi/omp
 //! restore the session's transcript. The substrate has everything:
-//! GoalUpdate closes each mission (M12) and ModelCall payloads carry
-//! messages + completion. backfill_transcript replays goal echoes,
+//! `GoalUpdate` closes each mission (M12) and `ModelCall` payloads carry
+//! messages + completion. `backfill_transcript` replays goal echoes,
 //! committed answer blocks, and per-mission done lines through the
 //! same render paths as the live surface. Internal distill calls
 //! never render.

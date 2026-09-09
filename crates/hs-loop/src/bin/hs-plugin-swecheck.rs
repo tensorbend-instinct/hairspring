@@ -1,15 +1,15 @@
 //! SWE-bench checker plugin "swecheck": ground truth for repo+patch
 //! missions. The model's answer file holds a unified diff (possibly fenced -
-//! hs_bench::extract_patch normalizes); the checker applies it in the
-//! mission workspace and runs FAIL_TO_PASS/PASS_TO_PASS commands. Failure
+//! `hs_bench::extract_patch` normalizes); the checker applies it in the
+//! mission workspace and runs `FAIL_TO_PASS/PASS_TO_PASS` commands. Failure
 //! feedback names the failing tests and the apply/test output tail - the
 //! loop's feedback channel turns that into repairs.
 //!
 //! Per-mission config via env (the runner spawns one mission at a time):
-//!   HS_SWE_WORKSPACE  - checked-out repo dir
-//!   HS_SWE_F2P        - comma-separated FAIL_TO_PASS test commands
-//!   HS_SWE_P2P        - comma-separated PASS_TO_PASS test commands (may be empty)
-//!   HS_SWE_SETUP      - optional command run before tests (e.g. install)
+//!   `HS_SWE_WORKSPACE`  - checked-out repo dir
+//!   `HS_SWE_F2P`        - comma-separated `FAIL_TO_PASS` test commands
+//!   `HS_SWE_P2P`        - comma-separated `PASS_TO_PASS` test commands (may be empty)
+//!   `HS_SWE_SETUP`      - optional command run before tests (e.g. install)
 include!("shared/sdk.rs");
 
 fn run_cmd(dir: &std::path::Path, cmd: &str) -> (bool, String) {
@@ -92,7 +92,7 @@ fn main() {
                     for cmd in f2p
                         .split(',')
                         .chain(p2p.split(','))
-                        .map(|s| s.trim())
+                        .map(str::trim)
                         .filter(|s| !s.is_empty())
                     {
                         let (ok, log) = run_cmd(&ws, cmd);
@@ -111,12 +111,12 @@ fn main() {
                     }
                     // a patch that fails tests must not linger in the tree:
                     // the next attempt starts from the base commit state
-                    if !failures.is_empty() {
+                    if failures.is_empty() {
+                        serde_json::json!({"passed": true})
+                    } else {
                         reset_to_base(&ws);
                         serde_json::json!({"passed": false,
                             "error": failures.join("\n---\n")})
-                    } else {
-                        serde_json::json!({"passed": true})
                     }
                 }
             }

@@ -2,16 +2,16 @@
 //! layer at gate 1. It is stateless between steps except what it reads from
 //! the log (spec section 2: "killable at any time").
 //!
-//! Workload: state_0 = sha256("hs-demo-seed:<seed>"); state_i =
-//! sha256(state_{i-1} || i). Each step appends a ToolCall event carrying
+//! Workload: `state_0` = sha256("hs-demo-seed:<seed>"); `state_i` =
+//! sha256(state_{i-1} || i). Each step appends a `ToolCall` event carrying
 //! [step u64 LE][state 32B]; every 10th step also appends a Decision
 //! breakpoint event with the same body; every 7th step appends an
 //! Observation with an 8192-byte deterministic payload (exercises the
-//! payload-by-hash blob store). Completion appends GoalUpdate with the final
+//! payload-by-hash blob store). Completion appends `GoalUpdate` with the final
 //! state. Prints "FINAL <hex>".
 
-use hs_core::*;
-use hs_log::*;
+use hs_core::{EventBuilder, EventKind, Payload, Event};
+use hs_log::{StreamWriter, StreamReader};
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -62,13 +62,10 @@ fn main() {
             );
             let reader = StreamReader::open(&dir, stream).expect("reopen stream we just wrote");
             let events = reader.events().expect("read stream we just wrote");
-            match last_step(&events) {
-                Some((i, s)) => (outcome.writer, i, s, Some(outcome.events_recovered)),
-                None => {
-                    let s0: [u8; 32] =
-                        Sha256::digest(format!("hs-demo-seed:{seed}").as_bytes()).into();
-                    (outcome.writer, 0, s0, Some(outcome.events_recovered))
-                }
+            if let Some((i, s)) = last_step(&events) { (outcome.writer, i, s, Some(outcome.events_recovered)) } else {
+                let s0: [u8; 32] =
+                    Sha256::digest(format!("hs-demo-seed:{seed}").as_bytes()).into();
+                (outcome.writer, 0, s0, Some(outcome.events_recovered))
             }
         }
         _ => unreachable!(),

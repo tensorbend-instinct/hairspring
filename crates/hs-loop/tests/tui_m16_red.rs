@@ -47,7 +47,7 @@ default = true
 // is not in the root is a no-op.
 #[test]
 fn m16_picker_excludes_active_session() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let config = scripted_config(dir.path());

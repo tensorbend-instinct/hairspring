@@ -3,7 +3,7 @@
 //! real Pass/Fail verdicts. Pre-fix it ran them inside the repo.exec bwrap
 //! sandbox, which never binds /home - mission venvs (f2p.sh execs
 //! /home/sandbox/swbench/venvs/*/bin/python) died at exit 127 and every
-//! goal evaluation in every session recorded env_limited.
+//! goal evaluation in every session recorded `env_limited`.
 use hs_loop::goal::{verify_verdict, GoalSpec, GoalVerdict};
 use std::path::PathBuf;
 use std::process::Command;

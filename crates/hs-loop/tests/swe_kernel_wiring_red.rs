@@ -2,9 +2,9 @@
 //! log root, or every log-gated kernel feature is silently dead on the live
 //! path. Live evidence: the 50f24656 audit run of conan-17302 emitted ZERO
 //! dispatch-stage Observation records and no log/stderr/ directory, because
-//! hs-swe-run.rs built its kernel with Kernel::load (no log_root) while
-//! af5f7b57 gated dispatch records + stderr capture behind load_with_log.
-//! Behavior proof of the features themselves: hs-kernel wedge_visibility_red.
+//! hs-swe-run.rs built its kernel with `Kernel::load` (no `log_root`) while
+//! af5f7b57 gated dispatch records + stderr capture behind `load_with_log`.
+//! Behavior proof of the features themselves: hs-kernel `wedge_visibility_red`.
 //! This test pins the WIRING contract: the constructor the swe path uses
 //! must hand the kernel a log root.
 
@@ -23,7 +23,7 @@ fn swe_kernel_carries_a_log_root() {
 
 /// The harness must guard itself: a runner whose kernel lost its log root
 /// (rewiring regression, wrong constructor) must REFUSE to start, loudly -
-/// not run blind. RED: require_visibility does not exist yet.
+/// not run blind. RED: `require_visibility` does not exist yet.
 #[test]
 fn runner_without_visibility_wiring_is_refused() {
     let dir = tempfile::tempdir().unwrap();

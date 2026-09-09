@@ -1,7 +1,7 @@
 //! RED contract tests for repo.exec (Eric's 13:50 directive: the model must be
 //! able to run lint/tests on its own patch before answer.write).
-//! API under test (does not exist yet): hs_loop::repexec::run(ws, answer_path,
-//! command, allowlist, timeout_secs) -> serde_json::Value
+//! API under test (does not exist yet): `hs_loop::repexec::run(ws`, `answer_path`,
+//! command, allowlist, `timeout_secs`) -> `serde_json::Value`
 //! Contract:
 //! - scratch only: the live workspace is NEVER mutated (checker semantics
 //!   unchanged); the current answer patch is applied to a scratch copy.

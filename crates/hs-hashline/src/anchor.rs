@@ -16,6 +16,7 @@ pub use super::scheme::{
 /// Strips trailing newlines from each line (matching the convention used by
 /// `AnchorScheme::generate_anchors`). The returned `Vec<&str>` has one entry
 /// per logical line.
+#[must_use]
 pub fn split_lines(content: &str) -> Vec<&str> {
     if content.is_empty() {
         return vec![""];
@@ -154,7 +155,7 @@ mod tests {
 
         match find_shifted_in_content(&scheme, &parsed, modified, 5) {
             ShiftResult::Found { new_line } => assert_eq!(new_line, 3),
-            other => panic!("Expected Found, got {:?}", other),
+            other => panic!("Expected Found, got {other:?}"),
         }
     }
 }

@@ -4,7 +4,7 @@
 //!
 //! Four regions: transcript viewport (grows), one-row loop rail, pinned
 //! composer box, one-row HUD. M1 ships the layout + skeleton rendering
-//! against ratatui's TestBackend; line mode stays the piped fallback.
+//! against ratatui's `TestBackend`; line mode stays the piped fallback.
 
 use std::collections::VecDeque;
 
@@ -58,6 +58,7 @@ impl LoopPhase {
 }
 
 /// One glyph per stream event kind for the loop-rail ticker.
+#[must_use]
 pub fn kind_glyph(k: EventKind) -> char {
     match k {
         EventKind::ModelCall => '\u{25c6}',       // ◆
@@ -86,9 +87,9 @@ pub fn kind_glyph(k: EventKind) -> char {
 }
 
 /// M26: the full-screen surface's OWN help - every command the TUI
-/// actually implements (bin/hs-repl.rs Submit arms + handle_key), no
+/// actually implements (bin/hs-repl.rs Submit arms + `handle_key`), no
 /// line-mode leftovers. Pre-M26 the TUI printed the line-mode
-/// REPL_HELP, which advertised :status/:history/:last as dead ends
+/// `REPL_HELP`, which advertised :status/:history/:last as dead ends
 /// and never mentioned :resume/:agents.
 pub const TUI_HELP: &str = "hairspring - full-screen surface
   <text>    run <text> as a goal (queues behind a running mission)
@@ -115,6 +116,7 @@ pub struct TuiLayout {
 
 /// Split a `width`x`height` screen. Degenerate sizes clamp instead of
 /// panicking - regions may overlap below ~5 rows; rendering clips.
+#[must_use]
 pub fn layout(width: u16, height: u16) -> TuiLayout {
     let hud = Rect::new(0, height.saturating_sub(1), width, height.min(1));
     let composer = Rect::new(
@@ -141,6 +143,7 @@ pub fn layout(width: u16, height: u16) -> TuiLayout {
 /// M3: map a theme SGR code string ("36;1", "2", "31;1") to a ratatui
 /// Style. Supports the codes Theme roles use: 30-37/90-97 fg, 1 bold,
 /// 2 dim, 4 underline.
+#[must_use]
 pub fn sgr_style(code: &str) -> Style {
     let mut style = Style::default();
     for part in code.split(';') {
@@ -156,7 +159,7 @@ pub fn sgr_style(code: &str) -> Style {
             "34" => style.fg(Color::Blue),
             "35" => style.fg(Color::Magenta),
             "36" => style.fg(Color::Cyan),
-            "37" => style.fg(Color::White),
+            "37" | "97" => style.fg(Color::White),
             "90" => style.fg(Color::DarkGray),
             "91" => style.fg(Color::LightRed),
             "92" => style.fg(Color::LightGreen),
@@ -164,7 +167,6 @@ pub fn sgr_style(code: &str) -> Style {
             "94" => style.fg(Color::LightBlue),
             "95" => style.fg(Color::LightMagenta),
             "96" => style.fg(Color::LightCyan),
-            "97" => style.fg(Color::White),
             _ => style,
         };
     }
@@ -172,9 +174,10 @@ pub fn sgr_style(code: &str) -> Style {
 }
 
 /// M3: convert markdown text into styled ratatui Lines - the same
-/// rules the line-mode MarkdownStreamer paints (headers, bullets,
+/// rules the line-mode `MarkdownStreamer` paints (headers, bullets,
 /// fences, inline code, bold), driven by the Theme. Fence bodies pass
 /// through verbatim, dimmed in the code color.
+#[must_use]
 pub fn md_to_lines(md: &str, theme: &crate::uipaint::Theme) -> Vec<Line<'static>> {
     let mut out = Vec::new();
     let mut in_fence = false;
@@ -281,6 +284,7 @@ const HISTORY_CAP: usize = 100;
 
 impl EditorState {
     /// M26: ":history" data - submitted entries, oldest first.
+    #[must_use]
     pub fn history_entries(&self) -> Vec<String> {
         self.history.iter().cloned().collect()
     }
@@ -288,17 +292,19 @@ impl EditorState {
 
 impl EditorState {
     /// Whole buffer, lines joined by newlines.
+    #[must_use]
     pub fn text(&self) -> String {
         self.lines.join("\n")
     }
 
     /// (row, col) in chars.
+    #[must_use]
     pub fn cursor(&self) -> (usize, usize) {
         (self.row, self.col)
     }
 
     fn line_len(&self, row: usize) -> usize {
-        self.lines.get(row).map(|l| l.chars().count()).unwrap_or(0)
+        self.lines.get(row).map_or(0, |l| l.chars().count())
     }
 
     fn set_text(&mut self, text: &str) {
@@ -316,7 +322,7 @@ impl EditorState {
             self.lines.push(String::new());
         }
         let line = &mut self.lines[self.row];
-        let byte = line.char_indices().nth(self.col).map(|(b, _)| b).unwrap_or(line.len());
+        let byte = line.char_indices().nth(self.col).map_or(line.len(), |(b, _)| b);
         line.insert(byte, c);
         self.col += 1;
     }
@@ -326,7 +332,7 @@ impl EditorState {
     pub fn backspace(&mut self) {
         if self.col > 0 {
             let line = &mut self.lines[self.row];
-            let byte = line.char_indices().nth(self.col - 1).map(|(b, _)| b).unwrap_or(0);
+            let byte = line.char_indices().nth(self.col - 1).map_or(0, |(b, _)| b);
             line.remove(byte);
             self.col -= 1;
         } else if self.row > 0 {
@@ -343,7 +349,7 @@ impl EditorState {
             self.lines.push(String::new());
         }
         let line = &mut self.lines[self.row];
-        let byte = line.char_indices().nth(self.col).map(|(b, _)| b).unwrap_or(line.len());
+        let byte = line.char_indices().nth(self.col).map_or(line.len(), |(b, _)| b);
         let tail = line[byte..].to_string();
         line.truncate(byte);
         self.lines.insert(self.row + 1, tail);
@@ -434,13 +440,14 @@ impl EditorState {
     }
 
     /// Line count (drives composer height).
+    #[must_use]
     pub fn line_count(&self) -> usize {
         self.lines.len().max(1)
     }
 }
 
 /// M7: what a key event means for the surface. The bin's terminal loop
-/// maps every key through handle_key; only Submit/Picked leave the UI
+/// maps every key through `handle_key`; only Submit/Picked leave the UI
 /// layer (the caller dispatches the mission / applies the choice).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KeyAction {
@@ -489,7 +496,7 @@ pub fn handle_key(state: &mut TuiState, key: ratatui::crossterm::event::KeyEvent
 
     match (key.code, key.modifiers) {
         (KeyCode::Char('c'), KeyModifiers::CONTROL) => KeyAction::Quit,
-        (KeyCode::Char(c), KeyModifiers::NONE) | (KeyCode::Char(c), KeyModifiers::SHIFT) => {
+        (KeyCode::Char(c), KeyModifiers::NONE | KeyModifiers::SHIFT) => {
             state.editor.input_char(c);
             KeyAction::Continue
         }
@@ -563,7 +570,7 @@ pub fn handle_key(state: &mut TuiState, key: ratatui::crossterm::event::KeyEvent
 /// M6: delegation graph - the loop substrate's Spawn/Message structure
 /// rendered as a first-class surface element. Nodes derive from Spawn
 /// events on the operator stream; completion derives from the child's
-/// own GoalUpdate (done flag).
+/// own `GoalUpdate` (done flag).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AgentStatus {
     Running,
@@ -591,10 +598,12 @@ pub struct DelegationGraph {
 }
 
 impl DelegationGraph {
+    #[must_use]
     pub fn new() -> Self {
         DelegationGraph::default()
     }
 
+    #[must_use]
     pub fn nodes(&self) -> &[AgentNode] {
         &self.nodes
     }
@@ -653,7 +662,7 @@ impl DelegationGraph {
 
     /// Derive the graph from the durable log: Spawn events on the
     /// operator stream name children; each child's completion comes
-    /// from its own stream's latest GoalUpdate.
+    /// from its own stream's latest `GoalUpdate`.
     pub fn scan_stream(
         log_root: &std::path::Path,
         stream: uuid::Uuid,
@@ -704,7 +713,7 @@ impl DelegationGraph {
                                 // carrying an outcome. hs-swarm's spawn-time
                                 // GoalUpdate {done:false} has no outcome -
                                 // an OPEN goal, still Running.
-                                let done = cv.get("done").and_then(|d| d.as_bool());
+                                let done = cv.get("done").and_then(serde_json::Value::as_bool);
                                 if done == Some(true) || cv.get("outcome").is_some() {
                                     g.note_done(child, done.unwrap_or(false));
                                 }
@@ -722,7 +731,7 @@ impl DelegationGraph {
 /// M14: replay a resumed stream's visible history into the
 /// transcript - goal echoes, committed answer blocks, and
 /// per-mission done lines, rendered through the same paths as the
-/// live surface (push_goal_echo / push_transcript_markdown).
+/// live surface (`push_goal_echo` / `push_transcript_markdown`).
 /// Internal distill calls never render. Pre-M14 a resume switched
 /// the stream but left the screen showing only "resumed stream X"
 /// (v2 cap6); pi/omp restore history on resume.
@@ -780,7 +789,7 @@ pub fn backfill_transcript(
                 // M12 semantics: terminal iff done:true or an outcome
                 // key; hs-swarm's spawn-time done:false is an OPEN
                 // goal and must not print a done line.
-                let terminal = v.get("done").and_then(|d| d.as_bool()) == Some(true)
+                let terminal = v.get("done").and_then(serde_json::Value::as_bool) == Some(true)
                     || v.get("outcome").is_some();
                 if terminal && mission_open {
                     let outcome =
@@ -875,13 +884,14 @@ pub struct RowsCache {
 /// terminal cells, preserving span styles. The viewport renders THESE
 /// rows directly (no Paragraph reflow), so what the scroll math
 /// counts is by construction what the frame draws - ratatui's own
-/// line_count is feature-gated unstable, and trusting two different
+/// `line_count` is feature-gated unstable, and trusting two different
 /// wrappers is how counters drift from screens.
 ///
 /// Rules: greedy word wrap; a word longer than the width hard-breaks
 /// at the edge; the space at a break is consumed; a wide char that
 /// would straddle the edge moves whole to the next row (ratatui
 /// renders the same constraint); an empty line is one empty row.
+#[must_use]
 pub fn wrap_line(line: &Line<'static>, width: u16) -> Vec<Line<'static>> {
     use unicode_width::UnicodeWidthChar;
     let width = width as usize;
@@ -957,6 +967,7 @@ pub fn wrap_line(line: &Line<'static>, width: u16) -> Vec<Line<'static>> {
 
 /// M23: visual rows one line occupies at `width` (the same wrapper
 /// the viewport renders).
+#[must_use]
 pub fn wrapped_rows(line: &Line<'static>, width: u16) -> usize {
     wrap_line(line, width).len()
 }
@@ -976,7 +987,7 @@ pub struct TuiState {
     pub transcript_scroll: Option<usize>,
     /// M23: viewport width at the last render. Push-time scroll
     /// accounting wraps new lines at THIS width so a pinned window
-    /// stays stable between frames. Set by render_skeleton.
+    /// stays stable between frames. Set by `render_skeleton`.
     pub last_vp_width: std::cell::Cell<u16>,
     /// M23: per-line wrapped-row counts at the cached width, extended
     /// incrementally as lines land and rebuilt on a width change.
@@ -998,7 +1009,7 @@ pub struct TuiState {
     /// when the in-flight mission reports Done.
     pub queued_goals: VecDeque<String>,
     /// Surface theme (M9): every style on the surface derives from it;
-    /// the bin fills it from HS_THEME.
+    /// the bin fills it from `HS_THEME`.
     pub theme: crate::uipaint::Theme,
     /// HUD vitals.
     pub model_label: String,
@@ -1048,8 +1059,8 @@ impl TuiState {
     /// beats all derive from the same stream the line-mode Painter
     /// consumes.
     /// M13: mission completion reconciliation. Model calls are counted
-    /// LIVE by ModelCallEnd (M10); the done path must not add them
-    /// again - pre-M13 the bin added MissionResult.model_calls on top,
+    /// LIVE by `ModelCallEnd` (M10); the done path must not add them
+    /// again - pre-M13 the bin added `MissionResult.model_calls` on top,
     /// and the HUD ended every mission at 2x the real count (cap3:
     /// "done: 2 steps, 2 calls" vs HUD "4 calls", same screen). Steps
     /// have no live event, so they accrue here; cost takes the
@@ -1059,7 +1070,7 @@ impl TuiState {
         // goes Idle instead of glowing a stale phase over the composer.
         self.phase = LoopPhase::Idle;
         self.missions_run += 1;
-        self.total_steps += steps as u64;
+        self.total_steps += u64::from(steps);
         self.total_cost_micros = cost_total_micros;
     }
 
@@ -1330,7 +1341,7 @@ impl TuiState {
         self.picker = None;
     }
 
-    /// PgUp: scroll one viewport page (M4).
+    /// `PgUp`: scroll one viewport page (M4).
     pub fn transcript_page_up(&mut self, page: usize) {
         self.transcript_scroll_up(page);
     }
@@ -1575,7 +1586,7 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
                 bl.extend(wrap_line(&Line::from(l.to_string()), inner_w));
             }
             let cy = composer.y + 1 + bl.len().saturating_sub(1) as u16;
-            let cx = composer.x + 1 + bl.last().map(|l| l.width() as u16).unwrap_or(0);
+            let cx = composer.x + 1 + bl.last().map_or(0, |l| l.width() as u16);
             if cx < composer.x + composer.width - 1 && cy < composer.y + composer.height - 1 {
                 f.set_cursor_position((cx, cy));
             }

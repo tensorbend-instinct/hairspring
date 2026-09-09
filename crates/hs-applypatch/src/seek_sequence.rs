@@ -26,6 +26,7 @@
 ///
 /// - Empty `pattern` → returns `Some(start)` (no-op match).
 /// - `pattern.len() > lines.len()` → returns `None`.
+#[must_use]
 pub fn seek_sequence(
     lines: &[String],
     pattern: &[String],

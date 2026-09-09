@@ -108,7 +108,7 @@ fn events_of(log: &std::path::Path, stream: uuid::Uuid) -> Vec<(EventKind, Strin
 /// recorded evidence and lets it pass - exactly one verifier round.
 #[test]
 fn honest_work_passes_with_one_verifier_round() {
-    let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let ws = git_ws(dir.path());
@@ -150,10 +150,10 @@ fn honest_work_passes_with_one_verifier_round() {
 
 /// Fabricated claim / unverified submission: answer-only mission (no
 /// repo.exec available). The verifier refutes every round; after 3 rounds
-/// the cap bites: verifier_ratchet is booked and the checker verdict stands.
+/// the cap bites: `verifier_ratchet` is booked and the checker verdict stands.
 #[test]
 fn fabricated_claim_is_refuted_until_the_ratchet_cap() {
-    let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let answer = log.path().join("work").join("task-22").join("answer.txt");
@@ -202,7 +202,7 @@ fn fabricated_claim_is_refuted_until_the_ratchet_cap() {
 /// verifier is the second wall and sends it back. The repair then passes.
 #[test]
 fn lying_checker_green_is_vetoed_when_the_answer_is_wrong() {
-    let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let ws = git_ws(dir.path());
@@ -245,10 +245,10 @@ fn lying_checker_green_is_vetoed_when_the_answer_is_wrong() {
 }
 
 /// A malfunctioning verifier never blocks: an unparseable verdict books
-/// verifier_error and the checker verdict stands.
+/// `verifier_error` and the checker verdict stands.
 #[test]
 fn malformed_verdict_books_error_and_the_checker_stands() {
-    let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let answer = log.path().join("work").join("task-20").join("answer.txt");

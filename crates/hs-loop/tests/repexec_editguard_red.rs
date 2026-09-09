@@ -12,7 +12,7 @@
 //! command must NOT execute. Reads of .diff files, git diff output to
 //! stdout, and every other shell command stay allowed.
 //! Levels:
-//! - unit: edit_path_violation over the forbidden/allowed shapes
+//! - unit: `edit_path_violation` over the forbidden/allowed shapes
 //! - sandbox: all three run_* entry points enforce the gate, command never
 //!   runs, result steers to edit.apply; an allowed command still executes
 //! - prompt: mission template + repo.exec schema description carry the

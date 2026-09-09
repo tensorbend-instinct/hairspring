@@ -4,10 +4,10 @@
 //! incremental unified diffs to a CANDIDATE (never the live ws) and gets the
 //! cumulative diff vs base back on every call - the submit path can grade the
 //! candidate without the model ever re-serializing its whole patch.
-//!   hs_loop::editapply::{apply, cumulative_diff, reset}(ws, ...) -> Value
+//!   `hs_loop::editapply::{apply`, `cumulative_diff`, reset}(ws, ...) -> Value
 //!
 //! notes.scratch: model-writable persistent notes (op write/append/read),
-//! stored at HS_SCRATCH_FILE, surviving across calls and plugin restarts.
+//! stored at `HS_SCRATCH_FILE`, surviving across calls and plugin restarts.
 
 use std::io::Write;
 use std::process::{Command, Stdio};
@@ -50,7 +50,7 @@ fn edit_apply_returns_cumulative_diff_and_live_ws_untouched() {
         std::fs::read_to_string(d.path().join("app.py")).unwrap(),
         "x = 1\n"
     );
-    hs_loop::editapply::reset(d.path());
+    let _ = hs_loop::editapply::reset(d.path());
 }
 
 #[test]
@@ -73,7 +73,7 @@ fn edit_apply_accumulates_across_calls_and_survives_reentry() {
         only["cumulative_diff"].as_str().unwrap().contains("+x = 2"),
         "{only}"
     );
-    hs_loop::editapply::reset(d.path());
+    let _ = hs_loop::editapply::reset(d.path());
     let gone = hs_loop::editapply::cumulative_diff(d.path());
     assert_eq!(gone["has_candidate"], false, "{gone}");
 }
@@ -92,7 +92,7 @@ fn edit_apply_bad_diff_is_clean_feedback_and_candidate_unchanged() {
         cd["cumulative_diff"].as_str().unwrap().contains("+x = 2"),
         "{cd}"
     );
-    hs_loop::editapply::reset(d.path());
+    let _ = hs_loop::editapply::reset(d.path());
 }
 
 fn serve_roundtrip(

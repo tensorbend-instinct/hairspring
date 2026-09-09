@@ -107,7 +107,7 @@ fn gate4_proof_false_completion_plants() {
         report.push_str(&format!(
             "  mode {:?}: {} planted false completions, {} falsely reported as passed (miss rate {:.0}% of plants), {} catches counted\n",
             mode, mode_false, mode_missed,
-            mode_missed as f64 / mode_false as f64 * 100.0, catches
+            mode_missed as f64 / f64::from(mode_false) * 100.0, catches
         ));
     }
     print!("{report}");

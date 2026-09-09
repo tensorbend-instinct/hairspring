@@ -160,8 +160,7 @@ fn gate1_proof_1_kill_mid_run_resume_zero_loss() {
     // (e) tier-A budget
     assert!(
         resume_wall < Duration::from_secs(5),
-        "resume took {:?}, over tier-A budget",
-        resume_wall
+        "resume took {resume_wall:?}, over tier-A budget"
     );
 
     println!("PROOF-1 kill-mid-run resume: PASS");
@@ -171,8 +170,7 @@ fn gate1_proof_1_kill_mid_run_resume_zero_loss() {
         resume_wall
     );
     println!(
-        "  final state {} == uninterrupted reference == oracle",
-        resumed_final
+        "  final state {resumed_final} == uninterrupted reference == oracle"
     );
 }
 

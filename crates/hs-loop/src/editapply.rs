@@ -10,6 +10,7 @@ use std::hash::Hasher;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+#[must_use]
 pub fn candidate_dir(ws: &Path) -> PathBuf {
     let canon = ws.canonicalize().unwrap_or_else(|_| ws.to_path_buf());
     let mut h = DefaultHasher::new();
@@ -101,11 +102,12 @@ fn read_cumulative(cand: &Path) -> Result<String, Value> {
 }
 
 /// Apply one incremental unified diff to the candidate. Returns applied +
-/// cumulative_diff (+ files_changed) on success; clean feedback on a patch
+/// `cumulative_diff` (+ `files_changed`) on success; clean feedback on a patch
 /// that does not apply, leaving the candidate exactly as it was.
+#[must_use]
 pub fn apply(ws: &Path, diff: &str) -> Value {
     let Some(patch) = crate::repexec::extract_diff(diff) else {
-        return json!({"applied": false, "note": "no unified diff in args.diff - pass one unified diff, raw or in a ```diff fence"});
+        return json!({"applied": false, "note": "no unified diff in args.diff - pass one unified diff, raw or in a `diff` fence"});
     };
     let cand = match ensure_candidate(ws) {
         Ok(c) => c,
@@ -158,7 +160,7 @@ fn splice_one(content: &str, old: &str, new: &str) -> Result<(String, &'static s
     if old_lines.is_empty() {
         return Err("old not found in file".to_string());
     }
-    let lines: Vec<&str> = content.split_inclusive("\n").collect();
+    let lines: Vec<&str> = content.split_inclusive('\n').collect();
     let mut starts = Vec::with_capacity(lines.len());
     let mut off = 0usize;
     for line in &lines {
@@ -206,6 +208,7 @@ fn splice_one(content: &str, old: &str, new: &str) -> Result<(String, &'static s
 /// no diff syntax - the corrupt-patch failure class (measured 2026-09-05:
 /// 6/6 model-written diffs failed on hunk-count arithmetic or truncated
 /// tails) is designed out, not repaired.
+#[must_use]
 pub fn apply_blocks(ws: &Path, blocks: &[EditBlock]) -> Value {
     if blocks.is_empty() {
         return json!({"applied": false, "error": "edits array is empty - pass at least one {path, old, new} block"});
@@ -217,7 +220,7 @@ pub fn apply_blocks(ws: &Path, blocks: &[EditBlock]) -> Value {
     let mut staged: std::collections::BTreeMap<String, String> = Default::default();
     let mut results: Vec<Value> = Vec::new();
     for (i, b) in blocks.iter().enumerate() {
-        if b.path.starts_with("/") || b.path.split('/').any(|s| s == "..") {
+        if b.path.starts_with('/') || b.path.split('/').any(|s| s == "..") {
             return json!({"applied": false, "error": format!("block {i} ({}): path must be repo-relative, no absolute paths or ..", b.path), "results": results});
         }
         if b.old.is_empty() {
@@ -264,6 +267,7 @@ pub fn apply_blocks(ws: &Path, blocks: &[EditBlock]) -> Value {
 }
 
 /// The cumulative diff without applying anything new.
+#[must_use]
 pub fn cumulative_diff(ws: &Path) -> Value {
     let cand = candidate_dir(ws);
     if !cand.join(".git").exists() {
@@ -276,6 +280,7 @@ pub fn cumulative_diff(ws: &Path) -> Value {
 }
 
 /// Discard the candidate (fresh start) and prune worktree metadata.
+#[must_use]
 pub fn reset(ws: &Path) -> Value {
     let cand = candidate_dir(ws);
     let _ = git(
@@ -321,7 +326,8 @@ enum Write {
 /// Apply one Codex-grammar patch to the candidate worktree. Atomic: every
 /// hunk is validated (paths, existence, context match) BEFORE any write,
 /// so a failure leaves the candidate byte-identical. Returns applied +
-/// cumulative_diff on success; a named $error on failure.
+/// `cumulative_diff` on success; a named $error on failure.
+#[must_use]
 pub fn apply_codex_patch(ws: &Path, patch_text: &str) -> Value {
     use hs_applypatch::parser::Hunk;
     let parsed = match hs_applypatch::parser::parse_patch(patch_text) {
@@ -425,7 +431,8 @@ pub fn apply_codex_patch(ws: &Path, patch_text: &str) -> Value {
 /// answer.submit backend: the answer file is the candidate's cumulative
 /// diff, computed with git - never model-authored text. No candidate or an
 /// untouched candidate is a steering error, not a submission (replay class:
-/// 8609's literal empty ```diff fence, 2026-09-06).
+/// 8609's literal empty `diff` fence, 2026-09-06).
+#[must_use]
 pub fn answer_submit(ws: &Path, answer_path: &Path) -> Value {
     let cand = candidate_dir(ws);
     let diff = if cand.join(".git").exists() {
@@ -455,7 +462,8 @@ pub fn answer_submit(ws: &Path, answer_path: &Path) -> Value {
 // edit.patch.
 
 /// Render file content with LINE:HASH anchors (Grok chunk scheme,
-/// hash_len=3, chunk_size=8 - their shipped default).
+/// `hash_len=3`, `chunk_size=8` - their shipped default).
+#[must_use]
 pub fn anchored_read(content: &str) -> String {
     let scheme = hs_hashline::config::HashlineSchemeParams::default()
         .build_scheme()
@@ -468,6 +476,7 @@ pub fn anchored_read(content: &str) -> String {
 /// named error and the file stays byte-identical (engine applies
 /// bottom-up after full validation). Returns snippet with FRESH anchors
 /// plus the cumulative diff on success.
+#[must_use]
 pub fn apply_anchor_edits(ws: &Path, path: &str, edits: Value) -> Value {
     use hs_hashline::edit::apply::apply_edits;
     use hs_hashline::edit::types::{HashlineEditOutput, HashlineOp};
@@ -542,7 +551,7 @@ pub fn apply_anchor_edits(ws: &Path, path: &str, edits: Value) -> Value {
 
 /// repo.read in anchor mode reads the CANDIDATE (the model's edits change
 /// anchors; reading the pristine base would make every anchor stale after
-/// the first edit). Same windowing contract as repotools::read_repo_window,
+/// the first edit). Same windowing contract as `repotools::read_repo_window`,
 /// content rendered with LINE:HASH prefixes.
 pub fn anchored_read_window(
     ws: &Path,
@@ -563,7 +572,7 @@ pub fn anchored_read_window(
     let want = max_lines.unwrap_or(400).min(400);
     let scheme = hs_hashline::config::HashlineSchemeParams::default()
         .build_scheme()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.clone())?;
     let (anchored, _raw) = hs_hashline::render::format_hashline_content(
         &text,
         Some(start as usize),

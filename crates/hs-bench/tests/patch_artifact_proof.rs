@@ -1,7 +1,7 @@
 //! PATCH APPLICATION ARTIFACT HYGIENE - .hs-eval.patch must never be left
 //! inside the workspace.
 //!
-//! apply_model_patch used to drop its temp patch file at
+//! `apply_model_patch` used to drop its temp patch file at
 //! <ws>/.hs-eval.patch. The file is harness machinery, but it landed inside
 //! the agent-visible tree: agents saw it, experimented on it, and - worse -
 //! if a crash interrupted cleanup after the file entered the git index, the
@@ -20,7 +20,7 @@ fn git(ws: &Path, args: &[&str]) {
         .current_dir(ws)
         .output()
         .expect("git runs");
-    assert!(out.status.success(), "git {:?}: {:?}", args, out);
+    assert!(out.status.success(), "git {args:?}: {out:?}");
 }
 
 fn make_ws() -> std::path::PathBuf {

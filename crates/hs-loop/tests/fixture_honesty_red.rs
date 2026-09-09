@@ -1,23 +1,23 @@
 //! Eric's five #2/#3 (2026-09-08): scripted-fixture missions end
-//! verifier_malfunction / steps_exhausted - fake failures in every
+//! `verifier_malfunction` / `steps_exhausted` - fake failures in every
 //! proof shot. Diagnosis from the code path: after the checker goes
 //! green the loop calls the model with the verdict.submit tool; the
 //! scripted provider plays the next SCRIPT LINE regardless of what
 //! the request asks, so the verifier gets prose and the mission books
-//! verifier_malfunction. And when the script runs out, the provider
+//! `verifier_malfunction`. And when the script runs out, the provider
 //! repeats its last prose line forever - no answer is ever submitted,
-//! so the mission burns to steps_exhausted. A fixture that cannot
+//! so the mission burns to `steps_exhausted`. A fixture that cannot
 //! answer "audit this" or "submit your answer" is a toy model.
 //!
 //! Second defect found by the first RED: the fixture config offered
-//! answer.write while the loop's native schema (tb_tools) offers
+//! answer.write while the loop's native schema (`tb_tools`) offers
 //! answer.submit - the model-facing contract is answer.submit
 //! {path, summary}; the fixture now wires THAT plugin.
 //!
 //! Contract: the scripted provider is PROMPT-AWARE. Offered the
 //! verdict.submit tool it returns a well-formed not-refuted verdict
 //! (a competent model auditing honest work); when the script runs out
-//! on an operator prompt carrying ANSWER_PATH, it submits the answer
+//! on an operator prompt carrying `ANSWER_PATH`, it submits the answer
 //! with the offered answer tool, then stands down once the ARTIFACT
 //! block shows the answer on disk.
 
@@ -51,7 +51,7 @@ default = true
 // outcome "verified", answer artifact on disk.
 #[test]
 fn r1_mission_passes_honestly() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     // answersubmit's tb mode (the mode the TUI runs in): the submission is a
     // completion summary, not a git diff (that path needs HS_SWE_WORKSPACE).
     std::env::set_var("HS_ANSWER_RAW", "1");
@@ -81,7 +81,7 @@ fn r1_mission_passes_honestly() {
 // no steps_exhausted fake failure.
 #[test]
 fn r2_exhausted_script_still_lands() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     std::env::set_var("HS_ANSWER_RAW", "1");
     std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1");
     let dir = std::env::temp_dir().join("fixture-honesty-r2");

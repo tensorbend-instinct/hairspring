@@ -1,6 +1,6 @@
-//! RED: DeepSeek v4 thinking mode rejects tool_choice:"required" at the API
+//! RED: `DeepSeek` v4 thinking mode rejects `tool_choice:"required`" at the API
 //! level (live 400, verified 2026-09-05: "Thinking mode does not support
-//! this tool_choice"). The provider must carry its own tool_choice contract:
+//! this `tool_choice`"). The provider must carry its own `tool_choice` contract:
 //! deepseek -> "auto" (the loop's no-tool-call feedback at lib.rs already
 //! covers a prose reply), kimi/glm -> "required" (verified live on kimi-k3).
 

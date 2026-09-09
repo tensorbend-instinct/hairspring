@@ -3,14 +3,14 @@
 //!
 //! Live defect (2026-09-08): every term.exec in a live hs-repl run failed
 //! with `spawn: No such file or directory`. Chain: hs-plugin-termexec
-//! takes its working directory from HS_TERM_WORKDIR (default /app, which
+//! takes its working directory from `HS_TERM_WORKDIR` (default /app, which
 //! does not exist on this host), and only hs-tb-run sets it. The
 //! 2026-09-07 22:42 real-goal proof passed only because the operator
 //! exported HS_TERM_WORKDIR=/tmp/repl-goal-app by hand - hs-repl itself
 //! never wires the env. An intuitive REPL does not make the operator
 //! learn internal plugin env vars.
 //!
-//! Contract: ReplSession wires the tool environment itself - term.exec
+//! Contract: `ReplSession` wires the tool environment itself - term.exec
 //! runs with cwd = the session dir (the REPL's working directory,
 //! stable across missions), matching hs-tb-run's "every plugin the
 //! kernel spawns inherits this env" rule.
@@ -26,7 +26,7 @@ const SCRIPTED: &str = env!("CARGO_BIN_EXE_hs-plugin-scripted");
 
 #[test]
 fn repl_mission_term_exec_runs_in_session_dir() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let config = dir.path().join("hairspring.toml");

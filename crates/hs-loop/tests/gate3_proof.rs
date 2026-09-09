@@ -62,14 +62,14 @@ default = true
         // adversarial verifier call. Feedback itself costs zero.
         assert_eq!(
             r.model_calls,
-            r.steps + if r.passed { 1 } else { 0 },
+            r.steps + u32::from(r.passed),
             "feedback zero extra round trips; pass adds one verifier call"
         );
         hs_log::verify_stream(&log, r.stream_id).unwrap();
         if r.passed {
             arm.passed += 1;
         }
-        arm.steps_total += r.steps as u64;
+        arm.steps_total += u64::from(r.steps);
         arm.missions += 1;
     }
     arm

@@ -1,7 +1,7 @@
 //! Test fixture plugin for hs-kernel. Modes:
-//!   echo-tool     tool "echo": returns args["text"] unchanged
+//!   echo-tool     tool `echo`: returns `args["text"]` unchanged
 //!   fake-model    model "fake-v1": deterministic completion + token counts
-//!   rail-a|b|c    rail: appends "<name>:<hook>" to $RAIL_LOG_FILE, returns {}
+//!   rail-a|b|c    rail: appends "<name>:<hook>" to $`RAIL_LOG_FILE`, returns {}
 //!   rail-crash    rail: exits(1) on any rail.hook
 //!   flaky-tool    tool "flaky": exits(42) on first tool.call, works after
 //!   dies-always   tool: appends to state file (arg3) at startup, exits(1) on every tool.call
@@ -9,7 +9,7 @@
 //!   hang-tool     tool "sleeper": sleeps 60s on tool.call (lease tests)
 //!   usage-error   tool "usageerr": well-formed {"error":...} on every tool.call (arg3: state file); process stays healthy - supervisor must NOT strike
 //!   bogus         describe lies (claims different name than configured)
-//! Protocol: newline-delimited JSON, see hs-kernel::protocol.
+//! Protocol: newline-delimited JSON, see `hs-kernel::protocol`.
 
 use std::io::{BufRead, BufReader, Write};
 

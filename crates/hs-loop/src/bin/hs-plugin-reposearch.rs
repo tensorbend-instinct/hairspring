@@ -1,4 +1,4 @@
-//! SWE mission tool "repo.search": substring search with file:line hits,
+//! SWE mission tool "repo.search": substring search with <file:line> hits,
 //! workspace-sandboxed, .git/target skipped, 100-hit cap.
 include!("shared/sdk.rs");
 fn main() {
@@ -14,5 +14,5 @@ fn main() {
             }
         }
         _ => serde_json::json!({"$error": "unknown method"}),
-    })
+    });
 }

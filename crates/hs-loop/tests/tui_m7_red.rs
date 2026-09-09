@@ -78,7 +78,7 @@ fn r4_scroll_quit_and_picker_routing() {
     assert_eq!(st.picker_selected(), Some(1), "picker owns Down while open");
     match tui::handle_key(&mut st, KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)) {
         KeyAction::Picked(hs_loop::tui::PickerKind::Resume, choice) => {
-            assert_eq!(choice, "two")
+            assert_eq!(choice, "two");
         }
         other => panic!("expected Picked, got {other:?}"),
     }

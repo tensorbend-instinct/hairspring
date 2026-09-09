@@ -5,7 +5,7 @@ use hs_kernel::*;
 const FIXTURE: &str = env!("CARGO_BIN_EXE_hs-fixture-plugin");
 
 /// Kernel spawns inherit this test process's env, and several fixtures read
-/// process-global env (RAIL_LOG_FILE) or shared temp files. Tests in this
+/// process-global env (`RAIL_LOG_FILE`) or shared temp files. Tests in this
 /// file therefore run serialized: parallel env mutation across tests raced
 /// (observed 2026-09-05: interleaved rail-log lines, order assert flake).
 static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());

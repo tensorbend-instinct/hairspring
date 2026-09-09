@@ -1,13 +1,13 @@
 //! hs-swe-run: run ONE SWE-bench-Live instance as a hairspring mission
 //! end to end. The workspace must already be prepped (base commit checked
-//! out, test_patch applied and committed) - the launch script owns that.
+//! out, `test_patch` applied and committed) - the launch script owns that.
 //!
 //! Usage:
 //!   hs-swe-run --instance <json> --model glm|deepseek --feedback on|off
 //!              --budget-micros N --max-steps N --run-dir <dir>
 //!
 //! Writes <run-dir>/result.json and appends one line to <run-dir>/ledger.txt:
-//!   model,arm,instance_id,passed,steps,model_calls,cost_micros,budget_killed
+//!   `model,arm,instance_id,passed,steps,model_calls,cost_micros,budget_killed`
 
 use hs_memory::MemoryStore;
 use std::path::{Path, PathBuf};
@@ -65,10 +65,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let raw = std::fs::read_to_string(&instance_path)?;
     let v: serde_json::Value = serde_json::from_str(&raw)?;
     let inst: Instance = serde_json::from_value(v.clone())?;
-    let f2p = if !inst.fail_to_pass.is_empty() {
-        inst.fail_to_pass
-    } else {
+    let f2p = if inst.fail_to_pass.is_empty() {
         inst.fail_to_pass_caps
+    } else {
+        inst.fail_to_pass
     };
 
     // Goal evaluator f2p = the REAL acceptance command (HS_SWE_F2P, written
@@ -207,15 +207,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // the filesystem for it. Runner override: HS_SWE_F2P_DISPLAY.
         // Default: pytest node ids run with python3 (the mission venv
         // is first on the sandbox PATH).
-        fail_to_pass: std::env::var("HS_SWE_F2P_DISPLAY")
-            .map(|d| vec![d])
-            .unwrap_or_else(|_| {
-                if !f2p.is_empty() {
-                    vec![format!("python3 -m pytest {} -x -q", f2p.join(" "))]
-                } else {
+        fail_to_pass: std::env::var("HS_SWE_F2P_DISPLAY").map_or_else(|_| {
+                if f2p.is_empty() {
                     goal_cmds.clone()
+                } else {
+                    vec![format!("python3 -m pytest {} -x -q", f2p.join(" "))]
                 }
-            }),
+            }, |d| vec![d]),
         repo_layout: layout.clone(),
         nudge: std::env::var("HS_SWE_PROMPT_NUDGE").unwrap_or_default(),
         answer_path: answer_path.display().to_string(),

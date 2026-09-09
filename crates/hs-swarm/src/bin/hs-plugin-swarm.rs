@@ -1,27 +1,27 @@
-//! Tool plugin "agent.spawn" + "agent.spawn_poll" (async delegation,
+//! Tool plugin "agent.spawn" + "`agent.spawn_poll`" (async delegation,
 //! Eric ruling 2026-09-08): agent.spawn starts a child sub-agent on
 //! the SAME substrate (kernel config, models, tools) on its own
 //! stream and returns IMMEDIATELY (status running); the child drives
 //! to completion on a dedicated thread in this process. The loop
-//! learns the outcome by polling agent.spawn_poll at step boundaries.
+//! learns the outcome by polling `agent.spawn_poll` at step boundaries.
 //!
-//! args (spawn): {mission, parent_stream, child_stream_id, model?} -
-//! parent_stream + child_stream_id are injected by the loop at
+//! args (spawn): {mission, `parent_stream`, `child_stream_id`, model?} -
+//! `parent_stream` + `child_stream_id` are injected by the loop at
 //! dispatch; the loop books Spawn BEFORE calling (atomic provenance),
 //! so the child stream is created with exactly the loop-minted id.
-//! args (poll): {child_stream_id} -> running | done + report.
+//! args (poll): {`child_stream_id`} -> running | done + report.
 //!
-//! Registry ON DISK (<log_root>/swarm/): spawn.json at start,
+//! Registry ON DISK (<`log_root>/swarm/)`: spawn.json at start,
 //! report.json at completion. The kernel may run spawn and poll in
 //! separate plugin processes - disk is the only honest shared state,
 //! and it matches the crash-atomicity contract: a missing report with
 //! a present spawn marker is a child still running (or a dead plugin
 //! process, which fails the parent's calls loudly anyway).
 //!
-//! env: HS_SWARM_LOG_ROOT + HS_SWARM_CONFIG (required; the REPL sets
-//! both from its own opts), HS_SWARM_FEEDBACK ("1"), HS_SWARM_MAX_STEPS,
-//! HS_SWARM_DEPTH / HS_SWARM_MAX_DEPTH (fork-bomb guard, 2026-09-08),
-//! HS_SWARM_MAX_CHILDREN (concurrency cap, default 4).
+//! env: `HS_SWARM_LOG_ROOT` + `HS_SWARM_CONFIG` (required; the REPL sets
+//! both from its own opts), `HS_SWARM_FEEDBACK` ("1"), `HS_SWARM_MAX_STEPS`,
+//! `HS_SWARM_DEPTH` / `HS_SWARM_MAX_DEPTH` (fork-bomb guard, 2026-09-08),
+//! `HS_SWARM_MAX_CHILDREN` (concurrency cap, default 4).
 include!("../../../hs-loop/src/bin/shared/sdk.rs");
 
 fn swarm_dir(log_root: &str) -> std::path::PathBuf {
@@ -30,8 +30,8 @@ fn swarm_dir(log_root: &str) -> std::path::PathBuf {
 
 fn running_count(dir: &std::path::Path) -> usize {
     std::fs::read_dir(dir)
-        .map(|rd| {
-            rd.filter_map(|e| e.ok())
+        .map_or(0, |rd| {
+            rd.filter_map(std::result::Result::ok)
                 .filter(|e| {
                     let n = e.file_name().to_string_lossy().to_string();
                     n.ends_with(".spawn.json")
@@ -39,7 +39,6 @@ fn running_count(dir: &std::path::Path) -> usize {
                 })
                 .count()
         })
-        .unwrap_or(0)
 }
 
 fn main() {
@@ -49,7 +48,7 @@ fn main() {
     // Both slots share state through the on-disk registry only.
     let argv: Vec<String> = std::env::args().collect();
     let name: &'static str = match argv.iter().position(|a| a == "--as") {
-        Some(i) if argv.get(i + 1).map(|s| s.as_str()) == Some("agent.spawn_poll") => {
+        Some(i) if argv.get(i + 1).map(std::string::String::as_str) == Some("agent.spawn_poll") => {
             "agent.spawn_poll"
         }
         _ => "agent.spawn",
@@ -97,7 +96,7 @@ fn main() {
                     return serde_json::json!({"$error": "child_stream_id missing or invalid (the loop mints it)"});
                 }
             };
-            let model = args["model"].as_str().map(|m| m.to_string());
+            let model = args["model"].as_str().map(std::string::ToString::to_string);
             let config = match std::env::var("HS_SWARM_CONFIG") {
                 Ok(v) => v,
                 Err(_) => return serde_json::json!({"$error": "HS_SWARM_CONFIG not set"}),
@@ -157,8 +156,7 @@ fn main() {
                         "model": model,
                         "started_at_ms": std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
-                            .map(|d| d.as_millis() as i64)
-                            .unwrap_or(0),
+                            .map_or(0, |d| d.as_millis() as i64),
                     });
                     if let Err(e) = std::fs::write(
                         dir.join(format!("{child_id}.spawn.json")),
@@ -216,5 +214,5 @@ fn main() {
             }
         }
         _ => serde_json::json!({"$error": "unknown method"}),
-    })
+    });
 }

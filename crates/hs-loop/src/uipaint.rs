@@ -2,8 +2,8 @@
 //! UI investigation - pi/omp paint tool-call cards with timing, semantic
 //! color, and ambient status; hs-repl painted raw unstyled text).
 //!
-//! The loop emits TYPED UI events (no print-scraping): a UiSink receives
-//! one UiEvent per visible beat. The Painter renders events to any Writer
+//! The loop emits TYPED UI events (no print-scraping): a `UiSink` receives
+//! one `UiEvent` per visible beat. The Painter renders events to any Writer
 //! with semantic ANSI color when the terminal supports it and byte-clean
 //! plain text when piped (result JSON on stdout stays machine-readable).
 
@@ -11,7 +11,7 @@ use std::io::Write;
 
 /// UI gap #9: a theme - named roles mapped to SGR codes - drives every
 /// painted surface. dark and light ship built in; a TOML file overrides
-/// any subset of roles and falls back to dark for the rest. HS_THEME
+/// any subset of roles and falls back to dark for the rest. `HS_THEME`
 /// selects: "dark", "light", or a path to a theme file.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Theme {
@@ -36,13 +36,15 @@ pub struct Theme {
 }
 
 /// The built-in theme catalog as (name, theme) pairs, for the
-/// :theme picker. Custom TOML themes stay boot-time (HS_THEME).
+/// :theme picker. Custom TOML themes stay boot-time (`HS_THEME`).
+#[must_use]
 pub fn available_themes() -> Vec<(&'static str, Theme)> {
     vec![("dark", Theme::dark()), ("light", Theme::light())]
 }
 
 impl Theme {
     /// The HAIRSPRING dark theme (the original hand-tuned codes).
+    #[must_use]
     pub fn dark() -> Self {
         Theme {
             accent: "36;1".into(),
@@ -59,6 +61,7 @@ impl Theme {
 
     /// Light-background variant: blues over cyans, magenta over yellow
     /// (yellow on white is unreadable), faint kept for chrome.
+    #[must_use]
     pub fn light() -> Self {
         Theme {
             accent: "34;1".into(),
@@ -127,8 +130,9 @@ impl Theme {
         }
     }
 
-    /// HS_THEME selection for the REPL surfaces. Unset or empty is dark;
+    /// `HS_THEME` selection for the REPL surfaces. Unset or empty is dark;
     /// a bad value is dark plus a stderr note, never a crash.
+    #[must_use]
     pub fn from_env() -> Self {
         match std::env::var("HS_THEME") {
             Ok(name) if !name.trim().is_empty() => match Theme::by_name(name.trim()) {
@@ -179,7 +183,7 @@ pub enum UiEvent {
     SubAgentFinished { child: uuid::Uuid, ok: bool },
 }
 
-/// Sink for mission UI events (mirrors hs_kernel::DeltaSink).
+/// Sink for mission UI events (mirrors `hs_kernel::DeltaSink`).
 pub type UiSink = Box<dyn FnMut(UiEvent) + Send>;
 
 /// One-line, length-capped summary of a tool call's arguments: the
@@ -187,9 +191,7 @@ pub type UiSink = Box<dyn FnMut(UiEvent) + Send>;
 pub fn summarize_args(args: &serde_json::Value) -> String {
     let s = args
         .get("command")
-        .and_then(|c| c.as_str())
-        .map(str::to_string)
-        .unwrap_or_else(|| serde_json::to_string(args).unwrap_or_else(|_| "?".into()));
+        .and_then(|c| c.as_str()).map_or_else(|| serde_json::to_string(args).unwrap_or_else(|_| "?".into()), str::to_string);
     truncate(&s.replace('\n', " "), 120)
 }
 
@@ -197,9 +199,7 @@ pub fn summarize_args(args: &serde_json::Value) -> String {
 pub fn summarize_output(out: &serde_json::Value) -> String {
     let s = out
         .get("stdout")
-        .and_then(|c| c.as_str())
-        .map(str::to_string)
-        .unwrap_or_else(|| serde_json::to_string(out).unwrap_or_else(|_| "?".into()));
+        .and_then(|c| c.as_str()).map_or_else(|| serde_json::to_string(out).unwrap_or_else(|_| "?".into()), str::to_string);
     truncate(&s.trim().replace('\n', " "), 200)
 }
 
@@ -212,7 +212,7 @@ fn truncate(s: &str, max: usize) -> String {
     t
 }
 
-/// Renders UiEvents to a writer. `color` on: semantic ANSI color.
+/// Renders `UiEvents` to a writer. `color` on: semantic ANSI color.
 pub struct Painter<'a, W: Write> {
     out: &'a mut W,
     color: bool,
@@ -362,11 +362,13 @@ impl<'a, W: Write> Painter<'a, W> {
 }
 
 /// Metered cost as dollars: 430320 micros -> "$0.4303".
+#[must_use]
 pub fn format_usd_micros(micros: u64) -> String {
     format!("${:.4}", micros as f64 / 1_000_000.0)
 }
 
 /// Compact wall time: 65s -> "1m5s", 3700s -> "1h1m", 9s -> "9s".
+#[must_use]
 pub fn format_elapsed(d: std::time::Duration) -> String {
     let s = d.as_secs();
     if s >= 3600 {
@@ -392,12 +394,14 @@ pub struct MarkdownStreamer {
 }
 
 impl MarkdownStreamer {
+    #[must_use]
     pub fn new(color: bool) -> Self {
         MarkdownStreamer::with_theme(color, &Theme::dark())
     }
 
     /// UI gap #9: markdown chrome (code, headers, bullets, fences) comes
     /// from the theme.
+    #[must_use]
     pub fn with_theme(color: bool, theme: &Theme) -> Self {
         MarkdownStreamer {
             color,
@@ -408,7 +412,7 @@ impl MarkdownStreamer {
     }
 
     /// Feed one delta. Complete lines render immediately; a partial
-    /// tail waits for its newline (or finish()).
+    /// tail waits for its newline (or `finish()`).
     pub fn push<W: Write>(&mut self, delta: &str, out: &mut W) {
         self.buf.push_str(delta);
         while let Some(pos) = self.buf.find('\n') {
@@ -514,8 +518,7 @@ impl MarkdownStreamer {
                 let end = rest
                     .char_indices()
                     .nth(1)
-                    .map(|(i, _)| i)
-                    .unwrap_or(rest.len());
+                    .map_or(rest.len(), |(i, _)| i);
                 let _ = write!(out, "{}", &rest[..end]);
                 rest = &rest[end..];
                 continue;
@@ -537,6 +540,7 @@ pub const EDITOR_PROMPT: &str = "\u{2502} hs> ";
 
 /// Visible terminal width of a string: ANSI CSI sequences count zero,
 /// every other char counts one (box glyphs are single-width).
+#[must_use]
 pub fn visible_width(s: &str) -> usize {
     let mut w = 0;
     let mut it = s.chars().peekable();
@@ -564,11 +568,13 @@ fn sgr(color: bool, code: &str, text: &str) -> String {
 }
 
 /// Top border with the dark theme (back-compat wrapper).
+#[must_use]
 pub fn composer_top(label: &str, cols: usize, color: bool) -> String {
     composer_top_themed(label, cols, color, &Theme::dark())
 }
 
 /// Top border: "╭─ label ────────╮" at exactly `cols` visible columns.
+#[must_use]
 pub fn composer_top_themed(label: &str, cols: usize, color: bool, theme: &Theme) -> String {
     let fixed = 2 + 1 + label.chars().count() + 1 + 1; // ╭─ sp label sp ╮
     let fill = cols.saturating_sub(fixed);
@@ -582,6 +588,7 @@ pub fn composer_top_themed(label: &str, cols: usize, color: bool, theme: &Theme)
 }
 
 /// Bottom border: "╰────────────╯" at exactly `cols` visible columns.
+#[must_use]
 pub fn composer_bottom(cols: usize, color: bool) -> String {
     let fill = cols.saturating_sub(2);
     sgr(
@@ -592,6 +599,7 @@ pub fn composer_bottom(cols: usize, color: bool) -> String {
 }
 
 /// A section rule: "── label ────────────" at exactly `cols` columns.
+#[must_use]
 pub fn separator(label: &str, cols: usize, color: bool) -> String {
     let fixed = 2 + 1 + label.chars().count() + 1; // ── sp label sp
     let fill = cols.saturating_sub(fixed);

@@ -1,19 +1,16 @@
 //! Test model "recmodel": dumps every prompt it receives to the file in
-//! env REC_DUMP, then follows a fixed script. REC_MODE=pressure: four
+//! env `REC_DUMP`, then follows a fixed script. `REC_MODE=pressure`: four
 //! bigread.read calls, then writes the secret ONLY once a prompt carries a
-//! COMPACTED transcript summary. REC_MODE=small: one probe.read, then
+//! COMPACTED transcript summary. `REC_MODE=small`: one probe.read, then
 //! writes the secret when the marker flows back - the no-pressure control.
 include!("shared/sdk.rs");
 fn main() {
     serve("recmodel", "model", &mut |method, params| match method {
         "model.call" => {
             let __pv;
-            let prompt = match params["prompt"].as_str() {
-                Some(p) => p,
-                None => {
-                    __pv = hs_loop::msgfmt::prompt_view(&params);
-                    __pv.as_str()
-                }
+            let prompt = if let Some(p) = params["prompt"].as_str() { p } else {
+                __pv = hs_loop::msgfmt::prompt_view(&params);
+                __pv.as_str()
             };
             if let Ok(dump) = std::env::var("REC_DUMP") {
                 use std::io::Write;

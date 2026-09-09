@@ -1,7 +1,7 @@
-//! GATE 9a (spec v5): the event schema carries a capability_change kind for
+//! GATE 9a (spec v5): the event schema carries a `capability_change` kind for
 //! model/harness/executor swap transactions ("The kinds are reserved in the
 //! schema from gate 1, so swap transactions and evidence bookkeeping need no
-//! later schema migration"; v5 event schema: "capability_change, #
+//! later schema migration"; v5 event schema: "`capability_change`, #
 //! model/harness/executor swap transaction: old and new binding refs +
 //! protocol step").
 //!

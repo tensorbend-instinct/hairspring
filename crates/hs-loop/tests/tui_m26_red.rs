@@ -1,9 +1,9 @@
 //! REPL UI gap #10 M26: the full-screen surface's help lies, half the
 //! line-mode commands are dead ends, and a fresh session is a void.
 //!
-//! Grounding (bin/hs-repl.rs + tui.rs handle_key): the TUI handles
+//! Grounding (bin/hs-repl.rs + tui.rs `handle_key)`: the TUI handles
 //! :resume, :help, :quit/:q, :agents - but :help prints the LINE-MODE
-//! REPL_HELP which advertises :status, :history, :last; typing any of
+//! `REPL_HELP` which advertises :status, :history, :last; typing any of
 //! those on the full-screen surface gets "unknown command". The help
 //! names commands that don't work, and omits :resume/:agents which
 //! do. Meanwhile a fresh session renders a blank viewport with no

@@ -8,13 +8,14 @@
 
 use serde_json::Value;
 
-/// One history exchange as a native assistant(tool_calls) + tool pair.
-/// The tool_call id is deterministic from the owning event's seq, so the
+/// One history exchange as a native `assistant(tool_calls)` + tool pair.
+/// The `tool_call` id is deterministic from the owning event's seq, so the
 /// replayed prefix is byte-identical across steps (the KV-cache contract).
-/// `reasoning` is the owning ModelCall's reasoning_content: thinking-mode
+/// `reasoning` is the owning `ModelCall`'s `reasoning_content`: thinking-mode
 /// providers with a `tools` parameter REQUIRE it passed back in later
-/// turns (DeepSeek V4: 400 otherwise). Empty reasoning omits the field,
+/// turns (`DeepSeek` V4: 400 otherwise). Empty reasoning omits the field,
 /// keeping legacy/scripted replays byte-identical.
+#[must_use]
 pub fn exchange_pair(
     seq: u64,
     plugin: &str,
@@ -68,7 +69,8 @@ pub fn exchange_pair(
 /// "prompt" and get it back untouched; operator calls pass "messages" and
 /// get the faithful rendering: message contents verbatim, history pairs as
 /// "- tool(args) => result" lines. Every marker the fixtures key on
-/// (ANSWER_PATH:, FEEDBACK:, MARKER-*, COMPACTED, DISTILL:) survives.
+/// (`ANSWER_PATH`:, FEEDBACK:, MARKER-*, COMPACTED, DISTILL:) survives.
+#[must_use]
 pub fn prompt_view(params: &Value) -> String {
     if let Some(p) = params["prompt"].as_str() {
         return p.to_string();

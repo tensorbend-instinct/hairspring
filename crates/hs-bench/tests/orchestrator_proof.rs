@@ -1,9 +1,9 @@
 //! GATE 8 BENCHMARK PREP 4 - run orchestrator with run-level spend cap.
 //!
 //! The orchestrator runs a set of instances on one arm, enforcing: per-mission
-//! cap (kills land as BudgetKilled) and a RUN-level cap that stops launching
+//! cap (kills land as `BudgetKilled`) and a RUN-level cap that stops launching
 //! new missions when the run's budget is spent - remaining instances are
-//! marked NotRun, never silently dropped. Falsifiable: if the run can exceed
+//! marked `NotRun`, never silently dropped. Falsifiable: if the run can exceed
 //! its cap, the spend gate Eric approved is broken.
 
 use hs_bench::*;

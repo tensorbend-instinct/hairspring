@@ -1,5 +1,5 @@
 //! UI gap #10 M3: the transcript viewport + markdown adapter. The
-//! line-mode MarkdownStreamer emits ANSI strings; the full-screen
+//! line-mode `MarkdownStreamer` emits ANSI strings; the full-screen
 //! surface needs ratatui Lines styled from the Theme. The viewport
 //! holds completed transcript lines, auto-follows the bottom, and
 //! scrolls back on demand.

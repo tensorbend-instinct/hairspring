@@ -9,7 +9,7 @@
 //!             --feedback on|off --budget-micros N --max-steps N
 //!             --run-dir <dir> [--workdir /app] [--wall-secs N]
 //!
-//! Writes <run-dir>/result.json + mission_prompt.txt + tools.json + ledger.txt.
+//! Writes <run-dir>/result.json + `mission_prompt.txt` + tools.json + ledger.txt.
 
 use std::path::PathBuf;
 

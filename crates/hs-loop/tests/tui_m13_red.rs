@@ -2,17 +2,17 @@
 //! set (cap3 HUD vs done-line, cap5 picker entry).
 //!
 //! 1. The HUD ended every mission at 2x the real call count: M10
-//!    counts calls LIVE via ModelCallEnd, and the bin's Done handler
-//!    then added MissionResult.model_calls a second time (cap3:
+//!    counts calls LIVE via `ModelCallEnd`, and the bin's Done handler
+//!    then added `MissionResult.model_calls` a second time (cap3:
 //!    "done: 2 steps, 2 calls" while the HUD read "4 calls" - same
 //!    screen, two truths). Reconciliation moves into
-//!    TuiState::mission_done: steps accrue (no live event), calls do
+//!    `TuiState::mission_done`: steps accrue (no live event), calls do
 //!    NOT (already counted live), cost takes the session total.
 //!
 //! 2. Picker previews showed a literal "\n" (cap5 entry read
 //!    "fix the parser bug\nand keep the suite green"): the mission
 //!    payload is one JSON line, so a multi-line goal reaches
-//!    list_sessions as an ESCAPED two-char \n that the real-newline
+//!    `list_sessions` as an ESCAPED two-char \n that the real-newline
 //!    split never sees. Previews flatten it.
 
 // R1: live call events + mission_done reconcile to the real count.

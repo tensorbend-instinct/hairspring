@@ -148,7 +148,7 @@ fn refute_then_doom(
 /// and its findings, never the remaining-round count.
 #[test]
 fn refute_feedback_carries_no_round_counter() {
-    let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let (ev, _d, _l) = refute_then_doom("task-41");
     let prompts = prompts_of(&ev);
     let with_refute: Vec<&String> = prompts
@@ -174,7 +174,7 @@ fn refute_feedback_carries_no_round_counter() {
 /// nudge must point at the findings, never at submission.
 #[test]
 fn doom_loop_after_refute_offers_no_submit_hatch() {
-    let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let (ev, _d, _l) = refute_then_doom("task-42");
     let notes: Vec<&String> = ev
         .iter()
@@ -201,7 +201,7 @@ fn doom_loop_after_refute_offers_no_submit_hatch() {
 /// full artifact. Feedback leads the state tail: FEEDBACK before ARTIFACT.
 #[test]
 fn feedback_leads_artifact_in_tail() {
-    let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let (ev, _d, _l) = refute_then_doom("task-43");
     let prompts = prompts_of(&ev);
     // 2026-09-07: the artifact line is now labeled ("ARTIFACT (the graded
@@ -282,10 +282,10 @@ fn mission_prompt_makes_feedback_repair_binding() {
         ws: "/ws".into(),
         problem_statement: "p".into(),
         fail_to_pass: vec!["pytest -q".into()],
-        repo_layout: "".into(),
-        nudge: "".into(),
+        repo_layout: String::new(),
+        nudge: String::new(),
         answer_path: "/a".into(),
-        orientation: "".into(),
+        orientation: String::new(),
         mcp_tools: String::new(),
     };
     let p = sweprompt::build_mission_prompt(None, &args);
@@ -339,7 +339,7 @@ default = true
 /// from "audited and accepted". The result carries an outcome label.
 #[test]
 fn ratchet_cap_pass_is_labeled_ratchet_capped() {
-    let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let answer = log.path().join("work").join("task-12").join("answer.txt");
@@ -363,7 +363,7 @@ fn ratchet_cap_pass_is_labeled_ratchet_capped() {
 /// banked the same silent PASS. Labeled too.
 #[test]
 fn malfunction_pass_is_labeled_verifier_malfunction() {
-    let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let answer = log.path().join("work").join("task-13").join("answer.txt");
@@ -386,7 +386,7 @@ fn malfunction_pass_is_labeled_verifier_malfunction() {
 /// The normal path: audited and accepted - labeled "verified".
 #[test]
 fn audited_pass_is_labeled_verified() {
-    let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let ws = git_ws(dir.path());
@@ -414,7 +414,7 @@ fn audited_pass_is_labeled_verified() {
 /// demand verification, not offer a prose exit.
 #[test]
 fn convergence_nudge_offers_no_prose_exit() {
-    let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let answer = log.path().join("work").join("task-15").join("answer.txt");

@@ -2,7 +2,7 @@
 //! cumulative diff with git and writes it to the answer path. The model
 //! supplies NO content - the submission is exactly what it built and
 //! verified, never hand-written diff text. args: {path}.
-//! Env: HS_SWE_WORKSPACE (required).
+//! Env: `HS_SWE_WORKSPACE` (required).
 include!("shared/sdk.rs");
 fn main() {
     serve(

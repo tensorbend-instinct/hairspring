@@ -1,5 +1,5 @@
 //! Empirical kill-and-restore experiment (spec v5 recovery tier B).
-//! Usage: snapshot_restore_bench <log_root> <ws_path> [--keep]
+//! Usage: `snapshot_restore_bench` <`log_root`> <`ws_path`> [--keep]
 //! Snapshots ws, copies a reference, destroys ws, restores, byte-compares,
 //! prints measured snapshot/restore times. Exit 1 on any mismatch.
 use std::path::{Path, PathBuf};

@@ -4,13 +4,13 @@
 //! configuration. The loop is:
 //!
 //!   fork -> quarantine -> apply mutation -> pin scorer -> assay (held-out)
-//!   -> soak -> promote (lineage + capability_delta/fitness_delta events)
+//!   -> soak -> promote (lineage + `capability_delta/fitness_delta` events)
 //!   or rewind to known-good.
 //!
 //! Side-effect discipline: a fork runs under world-service quarantine; any
 //! external effect (send / spend / write outside the sandbox) is rejected by
 //! the world service until the fork's lineage is promoted. Proof tests in
-//! tests/gate8_selfmod_proof.rs pin every one of these properties.
+//! `tests/gate8_selfmod_proof.rs` pin every one of these properties.
 
 pub mod migration;
 
@@ -33,7 +33,7 @@ use uuid::Uuid;
 // --------------------------------------------------------- policy layer ---
 
 /// A tool configuration the agent may rewrite. The gate-8 deterministic
-/// world interprets the "answer" tool: PrefixRule derives secrets by rule
+/// world interprets the "answer" tool: `PrefixRule` derives secrets by rule
 /// (generalizes), Table is a memorization table (does not).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PolicyTool {
@@ -49,6 +49,7 @@ pub struct PolicyLayer {
     pub tools: BTreeMap<String, PolicyTool>,
 }
 impl PolicyLayer {
+    #[must_use]
     pub fn new(prompts: BTreeMap<String, String>, tools: BTreeMap<String, PolicyTool>) -> Self {
         PolicyLayer { prompts, tools }
     }
@@ -69,9 +70,11 @@ pub struct Mutation {
     changes: Vec<PolicyChange>,
 }
 impl Mutation {
+    #[must_use]
     pub fn new(changes: Vec<PolicyChange>) -> Self {
         Mutation { changes }
     }
+    #[must_use]
     pub fn changes(&self) -> &[PolicyChange] {
         &self.changes
     }
@@ -88,16 +91,20 @@ pub struct Fork {
     candidate: String,
 }
 impl Fork {
+    #[must_use]
     pub fn stream(&self) -> Uuid {
         self.stream
     }
+    #[must_use]
     pub fn candidate_name(&self) -> &str {
         &self.candidate
     }
+    #[must_use]
     pub fn policy(&self) -> &PolicyLayer {
         &self.policy
     }
     /// Interpret the policy layer as a scorable artifact (token family).
+    #[must_use]
     pub fn candidate(&self) -> Candidate {
         let artifact = match self.policy.tools.get("answer") {
             Some(PolicyTool::PrefixRule) => Artifact::by_rule(|t: &Task| {
@@ -133,7 +140,7 @@ pub enum SelfModError {
     Promotion(String),
     /// v5 per-cycle balance rule violated (refused before the fork exists).
     UnbalancedCycle(String),
-    /// closes_failure names no open failure/regression in evidence state.
+    /// `closes_failure` names no open failure/regression in evidence state.
     EvidenceMismatch(String),
     /// v5 frozen-candidate rule: the verdict does not name this fork's
     /// candidate - "the producer's account" never promotes.
@@ -294,7 +301,7 @@ impl SelfModLoop {
 
     /// Promote a fork after the soak: lineage records the held-out scores +
     /// pin, the mutated policy becomes live, quarantine lifts, and
-    /// capability_delta + fitness_delta events land on the canonical log.
+    /// `capability_delta` + `fitness_delta` events land on the canonical log.
     pub fn promote(
         &mut self,
         fork: &Fork,
@@ -315,7 +322,7 @@ impl SelfModLoop {
         let elapsed = at.elapsed();
         if elapsed < self.soak {
             return Err(SelfModError::SoakNotElapsed {
-                remaining_ms: (self.soak - elapsed).as_millis() as u64,
+                remaining_ms: self.soak.checked_sub(elapsed).unwrap().as_millis() as u64,
             });
         }
         let cand = fork.candidate();
@@ -383,14 +390,14 @@ impl SelfModLoop {
             })
     }
 
-    /// Self-mod stream events (Mutation / CapabilityDelta / FitnessDelta).
+    /// Self-mod stream events (Mutation / `CapabilityDelta` / `FitnessDelta`).
     pub fn selfmod_events(&self) -> Vec<Event> {
         StreamReader::open(&self.log_root, self.stream)
             .and_then(|r| r.events())
             .unwrap_or_default()
     }
 
-    /// Scorer stream events (Score / ScorerPin / Regression / CanaryResult).
+    /// Scorer stream events (Score / `ScorerPin` / Regression / `CanaryResult`).
     pub fn scorer_events(&self) -> Vec<Event> {
         self.scorer.log_events()
     }

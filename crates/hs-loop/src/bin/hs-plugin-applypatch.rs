@@ -2,7 +2,7 @@
 //! persistent candidate worktree; returns the cumulative diff vs base on
 //! every call. args: {patch} apply | {op:"diff"} read | {op:"reset"} discard.
 //! The model never writes unified-diff syntax (corrupt-patch failure class,
-//! measured 2026-09-06). Env: HS_SWE_WORKSPACE (required).
+//! measured 2026-09-06). Env: `HS_SWE_WORKSPACE` (required).
 include!("shared/sdk.rs");
 fn main() {
     serve("edit.patch", "tool", &mut |method, params| match method {

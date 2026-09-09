@@ -25,7 +25,7 @@ fn serve(
                 serde_json::json!({"id": id, "result": r})
             }
         };
-        writeln!(out, "{}", resp).unwrap();
+        writeln!(out, "{resp}").unwrap();
         out.flush().unwrap();
     }
 }

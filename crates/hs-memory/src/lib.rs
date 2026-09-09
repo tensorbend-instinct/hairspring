@@ -1,4 +1,4 @@
-//! D3 typed memory plane (TencentDB trinity, replicated for one box).
+//! D3 typed memory plane (`TencentDB` trinity, replicated for one box).
 //! One embedded store, SQLite in WAL mode, behind a trait so
 //! Postgres+pgvector+AGE can replace it (W1: the trait boundary is the
 //! contract). Writes are append-only and immutable; provenance is

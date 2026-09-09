@@ -1,9 +1,9 @@
 //! RED (Eric 2026-09-07 parity build, gap #1): the REPL must deliver NATIVE
 //! tool schemas to the model plugin, exactly like hs-tb-run/hs-swe-run do via
-//! InnerLoop::set_tools - the tools=None free-form path cannot hold a real
+//! `InnerLoop::set_tools` - the tools=None free-form path cannot hold a real
 //! model on the one-tool-call protocol (live proof 2026-09-07: REPL real-goal
-//! mission, DeepSeek author, 1 tool call then 39 prose replies, nudged every
-//! step, steps_exhausted; TB/SWE use SYSTEM_NATIVE + tool_choice:"required"
+//! mission, `DeepSeek` author, 1 tool call then 39 prose replies, nudged every
+//! step, `steps_exhausted`; TB/SWE use `SYSTEM_NATIVE` + `tool_choice:"required`"
 //! and hold protocol by construction).
 
 use hs_loop::repl::ReplSession;

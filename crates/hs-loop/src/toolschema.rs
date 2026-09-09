@@ -1,9 +1,9 @@
-//! Native tool schemas (OpenAI function-calling shape) for the builtin
+//! Native tool schemas (`OpenAI` function-calling shape) for the builtin
 //! mission tool surface - the single source of truth for what the model is
 //! told about its tools. Delivery is the provider API's `tools` parameter
 //! (native tool calling), never hand-rendered prompt text (Eric 2026-09-05:
 //! "no hand-rolled anything"; kimi-k3 native path verified live through the
-//! production relay: finish_reason=tool_calls, tool_choice:"required" honored).
+//! production relay: `finish_reason=tool_calls`, `tool_choice:"required`" honored).
 
 use serde_json::{json, Value};
 
@@ -14,6 +14,7 @@ fn f(name: &str, description: &str, parameters: Value) -> Value {
 /// The seven builtin mission tools. The behavioral guidance that used to
 /// live in the hand-rendered TOOLS prompt block lives here, in the native
 /// schema descriptions.
+#[must_use]
 pub fn builtin_tools() -> Vec<Value> {
     builtin_tools_with_edit("applypatch")
 }
@@ -21,10 +22,11 @@ pub fn builtin_tools() -> Vec<Value> {
 /// The builtin surface with the edit-path flavor selected (bake-off,
 /// 2026-09-06): "applypatch" (edit.patch, Codex grammar) or "anchor"
 /// (edit.anchor, hashline anchors + anchored repo.read).
+#[must_use]
 pub fn builtin_tools_with_edit(edit_path: &str) -> Vec<Value> {
     let mut tools = builtin_tools_inner();
     if edit_path == "anchor" {
-        for t in tools.iter_mut() {
+        for t in &mut tools {
             match t["function"]["name"].as_str() {
                 Some("edit.patch") => {
                     *t = f(
@@ -114,8 +116,9 @@ fn builtin_tools_inner() -> Vec<Value> {
 /// answer.submit. Same blind stop authority as swe blind mode: the agent's
 /// own .hs/checks decide completion; official tests are hidden and external.
 /// Eric's five #5: delegation tool, offered on the interactive
-/// surface only (repl native_tools) - benchmark runners keep the
+/// surface only (repl `native_tools`) - benchmark runners keep the
 /// fixed tb tool set.
+#[must_use]
 pub fn agent_spawn_tool() -> Value {
     f(
         "agent.spawn",
@@ -126,6 +129,7 @@ pub fn agent_spawn_tool() -> Value {
     )
 }
 
+#[must_use]
 pub fn agent_spawn_poll_tool() -> Value {
     f(
         "agent.spawn_poll",
@@ -135,6 +139,7 @@ pub fn agent_spawn_poll_tool() -> Value {
     )
 }
 
+#[must_use]
 pub fn tb_tools() -> Vec<Value> {
     vec![
         f(
@@ -175,26 +180,30 @@ pub fn tb_tools() -> Vec<Value> {
 
 /// One MCP-discovered tool in native shape. The input schema comes from the
 /// server's tools/list verbatim; an absent schema degrades to an open object.
+#[must_use]
 pub fn mcp_tool(name: &str, description: &str, input_schema: Option<Value>) -> Value {
     let params = input_schema.unwrap_or_else(|| json!({"type":"object","properties":{}}));
     f(name, description, params)
 }
 
-/// Provider constraint (verified live 2026-09-05, Moonshot invalid_request_error:
+/// Provider constraint (verified live 2026-09-05, Moonshot `invalid_request_error`:
 /// "function name is invalid, must start with a letter and can contain
-/// letters, numbers, underscores, and dashes"; OpenAI's own schema is the
+/// letters, numbers, underscores, and dashes"; `OpenAI`'s own schema is the
 /// same charset): dotted tool names are not wire-legal. Map "." -> "__" on
 /// the way out and back on the way in. Collision-free for this surface:
 /// no builtin or MCP tool segment contains a double underscore.
+#[must_use]
 pub fn wire_name(name: &str) -> String {
     name.replace('.', "__")
 }
 
+#[must_use]
 pub fn internal_name(wire: &str) -> String {
     wire.replace("__", ".")
 }
 
 /// The tools array with every function name rewritten to wire-legal form.
+#[must_use]
 pub fn to_wire(tools: &Value) -> Value {
     let mut out = tools.clone();
     if let Some(arr) = out.as_array_mut() {
@@ -210,6 +219,7 @@ pub fn to_wire(tools: &Value) -> Value {
 /// The verifier's verdict as a native tool (user directive 2026-09-05: the
 /// verdict path migrates from text-JSON to a native tool call - the
 /// response-format contract lives in this schema, not in prompt prose).
+#[must_use]
 pub fn verdict_tool() -> Value {
     f(
         "verdict.submit",

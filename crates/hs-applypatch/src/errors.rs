@@ -29,7 +29,7 @@ pub enum ApplyPatchError {
 
     /// An I/O error occurred while reading or writing a file.
     /// Stored as a string so that the type remains `PartialEq`-friendly in
-    /// tests (std::io::Error is not PartialEq).
+    /// tests (`std::io::Error` is not `PartialEq`).
     #[error("{context}: {message}")]
     Io {
         context: String,

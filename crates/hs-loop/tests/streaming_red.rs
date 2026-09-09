@@ -2,11 +2,11 @@
 //! while a call is in flight, not in one lump at the end.
 //!
 //! pi/omp-class REPLs print the model's tokens as they arrive. hs-repl
-//! today blocks on the full completion: a 60s DeepSeek call shows nothing
+//! today blocks on the full completion: a 60s `DeepSeek` call shows nothing
 //! until it lands. That is the red.
 //!
 //! Wire shape (negotiated, backward-compatible): when the kernel has a
-//! delta sink registered it adds "stream_deltas": true to model.call
+//! delta sink registered it adds "`stream_deltas"`: true to model.call
 //! params; a streaming-capable plugin then emits interstitial
 //! {"id":N,"delta":"..."} frames before the final {"id":N,"result":...};
 //! the kernel forwards each delta to the sink and keeps reading. A plugin
@@ -57,7 +57,7 @@ fn write_script(dir: &std::path::Path, lines: &[serde_json::Value]) -> std::path
         &p,
         lines
             .iter()
-            .map(|l| l.to_string())
+            .map(std::string::ToString::to_string)
             .collect::<Vec<_>>()
             .join("\n"),
     )
@@ -85,7 +85,7 @@ fn completions(log: &std::path::Path, stream: uuid::Uuid) -> Vec<String> {
 
 #[test]
 fn deltas_stream_to_sink_in_order_and_assemble_to_the_completion() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let answer_path = log.path().join("work").join("task-0").join("answer.txt");
@@ -122,7 +122,7 @@ fn deltas_stream_to_sink_in_order_and_assemble_to_the_completion() {
 
 #[test]
 fn no_sink_means_no_streaming_negotiation_and_a_clean_mission() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let answer_path = log.path().join("work").join("task-0").join("answer.txt");

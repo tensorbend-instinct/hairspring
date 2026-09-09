@@ -14,7 +14,7 @@
 //! The task world is the gate-7 deterministic token family: visible tasks
 //! V0..V5 (secrets VISIBLE-i), held-out tasks H0..H5 (secrets HIDDEN-i),
 //! disjoint secret spaces. The policy layer's "answer" tool interprets
-//! PolicyTool::PrefixRule as the generalizing rule and PolicyTool::Table as
+//! `PolicyTool::PrefixRule` as the generalizing rule and `PolicyTool::Table` as
 //! a memorization table - the mutation surface an agent would actually
 //! rewrite is prompt text + tool configuration.
 

@@ -4,7 +4,7 @@
 //! types a command to learn where the session stands. hs-repl hides all
 //! of it behind `:status` (and even that omits steps/calls).
 //!
-//! Contract: ReplSession exposes a TYPED vitals snapshot (no string
+//! Contract: `ReplSession` exposes a TYPED vitals snapshot (no string
 //! scraping of logs) and the Painter renders it as a one-line ambient
 //! status bar - semantic color on a terminal, byte-clean when piped.
 
@@ -49,7 +49,7 @@ default = true
 // model's name, zeroed counters, the live stream id.
 #[test]
 fn r1_vitals_snapshot_of_fresh_session() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let config = scripted_config(dir.path());
@@ -76,7 +76,7 @@ fn r1_vitals_snapshot_of_fresh_session() {
 // snapshot carries the mission, its steps and its model calls.
 #[test]
 fn r2_vitals_accumulate_across_missions() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let config = scripted_config(dir.path());
@@ -97,7 +97,7 @@ fn r2_vitals_accumulate_across_missions() {
     let r = session.run_goal("write the token").expect("goal runs");
     let v = session.vitals();
     assert_eq!(v.missions_run, 1, "one mission ran");
-    assert_eq!(v.total_steps, r.steps as u64, "steps accumulate from the mission");
+    assert_eq!(v.total_steps, u64::from(r.steps), "steps accumulate from the mission");
     assert!(
         v.total_model_calls >= 1,
         "model calls accumulate, got {}",

@@ -6,7 +6,7 @@
 //! Contract: a Theme - named roles mapped to SGR codes - drives every
 //! painted surface (cards, status bar, composer, markdown). dark and
 //! light ship built in; a TOML file overrides any role and falls back
-//! to dark for the rest. HS_THEME selects: dark|light|/path/to.toml.
+//! to dark for the rest. `HS_THEME` selects: dark|light|/path/to.toml.
 
 use hs_loop::uipaint::{Painter, Theme, UiEvent};
 

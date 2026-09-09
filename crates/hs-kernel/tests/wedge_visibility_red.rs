@@ -1,7 +1,7 @@
 //! RED (2026-09-07): a wedged plugin call must be VISIBLE while it is wedged.
 //!
 //! Live evidence (conan-17302, 2026-09-07 07:18-07:36 UTC): a mission went
-//! silent for 19 min - main thread in futex_wait inside the 1800s plugin
+//! silent for 19 min - main thread in `futex_wait` inside the 1800s plugin
 //! lease, plugin stderr wired to /dev/null, and the stream only records
 //! COMPLETED calls, so there was no record of which plugin was even in
 //! flight. An operator cannot distinguish "lease countdown running" from
@@ -18,7 +18,7 @@ fn write_config(dir: &tempfile::TempDir, body: &str) -> std::path::PathBuf {
     p
 }
 
-/// Concatenate every byte under log_root (stream segments are binary-framed
+/// Concatenate every byte under `log_root` (stream segments are binary-framed
 /// with inline JSON payloads - greppable).
 fn slurp(dir: &std::path::Path) -> String {
     let mut out = String::new();
@@ -90,7 +90,7 @@ lease_secs = 8
 }
 
 /// Plugin stderr must not vanish into /dev/null: when the kernel logs to a
-/// log_root, each spawned plugin's stderr lands in a file under it.
+/// `log_root`, each spawned plugin's stderr lands in a file under it.
 #[test]
 fn plugin_stderr_is_captured_under_log_root() {
     let dir = tempfile::tempdir().unwrap();

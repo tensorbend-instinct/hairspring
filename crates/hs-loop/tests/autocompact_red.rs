@@ -2,9 +2,9 @@
 //! fixed ~1M-token default.
 //!
 //! The loop's assembler compacts when the assembled transcript crosses
-//! context_budget_chars (gate 9f, proven at the InnerLoop level). But
-//! the REPL leaves that budget at DEFAULT_CONTEXT_BUDGET_TOKENS (983k
-//! tokens) whatever the configured model is - DeepSeek's window is 64k
+//! `context_budget_chars` (gate 9f, proven at the `InnerLoop` level). But
+//! the REPL leaves that budget at `DEFAULT_CONTEXT_BUDGET_TOKENS` (983k
+//! tokens) whatever the configured model is - `DeepSeek`'s window is 64k
 //! tokens, so a long hs-repl session dies on a provider context-overflow
 //! 400 long before the compactor ever fires. pi/omp compact at the
 //! model's real window; the session runs indefinitely.
@@ -44,7 +44,7 @@ fn model_call_prompts(log: &std::path::Path, stream: uuid::Uuid) -> Vec<String> 
 
 #[test]
 fn repl_compacts_at_the_configured_models_window() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     // A model with a small declared window: 1024 tokens = 4096 chars.

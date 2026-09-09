@@ -1,17 +1,17 @@
 //! HAIRSPRING gate 8, benchmark half: SWE-bench Verified runner plumbing.
 //!
 //! - `load_jsonl` parses the SWE-bench Verified dataset shape (one JSON
-//!   object per line: instance_id, repo, base_commit, problem_statement,
-//!   patch, FAIL_TO_PASS, PASS_TO_PASS).
+//!   object per line: `instance_id`, repo, `base_commit`, `problem_statement`,
+//!   patch, `FAIL_TO_PASS`, `PASS_TO_PASS`).
 //! - `BenchRunner::run_fixture` executes the offline plumbing proof: fixture
 //!   "repos" are directories with a code file and a check script; patch
 //!   sources are scripted (gold / wrong / budget-burn) so the proof needs
 //!   NO paid model calls. Real missions route through hs-loop with the
-//!   per-mission budget enforced by InnerLoop::set_budget_micros (proven in
+//!   per-mission budget enforced by `InnerLoop::set_budget_micros` (proven in
 //!   hs-loop/tests/budget.rs); this runner enforces the same cap at the
 //!   benchmark level and scores kills as failures.
 //! - `BenchReport::to_swebench_json` emits the SWE-bench report shape
-//!   (resolved / unresolved / no_apply lists) plus our budget_killed list.
+//!   (resolved / unresolved / `no_apply` lists) plus our `budget_killed` list.
 
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
@@ -103,6 +103,7 @@ pub struct BenchRunner {
 }
 
 impl BenchRunner {
+    #[must_use]
     pub fn new(root: &Path, budget_cap_micros: u64) -> Self {
         BenchRunner {
             root: root.to_path_buf(),
@@ -206,27 +207,32 @@ pub struct BenchReport {
     results: Vec<InstanceResult>,
 }
 impl BenchReport {
+    #[must_use]
     pub fn new(results: Vec<InstanceResult>) -> Self {
         BenchReport { results }
     }
+    #[must_use]
     pub fn not_run_count(&self) -> usize {
         self.results
             .iter()
             .filter(|r| r.outcome == Outcome::NotRun)
             .count()
     }
+    #[must_use]
     pub fn total_cost_micros(&self) -> u64 {
         self.results.iter().map(|r| r.cost_micros).sum()
     }
+    #[must_use]
     pub fn resolved_count(&self, arm: Arm) -> usize {
         self.results
             .iter()
             .filter(|r| r.arm == arm && r.outcome == Outcome::Resolved)
             .count()
     }
-    /// SWE-bench report: resolved / unresolved / no_apply id lists, plus our
-    /// budget_killed list (kills are failures, reported separately so the
+    /// SWE-bench report: resolved / unresolved / `no_apply` id lists, plus our
+    /// `budget_killed` list (kills are failures, reported separately so the
     /// record shows WHY they failed).
+    #[must_use]
     pub fn to_swebench_json(&self, model: &str) -> serde_json::Value {
         let ids = |arm: Arm, o: Outcome| {
             self.results
@@ -254,8 +260,8 @@ impl BenchReport {
 // ------------------------------------------------------- mission adapter ---
 
 /// Prepare a mission workspace: clone the instance's repo at its base
-/// commit into cache_dir/<instance_id> and drop the problem statement in as
-/// problem_statement.md. Local paths and file:// URLs both work (the
+/// commit into `cache_dir`/<`instance_id`> and drop the problem statement in as
+/// `problem_statement.md`. Local paths and file:// URLs both work (the
 /// offline proof uses local fixture repos; the real run uses cached GitHub
 /// mirrors).
 pub fn prep_workspace(inst: &BenchInstance, cache_dir: &Path) -> Result<PathBuf, BenchError> {
@@ -288,7 +294,7 @@ pub fn prep_workspace(inst: &BenchInstance, cache_dir: &Path) -> Result<PathBuf,
     Ok(ws)
 }
 
-/// Patch-application taxonomy: a patch that git cannot apply is NoApply -
+/// Patch-application taxonomy: a patch that git cannot apply is `NoApply` -
 /// reported separately from test failures, exactly like SWE-bench.
 #[derive(Debug)]
 pub enum ApplyResult {
@@ -308,8 +314,7 @@ pub fn apply_model_patch(workspace: &Path, patch: &str) -> Result<ApplyResult, B
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0)
+            .map_or(0, |d| d.as_nanos())
     ));
     std::fs::write(&patch_path, patch)?;
     let out = Command::new("git")
@@ -328,12 +333,13 @@ pub fn apply_model_patch(workspace: &Path, patch: &str) -> Result<ApplyResult, B
     }
 }
 
-/// Per-test results for FAIL_TO_PASS + PASS_TO_PASS.
+/// Per-test results for `FAIL_TO_PASS` + `PASS_TO_PASS`.
 #[derive(Debug)]
 pub struct TestOutcome {
     pub results: Vec<(String, bool)>,
 }
 impl TestOutcome {
+    #[must_use]
     pub fn all_passing(&self) -> bool {
         !self.results.is_empty() && self.results.iter().all(|(_, ok)| *ok)
     }
@@ -356,9 +362,9 @@ pub fn run_tests(
 // ------------------------------------------------------ patch extraction ---
 
 /// Extract a unified diff from a model completion. Models wrap diffs in
-/// prose and markdown fences; we accept a ```diff fence, any fence whose
+/// prose and markdown fences; we accept a `diff` fence, any fence whose
 /// body starts with a diff header, or a bare diff in the text. Prose-only
-/// completions yield None (the runner treats that as NoApply - we never
+/// completions yield None (the runner treats that as `NoApply` - we never
 /// invent a patch).
 /// Terminate an extracted diff WITHOUT trimming trailing whitespace lines:
 /// a hunk's final context line can be a single space (a blank source line)
@@ -369,8 +375,9 @@ fn terminate_diff(body: &str) -> String {
     format!("{}\n", body.trim_start().trim_end_matches('\n'))
 }
 
+#[must_use]
 pub fn extract_patch(completion: &str) -> Option<String> {
-    // 1. fenced blocks, preferring ```diff
+    // 1. fenced blocks, preferring `diff`
     let mut fences: Vec<&str> = vec![];
     let mut rest = completion;
     while let Some(start) = rest.find("```") {
@@ -420,7 +427,7 @@ pub trait MissionExec {
 
 /// Run a set of instances on one arm under TWO budgets: the per-mission cap
 /// (enforced by the executor / hs-loop) and the run-level cap, which stops
-/// launching new missions once spent. Remaining instances are marked NotRun
+/// launching new missions once spent. Remaining instances are marked `NotRun`
 /// in the report - visible, never silently dropped.
 pub fn run_set<E: MissionExec>(
     exec: &E,
@@ -461,8 +468,9 @@ pub fn run_set<E: MissionExec>(
 
 /// Build the mission prompt for one instance: problem statement, workspace
 /// layout (tracked files, two levels), and the response contract - exactly
-/// one fenced ```diff block that `git apply` accepts. The contract is what
+/// one fenced `diff` block that `git apply` accepts. The contract is what
 /// `extract_patch` parses back, proven round-trip in the tests.
+#[must_use]
 pub fn mission_prompt(inst: &BenchInstance, workspace: &Path) -> String {
     let mut files: Vec<String> = vec![];
     let mut stack = vec![workspace.to_path_buf()];

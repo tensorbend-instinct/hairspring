@@ -11,8 +11,8 @@ use serde_json::json;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-/// The builtin template. Placeholders: {ws} {problem_statement}
-/// {fail_to_pass} {repo_layout} {answer_path} {nudge}. Unknown placeholders
+/// The builtin template. Placeholders: {ws} {`problem_statement`}
+/// {`fail_to_pass`} {`repo_layout`} {`answer_path`} {nudge}. Unknown placeholders
 /// are left intact so policy authors can extend the arg set additively.
 pub const SWE_MISSION_TEMPLATE: &str = "You are fixing a real bug in the repository checked out at {ws} (base commit, failing tests already added). repo.exec sees the repo at /ws; every tool takes repo-relative paths.\n\
 MACHINE: you are on a real Linux box as root, not a toy sandbox. {network_line} System roots are writable - apt-get/pip/cargo/npm all work. Host-only paths stay hidden (/home, /mnt). Detected tooling: {orientation}\n\
@@ -56,7 +56,7 @@ pub struct TbPromptArgs {
     pub instruction: String,
     pub answer_path: String,
     /// Advertised MCP tool catalog (names + one-line descriptions + arg
-    /// schemas). Empty when HS_MCP_SERVERS is unset: the slot vanishes.
+    /// schemas). Empty when `HS_MCP_SERVERS` is unset: the slot vanishes.
     /// TB missions talk to the model free-form - the prompt IS the tool
     /// documentation (live proof 2026-09-08: without this section the model
     /// never calls mcp.* tools, doom-loops on term.exec instead).
@@ -74,6 +74,7 @@ WORK POLICY:\n\
 WORKFLOW: explore with term.exec / repo.read / repo.search, do the task with term.exec, write .hs/checks, verify until green, then answer.submit with a summary of what you changed and how you verified it. The checker runs your .hs/checks after every submit; green ends the mission, red comes back as FEEDBACK - repair what it reports before resubmitting.\n\
 {mcp_tools}ANSWER_PATH: {answer_path}";
 
+#[must_use]
 pub fn build_tb_mission_prompt(args: &TbPromptArgs) -> String {
     TB_MISSION_TEMPLATE
         .replace("{workdir}", &args.workdir)
@@ -98,6 +99,7 @@ WORK POLICY:\n\
 WORKFLOW: explore with term.exec / repo.read / repo.search, do the task with term.exec, write .hs/checks, verify until green, then answer.submit with a summary of what you changed and how you verified it. After every submit the checker runs your .hs/checks and then the critic; green on both ends the mission, red from either comes back as FEEDBACK - repair what it reports before resubmitting.\n\
 {mcp_tools}ANSWER_PATH: {answer_path}";
 
+#[must_use]
 pub fn build_tb_mission_prompt_critic(args: &TbPromptArgs) -> String {
     TB_MISSION_CRITIC_TEMPLATE
         .replace("{workdir}", &args.workdir)
@@ -114,7 +116,7 @@ pub struct PromptArgs {
     pub nudge: String,
     pub answer_path: String,
     /// Detected tooling for the MACHINE orientation line (fix 2); callers
-    /// fill it with probe_orientation().
+    /// fill it with `probe_orientation()`.
     pub orientation: String,
     /// Registered MCP tools, rendered for the TOOLS section (graft-experiment
     /// finding: kernel-registered but prompt-absent tools are invisible to
@@ -125,6 +127,7 @@ pub struct PromptArgs {
 /// Probe the machine floor for the orientation brief (fix 2): the repo.exec
 /// sandbox binds the real system roots, so host detection IS sandbox
 /// detection.
+#[must_use]
 pub fn probe_orientation() -> String {
     let tools = [
         "python3", "pip3", "cargo", "npm", "node", "apt-get", "git", "curl",
@@ -134,8 +137,7 @@ pub fn probe_orientation() -> String {
         let ok = std::process::Command::new("sh")
             .args(["-c", &format!("command -v {t} >/dev/null 2>&1")])
             .status()
-            .map(|s| s.success())
-            .unwrap_or(false);
+            .is_ok_and(|s| s.success());
         if ok {
             have.push(t);
         }
@@ -200,26 +202,24 @@ fn substitute(template: &str, args: &PromptArgs) -> String {
 
 /// Blind mode (Eric 2026-09-07: "no fail to pass - that's cheating"): the
 /// mission prompt teaches self-verification via .hs/checks; ground-truth
-/// FAIL_TO_PASS text never appears in any form. fail_to_pass in `args` is
+/// `FAIL_TO_PASS` text never appears in any form. `fail_to_pass` in `args` is
 /// ignored by construction - the blind template has no placeholder for it.
 pub fn build_blind_mission_prompt(policy: Option<&PolicyOverlay>, args: &PromptArgs) -> String {
     let template = policy
         .and_then(|p| p.prompts.get("swe-mission-blind"))
-        .map(String::as_str)
-        .unwrap_or(SWE_MISSION_BLIND_TEMPLATE);
+        .map_or(SWE_MISSION_BLIND_TEMPLATE, String::as_str);
     substitute(template, args)
 }
 
 pub fn build_mission_prompt(policy: Option<&PolicyOverlay>, args: &PromptArgs) -> String {
     let template = policy
         .and_then(|p| p.prompts.get("swe-mission"))
-        .map(String::as_str)
-        .unwrap_or(SWE_MISSION_TEMPLATE);
+        .map_or(SWE_MISSION_TEMPLATE, String::as_str);
     substitute(template, args)
 }
 
 /// One recorded proposal. version is 1-based over the proposal log; hash
-/// chains to parent_hash so the lineage is tamper-evident on the event
+/// chains to `parent_hash` so the lineage is tamper-evident on the event
 /// stream (spec: lineage records mutation).
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ProposalRecord {
@@ -235,12 +235,13 @@ fn proposals_path(dir: &Path) -> PathBuf {
     dir.join("policy_proposals.jsonl")
 }
 
+#[must_use]
 pub fn content_hash(s: &str) -> String {
     // FNV-1a 64: deterministic across processes, enough for lineage chaining
-    let mut h: u64 = 0xcbf29ce484222325;
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     for b in s.as_bytes() {
-        h ^= *b as u64;
-        h = h.wrapping_mul(0x100000001b3);
+        h ^= u64::from(*b);
+        h = h.wrapping_mul(0x0100_0000_01b3);
     }
     format!("{h:016x}")
 }
@@ -278,7 +279,7 @@ pub fn propose_prompt(dir: &Path, name: &str, text: &str) -> Result<ProposalReco
 }
 
 /// The edit-path policy line (bake-off, 2026-09-06): selected per mission
-/// via HS_SWE_EDIT_PATH (default applypatch).
+/// via `HS_SWE_EDIT_PATH` (default applypatch).
 fn edit_policy() -> String {
     if std::env::var("HS_SWE_EDIT_PATH").as_deref() == Ok("anchor") {
         "Make ALL edits with edit.anchor (anchor ops on the LINE:HASH prefixes repo.read shows: replace/insert_after/write; quote anchors exactly - stale or wrong anchors are named errors and nothing is half-applied) - never git apply, never hand-written .diff/.patch files; repo.exec is build/test only. Rejected bypass attempts are counted per class and escalate - never retry a rejected class.".to_string()

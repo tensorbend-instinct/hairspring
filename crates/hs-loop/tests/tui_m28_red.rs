@@ -9,7 +9,7 @@
 //! sees the work was accepted; when the running mission finishes the
 //! head of the queue runs next. Slash-commands stay immediate
 //! (read-only UI ops); only plain goals queue. The queue lives on
-//! TuiState so the bin's event loop stays a thin wiring layer.
+//! `TuiState` so the bin's event loop stays a thin wiring layer.
 
 use hs_loop::tui::TuiState;
 

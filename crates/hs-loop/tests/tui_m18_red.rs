@@ -3,15 +3,15 @@
 //! /tmp/tui-proof-m17/capC2-done.ansi: HUD "1 mission . 1 steps . 1
 //! calls" vs done-line "1 steps, 2 calls", SAME screen; the $0.0014
 //! cost = 2 x $0.0007/call proves two real calls, so the HUD live
-//! counter dropped exactly one ModelCallEnd).
+//! counter dropped exactly one `ModelCallEnd`).
 //!
 //! The M10 contract pinned starts>=2/ends>=2 on a TEXT-ONLY script.
 //! The missing shape was [tool call, final answer]: one of those two
 //! calls' End never reaches the UI sink.
 //!
 //! Contract: the UI event stream accounts for EVERY model call the
-//! MissionResult counts - exactly model_calls Starts and exactly
-//! model_calls Ends, in any mission shape.
+//! `MissionResult` counts - exactly `model_calls` Starts and exactly
+//! `model_calls` Ends, in any mission shape.
 
 use hs_loop::uipaint::UiEvent;
 
@@ -32,7 +32,7 @@ fn kind(e: &UiEvent) -> &'static str {
 // per call the MissionResult counts.
 #[test]
 fn m18_every_counted_call_emits_start_and_end() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = std::env::temp_dir().join("ui-events-m18");
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();

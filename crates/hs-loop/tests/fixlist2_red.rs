@@ -1,13 +1,13 @@
 //! RED: post-A9/A10 fix list (batch-1 gate, 2026-09-05).
-//! 1. reasoning_content captured from provider responses (was: count only,
-//!    the content itself dropped) - ModelCall observability.
+//! 1. `reasoning_content` captured from provider responses (was: count only,
+//!    the content itself dropped) - `ModelCall` observability.
 //! 2. Goal evaluator environmental-red classification: an f2p run that
 //!    fails because the exec sandbox lacks the tool (exit 127 /
-//!    "command not found") is EnvLimited, never a plain red Fail (A7's
+//!    "command not found") is `EnvLimited`, never a plain red Fail (A7's
 //!    22-step / $1.46 environmental veto class).
 //! 3. Guardrail escalation: repeated same-class edit-path violations
 //!    escalate (B8: 6 same-class fires, the model never took the steer) -
-//!    a GuardrailEscalator counts per class and emits a strengthened
+//!    a `GuardrailEscalator` counts per class and emits a strengthened
 //!    steer from the second fire on.
 //! 4. MCP bridge binary resolution: sibling of the running exe,
 //!    canonicalized; a missing sibling is a loud error, never a silent

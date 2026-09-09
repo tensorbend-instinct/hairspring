@@ -58,7 +58,7 @@ fn write_script(dir: &std::path::Path, lines: &[serde_json::Value]) -> std::path
         &p,
         lines
             .iter()
-            .map(|l| l.to_string())
+            .map(std::string::ToString::to_string)
             .collect::<Vec<_>>()
             .join("\n"),
     )
@@ -90,7 +90,7 @@ fn model_call_prompts(log: &std::path::Path, stream: uuid::Uuid) -> Vec<String> 
 
 #[test]
 fn steering_line_lands_in_next_step_prompt() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let inbox = dir.path().join("steering.txt");
@@ -133,7 +133,7 @@ fn steering_line_lands_in_next_step_prompt() {
 
 #[test]
 fn interrupt_file_stops_mission_cleanly() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let interrupt = dir.path().join("interrupt");

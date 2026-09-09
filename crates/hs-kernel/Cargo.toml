@@ -19,3 +19,6 @@ tempfile = "3"
 [[bin]]
 name = "hs-fixture-plugin"
 path = "src/bin/hs-fixture-plugin.rs"
+
+[lints]
+workspace = true

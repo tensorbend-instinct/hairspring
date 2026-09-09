@@ -5,7 +5,7 @@
 //! checkpoint, validate, bind, rehydrate, resume, with a single promotion
 //! point. The old variant is fenced the moment the new one binds; a failed
 //! transaction leaves the old variant in authority. Every step lands in the
-//! log as a capability_change event."
+//! log as a `capability_change` event."
 //! "At most one executor variant holds continuation authority over a stream
 //! at a time... Two live executors acting as the same run is a fencing
 //! violation, not a race to tolerate."
@@ -22,7 +22,7 @@ fn model(r: &str) -> Binding {
     Binding::model(r)
 }
 
-/// Read every capability_change payload off the stream, in order.
+/// Read every `capability_change` payload off the stream, in order.
 fn cc_events(root: &std::path::Path, stream: uuid::Uuid) -> Vec<String> {
     StreamReader::open(root, stream)
         .and_then(|r| r.events())

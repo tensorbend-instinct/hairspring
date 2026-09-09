@@ -1,10 +1,10 @@
 //! Phase 1 test model "seqmodel": scripted completions from a file
-//! (HS_SEQMODEL_SCRIPT), one JSON line per model.call, cycling on the last
+//! (`HS_SEQMODEL_SCRIPT`), one JSON line per model.call, cycling on the last
 //! line when the script runs out. This isolates loop behavior (supervisor
 //! aborts, progress booking) from any real model.
 include!("shared/sdk.rs");
 
-/// The ANSWER_PATH value out of the operator prompt's volatile tail.
+/// The `ANSWER_PATH` value out of the operator prompt's volatile tail.
 fn extract_answer_path(prompt: &str) -> Option<String> {
     let i = prompt.find("ANSWER_PATH: ")?;
     let rest = &prompt[i + 13..];
@@ -45,7 +45,7 @@ fn main() {
         .unwrap()
         .lines()
         .filter(|l| !l.trim().is_empty())
-        .map(|l| l.to_string())
+        .map(std::string::ToString::to_string)
         .collect();
     assert!(!script.is_empty(), "empty seqmodel script");
     let deltas = std::env::var("HS_SEQMODEL_DELTAS").as_deref() == Ok("1");
@@ -63,12 +63,9 @@ fn main() {
         &mut move |method, params, emit| match method {
             "model.call" => {
                 let __pv;
-                let prompt = match params["prompt"].as_str() {
-                    Some(p) => p,
-                    None => {
-                        __pv = hs_loop::msgfmt::prompt_view(&params);
-                        __pv.as_str()
-                    }
+                let prompt = if let Some(p) = params["prompt"].as_str() { p } else {
+                    __pv = hs_loop::msgfmt::prompt_view(&params);
+                    __pv.as_str()
                 };
                 if prompt.starts_with("DISTILL:") {
                     // distillation calls do not consume the mission script
@@ -128,12 +125,10 @@ fn main() {
                         // told to write instead of babbling prose.
                         match offered.iter().find(|n| n.starts_with("answer.")) {
                             Some(t) if t == "answer.submit" => format!(
-                                r#"{{"tool":"answer.submit","args":{{"path":"{}","summary":"scripted answer: mission complete"}}}}"#,
-                                path
+                                r#"{{"tool":"answer.submit","args":{{"path":"{path}","summary":"scripted answer: mission complete"}}}}"#
                             ),
                             Some(t) => format!(
-                                r#"{{"tool":"{}","args":{{"path":"{}","content":"scripted answer: mission complete"}}}}"#,
-                                t, path
+                                r#"{{"tool":"{t}","args":{{"path":"{path}","content":"scripted answer: mission complete"}}}}"#
                             ),
                             None => "I have no answer tool to submit with. ## Done".to_string(),
                         }
@@ -170,5 +165,5 @@ fn main() {
             }
             _ => serde_json::json!({"$error": "unknown method"}),
         },
-    )
+    );
 }

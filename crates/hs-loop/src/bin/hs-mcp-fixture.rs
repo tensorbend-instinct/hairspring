@@ -19,12 +19,14 @@ struct Fixture {
 
 #[tool_router]
 impl Fixture {
+    #[allow(clippy::unused_self)] // rmcp tool_router requires a receiver
     #[tool(description = "Echo the text back")]
     fn echo(&self, Parameters(EchoRequest { text }): Parameters<EchoRequest>) -> String {
         text
     }
 }
 
+#[allow(clippy::unused_async_trait_impl)] // rmcp trait signature fixes async
 #[tool_handler]
 impl ServerHandler for Fixture {
     fn get_info(&self) -> ServerInfo {

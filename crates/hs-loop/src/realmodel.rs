@@ -1,4 +1,4 @@
-//! Real-model adapters (GLM via z.ai, DeepSeek via api.deepseek.com).
+//! Real-model adapters (GLM via z.ai, `DeepSeek` via api.deepseek.com).
 //!
 //! Both providers expose an OpenAI-shaped chat-completions endpoint with
 //! Bearer auth. The API key comes ONLY from an env var or a 0600 file
@@ -31,12 +31,12 @@ pub struct Provider {
     pub price_out_env: String,
     pub default_out_micros: f64,
     /// Optional env var holding a JSON object merged into the request body
-    /// (e.g. HS_DEEPSEEK_EXTRA_BODY_JSON='{"thinking":{"type":"disabled"}}').
+    /// (e.g. `HS_DEEPSEEK_EXTRA_BODY_JSON`='{"thinking":{"type":"disabled"}}').
     pub extra_body_json_env: String,
     /// TOML-sourced extra body; the env var above wins when both are set.
     pub default_extra_body_json: Option<String>,
-    /// true = the API enforces one tool call per reply (tool_choice:
-    /// "required"). false = "auto": DeepSeek v4 thinking mode 400s on
+    /// true = the API enforces one tool call per reply (`tool_choice`:
+    /// "required"). false = "auto": `DeepSeek` v4 thinking mode 400s on
     /// "required" (live-verified 2026-09-05); the loop's no-tool-call
     /// feedback already covers a prose reply.
     pub tool_choice_required: bool,
@@ -67,11 +67,12 @@ fn builtin(
         price_out_env: format!("HS_{up}_PRICE_OUT_MICROS"),
         default_out_micros: out_micros,
         extra_body_json_env: format!("HS_{up}_EXTRA_BODY_JSON"),
-        default_extra_body_json: default_extra.map(|s| s.to_string()),
+        default_extra_body_json: default_extra.map(std::string::ToString::to_string),
         tool_choice_required: true,
     }
 }
 
+#[must_use]
 pub fn glm() -> Provider {
     builtin(
         "glm",
@@ -84,6 +85,7 @@ pub fn glm() -> Provider {
     )
 }
 
+#[must_use]
 pub fn deepseek() -> Provider {
     let mut p = builtin(
         "deepseek",
@@ -99,7 +101,7 @@ pub fn deepseek() -> Provider {
     p
 }
 
-/// One [[providers]] entry. Key material never appears here: key_env NAMES
+/// One [[providers]] entry. Key material never appears here: `key_env` NAMES
 /// the env var that holds it (vault-populated, fill-only).
 #[derive(Clone, Debug, serde::Deserialize)]
 pub struct ProviderConfig {
@@ -142,7 +144,7 @@ pub fn find_provider<'a>(
 }
 
 /// Resolve a TOML entry into a working Provider. Env overrides still win:
-/// HS_{NAME}_BASE_URL over the TOML base_url, and so on.
+/// HS_{NAME}_`BASE_URL` over the TOML `base_url`, and so on.
 pub fn provider_from_config(c: &ProviderConfig) -> Result<Provider, String> {
     let up = c.name.to_uppercase().replace('-', "_");
     let base_url_env = format!("HS_{up}_BASE_URL");
@@ -173,7 +175,7 @@ pub fn provider_from_config(c: &ProviderConfig) -> Result<Provider, String> {
 const SYSTEM: &str = "You are the model plugin of an autonomous coding agent.";
 
 /// Operator calls carry native tool schemas; the API enforces exactly one
-/// tool call per reply (tool_choice:"required").
+/// tool call per reply (`tool_choice:"required`").
 const SYSTEM_NATIVE: &str = "You are the operator model of an autonomous coding agent. \
 Answer every request by calling exactly one of the provided tools.";
 
@@ -212,6 +214,7 @@ pub fn load_key(p: &Provider) -> Result<String, String> {
 
 /// Extract the first balanced JSON object from model output that may be
 /// wrapped in markdown fences or prose.
+#[must_use]
 pub fn extract_json_object(s: &str) -> Option<&str> {
     let start = s.find('{')?;
     let mut depth = 0i32;
@@ -264,9 +267,10 @@ pub struct ParsedCall {
     pub cost_usd_micros: i64,
 }
 
-/// The request body. tools = the native function schemas (OpenAI shape);
-/// when present, tool_choice:"required" enforces the one-tool-call-per-reply
+/// The request body. tools = the native function schemas (`OpenAI` shape);
+/// when present, `tool_choice:"required`" enforces the one-tool-call-per-reply
 /// protocol at the API level (verified live on kimi-k3, 2026-09-05).
+#[must_use]
 pub fn build_body(
     model: &str,
     system: &str,
@@ -304,6 +308,7 @@ pub fn build_body(
 /// The request body for a caller-supplied messages array (structured
 /// history, user directive 2026-09-05): messages pass through verbatim
 /// behind the system message.
+#[must_use]
 pub fn build_body_messages(
     model: &str,
     system: &str,
@@ -361,12 +366,12 @@ fn usage_cost(p: &Provider, usage: &serde_json::Value) -> (u64, u64, u64, u64, i
     (input_tokens, output_tokens, cached, reasoning_tokens, cost)
 }
 
-/// Native path: the request carried tool_choice:"required", so the response
+/// Native path: the request carried `tool_choice:"required`", so the response
 /// MUST carry a tool call. A content-only reply is an error that feeds the
 /// caller's retry path - never a silent fallback to parsing prose for JSON
 /// (Eric 2026-09-05: no hand-rolled fallback protocol). The completion is
 /// normalized to the harness's internal {"tool","args"} shape so everything
-/// downstream (ToolCall events, transcript, checker) is unchanged.
+/// downstream (`ToolCall` events, transcript, checker) is unchanged.
 pub fn parse_response(p: &Provider, v: &serde_json::Value) -> Result<ParsedCall, String> {
     let fr = v["choices"][0]["finish_reason"]
         .as_str()
@@ -417,9 +422,7 @@ fn parse_response_legacy(p: &Provider, v: &serde_json::Value) -> Result<ParsedCa
                 p.name, fr
             )
         })?;
-    let completion = extract_json_object(raw)
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| raw.to_string());
+    let completion = extract_json_object(raw).map_or_else(|| raw.to_string(), std::string::ToString::to_string);
     let reasoning_content = v["choices"][0]["message"]["reasoning_content"]
         .as_str()
         .unwrap_or("")
@@ -484,10 +487,11 @@ pub const WATCHDOG_SENTINEL: &str = "__provider_watchdog_timeout__";
 /// Watchdog per attempt (seconds), env-overridable. Re-grounded 2026-09-03:
 /// measured max-effort thinking calls run 80s (convergent context) to 270s+
 /// (non-convergent, 13.7k reasoning tokens); low-effort ~18s. 420s default;
-/// the realbench run used 900s via HS_REALMODEL_CALL_TIMEOUT_SECS.
-/// ureq's timeout_global (600s) demonstrably does NOT fire on a stalled
+/// the realbench run used 900s via `HS_REALMODEL_CALL_TIMEOUT_SECS`.
+/// ureq's `timeout_global` (600s) demonstrably does NOT fire on a stalled
 /// response-body read (observed: calls stuck 31+ min, zero harness events),
-/// so the watchdog wraps the entire attempt in a thread with a recv_timeout.
+/// so the watchdog wraps the entire attempt in a thread with a `recv_timeout`.
+#[must_use]
 pub fn watchdog_secs() -> u64 {
     std::env::var("HS_REALMODEL_CALL_TIMEOUT_SECS")
         .ok()
@@ -499,6 +503,7 @@ pub fn watchdog_secs() -> u64 {
 /// env-overridable. Default 12: with capped backoff a rate-limit window of
 /// many minutes is survived instead of killing the mission (user order
 /// 2026-09-05: a 429 should nearly never kill a mission).
+#[must_use]
 pub fn max_attempts() -> u64 {
     std::env::var("HS_REALMODEL_MAX_ATTEMPTS")
         .ok()
@@ -507,6 +512,7 @@ pub fn max_attempts() -> u64 {
 }
 
 /// Backoff base seconds when the provider sent no Retry-After (env for tests).
+#[must_use]
 pub fn backoff_base_secs() -> u64 {
     std::env::var("HS_REALMODEL_BACKOFF_BASE_SECS")
         .ok()
@@ -527,6 +533,7 @@ pub enum AttemptError {
 }
 
 impl AttemptError {
+    #[must_use]
     pub fn msg(&self) -> String {
         match self {
             AttemptError::Status { msg, .. } => msg.clone(),
@@ -579,7 +586,7 @@ fn extra_body(p: &Provider) -> Result<Option<serde_json::Value>, String> {
 
 /// POST the body with retries + the hang watchdog. native = the request
 /// carried tool schemas, so the response must parse through the native
-/// tool_calls path.
+/// `tool_calls` path.
 fn call_with_body(
     p: &Provider,
     model: &str,
@@ -588,7 +595,7 @@ fn call_with_body(
 ) -> Result<serde_json::Value, String> {
     let (key, url, _) = wire(p)?;
     let agent: ureq::Agent = ureq::Agent::config_builder()
-        .timeout_global(Some(Duration::from_secs(1500)))
+        .timeout_global(Some(Duration::from_mins(25)))
         // Error statuses must arrive as responses: the retry policy needs
         // the status code and the Retry-After header, which ureq's error
         // path discards.
@@ -662,12 +669,12 @@ fn call_with_body(
     Err(last_err)
 }
 
-/// Gap #3: streaming call_with_body. Same retry/watchdog policy, but the
+/// Gap #3: streaming `call_with_body`. Same retry/watchdog policy, but the
 /// worker reads the SSE body line by line: every delta chunk resets the
 /// watchdog (a streaming provider is alive), content and tool-call
-/// argument fragments forward to on_delta as they arrive, and the chunks
+/// argument fragments forward to `on_delta` as they arrive, and the chunks
 /// assemble into the SAME provider response shape the non-streaming path
-/// parses - finalization goes through parse_response either way, so a
+/// parses - finalization goes through `parse_response` either way, so a
 /// streamed call is behavior-identical to a buffered one.
 fn call_with_body_streaming(
     p: &Provider,
@@ -678,7 +685,7 @@ fn call_with_body_streaming(
 ) -> Result<serde_json::Value, String> {
     let (key, url, _) = wire(p)?;
     let agent: ureq::Agent = ureq::Agent::config_builder()
-        .timeout_global(Some(Duration::from_secs(1500)))
+        .timeout_global(Some(Duration::from_mins(25)))
         .http_status_as_error(false)
         .build()
         .into();
@@ -756,8 +763,8 @@ fn call_with_body_streaming(
 }
 
 /// One SSE attempt: POST with stream:true, read data: frames as they
-/// arrive, forward fragments to on_delta, assemble the provider-shaped
-/// response, finalize via the shared parse_response.
+/// arrive, forward fragments to `on_delta`, assemble the provider-shaped
+/// response, finalize via the shared `parse_response`.
 fn attempt_streaming(
     p: &Provider,
     agent: &ureq::Agent,
@@ -877,8 +884,8 @@ fn attempt_streaming(
     r.map_err(AttemptError::Other)
 }
 
-/// Gap #3: streaming entry points - same bodies as call()/call_messages()
-/// plus SSE deltas forwarded to on_delta.
+/// Gap #3: streaming entry points - same bodies as `call()/call_messages()`
+/// plus SSE deltas forwarded to `on_delta`.
 pub fn call_streaming(
     p: &Provider,
     prompt: &str,
@@ -952,7 +959,7 @@ pub fn call(
 
 /// Structured-messages entry point: the caller (the mission loop) owns the
 /// full messages array - mission message, history pairs, state tail. The
-/// provider receives it verbatim; tools/tool_choice behave as in call().
+/// provider receives it verbatim; `tools/tool_choice` behave as in `call()`.
 pub fn call_messages(
     p: &Provider,
     messages: &serde_json::Value,

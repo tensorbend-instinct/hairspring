@@ -2,7 +2,7 @@
 //! 2026-09-07, freight-dispatch-shift trial: agent ran
 //! `grep -r DISPATCH_EVENT_API / --include=* -l`; the 120s timeout killed
 //! the bash wrapper but the orphaned grep held the stdout pipe open, so
-//! wait_with_output blocked ~30 minutes per call while the grep churned the
+//! `wait_with_output` blocked ~30 minutes per call while the grep churned the
 //! whole container filesystem at 99% CPU). Kill the process group, not just
 //! the direct child.
 

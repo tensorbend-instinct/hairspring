@@ -2,7 +2,7 @@
 //! $6 total across both models - Eric 2026-09-03 00:03; enforced via a
 //! shared ledger file; actual final spend $1.5644). These
 //! tests are #[ignore]d: they run only on explicit request with real keys
-//! populated via vault (HS_GLM_API_KEY[_FILE], HS_DEEPSEEK_API_KEY[_FILE]).
+//! populated via vault (`HS_GLM_API_KEY`[_FILE], `HS_DEEPSEEK_API_KEY`[_FILE]).
 //!
 //!   cargo test -p hs-loop --test realbench -- --ignored --nocapture
 //!
@@ -21,9 +21,7 @@ const TASKS: usize = 24;
 const MAX_STEPS: u32 = 6;
 
 fn ledger_path() -> std::path::PathBuf {
-    std::env::var("HS_REALBENCH_LEDGER")
-        .map(Into::into)
-        .unwrap_or_else(|_| "/tmp/hs-realbench-ledger.txt".into())
+    std::env::var("HS_REALBENCH_LEDGER").map_or_else(|_| "/tmp/hs-realbench-ledger.txt".into(), Into::into)
 }
 
 fn cap_micros() -> u64 {
@@ -42,12 +40,10 @@ fn ledger_total() -> u64 {
 }
 
 fn progress_path() -> std::path::PathBuf {
-    std::env::var("HS_REALBENCH_PROGRESS")
-        .map(Into::into)
-        .unwrap_or_else(|_| "/tmp/hs-realbench-progress.txt".into())
+    std::env::var("HS_REALBENCH_PROGRESS").map_or_else(|_| "/tmp/hs-realbench-progress.txt".into(), Into::into)
 }
 
-/// Parse HS_REALBENCH_TASKS: comma list with optional a-b ranges ("0-5,12,18-23").
+/// Parse `HS_REALBENCH_TASKS`: comma list with optional a-b ranges ("0-5,12,18-23").
 /// Default: all TASKS.
 fn tasks_from_env() -> Vec<usize> {
     let Ok(v) = std::env::var("HS_REALBENCH_TASKS") else {
@@ -69,7 +65,7 @@ fn tasks_from_env() -> Vec<usize> {
     out
 }
 
-/// Optional persistent root for mission streams (HS_REALBENCH_STREAMS).
+/// Optional persistent root for mission streams (`HS_REALBENCH_STREAMS`).
 /// When set, per-mission logs survive process exit for the audit trail.
 fn streams_root() -> Option<std::path::PathBuf> {
     std::env::var("HS_REALBENCH_STREAMS").map(Into::into).ok()
@@ -111,7 +107,7 @@ fn progress_add(model: &str, feedback: bool, task: usize, passed: bool, steps: u
     // across concurrent shard processes
     let line = format!(
         "{model}:{feedback}:task-{task}:{}:{steps}:{cost}\n",
-        passed as u8
+        u8::from(passed)
     );
     f.write_all(line.as_bytes()).unwrap();
 }
@@ -206,7 +202,7 @@ default = true
         if r.passed {
             arm.passed += 1;
         }
-        arm.steps_total += r.steps as u64;
+        arm.steps_total += u64::from(r.steps);
     }
     arm
 }
@@ -247,16 +243,13 @@ fn report(model: &str, on: &Arm, off: &Arm, n_tasks: usize) {
 fn real_ablation_glm() {
     let tasks = tasks_from_env();
     let keep;
-    let root: &std::path::Path = match streams_root() {
-        Some(d) => {
-            std::fs::create_dir_all(&d).unwrap();
-            keep = d;
-            &keep
-        }
-        None => {
-            keep = tempfile::tempdir().unwrap().keep();
-            &keep
-        }
+    let root: &std::path::Path = if let Some(d) = streams_root() {
+        std::fs::create_dir_all(&d).unwrap();
+        keep = d;
+        &keep
+    } else {
+        keep = tempfile::tempdir().unwrap().keep();
+        &keep
     };
     let on = run_arm(root, true, "glm", GLM_BIN, &tasks);
     let off = run_arm(root, false, "glm", GLM_BIN, &tasks);
@@ -268,16 +261,13 @@ fn real_ablation_glm() {
 fn real_ablation_deepseek() {
     let tasks = tasks_from_env();
     let keep;
-    let root: &std::path::Path = match streams_root() {
-        Some(d) => {
-            std::fs::create_dir_all(&d).unwrap();
-            keep = d;
-            &keep
-        }
-        None => {
-            keep = tempfile::tempdir().unwrap().keep();
-            &keep
-        }
+    let root: &std::path::Path = if let Some(d) = streams_root() {
+        std::fs::create_dir_all(&d).unwrap();
+        keep = d;
+        &keep
+    } else {
+        keep = tempfile::tempdir().unwrap().keep();
+        &keep
     };
     let label = std::env::var("HS_DEEPSEEK_MODEL").unwrap_or_else(|_| "deepseek-v4-flash".into());
     let on = run_arm(root, true, "deepseek", DEEPSEEK_BIN, &tasks);

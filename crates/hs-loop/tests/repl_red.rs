@@ -1,11 +1,11 @@
 //! RED acceptance gates for the REPL (Eric 2026-09-07: "build the repl for
 //! hairspring so anyone can run the harness via cli on a goal end to end").
 //!
-//! R1 parse_command: REPL input lines classify into goal text vs :commands.
-//! R2 one_shot_goal_end_to_end: one API call loads a kernel, runs a mission
-//!    on a goal, and returns the MissionResult with the answer on disk.
-//! R3 session_reuse: a session runs two goals on one kernel, distinct mission
-//!    ids, and last_answer() reads the latest answer.
+//! R1 `parse_command`: REPL input lines classify into goal text vs :commands.
+//! R2 `one_shot_goal_end_to_end`: one API call loads a kernel, runs a mission
+//!    on a goal, and returns the `MissionResult` with the answer on disk.
+//! R3 `session_reuse`: a session runs two goals on one kernel, distinct mission
+//!    ids, and `last_answer()` reads the latest answer.
 
 use hs_loop::repl::{parse_command, run_one_shot, ReplCommand, ReplSession};
 
@@ -84,7 +84,7 @@ fn r1b_goal_slug() {
 // R2: one shot, end to end
 #[test]
 fn r2_one_shot_goal_end_to_end() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let config = write_config(dir.path());
@@ -118,7 +118,7 @@ fn r2_one_shot_goal_end_to_end() {
 // R3: a session runs two goals on one loaded kernel
 #[test]
 fn r3_session_reuse() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let config = write_config(dir.path());

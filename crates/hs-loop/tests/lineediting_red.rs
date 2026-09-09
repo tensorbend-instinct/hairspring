@@ -48,7 +48,7 @@ default = true
 fn script(dir: &std::path::Path, lines: &[serde_json::Value]) {
     std::fs::write(
         dir.join("s.jsonl"),
-        lines.iter().map(|l| l.to_string()).collect::<Vec<_>>().join("\n"),
+        lines.iter().map(std::string::ToString::to_string).collect::<Vec<_>>().join("\n"),
     )
     .unwrap();
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", dir.join("s.jsonl")) };
@@ -56,7 +56,7 @@ fn script(dir: &std::path::Path, lines: &[serde_json::Value]) {
 
 #[test]
 fn interactive_history_persists_and_preloads_across_restarts() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let config = write_config(dir.path());

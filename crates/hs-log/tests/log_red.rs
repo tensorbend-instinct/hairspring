@@ -2,7 +2,7 @@
 fn write_blobs_bulk_roundtrips_and_dedups() {
     let dir = tempfile::tempdir().unwrap();
     let items: Vec<Vec<u8>> = (0..500).map(|i| vec![(i % 251) as u8; i + 1]).collect();
-    let refs: Vec<&[u8]> = items.iter().map(|v| v.as_slice()).collect();
+    let refs: Vec<&[u8]> = items.iter().map(std::vec::Vec::as_slice).collect();
     let hashes = hs_log::write_blobs_bulk(dir.path(), &refs).unwrap();
     assert_eq!(hashes.len(), 500);
     for (h, data) in hashes.iter().zip(items.iter()) {

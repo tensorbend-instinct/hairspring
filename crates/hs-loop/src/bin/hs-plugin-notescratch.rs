@@ -1,5 +1,5 @@
 //! SWE mission tool "notes.scratch": persistent model-writable notes.
-//! args: {op:"write"|"append"|"read", content?}. Storage: HS_SCRATCH_FILE
+//! args: {op:"write"|"append"|"read", content?}. Storage: `HS_SCRATCH_FILE`
 //! (hs-swe-run sets it to the run's work dir, so notes outlive the mission's
 //! context window and plugin restarts).
 include!("shared/sdk.rs");
@@ -39,5 +39,5 @@ fn main() {
             }
             _ => serde_json::json!({"$error": "unknown method"}),
         },
-    )
+    );
 }

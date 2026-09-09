@@ -1,9 +1,9 @@
 //! SWE mission tool "repo.exec": run lint/test commands against the current
 //! answer patch (scratch worktree; live workspace untouched), or - with no
 //! diff/path - general shell commands against a pristine scratch clone
-//! (scratch-shell mode). See hs_loop::repexec for the contract.
-//! Env: HS_SWE_WORKSPACE (required), HS_SWE_ANSWER (default answer path),
-//!      HS_SWE_EXEC_TIMEOUT_SECS (default 120). Open shell - the bwrap
+//! (scratch-shell mode). See `hs_loop::repexec` for the contract.
+//! Env: `HS_SWE_WORKSPACE` (required), `HS_SWE_ANSWER` (default answer path),
+//!      `HS_SWE_EXEC_TIMEOUT_SECS` (default 120). Open shell - the bwrap
 //!      sandbox is the only guard (Eric: zero list, isolation-only safety).
 include!("shared/sdk.rs");
 fn main() {
@@ -38,5 +38,5 @@ fn main() {
             hs_loop::repexec::run_sandboxed(&ws, std::path::Path::new(&ans), cmd, timeout)
         }
         _ => serde_json::json!({"$error": "unknown method"}),
-    })
+    });
 }

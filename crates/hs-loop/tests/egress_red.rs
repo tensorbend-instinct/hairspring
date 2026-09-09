@@ -1,4 +1,4 @@
-//! RED (2026-09-06): HS_SWE_NET=off - the egress-off re-baseline switch.
+//! RED (2026-09-06): `HS_SWE_NET=off` - the egress-off re-baseline switch.
 //! Eric's contamination caveat (BASELINE-2026-09-06): >=3 passes at 98-100%
 //! gold-patch line overlap via network fetch; ~29 runs touched GitHub. The
 //! re-baseline needs network OFF inside the mission (repo.exec sandbox AND
@@ -6,7 +6,7 @@
 use std::path::Path;
 use std::sync::Mutex;
 
-/// HS_SWE_NET is process-global; tests in this binary run in threads, so
+/// `HS_SWE_NET` is process-global; tests in this binary run in threads, so
 /// every env-touching test serializes on this lock (flaky without it).
 static ENV_LOCK: Mutex<()> = Mutex::new(());
 

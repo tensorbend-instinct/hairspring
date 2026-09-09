@@ -1,5 +1,5 @@
 //! UI gap #10 M15 RED: a scroll-pinned viewport must SAY it is
-//! pinned. v3 cap4: after PageUp the frame showed old content with
+//! pinned. v3 cap4: after `PageUp` the frame showed old content with
 //! no marker - indistinguishable from a stale screen, and the live
 //! tail silently stopped tail-following. pi/omp always show a
 //! scroll-state hint. Marker: bottom-right of the transcript

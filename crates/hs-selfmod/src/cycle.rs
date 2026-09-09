@@ -8,7 +8,7 @@
 //! cycle never gets a quarantine stream.
 //!
 //! Independent acceptance on a frozen candidate is enforced at promote time
-//! in SelfModLoop::promote: the verdict must name the fork's own candidate.
+//! in `SelfModLoop::promote`: the verdict must name the fork's own candidate.
 
 use crate::Mutation;
 use hs_scorer::evidence::{ClaimKind, ClaimStatus, EvidenceClaim};
@@ -36,8 +36,7 @@ pub fn check_balance(
     let capability = p
         .adds_capability
         .as_ref()
-        .map(|c| !c.trim().is_empty())
-        .unwrap_or(false);
+        .is_some_and(|c| !c.trim().is_empty());
     if repair && !capability {
         return Err(crate::SelfModError::UnbalancedCycle(
             "repair-only cycle: closing a failure must also add one bounded capability".into(),

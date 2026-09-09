@@ -50,7 +50,7 @@ fn every_spec_kind_exists_and_roundtrips_through_encoding() {
         let e = sample_event(k);
         let bytes = e.encode();
         let back = Event::decode(&bytes).expect("decode");
-        assert_eq!(back, e, "kind {:?} did not roundtrip", k);
+        assert_eq!(back, e, "kind {k:?} did not roundtrip");
     }
 }
 

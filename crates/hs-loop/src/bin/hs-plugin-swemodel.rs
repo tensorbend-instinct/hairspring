@@ -10,12 +10,9 @@ fn main() {
     serve("swemodel", "model", &mut |method, params| match method {
         "model.call" => {
             let __pv;
-            let prompt = match params["prompt"].as_str() {
-                Some(p) => p,
-                None => {
-                    __pv = hs_loop::msgfmt::prompt_view(&params);
-                    __pv.as_str()
-                }
+            let prompt = if let Some(p) = params["prompt"].as_str() { p } else {
+                __pv = hs_loop::msgfmt::prompt_view(&params);
+                __pv.as_str()
             };
             let path = prompt
                 .lines()
@@ -67,22 +64,21 @@ fn main() {
                 }
             } else if prompt.contains(".hs/checks") {
                 match attempt {
-                    1 => serde_json::json!({"tool":"answer.submit","args":{"path":path}}),
                     2 => serde_json::json!({"tool":"edit.patch","args":{"patch":codex_gold}}),
                     3 => serde_json::json!({"tool":"edit.patch","args":{"patch":checks_patch}}),
                     4 => {
                         serde_json::json!({"tool":"repo.exec","args":{"command":"sh check.sh","diff":gold}})
                     }
+                    // attempts 1 and anything past 4 submit
                     _ => serde_json::json!({"tool":"answer.submit","args":{"path":path}}),
                 }
             } else {
                 match attempt {
-                    1 => serde_json::json!({"tool":"answer.submit","args":{"path":path}}),
                     2 => serde_json::json!({"tool":"edit.patch","args":{"patch":codex_gold}}),
-                    3 => serde_json::json!({"tool":"answer.submit","args":{"path":path}}),
                     4 => {
                         serde_json::json!({"tool":"repo.exec","args":{"command":"sh check.sh","diff":gold}})
                     }
+                    // attempts 1 and 3 (and anything past 4) submit
                     _ => serde_json::json!({"tool":"answer.submit","args":{"path":path}}),
                 }
             };

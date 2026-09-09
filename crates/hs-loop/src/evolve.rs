@@ -49,8 +49,7 @@ struct JournalRecord {
 fn now_ms() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
+        .map_or(0, |d| d.as_millis() as i64)
 }
 
 fn read_journal(path: &Path) -> Vec<JournalRecord> {
@@ -80,7 +79,7 @@ fn fitness(outcomes: &[BenchOutcome]) -> (u32, u64) {
     // (passes, total steps): passes dominate, fewer steps break ties
     (
         outcomes.iter().filter(|o| o.passed).count() as u32,
-        outcomes.iter().map(|o| o.steps as u64).sum(),
+        outcomes.iter().map(|o| u64::from(o.steps)).sum(),
     )
 }
 
@@ -109,9 +108,7 @@ pub fn evaluate_candidate(
     journal_path: &Path,
 ) -> Evaluation {
     let parent_hash = parent_text
-        .as_deref()
-        .map(crate::sweprompt::content_hash)
-        .unwrap_or_else(|| "builtin".to_string());
+        .as_deref().map_or_else(|| "builtin".to_string(), crate::sweprompt::content_hash);
     let candidate_hash = crate::sweprompt::content_hash(&candidate_text);
 
     let bench_out: Vec<BenchOutcome> = bench

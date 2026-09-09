@@ -1,5 +1,5 @@
 //! Generic OpenAI-compatible model plugin: providers are configuration.
-//! Env: HS_PROVIDERS_TOML (path to a [[providers]] TOML), HS_PROVIDER (name
+//! Env: `HS_PROVIDERS_TOML` (path to a [[providers]] TOML), `HS_PROVIDER` (name
 //! in that file). Falls back to the builtin glm/deepseek tables when no TOML
 //! is given, so the retired hs-plugin-glm/deepseek shims keep working until
 //! their gate closes. Keys stay fill-only (env indirection, vault-populated).
@@ -43,7 +43,7 @@ fn main() {
             let r = if let Some(msgs) = params.get("messages") {
                 if stream {
                     hs_loop::realmodel::call_messages_streaming(&p, msgs, tools, &|d| {
-                        emit(serde_json::json!({"delta": d}))
+                        emit(serde_json::json!({"delta": d}));
                     })
                 } else {
                     hs_loop::realmodel::call_messages(&p, msgs, tools)

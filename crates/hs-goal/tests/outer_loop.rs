@@ -255,6 +255,6 @@ fn write_gateway(inbox: &std::path::Path, v: &serde_json::Value) {
         .append(true)
         .open(inbox)
         .unwrap();
-    writeln!(f, "{}", v).unwrap();
+    writeln!(f, "{v}").unwrap();
     f.sync_all().unwrap();
 }

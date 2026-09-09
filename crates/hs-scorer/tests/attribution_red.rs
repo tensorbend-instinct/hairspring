@@ -3,16 +3,16 @@
 //! capability-vs-fitness attribution.
 //!
 //! "A model or harness swap can lift every score overnight with zero evolved
-//! improvement. When a capability_change event sits between two assay
+//! improvement. When a `capability_change` event sits between two assay
 //! results, the delta is attributed to the swap, recorded against the new
 //! binding, and excluded from the fitness slope. The improvement-cadence
 //! protocol reads fitness deltas only: same substrate, same bindings,
 //! evolved policy."
 //!
-//! Falsifiable: an assay jump across a capability_change boundary must NOT
-//! appear in fitness_deltas(); it must surface in capability_attributed()
+//! Falsifiable: an assay jump across a `capability_change` boundary must NOT
+//! appear in `fitness_deltas()`; it must surface in `capability_attributed()`
 //! recorded against the NEW binding and pointing at the boundary event.
-//! Deltas with no capability_change between them are fitness, all of them.
+//! Deltas with no `capability_change` between them are fitness, all of them.
 
 use hs_scorer::*;
 

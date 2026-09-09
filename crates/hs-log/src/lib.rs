@@ -4,7 +4,7 @@
 //!   streams/<stream_uuid>/seg-NNNNNN.hslog   frames, append-only
 //!   blobs/<hex[0..2]>/<hex[2..4]>/<sha256hex>  payload bodies, content-addressed
 //!
-//! Frame = [u32 LE body_len][u32 LE crc32(body)][body], body = canonical
+//! Frame = [u32 LE `body_len`][u32 LE crc32(body)][body], body = canonical
 //! event encoding from hs-core (hash included). Durability: every append is
 //! fsynced before it is acknowledged - "zero state loss on SIGKILL" is the
 //! gate-1 proof, so batched fsync (spec section 7, a hot-path optimization)
@@ -95,9 +95,9 @@ fn segment_files(root: &Path, stream: Uuid) -> io::Result<Vec<PathBuf>> {
         return Ok(vec![]);
     }
     let mut files: Vec<PathBuf> = fs::read_dir(&dir)?
-        .filter_map(|e| e.ok())
+        .filter_map(std::result::Result::ok)
         .map(|e| e.path())
-        .filter(|p| p.extension().map(|x| x == "hslog").unwrap_or(false))
+        .filter(|p| p.extension().is_some_and(|x| x == "hslog"))
         .collect();
     files.sort();
     Ok(files)
@@ -108,8 +108,7 @@ fn fsync_dir(path: &Path) -> io::Result<()> {
 fn now_ms() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
+        .map_or(0, |d| d.as_millis() as i64)
 }
 
 fn write_frame(file: &mut File, body: &[u8]) -> io::Result<u64> {
@@ -329,17 +328,20 @@ impl StreamWriter {
         })
     }
 
+    #[must_use]
     pub fn last_hash(&self) -> [u8; 32] {
         self.last_hash
     }
+    #[must_use]
     pub fn last_event_id(&self) -> Option<Uuid> {
         self.last_event_id
     }
+    #[must_use]
     pub fn next_seq(&self) -> u64 {
         self.next_seq
     }
 
-    /// Append one event. The writer assigns seq, prev_hash, and hash; the
+    /// Append one event. The writer assigns seq, `prev_hash`, and hash; the
     /// caller owns everything else. Durable (fsynced) when returned.
     pub fn append(&mut self, b: EventBuilder) -> Result<Event, LogError> {
         let mut e = b.build();
@@ -412,7 +414,7 @@ pub fn write_blob(root: &Path, bytes: &[u8]) -> Result<[u8; 32], LogError> {
 }
 
 /// Bulk blob write for large content sets (snapshots). Same
-/// content-addressed store and durability outcome as [write_blob] - every
+/// content-addressed store and durability outcome as [`write_blob`] - every
 /// blob is complete and durable when this returns - but the flush is
 /// amortized: blobs are written, then a single syncfs commits the whole
 /// batch, instead of one fsync pair per blob.
@@ -508,7 +510,7 @@ impl StreamReader {
     }
 
     /// All events in chain order. CRC/decode failures surface as corruption;
-    /// chain linkage is NOT checked here (use verify_stream for that).
+    /// chain linkage is NOT checked here (use `verify_stream` for that).
     pub fn events(&self) -> Result<Vec<Event>, LogError> {
         let mut out = vec![];
         for path in segment_files(&self.root, self.stream)? {
@@ -607,9 +609,10 @@ pub fn verify_stream(root: &Path, stream: Uuid) -> Result<VerifyReport, Corrupti
 /// Test-support helpers: deliberate log surgery for the corruption proofs.
 /// Not used by any production path.
 pub mod testing {
-    use super::*;
+    use super::{Path, PathBuf, blob_path_inner, Uuid, segment_files, Write, Read, OpenOptions, Event, File, fs, stream_dir};
     use std::io::{Seek, SeekFrom};
 
+    #[must_use]
     pub fn blob_path(root: &Path, hash: &[u8; 32]) -> PathBuf {
         blob_path_inner(root, hash)
     }

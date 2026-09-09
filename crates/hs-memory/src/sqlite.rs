@@ -44,15 +44,14 @@ impl SqliteMemoryStore {
 fn now_ms() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
+        .map_or(0, |d| d.as_millis() as i64)
 }
 
 impl MemoryStore for SqliteMemoryStore {
     fn put(&self, r: NewMemoryRecord) -> Result<String, MemoryError> {
         let id = uuid::Uuid::new_v4().to_string();
         let seqs = serde_json::to_string(&r.source_seqs).unwrap_or_else(|_| "[]".into());
-        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
+        let conn = self.conn.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         conn.execute(
             "INSERT INTO memory_records
              (id, agent_id, mission_id, kind, content, embedding, importance, expires_at, source_seqs, created_at)
@@ -63,7 +62,7 @@ impl MemoryStore for SqliteMemoryStore {
     }
 
     fn top_k(&self, agent_id: &str, k: usize) -> Result<Vec<MemoryRecord>, MemoryError> {
-        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
+        let conn = self.conn.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut st = conn.prepare(
             "SELECT id, agent_id, mission_id, kind, content, importance, expires_at, source_seqs, created_at
              FROM memory_records
@@ -84,6 +83,6 @@ impl MemoryStore for SqliteMemoryStore {
                 created_at: row.get(8)?,
             })
         })?;
-        Ok(rows.filter_map(|r| r.ok()).collect())
+        Ok(rows.filter_map(std::result::Result::ok).collect())
     }
 }

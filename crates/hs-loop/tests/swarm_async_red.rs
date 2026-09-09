@@ -7,10 +7,10 @@
 //! Contract (D1-D5, approved by Eric via Main):
 //! - agent.spawn returns IMMEDIATELY (status running); children run
 //!   CONCURRENTLY on plugin-side threads.
-//! - The loop mints child_stream_id and books Spawn BEFORE the call
+//! - The loop mints `child_stream_id` and books Spawn BEFORE the call
 //!   (atomic: a crash anywhere leaves consistent provenance).
-//! - Outcomes arrive via agent.spawn_poll at step boundaries:
-//!   SubAgentFinished + cost fold + an ungated delegation update.
+//! - Outcomes arrive via `agent.spawn_poll` at step boundaries:
+//!   `SubAgentFinished` + cost fold + an ungated delegation update.
 //! - A passing close JOINS running children (books stay honest).
 //! - Depth guard + a concurrency cap bound the tree.
 
@@ -19,7 +19,7 @@ use hs_loop::uipaint::UiEvent;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-/// HS_SEQMODEL_SCRIPT + HS_SWARM_* are process-global: the mission
+/// `HS_SEQMODEL_SCRIPT` + `HS_SWARM`_* are process-global: the mission
 /// tests in this binary serialize on this lock.
 static SERIAL: Mutex<()> = Mutex::new(());
 

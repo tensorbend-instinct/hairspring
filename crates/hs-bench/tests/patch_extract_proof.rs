@@ -1,7 +1,7 @@
 //! GATE 8 BENCHMARK PREP 3 - patch extraction from model completions.
 //!
 //! Real models wrap diffs in prose and fences. The extractor must find the
-//! unified diff, reject prose-only completions (NoApply upstream), and never
+//! unified diff, reject prose-only completions (`NoApply` upstream), and never
 //! invent a patch. Falsifiable: if prose without a diff yields a patch, the
 //! eval could credit garbage; if a fenced diff is missed, good missions die.
 
@@ -93,8 +93,7 @@ fn preserves_trailing_blank_context_line() {
     let extracted = extract_patch(&raw).expect("bare git diff must extract");
     assert!(
         extracted.ends_with(" \n"),
-        "trailing blank context line must survive extraction; got {:?}",
-        extracted
+        "trailing blank context line must survive extraction; got {extracted:?}"
     );
 
     // and the extracted patch must apply cleanly to the pristine base

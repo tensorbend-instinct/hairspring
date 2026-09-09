@@ -17,6 +17,7 @@ fn tail(s: String, n: usize) -> String {
     }
 }
 
+#[must_use]
 pub fn run(workdir: &std::path::Path, command: &str, timeout_secs: u64) -> Value {
     if command.trim().is_empty() {
         return serde_json::json!({"$error": "pass command: a bash command line"});

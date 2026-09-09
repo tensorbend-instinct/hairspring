@@ -1,6 +1,6 @@
 //! REPL UI gap #10 M17 (hostile-review item #5, 2026-09-08): the phase
-//! rail mapping is coarse and STALE. Pre-M17: ModelCallStart always
-//! meant PLAN and ModelCallEnd forced REFLECT, so the moment a mission
+//! rail mapping is coarse and STALE. Pre-M17: `ModelCallStart` always
+//! meant PLAN and `ModelCallEnd` forced REFLECT, so the moment a mission
 //! ended the rail kept glowing REFLECT forever - an idle composer
 //! claiming the loop is reflecting. And the rail never showed the beat
 //! that actually matters: reasoning over a fresh tool result.
@@ -8,11 +8,11 @@
 //! Contract (ReAct-honest semantics):
 //! - No mission in flight: the rail is IDLE - no phase lit. A freshly
 //!   started TUI and a just-finished mission both sit at Idle.
-//! - ModelCallStart from Idle/Plan is PLAN (the operator deciding).
-//! - ToolCallStart is ACT, ToolCallEnd is OBSERVE (unchanged).
-//! - ModelCallStart when the previous beat was OBSERVE is REFLECT -
+//! - `ModelCallStart` from Idle/Plan is PLAN (the operator deciding).
+//! - `ToolCallStart` is ACT, `ToolCallEnd` is OBSERVE (unchanged).
+//! - `ModelCallStart` when the previous beat was OBSERVE is REFLECT -
 //!   the model reasoning over fresh observations.
-//! - ModelCallEnd moves NOTHING: the end of a call is not a phase.
+//! - `ModelCallEnd` moves NOTHING: the end of a call is not a phase.
 
 use hs_loop::tui::{LoopPhase, TuiState};
 use hs_loop::uipaint::UiEvent;

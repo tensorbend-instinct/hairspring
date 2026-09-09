@@ -4,7 +4,7 @@
 //! stream has NO trailing newline and repeats per model call, so the
 //! in-flight answer buffer concatenated every call's prose into one
 //! wrapped mega-line. The transcript must commit the in-flight answer
-//! at each ModelCallEnd boundary: each call's prose lands as its own
+//! at each `ModelCallEnd` boundary: each call's prose lands as its own
 //! markdown block, and the next call starts a fresh buffer.
 
 use hs_loop::tui::TuiState;

@@ -4,7 +4,7 @@
 //! delegated to the harness's external exec timeout (wall + 600s), which
 //! killed the container and destroyed every artifact (ledger, critic
 //! trace, checks, answer). The wall guard must fire INSIDE the loop: the
-//! mission stops at its wall, books outcome "wall_killed" with its steps
+//! mission stops at its wall, books outcome "`wall_killed`" with its steps
 //! and cost preserved, and exits cleanly so artifacts survive and the
 //! official verifier still grades the final machine state.
 

@@ -1,16 +1,16 @@
 //! Per-call MCP bridge (client side, the MCP adapter gate design): spawns the
 //! named MCP server as a child process, handshakes via rmcp, lists or calls
 //! one tool, exits (child dies with us). The kernel invokes this bin per
-//! tool call, so ToolCall audit events hold automatically.
+//! tool call, so `ToolCall` audit events hold automatically.
 //!
 //! CLI:
 //!   hs-plugin-mcpcall --config <toml> --server <name> --list
 //!   hs-plugin-mcpcall --config <toml> --server <name> --call <tool> \
 //!       --args '<json>' [--path-args a,b]
 //! --path-args: argument names whose string values must pass the server's
-//! allowed_roots check before the server is even spawned (deny by default).
+//! `allowed_roots` check before the server is even spawned (deny by default).
 
-use hs_loop::mcpbridge::*;
+use hs_loop::mcpbridge::{load_mcp_servers, check_path_allowed, McpServerConfig, namespaced_tool};
 use rmcp::{model::CallToolRequestParam, transport::TokioChildProcess, ServiceExt};
 
 fn has_flag(args: &[String], flag: &str) -> bool {
@@ -126,7 +126,7 @@ fn real_main() {
         let parsed: serde_json::Value =
             serde_json::from_str(raw).unwrap_or_else(|e| fail(format!("bad --args json: {e}")));
         if let Some(list) = arg(&argv, "--path-args") {
-            for key in list.split(',').map(|k| k.trim()).filter(|k| !k.is_empty()) {
+            for key in list.split(',').map(str::trim).filter(|k| !k.is_empty()) {
                 if let Some(v) = parsed.get(key).and_then(|v| v.as_str()) {
                     check_path_allowed(&cfg, v).unwrap_or_else(|e| fail(e));
                 }

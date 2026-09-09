@@ -1,7 +1,7 @@
 //! HAIRSPRING gate 4 - outer loop: Goal Mode, budgets, gateway (spec 5-6).
 //!
 //! Completion authority (openJiuwen Goal Mode):
-//!   SelfDeclared - the model's say-so completes the mission.
+//!   `SelfDeclared` - the model's say-so completes the mission.
 //!   Independent  - only checkers complete the mission; say-so is noise.
 //!   Hybrid       - say-so triggers an immediate checker verdict; the
 //!                  checker decides.
@@ -71,6 +71,7 @@ pub struct Goal {
     pub budget: Budget,
 }
 impl Goal {
+    #[must_use]
     pub fn new(spec: &str, completion_mode: CompletionMode, budget: Budget) -> Self {
         Goal {
             goal_id: uuid::Uuid::new_v4(),
@@ -115,6 +116,7 @@ impl OuterLoop {
         })
     }
 
+    #[must_use]
     pub fn with_step_delay_ms(mut self, ms: u64) -> Self {
         self.step_delay_ms = ms;
         self

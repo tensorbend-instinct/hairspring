@@ -2,7 +2,7 @@
 //! schema, tool namespacing, allowed-roots path enforcement. The async
 //! server lifecycle (rmcp client, spawn/kill per mission, discovery ->
 //! kernel registry) lands in hs-plugin-mcpbridge; the kernel stays
-//! untouched and every call routes through kernel.call_tool so ToolCall
+//! untouched and every call routes through `kernel.call_tool` so `ToolCall`
 //! audit events hold automatically.
 
 use std::path::{Component, Path};
@@ -31,13 +31,14 @@ pub fn load_mcp_servers(path: &Path) -> Result<Vec<McpServerConfig>, String> {
 
 /// Every MCP tool reaches the model namespaced by server:
 /// mcp.<server>.<tool>. No bare names - a server cannot shadow a builtin.
+#[must_use]
 pub fn namespaced_tool(server: &str, tool: &str) -> String {
     format!("mcp.{server}.{tool}")
 }
 
 /// Normalize without touching the fs (the path may not exist yet): resolve
 /// `.`/`..` lexically, then require membership under an allowed root.
-/// Deny by default: empty allowed_roots rejects everything.
+/// Deny by default: empty `allowed_roots` rejects everything.
 pub fn check_path_allowed(cfg: &McpServerConfig, path: &str) -> Result<(), String> {
     let mut norm: Vec<std::ffi::OsString> = Vec::new();
     for c in Path::new(path).components() {
@@ -97,12 +98,12 @@ pub fn resolve_plugin_bin(exe: &Path, name: &str) -> Result<std::path::PathBuf, 
 /// hs-tb-run and the REPL, Eric 2026-09-07 web-tooling order): for each
 /// server in the TOML, list its tools through hs-plugin-mcpcall and return
 /// (kernel config fragment, native tool schemas with the server-provided
-/// input_schema verbatim). Discovery failure is a hard error - a
+/// `input_schema` verbatim). Discovery failure is a hard error - a
 /// half-registered surface is worse than none.
 ///
-/// Binary resolution: HS_MCP_BRIDGE_BIN wins when set (test seam - the
-/// REPL runs discovery in-process, where current_exe is the test binary,
-/// not a sibling of the plugins); otherwise resolve_plugin_bin next to the
+/// Binary resolution: `HS_MCP_BRIDGE_BIN` wins when set (test seam - the
+/// REPL runs discovery in-process, where `current_exe` is the test binary,
+/// not a sibling of the plugins); otherwise `resolve_plugin_bin` next to the
 /// current exe (production: every runner ships its plugins beside it).
 pub fn discover_mcp_tools(
     servers_toml: &Path,

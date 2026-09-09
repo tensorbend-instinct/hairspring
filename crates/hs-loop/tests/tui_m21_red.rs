@@ -5,7 +5,7 @@
 //! after the first overstates itself; pi/omp report the turn's own
 //! cost.
 //!
-//! Contract: MissionResult carries the mission's own provider-reported
+//! Contract: `MissionResult` carries the mission's own provider-reported
 //! spend (delta of the loop's cumulative counter over the mission);
 //! the TUI done line prints THAT, while the HUD keeps the
 //! session-authoritative total (M13 unchanged).
@@ -26,7 +26,7 @@ fn transcript_text(st: &hs_loop::tui::TuiState) -> String {
 // spend - equal for an identical fixture, never cumulative.
 #[test]
 fn m21_mission_result_carries_own_cost() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = std::env::temp_dir().join("ui-events-m21");
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
@@ -80,8 +80,8 @@ default = true
     // missions.
     assert_eq!(r1.model_calls, 2, "fixture: m1 = tool call + verifier");
     assert_eq!(
-        r1.cost_micros / r1.model_calls as u64,
-        r2.cost_micros / r2.model_calls as u64,
+        r1.cost_micros / u64::from(r1.model_calls),
+        r2.cost_micros / u64::from(r2.model_calls),
         "per-call rate constant across missions - each carries its own \
          spend: r1={} r2={}",
         r1.cost_micros, r2.cost_micros

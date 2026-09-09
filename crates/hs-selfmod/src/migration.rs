@@ -6,7 +6,7 @@
 //! -> validate -> bind -> rehydrate -> resume with a single promotion point
 //! (bind). The old variant is fenced the moment the new one binds; a failed
 //! transaction leaves the old variant in authority. Every step lands on the
-//! canonical log as a capability_change event carrying both binding refs and
+//! canonical log as a `capability_change` event carrying both binding refs and
 //! the protocol step, so a swap is never invisible to the scorer, and the
 //! in-flight state is recoverable from the log alone (memory is a read path
 //! over the log - no parallel store).
@@ -41,24 +41,28 @@ pub enum BindingKind {
 }
 
 impl Binding {
+    #[must_use]
     pub fn model(reference: &str) -> Self {
         Self {
             kind: BindingKind::Model,
             reference: reference.into(),
         }
     }
+    #[must_use]
     pub fn harness(reference: &str) -> Self {
         Self {
             kind: BindingKind::Harness,
             reference: reference.into(),
         }
     }
+    #[must_use]
     pub fn executor(reference: &str) -> Self {
         Self {
             kind: BindingKind::Executor,
             reference: reference.into(),
         }
     }
+    #[must_use]
     pub fn host(reference: &str) -> Self {
         Self {
             kind: BindingKind::Host,
@@ -145,6 +149,7 @@ pub struct ContinuityAuthority {
 }
 
 impl ContinuityAuthority {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -164,6 +169,7 @@ impl ContinuityAuthority {
         }
     }
 
+    #[must_use]
     pub fn holds(&self, stream: Uuid, b: &Binding) -> bool {
         self.holders.get(&stream) == Some(b)
     }
@@ -213,12 +219,15 @@ impl Migration {
         Ok(m)
     }
 
+    #[must_use]
     pub fn old(&self) -> &Binding {
         &self.old
     }
+    #[must_use]
     pub fn new_binding(&self) -> &Binding {
         &self.new
     }
+    #[must_use]
     pub fn step(&self) -> MigrationStep {
         self.step
     }
@@ -253,7 +262,7 @@ impl Migration {
         self.emit(MigrationStep::Checkpoint)
     }
 
-    /// Validate the checkpoint. A false verdict is NOT silent: validate_failed
+    /// Validate the checkpoint. A false verdict is NOT silent: `validate_failed`
     /// lands on the log and the transaction must abort - the old variant
     /// keeps authority throughout.
     pub fn validate(&mut self, f: impl FnOnce() -> bool) -> Result<(), MigrationError> {
@@ -340,6 +349,7 @@ impl Migration {
     /// Rebuild the in-flight transaction from the log alone. Returns None
     /// when no transaction is open (none started, or the last reached a
     /// terminal step). Memory is a read path over the log: no side store.
+    #[must_use]
     pub fn recover(log_root: &Path, stream: Uuid) -> Option<Self> {
         let events = StreamReader::open(log_root, stream)
             .and_then(|r| r.events())

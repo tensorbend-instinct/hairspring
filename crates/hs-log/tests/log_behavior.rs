@@ -98,7 +98,7 @@ fn large_payload_is_stored_by_hash_and_reads_back() {
         .unwrap();
     match &e.payload {
         Payload::BlobRef { len, .. } => assert_eq!(*len, big.len() as u64),
-        other => panic!("large payload stayed inline: {:?}", other),
+        other => panic!("large payload stayed inline: {other:?}"),
     }
     let r = StreamReader::open(dir.path(), sid()).unwrap();
     let back = r.events().unwrap();

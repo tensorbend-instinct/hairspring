@@ -1,8 +1,8 @@
-//! UI gap #10 M9 RED: the full-screen surface honors HS_THEME.
+//! UI gap #10 M9 RED: the full-screen surface honors `HS_THEME`.
 //!
-//! Hostile-review finding: TuiState hard-coded Theme::dark() for
-//! markdown flushes and Color::Cyan for chrome accents, so
-//! HS_THEME=light changed nothing on the TUI surface while line mode
+//! Hostile-review finding: `TuiState` hard-coded `Theme::dark()` for
+//! markdown flushes and `Color::Cyan` for chrome accents, so
+//! `HS_THEME=light` changed nothing on the TUI surface while line mode
 //! switched correctly. The state carries the theme; every style on
 //! the surface derives from it.
 

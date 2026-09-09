@@ -1,7 +1,7 @@
 //! HAIRSPRING gate 5 - sub-agent spawner + swarm operators (spec 10 row 5,
 //! the gate5 design). A delegated subtask runs the SAME
 //! substrate as a child stream: same log root, same kernel config, one
-//! Spawn event on the parent stream linking to the child stream_id.
+//! Spawn event on the parent stream linking to the child `stream_id`.
 //! Delegation overhead is measured in milliseconds, not deployment.
 
 use hs_core::{EventBuilder, EventKind, Payload};
@@ -67,6 +67,7 @@ pub struct Spawner {
 }
 
 impl Spawner {
+    #[must_use]
     pub fn new(log_root: &Path, kernel_config: &Path, feedback: bool, max_steps: u32) -> Self {
         Self {
             log_root: log_root.to_path_buf(),
@@ -78,7 +79,7 @@ impl Spawner {
 
     /// Spawn a child: create its stream in the same log root with a
     /// mission-start event, then append a Spawn event naming the child
-    /// stream_id to the parent stream. Returns the child handle plus the
+    /// `stream_id` to the parent stream. Returns the child handle plus the
     /// delegation overhead in milliseconds (decision -> linked child stream).
     pub fn spawn(
         &self,
@@ -159,7 +160,7 @@ impl Spawner {
             Child {
                 stream_id: child_id,
                 mission: mission.to_string(),
-                model: model.map(|m| m.to_string()),
+                model: model.map(std::string::ToString::to_string),
                 depth,
                 work_dir: self.log_root.join("work").join(mission),
             },
@@ -181,9 +182,7 @@ impl Spawner {
             None => kernel
                 .model_names()
                 .into_iter()
-                .find(|(_, is_default)| *is_default)
-                .map(|(name, _)| name)
-                .unwrap_or_else(|| "(unknown)".to_string()),
+                .find(|(_, is_default)| *is_default).map_or_else(|| "(unknown)".to_string(), |(name, _)| name),
         };
         let mut l = hs_loop::InnerLoop::with_stream(
             kernel,

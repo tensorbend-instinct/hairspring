@@ -3,7 +3,7 @@
 //!   delegation overhead measured in milliseconds, not deployment.
 //!
 //! Falsifiable: child streams missing/unverifiable in the parent's log
-//! root, spawn events not naming child stream_ids, or overhead not measured
+//! root, spawn events not naming child `stream_ids`, or overhead not measured
 //! and published in ms all fail the gate.
 
 use hs_swarm::*;

@@ -1,4 +1,4 @@
-//! D2 execution ledger: a read model over the mission's ToolCall events,
+//! D2 execution ledger: a read model over the mission's `ToolCall` events,
 //! updated per event. The assembler (D1) always includes its summary; exact
 //! duplicate (tool, args) calls are flagged against `last_calls` with the
 //! prior seq, converting silent re-read loops into an explicit signal (P3).
@@ -38,7 +38,7 @@ fn args_hash(args: &Value) -> u64 {
 }
 
 /// Doom-loop hashing ignores whitespace-only differences: "sh check.sh" and
-/// "sh  check.sh" are the same stuck call (Grok doom_loop_telemetry,
+/// "sh  check.sh" are the same stuck call (Grok `doom_loop_telemetry`,
 /// adapted).
 fn normalize_strings(v: &Value, out: &mut String) {
     match v {
@@ -111,7 +111,7 @@ fn output_tail(result: &Value) -> String {
 }
 
 impl Ledger {
-    /// Fold one ToolCall event into the projection.
+    /// Fold one `ToolCall` event into the projection.
     pub fn apply_tool_call(&mut self, seq: u64, plugin: &str, args: &Value, result: &Value) {
         if self.last_calls.len() >= LAST_CALLS_CAP {
             self.last_calls.pop_front();
@@ -187,7 +187,7 @@ impl Ledger {
                     .push((seq, "checker".to_string(), ok, String::new()));
             }
             "notes.scratch" => {
-                if matches!(args["op"].as_str(), Some("write") | Some("append")) {
+                if matches!(args["op"].as_str(), Some("write" | "append")) {
                     if let Some(line) = args["content"]
                         .as_str()
                         .and_then(|c| c.lines().find(|l| !l.trim().is_empty()))
@@ -206,6 +206,7 @@ impl Ledger {
     /// True once the MODEL has verified something itself (a repo.exec run).
     /// The harness's own checker.run verdicts are ground truth, not the
     /// model testing its work, so they never count (fix 5).
+    #[must_use]
     pub fn model_verified(&self) -> bool {
         self.test_runs.iter().any(|(_, cmd, _, _)| cmd != "checker")
     }
@@ -219,11 +220,13 @@ impl Ledger {
     }
 
     /// Latest recorded call seq (0 when the ledger is empty).
+    #[must_use]
     pub fn last_seq(&self) -> u64 {
-        self.last_calls.back().map(|t| t.3).unwrap_or(0)
+        self.last_calls.back().map_or(0, |t| t.3)
     }
 
     /// A prior seq for an identical (plugin, args) call, if one exists.
+    #[must_use]
     pub fn find_duplicate(&self, plugin: &str, args: &Value) -> Option<u64> {
         let h = args_hash(args);
         self.last_calls
@@ -233,11 +236,12 @@ impl Ledger {
             .map(|(_, _, _, seq)| *seq)
     }
 
-    /// Doom-loop detection (item 4, Grok doom_loop_telemetry adapted):
+    /// Doom-loop detection (item 4, Grok `doom_loop_telemetry` adapted):
     /// within the last `window` calls, count the largest group sharing
     /// (plugin, whitespace-normalized args). Returns (plugin, count) when
     /// that count reaches `threshold` - the caller owns fire-once and
     /// escalation policy.
+    #[must_use]
     pub fn doom_loop_repeat(&self, window: usize, threshold: usize) -> Option<(String, usize)> {
         let mut best: Option<(String, usize)> = None;
         let n = self.last_calls.len();
@@ -248,7 +252,7 @@ impl Ledger {
                 .skip(n.saturating_sub(window))
                 .filter(|(p2, _, nh2, _)| p2 == p && nh2 == nh)
                 .count();
-            if count >= threshold && best.as_ref().map(|(_, c)| count > *c).unwrap_or(true) {
+            if count >= threshold && best.as_ref().is_none_or(|(_, c)| count > *c) {
                 best = Some((p.clone(), count));
             }
         }
@@ -256,6 +260,7 @@ impl Ledger {
     }
 
     /// Bounded render for the always-resident LEDGER prompt block (T8).
+    #[must_use]
     pub fn summary(&self) -> String {
         let mut s = String::new();
         if !self.files_read.is_empty() {
@@ -300,7 +305,7 @@ impl Ledger {
         if !self.test_runs.is_empty() {
             s.push_str("tests: ");
             for (seq, cmd, ok, tail) in self.test_runs.iter().rev().take(TESTS_SHOWN).rev() {
-                let stale = if self.restored_before.map(|r| *seq <= r).unwrap_or(false) {
+                let stale = if self.restored_before.is_some_and(|r| *seq <= r) {
                     "(pre-restore)"
                 } else {
                     ""

@@ -1,13 +1,13 @@
 //! Eric's five #4 (2026-09-08): model/theme pickers. The TUI showed
 //! the configured model in the composer but offered no way to change
-//! it, and the theme was boot-time only (HS_THEME env). An operator
+//! it, and the theme was boot-time only (`HS_THEME` env). An operator
 //! surface lets you switch both live.
 //!
-//! Contract (model): ReplSession::set_model_override selects which
+//! Contract (model): `ReplSession::set_model_override` selects which
 //! configured model serves operator calls from the next mission
 //! onward; an unknown name is rejected with an error naming it, and
 //! the override - not config order - decides the call. Contract
-//! (theme): uipaint::available_themes() catalogs the built-ins and
+//! (theme): `uipaint::available_themes()` catalogs the built-ins and
 //! the TUI state can switch between them live.
 
 use hs_loop::repl::load_session;
@@ -44,7 +44,7 @@ subjects = ["*"]
 }
 
 /// Every payload in every stream under the run dir, concatenated -
-/// the raw ledger, same reader pattern as blind_mode_red.
+/// the raw ledger, same reader pattern as `blind_mode_red`.
 fn ledger_text(log_root: &std::path::Path) -> String {
     let streams = log_root.join("streams");
     let mut all = String::new();

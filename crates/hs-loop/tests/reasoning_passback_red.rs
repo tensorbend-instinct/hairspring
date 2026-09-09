@@ -1,12 +1,12 @@
-//! RED: reasoning_content pass-back in replayed history (DeepSeek V4
+//! RED: `reasoning_content` pass-back in replayed history (`DeepSeek` V4
 //! thinking+tools contract, 2026-09-05; api-docs.deepseek.com/guides/
-//! thinking_mode: when the request carries `tools`, every intermediate
-//! assistant message's reasoning_content MUST be passed back in later
+//! `thinking_mode`: when the request carries `tools`, every intermediate
+//! assistant message's `reasoning_content` MUST be passed back in later
 //! turns, or the API returns 400). The assembler replays log history as
-//! assistant(tool_calls) + tool pairs; each pair must carry the
-//! reasoning_content of the ModelCall that produced it (recorded on the
-//! ModelCall payload since b6f65961). A ToolCall with no preceding
-//! ModelCall reasoning (scripted fixtures, pre-logging runs) replays
+//! `assistant(tool_calls)` + tool pairs; each pair must carry the
+//! `reasoning_content` of the `ModelCall` that produced it (recorded on the
+//! `ModelCall` payload since b6f65961). A `ToolCall` with no preceding
+//! `ModelCall` reasoning (scripted fixtures, pre-logging runs) replays
 //! byte-identical to before - no field, no filler.
 
 use hs_core::{EventBuilder, EventKind, Payload};

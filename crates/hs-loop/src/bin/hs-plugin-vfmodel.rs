@@ -1,4 +1,4 @@
-//! Test model "vfmodel": mission steps come from HS_VF_SCRIPT (JSONL, one
+//! Test model "vfmodel": mission steps come from `HS_VF_SCRIPT` (JSONL, one
 //! JSON tool call per line, cycling on the last); ADVERSARIAL VERIFIER calls
 //! get a MECHANICAL verdict from the prompt's own sections - the fixture
 //! that proves the verifier discriminates honest from dishonest work
@@ -16,7 +16,7 @@ fn main() {
             .expect("script readable")
             .lines()
             .filter(|l| !l.trim().is_empty())
-            .map(|l| l.to_string())
+            .map(std::string::ToString::to_string)
             .collect();
     let n = std::cell::Cell::new(0usize);
     serve(
@@ -25,12 +25,9 @@ fn main() {
         &mut move |method, params| match method {
             "model.call" => {
                 let __pv;
-                let prompt = match params["prompt"].as_str() {
-                    Some(p) => p,
-                    None => {
-                        __pv = hs_loop::msgfmt::prompt_view(&params);
-                        __pv.as_str()
-                    }
+                let prompt = if let Some(p) = params["prompt"].as_str() { p } else {
+                    __pv = hs_loop::msgfmt::prompt_view(&params);
+                    __pv.as_str()
                 };
                 if prompt.contains("ADVERSARIAL VERIFIER") {
                     let ledger = prompt
@@ -83,5 +80,5 @@ fn main() {
             }
             _ => serde_json::json!({"$error": "unknown method"}),
         },
-    )
+    );
 }

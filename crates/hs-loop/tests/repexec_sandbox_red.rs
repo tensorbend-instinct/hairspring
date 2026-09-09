@@ -1,7 +1,7 @@
 //! RED contract tests for the exec sandbox gate (Eric's ruling 2026-09-04:
 //! open shell, any command, ZERO list - safety from isolation only, via the
-//! on-box bwrap primitive). API: hs_loop::repexec::run_sandboxed(ws,
-//! answer_path, command, timeout_secs) -> Value. The allowlist is deleted,
+//! on-box bwrap primitive). API: `hs_loop::repexec::run_sandboxed(ws`,
+//! `answer_path`, command, `timeout_secs`) -> Value. The allowlist is deleted,
 //! not kept.
 
 use std::process::Command;

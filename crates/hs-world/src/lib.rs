@@ -1,11 +1,11 @@
 //! HAIRSPRING gate 6 - shared world service (spec: World service + artifact
 //! schema; the gate6 design). Proposal-consequence separation
-//! [PROVEN in SwarmWorld]: agents write Proposal events; the world service
+//! [PROVEN in `SwarmWorld`]: agents write Proposal events; the world service
 //! alone validates and writes Consequence events. The agent's description
 //! of value is never the measurement of value.
 //!
 //! Executable inheritance: an installed controller is world property. It
-//! keeps acting on ticks (runs_without_model_call: true) even after its
+//! keeps acting on ticks (`runs_without_model_call`: true) even after its
 //! author stream is uninstalled.
 
 use hs_core::{EventBuilder, EventKind, Payload};
@@ -92,6 +92,7 @@ pub enum Effect {
     SandboxWrite,
 }
 impl Effect {
+    #[must_use]
     pub fn is_external(self) -> bool {
         !matches!(self, Effect::SandboxWrite)
     }
@@ -416,7 +417,7 @@ fn parse_hex32(s: &str) -> Result<[u8; 32], WorldError> {
 }
 
 /// Deterministic full-tree walk: sorted relative dir paths + file bytes.
-/// (dirs, symlinks, files). symlink_metadata: links are recorded, never
+/// (dirs, symlinks, files). `symlink_metadata`: links are recorded, never
 /// followed - a dangling link must not kill the snapshot.
 /// (dirs, symlinks, files) collected by `walk_tree`.
 type TreeWalk = (Vec<String>, Vec<SymlinkEntry>, Vec<(String, Vec<u8>)>);
@@ -429,7 +430,7 @@ fn walk_tree(root: &Path) -> Result<TreeWalk, WorldError> {
     while let Some(dir) = stack.pop() {
         let mut names: Vec<_> = std::fs::read_dir(&dir)
             .map_err(|e| WorldError::Rejected(format!("snapshot walk {}: {e}", dir.display())))?
-            .filter_map(|e| e.ok())
+            .filter_map(std::result::Result::ok)
             .map(|e| e.file_name())
             .collect();
         names.sort();
@@ -475,7 +476,7 @@ fn manifest_bytes(m: &SnapshotManifest) -> Vec<u8> {
 
 impl World {
     /// Capture the full tree (source, .git, venv, build artifacts) into the
-    /// content-addressed store and record a SnapshotRef event naming the
+    /// content-addressed store and record a `SnapshotRef` event naming the
     /// manifest hash. Dedup is free: identical files hash to the same blob.
     pub fn snapshot(&self, ws: &Path) -> Result<SnapshotReport, WorldError> {
         let t0 = std::time::Instant::now();

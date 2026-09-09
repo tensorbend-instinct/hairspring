@@ -1,9 +1,9 @@
 //! Plugin "policy": the model's self-instruction PROPOSAL path (spec gate
 //! 8; bootstrap rule: promotion is gated out-of-mission). Methods:
-//!   policy.propose_prompt {name, text} -> recorded, versioned, hash-chained
-//!     proposal in <run>/policy_proposals.jsonl with status "proposed".
+//!   `policy.propose_prompt` {name, text} -> recorded, versioned, hash-chained
+//!     proposal in <run>/`policy_proposals.jsonl` with status "proposed".
 //!     Never changes the running mission's prompt.
-//! Env: HS_RUN_DIR (required) - the mission run directory.
+//! Env: `HS_RUN_DIR` (required) - the mission run directory.
 include!("shared/sdk.rs");
 
 fn main() {

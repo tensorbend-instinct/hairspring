@@ -62,11 +62,11 @@ fn loop_emits_typed_ui_events_for_a_mission() {
     let sink_events = events.clone();
     let mut session = ReplSession::load(&config, log.path(), true, 2).unwrap();
     session.set_ui_sink(Box::new(move |ev: UiEvent| {
-        sink_events.lock().unwrap_or_else(|e| e.into_inner()).push(ev);
+        sink_events.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(ev);
     }));
     let _ = session.run_goal("paint my tool call");
 
-    let evs = events.lock().unwrap_or_else(|e| e.into_inner());
+    let evs = events.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let kinds: Vec<&'static str> = evs
         .iter()
         .map(|e| match e {

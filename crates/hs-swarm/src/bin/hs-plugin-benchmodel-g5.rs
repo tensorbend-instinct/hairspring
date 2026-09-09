@@ -10,12 +10,9 @@ fn main() {
     serve("benchmodel", "model", &mut |method, params| match method {
         "model.call" => {
             let __pv;
-            let prompt = match params["prompt"].as_str() {
-                Some(p) => p,
-                None => {
-                    __pv = hs_loop::msgfmt::prompt_view(&params);
-                    __pv.as_str()
-                }
+            let prompt = if let Some(p) = params["prompt"].as_str() { p } else {
+                __pv = hs_loop::msgfmt::prompt_view(&params);
+                __pv.as_str()
             };
             let path = prompt
                 .lines()
@@ -33,7 +30,7 @@ fn main() {
                     l.trim_start_matches("- ")
                         .strip_prefix("line 1: expected token ")
                 })
-                .map(|s| s.to_string());
+                .map(std::string::ToString::to_string);
             let content =
                 feedback_fix.unwrap_or_else(|| BLIND[(attempt - 1) % BLIND.len()].to_string());
             let completion = serde_json::json!({

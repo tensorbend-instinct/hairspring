@@ -1,7 +1,7 @@
 //! RED contract tests: client-side MCP bridge (the MCP adapter gate design).
 //! Kernel spawns the adapter; adapter spawns one MCP server per mission;
 //! tools appear namespaced mcp.<server>.<tool>; every call routes through
-//! kernel.call_tool so ToolCall audit events hold automatically. Pure-part
+//! `kernel.call_tool` so `ToolCall` audit events hold automatically. Pure-part
 //! contracts here: config schema, namespacing, allowed-roots enforcement.
 
 use hs_loop::mcpbridge::*;

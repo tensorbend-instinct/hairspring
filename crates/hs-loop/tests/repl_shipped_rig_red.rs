@@ -1,6 +1,6 @@
 //! The SHIPPED first-run rig (hairspring.example.toml, tb surface):
 //! term.exec on the live machine + blind self-checker. RED before the
-//! fix: the REPL never set HS_SELFCHECK_DIRECT, so checker.run looked
+//! fix: the REPL never set `HS_SELFCHECK_DIRECT`, so checker.run looked
 //! for an edit.patch candidate the tb surface can never materialize
 //! and EVERY submission came back "no checks declared" - a user
 //! following the shipped config could never pass a mission (the exact

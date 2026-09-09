@@ -27,7 +27,7 @@ fn main() {
             "tool.call" => std::process::exit(1),
             _ => serde_json::json!({"id": id, "error": "unknown method"}),
         };
-        writeln!(out, "{}", resp).unwrap();
+        writeln!(out, "{resp}").unwrap();
         out.flush().unwrap();
     }
 }

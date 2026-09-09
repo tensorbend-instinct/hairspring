@@ -1,8 +1,8 @@
-//! RED (Eric 2026-09-06): reasoning traces are recorded in every ModelCall
+//! RED (Eric 2026-09-06): reasoning traces are recorded in every `ModelCall`
 //! event payload but have no live-readable form. The harness needs to FOLLOW
 //! the model's thinking as missions run, not only after.
 //!
-//! hs-log-cli gains:  trace --dir D            replay every ModelCall
+//! hs-log-cli gains:  trace --dir D            replay every `ModelCall`
 //!                                             reasoning trace in seq order
 //!                    trace --dir D --follow   keep emitting as new events land
 //!

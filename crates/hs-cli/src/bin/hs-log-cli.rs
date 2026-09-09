@@ -1,16 +1,16 @@
 //! hs-log-cli: inspect and verify HAIRSPRING event logs.
 //!   hs-log-cli verify --dir D    verify every stream under D (chain + blobs)
 //!   hs-log-cli dump  --dir D     print one line per event
-//!   hs-log-cli trace --dir D [--follow]  print ModelCall reasoning traces (live with --follow)
+//!   hs-log-cli trace --dir D [--follow]  print `ModelCall` reasoning traces (live with --follow)
 
 use hs_core::Payload;
-use hs_log::*;
+use hs_log::{verify_stream, StreamReader, read_blob};
 use std::path::PathBuf;
 use uuid::Uuid;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
-    let cmd = args.get(1).map(|s| s.as_str()).unwrap_or("help");
+    let cmd = args.get(1).map_or("help", std::string::String::as_str);
     let dir = PathBuf::from(
         args.iter()
             .position(|a| a == "--dir")
@@ -19,7 +19,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     let streams: Vec<Uuid> = std::fs::read_dir(dir.join("streams"))
         .map(|rd| {
-            rd.filter_map(|e| e.ok())
+            rd.filter_map(std::result::Result::ok)
                 .filter_map(|e| Uuid::parse_str(&e.file_name().to_string_lossy()).ok())
                 .collect()
         })
@@ -40,7 +40,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             }
-            std::process::exit(if bad { 1 } else { 0 });
+            std::process::exit(i32::from(bad));
         }
         "dump" => {
             let with_payloads = args.iter().any(|a| a == "--payloads");
@@ -94,7 +94,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             loop {
                 if follow {
                     if let Ok(rd) = std::fs::read_dir(dir.join("streams")) {
-                        for e in rd.filter_map(|e| e.ok()) {
+                        for e in rd.filter_map(std::result::Result::ok) {
                             if let Ok(u) = Uuid::parse_str(&e.file_name().to_string_lossy()) {
                                 if !known.contains(&u) {
                                     known.push(u);

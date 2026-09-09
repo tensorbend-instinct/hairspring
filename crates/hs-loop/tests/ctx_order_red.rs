@@ -3,11 +3,11 @@
 //!
 //! The per-step ctx must lay out as a monotonically growing stable prefix:
 //! MISSION (stable) -> TRANSCRIPT (append-only tail) -> volatile fields
-//! (ATTEMPT / ANSWER_PATH / ARTIFACT / FEEDBACK) last. If any volatile line
+//! (ATTEMPT / `ANSWER_PATH` / ARTIFACT / FEEDBACK) last. If any volatile line
 //! sits before the transcript, the cached prefix breaks on every step and
 //! every call re-prefills from scratch.
 //!
-//! Falsifiable: reads the ModelCall prompts back from the mission's own
+//! Falsifiable: reads the `ModelCall` prompts back from the mission's own
 //! event stream and asserts the section order byte-for-byte.
 
 use hs_loop::*;
