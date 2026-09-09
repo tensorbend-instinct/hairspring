@@ -78,6 +78,7 @@ pub fn kind_glyph(k: EventKind) -> char {
         EventKind::Score => '\u{2605}',           // ★
         EventKind::ScorerPin => '\u{1f4cc}',      // 📌
         EventKind::CanaryResult => '\u{1f41e}',   // 🐞
+        EventKind::AnchorResult => '\u{2693}',     // ⚓
         EventKind::Prefetch => '\u{21bb}',        // ↻
         EventKind::CapabilityDelta => '\u{0394}', // Δ
         EventKind::FitnessDelta => '\u{2206}',    // ∆

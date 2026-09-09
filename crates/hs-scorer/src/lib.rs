@@ -179,6 +179,10 @@ impl JudgePanel {
     pub fn new(judges: Vec<Box<dyn Judge>>) -> Self {
         JudgePanel { judges }
     }
+    #[must_use]
+    pub fn judge_names(&self) -> Vec<String> {
+        self.judges.iter().map(|j| j.name().to_string()).collect()
+    }
 }
 
 // --------------------------------------------------------------- scores ---
@@ -198,6 +202,11 @@ pub struct Tier02 {
     pub ci_low: f64,
     pub ci_high: f64,
     pub veto: bool,
+    /// Distinct judge families on the panel (cross-family hygiene).
+    pub families: usize,
+    /// Spec tier-2 hygiene: where only one model family is available,
+    /// the veto weight is reduced (and the record says so).
+    pub veto_weight: f64,
     pub cross_family_disagreement: f64,
     pub same_family_disagreement: f64,
 }
@@ -426,6 +435,9 @@ fn hex(b: [u8; 32]) -> String {
 pub struct ScorerConfig {
     /// Canary error rate above which the scorer freezes for promotion.
     pub canary_error_threshold: f64,
+    /// Mean absolute deviation from human-labeled anchors above which a
+    /// judge is dropped from the panel (re-anchored or dropped).
+    pub anchor_drift_threshold: f64,
     pub scorer_version: String,
     pub assay_conditions: String,
 }
@@ -433,6 +445,7 @@ impl Default for ScorerConfig {
     fn default() -> Self {
         ScorerConfig {
             canary_error_threshold: 0.0,
+            anchor_drift_threshold: 0.25,
             scorer_version: "hs-scorer-0.1.0".into(),
             assay_conditions: "token-family-heldout-v1".into(),
         }
@@ -676,8 +689,25 @@ impl Scorer {
                 }
             }
         }
+        let families = {
+            let mut f: Vec<&str> = panel.judges.iter().map(|j| j.family()).collect();
+            f.sort_unstable();
+            f.dedup();
+            f.len()
+        };
+        // Spec tier-2 hygiene: same-family judges share failure modes
+        // with the system under test, so their agreement is not
+        // independent evidence; a one-family panel's veto weight is
+        // reduced - and the record says so.
+        let veto_weight = if families <= 1 {
+            VETO_WEIGHT_REDUCED
+        } else {
+            VETO_WEIGHT_FULL
+        };
         let r = Tier02 {
             mean,
+            families,
+            veto_weight,
             ci_low: mean - ci,
             ci_high: mean + ci,
             veto,
@@ -695,12 +725,16 @@ impl Scorer {
         self.emit(
             EventKind::Score,
             &format!(
-                "tier02 candidate={} mean={:.3} ci=[{:.3},{:.3}] veto={}",
+                "tier02 candidate={} mean={:.3} ci=[{:.3},{:.3}] veto={} families={} same_disag={:.3} cross_disag={:.3} veto_weight={:.1}",
                 cand.name(),
                 r.mean,
                 r.ci_low,
                 r.ci_high,
-                r.veto
+                r.veto,
+                r.families,
+                r.same_family_disagreement,
+                r.cross_family_disagreement,
+                r.veto_weight
             ),
         );
         Ok(r)
@@ -825,6 +859,95 @@ impl Scorer {
     pub fn seed_drift_for_test(&mut self, kind: DriftKind) {
         self.drift = Some(kind);
     }
+    /// Test backdoor pair: models the corruption being repaired, so the
+    /// re-anchor path (re-measure, lift only when clean) is exercisable.
+    pub fn clear_drift_for_test(&mut self) {
+        self.drift = None;
+    }
+
+    /// Re-anchor (spec 8.4: "frozen for promotion decisions until
+    /// re-anchored"): re-measure the control group. The freeze lifts ONLY
+    /// when the error rate is back under threshold; a still-corrupt scorer
+    /// stays frozen.
+    pub fn re_anchor(
+        &mut self,
+        suite: &CanarySuite,
+        heldout: &TaskSuite,
+        pin: &ScorerPin,
+    ) -> Result<CanaryReport, PromotionError> {
+        let report = self.run_canaries(suite, heldout, pin)?;
+        if !report.drifted && self.frozen {
+            self.frozen = false;
+            self.emit(
+                EventKind::AnchorResult,
+                &format!(
+                    "scorer_reanchored error_rate={:.3} threshold={:.3}",
+                    report.error_rate, self.config.canary_error_threshold
+                ),
+            );
+        }
+        Ok(report)
+    }
+
+    /// Anchor audit (spec tier-2 hygiene): measure each judge's drift
+    /// against the standing human-labeled anchor set; a judge over the
+    /// drift threshold is dropped from the panel (re-anchored or dropped).
+    /// One `AnchorResult` substrate event per judge, never policy data.
+    pub fn run_anchor_audit(&mut self, panel: &mut JudgePanel, anchors: &AnchorSet) -> AnchorAudit {
+        let n = anchors.anchors().len().max(1) as f64;
+        let mut results = Vec::new();
+        for j in &panel.judges {
+            let drift = anchors
+                .anchors()
+                .iter()
+                .map(|a| (j.score(&a.artifact, &a.task) - a.human_label).abs())
+                .sum::<f64>()
+                / n;
+            let dropped = drift > self.config.anchor_drift_threshold;
+            self.emit(
+                EventKind::AnchorResult,
+                &format!(
+                    "anchor_result judge={} family={} drift={:.3} outcome={} domain={} version={}",
+                    j.name(),
+                    j.family(),
+                    drift,
+                    if dropped { "dropped" } else { "kept" },
+                    anchors.domain(),
+                    anchors.version()
+                ),
+            );
+            results.push(JudgeDrift {
+                judge: j.name().to_string(),
+                family: j.family().to_string(),
+                drift,
+                dropped,
+            });
+        }
+        panel
+            .judges
+            .retain(|j| !results.iter().any(|r| r.judge == j.name() && r.dropped));
+        AnchorAudit {
+            domain: anchors.domain().to_string(),
+            version: anchors.version(),
+            results,
+        }
+    }
+
+    /// Event payloads as text, in stream order - the canonical evidence the
+    /// scorer's verdicts rest on (also what the TUI scorer view renders).
+    #[must_use]
+    pub fn event_texts(&self) -> Vec<String> {
+        self.log_events()
+            .iter()
+            .filter_map(|e| match &e.payload {
+                Payload::BlobRef { hash, .. } => hs_log::read_blob(&self.log_root, hash)
+                    .ok()
+                    .map(|b| String::from_utf8_lossy(&b).into_owned()),
+                Payload::Inline(b) => Some(String::from_utf8_lossy(b).into_owned()),
+                Payload::None => None,
+            })
+            .collect()
+    }
 
     #[must_use]
     pub fn log_events(&self) -> Vec<Event> {
@@ -832,6 +955,87 @@ impl Scorer {
             .and_then(|r| r.events())
             .unwrap_or_default()
     }
+}
+
+/// Veto weight with cross-family coverage on the panel.
+pub const VETO_WEIGHT_FULL: f64 = 1.0;
+/// Veto weight where only one model family is available (spec tier-2
+/// hygiene: same-family judges share failure modes with the system under
+/// test, so their agreement is not independent evidence).
+pub const VETO_WEIGHT_REDUCED: f64 = 0.5;
+
+// -------------------------------------------------------------- anchors ---
+
+/// Calibration anchor: a human-labeled artifact on a task. Judge drift is
+/// measured as the mean absolute deviation from these labels (spec tier-2
+/// hygiene: "a standing human-labeled anchor set per domain"). The anchor
+/// set never becomes training data.
+#[derive(Clone)]
+pub struct Anchor {
+    pub task: Task,
+    pub artifact: Artifact,
+    pub human_label: f64,
+}
+impl Anchor {
+    #[must_use]
+    pub fn new(task: Task, artifact: Artifact, human_label: f64) -> Self {
+        Anchor {
+            task,
+            artifact,
+            human_label,
+        }
+    }
+}
+
+/// The anchor set is versioned and append-only by construction - there is
+/// no remove or replace path, only `append` - so a self-modifying policy
+/// cannot silently rewrite the ground truth it is measured against.
+#[derive(Clone)]
+pub struct AnchorSet {
+    domain: String,
+    version: u32,
+    anchors: Vec<Anchor>,
+}
+impl AnchorSet {
+    #[must_use]
+    pub fn new(domain: &str) -> Self {
+        AnchorSet {
+            domain: domain.into(),
+            version: 0,
+            anchors: vec![],
+        }
+    }
+    pub fn append(&mut self, anchor: Anchor) {
+        self.anchors.push(anchor);
+        self.version += 1;
+    }
+    #[must_use]
+    pub fn version(&self) -> u32 {
+        self.version
+    }
+    #[must_use]
+    pub fn domain(&self) -> &str {
+        &self.domain
+    }
+    #[must_use]
+    pub fn anchors(&self) -> &[Anchor] {
+        &self.anchors
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct JudgeDrift {
+    pub judge: String,
+    pub family: String,
+    pub drift: f64,
+    pub dropped: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct AnchorAudit {
+    pub domain: String,
+    pub version: u32,
+    pub results: Vec<JudgeDrift>,
 }
 
 // ------------------------------------------------------------- best-of-N ---

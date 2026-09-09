@@ -35,7 +35,11 @@ pub enum EventKind {
     ScorerPin = 15,
     CanaryResult = 16,
     Prefetch = 17,
-    // 18..=63 unassigned spec space.
+    /// Tier-2 hygiene: judge anchor-audit outcomes and scorer re-anchor
+    /// records (v5 section 8.2 calibration anchors; section 8.4 canary
+    /// freeze-then-re-anchor).
+    AnchorResult = 18,
+    // 19..=63 unassigned spec space.
     CapabilityDelta = 64, // gates 7-8: scorer-read delta on policy promotions
     FitnessDelta = 65,    // gates 7-8: scorer-read fitness slope delta
     Regression = 66,      // reserved: gates 7-8
@@ -71,6 +75,7 @@ impl EventKind {
             15 => Self::ScorerPin,
             16 => Self::CanaryResult,
             17 => Self::Prefetch,
+            18 => Self::AnchorResult,
             64 => Self::CapabilityDelta,
             67 => Self::CapabilityChange,
             65 => Self::FitnessDelta,

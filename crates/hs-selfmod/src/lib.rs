@@ -338,6 +338,10 @@ impl SelfModLoop {
             ci_low: verdict.pass_rate,
             ci_high: verdict.pass_rate,
             veto: !verdict.passed(),
+            // no rubric judges in the deterministic world: no panel, so by
+            // the single-family rule the veto weight is the reduced value
+            families: 0,
+            veto_weight: hs_scorer::VETO_WEIGHT_REDUCED,
             cross_family_disagreement: 0.0,
             same_family_disagreement: 0.0,
         };
