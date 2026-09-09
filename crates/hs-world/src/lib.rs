@@ -1,5 +1,5 @@
 //! HAIRSPRING gate 6 - shared world service (spec: World service + artifact
-//! schema; design docs/gate6-design.md). Proposal-consequence separation
+//! schema; the gate6 design). Proposal-consequence separation
 //! [PROVEN in SwarmWorld]: agents write Proposal events; the world service
 //! alone validates and writes Consequence events. The agent's description
 //! of value is never the measurement of value.

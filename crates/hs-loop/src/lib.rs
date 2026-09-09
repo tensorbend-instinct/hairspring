@@ -421,7 +421,7 @@ impl InnerLoop {
     /// the mission exits cleanly, the runner pulls the run dir, and
     /// the official verifier still grades the final machine state.
     /// Called from the step loop AND the passing-close join loop -
-    /// before 675e2883's follow-up the join loop had no wall check,
+    /// before the wall-guard follow-up the join loop had no wall check,
     /// so a wedged child (plugin thread stuck, report never written)
     /// hung the parent past its own guard (hostile-pass finding,
     /// 2026-09-08). Returns Some(result) when the wall was exceeded.
@@ -1419,7 +1419,7 @@ impl InnerLoop {
                 )),
             )?;
             if stop_green {
-                // Item 3: adversarial verifier veto (docs/verifier-design.md).
+                // Item 3: adversarial verifier veto (the verifier design).
                 // The checker is the ground-truth floor; the verifier runs
                 // after green and can only send the work back - never pass
                 // on its own authority. Capped rounds; malfunction never blocks.
@@ -1669,7 +1669,7 @@ pub fn book_wall_kill(
 
 /// Item 3: the verifier's prompt. Audit-recorded-evidence only;
 /// default-refuted on uncertainty; anti-ratchet on re-rounds
-/// (docs/verifier-design.md; Grok goal_verifier_prompt.md adapted).
+/// (the verifier design; Grok goal_verifier_prompt.md adapted).
 fn build_verifier_prompt(
     mission: &str,
     answer: &str,

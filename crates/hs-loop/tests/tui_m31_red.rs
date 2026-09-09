@@ -1,5 +1,5 @@
 //! Hostile pass 2026-09-08 (post-#5): the :agents panel diverges from
-//! its own signed-off design (docs/ui-fullscreen-gate.md, Eric's
+//! its own signed-off design (the fullscreen gate design, Eric's
 //! addendum): nodes must carry the child's MODEL, and the graph must
 //! render as an INDENTED TREE (parent->child), not a flat list.
 //! Shipped: AgentNode{stream_id, mission, status} - no parent, no

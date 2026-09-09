@@ -2,7 +2,7 @@
 //! Mode). The stop decision is owned by a VERIFIABLE predicate - the
 //! submitted patch applies and the FAIL_TO_PASS command exits 0 - never by
 //! a checker plugin's say-so (T7). f2p commands are harness-generated
-//! (ops/subset/run_subset_par.py writes f2p.sh; HS_SWE_F2P carries it), so
+//! (the subset runner writes f2p.sh; HS_SWE_F2P carries it), so
 //! they run HOST-side in a scratch worktree (repexec::run_host), at the
 //! same exec location as the standalone checker: the bwrap sandbox exists
 //! to contain MODEL commands and never binds /home, where mission venvs

@@ -72,7 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Goal evaluator f2p = the REAL acceptance command (HS_SWE_F2P, written
-    // by ops/subset/run_subset_par.py as "bash <run_dir>/f2p.sh"), never the
+    // by the subset runner as "bash <run_dir>/f2p.sh"), never the
     // instance's fail_to_pass test IDs (forensic item 1, 2026-09-06: test IDs
     // ran as shell -> exit 127 -> env_limited in 100% of sessions).
     let goal_cmds: Vec<String> = if blind {
@@ -134,7 +134,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ),
         Err(_) => None,
     };
-    // MCP tool surface (docs/mcp-adapter-gate.md): discover each server's
+    // MCP tool surface (the MCP adapter gate design): discover each server's
     // tools through the bridge and register them namespaced. Discovery
     // failure is a hard error - a half-registered surface is worse than none.
     let mut mcp_tools = String::new();

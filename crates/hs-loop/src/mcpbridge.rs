@@ -1,4 +1,4 @@
-//! Client-side MCP bridge, pure parts (docs/mcp-adapter-gate.md): config
+//! Client-side MCP bridge, pure parts (the MCP adapter gate design): config
 //! schema, tool namespacing, allowed-roots path enforcement. The async
 //! server lifecycle (rmcp client, spawn/kill per mission, discovery ->
 //! kernel registry) lands in hs-plugin-mcpbridge; the kernel stays

@@ -1,4 +1,4 @@
-//! Per-call MCP bridge (client side, docs/mcp-adapter-gate.md): spawns the
+//! Per-call MCP bridge (client side, the MCP adapter gate design): spawns the
 //! named MCP server as a child process, handshakes via rmcp, lists or calls
 //! one tool, exits (child dies with us). The kernel invokes this bin per
 //! tool call, so ToolCall audit events hold automatically.

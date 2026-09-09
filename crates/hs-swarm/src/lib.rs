@@ -1,5 +1,5 @@
 //! HAIRSPRING gate 5 - sub-agent spawner + swarm operators (spec 10 row 5,
-//! design docs/gate5-design.md). A delegated subtask runs the SAME
+//! the gate5 design). A delegated subtask runs the SAME
 //! substrate as a child stream: same log root, same kernel config, one
 //! Spawn event on the parent stream linking to the child stream_id.
 //! Delegation overhead is measured in milliseconds, not deployment.

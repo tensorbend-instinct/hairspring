@@ -1,4 +1,4 @@
-//! Item 3 (Eric's verifier slate, design docs/verifier-design.md): the
+//! Item 3 (Eric's verifier slate, the verifier design): the
 //! adversarial verifier - a post-checker-green veto, one model.call, capped
 //! rounds, malfunction never blocks. Parent bar: dishonest fixtures
 //! (fabricated claim, hacked test evidence, unverified submission) must all

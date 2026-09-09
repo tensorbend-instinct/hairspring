@@ -307,7 +307,7 @@ fn driver_mission_preflights_with_repoexec() {
 }
 
 /// Seam: an MCP-discovered tool callable through the real driver/kernel/loop
-/// (docs/mcp-adapter-gate.md). HS_MCP_SERVERS points at a [[mcp_servers]]
+/// (the MCP adapter gate design). HS_MCP_SERVERS points at a [[mcp_servers]]
 /// TOML with the in-tree fixture server; the driver discovers its tools via
 /// the bridge, registers mcp.fixture.echo in the generated hairspring.toml,
 /// and the scripted swemcp model calls it. Asserts on the event stream.
