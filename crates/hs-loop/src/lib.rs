@@ -25,6 +25,7 @@ pub mod termexec;
 pub mod sweprompt;
 pub mod toolschema;
 pub mod tui;
+pub mod tui_views;
 pub mod uipaint;
 
 use hs_core::{EventBuilder, EventKind, Payload};
