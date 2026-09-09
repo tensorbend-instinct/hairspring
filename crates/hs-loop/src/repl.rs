@@ -567,11 +567,10 @@ pub fn list_sessions(log_root: &Path) -> Vec<SessionInfo> {
         let mut modified = std::time::SystemTime::UNIX_EPOCH;
         if let Ok(files) = std::fs::read_dir(entry.path()) {
             for f in files.flatten() {
-                if let Ok(m) = f.metadata().and_then(|md| md.modified()) {
-                    if m > modified {
+                if let Ok(m) = f.metadata().and_then(|md| md.modified())
+                    && m > modified {
                         modified = m;
                     }
-                }
             }
         }
         out.push(SessionInfo {

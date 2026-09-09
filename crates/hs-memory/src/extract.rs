@@ -36,12 +36,11 @@ pub fn extract_stream(
         match e.kind {
             EventKind::ToolCall => {
                 tool_calls += 1;
-                if v["plugin"].as_str() == Some("answer.write") {
-                    if let Some(p) = v["args"]["path"].as_str() {
+                if v["plugin"].as_str() == Some("answer.write")
+                    && let Some(p) = v["args"]["path"].as_str() {
                         edits.push(p.to_string());
                         edit_seqs.push(e.seq);
                     }
-                }
             }
             EventKind::Feedback if v["checker"].is_string() => {
                 verdict_seqs.push(e.seq);

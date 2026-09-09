@@ -87,9 +87,12 @@ fn test_provider(url: &str) -> Provider {
 #[test]
 fn retry_after_header_is_honored() {
     let _g = env_lock().lock().unwrap();
-    std::env::remove_var("HS_REALMODEL_MAX_ATTEMPTS");
-    std::env::remove_var("HS_REALMODEL_BACKOFF_BASE_SECS");
-    std::env::set_var("HS_RT429_API_KEY", "k");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_REALMODEL_MAX_ATTEMPTS") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_REALMODEL_BACKOFF_BASE_SECS") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_RT429_API_KEY", "k") };
     let hits = Arc::new(AtomicUsize::new(0));
     let url = scripted_server(vec![R429_RA1.into(), R429_RA1.into(), r200()], hits.clone());
     let p = test_provider(&url);
@@ -104,9 +107,12 @@ fn retry_after_header_is_honored() {
 #[test]
 fn fatal_4xx_fails_immediately() {
     let _g = env_lock().lock().unwrap();
-    std::env::remove_var("HS_REALMODEL_MAX_ATTEMPTS");
-    std::env::remove_var("HS_REALMODEL_BACKOFF_BASE_SECS");
-    std::env::set_var("HS_RT429_API_KEY", "k");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_REALMODEL_MAX_ATTEMPTS") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_REALMODEL_BACKOFF_BASE_SECS") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_RT429_API_KEY", "k") };
     let hits = Arc::new(AtomicUsize::new(0));
     let url = scripted_server(vec![R400.into(), r200()], hits.clone());
     let p = test_provider(&url);
@@ -118,9 +124,12 @@ fn fatal_4xx_fails_immediately() {
 #[test]
 fn max_attempts_env_bounds_retries() {
     let _g = env_lock().lock().unwrap();
-    std::env::set_var("HS_REALMODEL_MAX_ATTEMPTS", "2");
-    std::env::set_var("HS_REALMODEL_BACKOFF_BASE_SECS", "0");
-    std::env::set_var("HS_RT429_API_KEY", "k");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_REALMODEL_MAX_ATTEMPTS", "2") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_REALMODEL_BACKOFF_BASE_SECS", "0") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_RT429_API_KEY", "k") };
     let hits = Arc::new(AtomicUsize::new(0));
     let url = scripted_server(
         vec![R429.into(), R429.into(), R429.into(), r200()],
@@ -130,16 +139,21 @@ fn max_attempts_env_bounds_retries() {
     let err = call(&p, "MISSION: t", None).expect_err("budget exhausted");
     assert!(err.contains("429"), "final error names the status: {err}");
     assert_eq!(hits.load(Ordering::SeqCst), 2, "attempt budget respected");
-    std::env::remove_var("HS_REALMODEL_MAX_ATTEMPTS");
-    std::env::remove_var("HS_REALMODEL_BACKOFF_BASE_SECS");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_REALMODEL_MAX_ATTEMPTS") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_REALMODEL_BACKOFF_BASE_SECS") };
 }
 
 #[test]
 fn exponential_backoff_without_retry_after() {
     let _g = env_lock().lock().unwrap();
-    std::env::remove_var("HS_REALMODEL_MAX_ATTEMPTS");
-    std::env::set_var("HS_REALMODEL_BACKOFF_BASE_SECS", "1");
-    std::env::set_var("HS_RT429_API_KEY", "k");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_REALMODEL_MAX_ATTEMPTS") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_REALMODEL_BACKOFF_BASE_SECS", "1") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_RT429_API_KEY", "k") };
     let hits = Arc::new(AtomicUsize::new(0));
     let url = scripted_server(vec![R429.into(), R429.into(), r200()], hits.clone());
     let p = test_provider(&url);
@@ -149,7 +163,8 @@ fn exponential_backoff_without_retry_after() {
     assert_eq!(out["completion"], "ok");
     assert_eq!(hits.load(Ordering::SeqCst), 3);
     assert!(el >= 3, "exponential 1s+2s sleeps must elapse, took {el}s");
-    std::env::remove_var("HS_REALMODEL_BACKOFF_BASE_SECS");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_REALMODEL_BACKOFF_BASE_SECS") };
 }
 
 #[test]

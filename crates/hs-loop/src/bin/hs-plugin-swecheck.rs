@@ -78,15 +78,14 @@ fn main() {
                 }
                 Ok(hs_bench::ApplyResult::Applied) => {
                     let mut failures: Vec<String> = vec![];
-                    if let Ok(setup) = std::env::var("HS_SWE_SETUP") {
-                        if !setup.trim().is_empty() {
+                    if let Ok(setup) = std::env::var("HS_SWE_SETUP")
+                        && !setup.trim().is_empty() {
                             let (ok, log) = run_cmd(&ws, &setup);
                             if !ok {
                                 failures
                                     .push(format!("setup failed: {}", &log[..log.len().min(400)]));
                             }
                         }
-                    }
                     let f2p = std::env::var("HS_SWE_F2P").unwrap_or_default();
                     let p2p = std::env::var("HS_SWE_P2P").unwrap_or_default();
                     for cmd in f2p

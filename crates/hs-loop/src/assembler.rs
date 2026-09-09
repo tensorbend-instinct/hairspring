@@ -37,8 +37,8 @@ pub fn assemble(
         }
         // resolve Inline AND BlobRef payloads: hs-log promotes large results
         // to blob refs on append; skipping them drops big tool outputs
-        if let Ok(bytes) = reader.resolve_payload(e) {
-            if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+        if let Ok(bytes) = reader.resolve_payload(e)
+            && let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes) {
                 let mut line = format!(
                     "{}({}) => {}",
                     v["plugin"].as_str().unwrap_or("?"),
@@ -51,7 +51,6 @@ pub fn assemble(
                 }
                 lines.push((e.seq, e.event_id, line));
             }
-        }
     }
     let total: usize = lines.iter().map(|(_, _, l)| l.len() + 8).sum();
     let mut entries: Vec<String> = vec![];
@@ -150,11 +149,10 @@ pub fn assemble_messages(
     for e in events {
         match e.kind {
             EventKind::ModelCall => {
-                if let Ok(bytes) = reader.resolve_payload(e) {
-                    if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+                if let Ok(bytes) = reader.resolve_payload(e)
+                    && let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes) {
                         last_reasoning = v["reasoning_content"].as_str().unwrap_or("").to_string();
                     }
-                }
             }
             EventKind::ToolCall if !last_reasoning.is_empty() => {
                 reasoning_by_tc.insert(e.seq, last_reasoning.clone());
@@ -168,8 +166,8 @@ pub fn assemble_messages(
             continue;
         }
         // resolve Inline AND BlobRef payloads, same as assemble()
-        if let Ok(bytes) = reader.resolve_payload(e) {
-            if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+        if let Ok(bytes) = reader.resolve_payload(e)
+            && let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes) {
                 let plugin = v["plugin"].as_str().unwrap_or("?").to_string();
                 let args = v["args"].clone();
                 let mut content = if !v["result"].is_null() {
@@ -198,7 +196,6 @@ pub fn assemble_messages(
                     reasoning,
                 });
             }
-        }
     }
     let cost = |x: &Exchange| {
         x.args.to_string().len() + x.content.len() + x.reasoning.len() + PAIR_OVERHEAD

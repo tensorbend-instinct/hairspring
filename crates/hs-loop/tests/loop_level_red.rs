@@ -41,7 +41,8 @@ fn mission_aborts_as_harness_error_when_answer_path_plugin_dies() {
             answer.display()
         ),
     );
-    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let config = write(
         dir.path(),
         "hairspring.toml",
@@ -112,7 +113,8 @@ fn dead_non_answer_tool_degrades_and_mission_continues() {
             answer.display()
         ),
     );
-    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let config = write(
         dir.path(),
         "hairspring.toml",
@@ -182,7 +184,8 @@ fn repeat_calls_to_dead_tool_short_circuit_without_respawn() {
             answer.display()
         ),
     );
-    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let config = write(
         dir.path(),
         "hairspring.toml",
@@ -280,7 +283,8 @@ fn progress_checkpointed_every_step_even_without_answer_writes() {
     let log = tempfile::tempdir().unwrap();
     let progress = log.path().join("progress.json");
     let script = write(dir.path(), "script.jsonl", "not a json tool call at all");
-    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let config = write(
         dir.path(),
         "hairspring.toml",
@@ -359,7 +363,8 @@ fn step_header_carries_step_wall_and_cost_budgets() {
             answer.display()
         ),
     );
-    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let config = write(
         dir.path(),
         "hairspring.toml",
@@ -441,7 +446,8 @@ fn convergence_nudge_at_half_and_three_quarter_steps_when_no_test_ran() {
             answer.display()
         ),
     );
-    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let config = write(
         dir.path(),
         "hairspring.toml",
@@ -540,7 +546,8 @@ fn answer_write_rejected_until_the_model_has_verified() {
             .unwrap();
         assert!(st.success());
     }
-    std::env::set_var("HS_SWE_WORKSPACE", &ws);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SWE_WORKSPACE", &ws) };
     let answer = log.path().join("work").join("task-21").join("answer.txt");
     let diff = "```diff\n--- a/code.txt\n+++ b/code.txt\n@@ -1 +1 @@\n-broken\n+fixed\n```";
     let script = write(
@@ -553,7 +560,8 @@ fn answer_write_rejected_until_the_model_has_verified() {
             answer.display()
         ),
     );
-    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let config = write(
         dir.path(),
         "hairspring.toml",
@@ -617,7 +625,8 @@ default = true
         "rejection feedback in the step-2 prompt: {}",
         prompts.get(1).map_or("", |p| &p[..p.len().min(500)])
     );
-    std::env::remove_var("HS_SWE_WORKSPACE");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SWE_WORKSPACE") };
 }
 
 #[test]
@@ -634,7 +643,8 @@ fn answer_write_allowed_untested_on_the_last_step() {
             answer.display()
         ),
     );
-    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let config = write(
         dir.path(),
         "hairspring.toml",
@@ -686,7 +696,8 @@ fn doom_loop_nudge_on_repeated_calls_once_then_escalation_only() {
             answer.display()
         ),
     );
-    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let config = write(
         dir.path(),
         "hairspring.toml",
@@ -758,7 +769,8 @@ default = true
         "script.jsonl",
         "{\"tool\":\"probe.read\",\"args\":{\"path\":\"a.txt\"}}\n{\"tool\":\"probe.read\",\"args\":{\"path\":\"b.txt\"}}\n{\"tool\":\"probe.read\",\"args\":{\"path\":\"c.txt\"}}",
     );
-    std::env::set_var("HS_SEQMODEL_SCRIPT", &script2);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script2) };
     let kernel2 = hs_kernel::Kernel::load(&config).unwrap();
     let mut l2 = InnerLoop::new(kernel2, log2.path(), true, 3).unwrap();
     let r2 = l2.run_mission("task-23").unwrap();

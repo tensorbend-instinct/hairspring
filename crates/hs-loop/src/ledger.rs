@@ -138,13 +138,12 @@ impl Ledger {
                 }
             }
             "edit.apply" => {
-                if result["applied"].as_bool() == Some(true) {
-                    if let Some(files) = result["files_changed"].as_array() {
+                if result["applied"].as_bool() == Some(true)
+                    && let Some(files) = result["files_changed"].as_array() {
                         for f in files.iter().filter_map(|f| f.as_str()) {
                             self.edits.push((seq, f.to_string()));
                         }
                     }
-                }
             }
             "answer.write" => {
                 if let Some(p) = args["path"].as_str() {
@@ -187,8 +186,8 @@ impl Ledger {
                     .push((seq, "checker".to_string(), ok, String::new()));
             }
             "notes.scratch" => {
-                if matches!(args["op"].as_str(), Some("write" | "append")) {
-                    if let Some(line) = args["content"]
+                if matches!(args["op"].as_str(), Some("write" | "append"))
+                    && let Some(line) = args["content"]
                         .as_str()
                         .and_then(|c| c.lines().find(|l| !l.trim().is_empty()))
                     {
@@ -197,7 +196,6 @@ impl Ledger {
                             self.open_threads.remove(0);
                         }
                     }
-                }
             }
             _ => {}
         }

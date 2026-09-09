@@ -92,17 +92,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut known: Vec<Uuid> = streams.clone();
             let mut seen: std::collections::HashMap<Uuid, u64> = std::collections::HashMap::new();
             loop {
-                if follow {
-                    if let Ok(rd) = std::fs::read_dir(dir.join("streams")) {
+                if follow
+                    && let Ok(rd) = std::fs::read_dir(dir.join("streams")) {
                         for e in rd.filter_map(std::result::Result::ok) {
-                            if let Ok(u) = Uuid::parse_str(&e.file_name().to_string_lossy()) {
-                                if !known.contains(&u) {
+                            if let Ok(u) = Uuid::parse_str(&e.file_name().to_string_lossy())
+                                && !known.contains(&u) {
                                     known.push(u);
                                 }
-                            }
                         }
                     }
-                }
                 for s in &known {
                     let from: Option<u64> = seen.get(s).copied();
                     let r = match StreamReader::open(&dir, *s) {
@@ -114,11 +112,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Err(_) => continue,
                     };
                     for e in events {
-                        if let Some(f) = from {
-                            if e.seq <= f {
+                        if let Some(f) = from
+                            && e.seq <= f {
                                 continue;
                             }
-                        }
                         seen.insert(*s, e.seq);
                         if e.kind != hs_core::EventKind::ModelCall {
                             continue;

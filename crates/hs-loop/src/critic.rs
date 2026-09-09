@@ -134,7 +134,7 @@ pub fn refute(
     let mut steps: u32 = 0;
     let mut probes: u32 = 0;
     macro_rules! out {
-        ($passed:expr, $reason:expr) => {{
+        ($passed:expr_2021, $reason:expr_2021) => {{
             let (i, o, c) = model.usage();
             return RefuteOutcome {
                 passed: $passed,
@@ -224,14 +224,12 @@ pub fn checker_gate(ws: &Path) -> Value {
     // The author's own answer summary (when present) is part of what the
     // critic reviews: its claims are refutation targets.
     let mut brief = instruction;
-    if let Ok(f) = std::env::var("HS_TB_ANSWER_FILE") {
-        if let Ok(a) = std::fs::read_to_string(&f) {
-            if !a.trim().is_empty() {
+    if let Ok(f) = std::env::var("HS_TB_ANSWER_FILE")
+        && let Ok(a) = std::fs::read_to_string(&f)
+            && !a.trim().is_empty() {
                 brief.push_str("\n\nAUTHOR'S SUBMISSION SUMMARY:\n");
                 brief.push_str(&a);
             }
-        }
-    }
     let checks_text = std::fs::read_to_string(ws.join(crate::selfcheck::CHECKS_REL)).unwrap_or_default();
     let cfg = RefuteConfig::from_env();
     let mut model: Box<dyn CriticModel> = match ScriptedCritic::from_env() {
@@ -471,8 +469,8 @@ impl CriticModel for ProviderCritic {
             + cached as f64 * self.cached_micros
             + out_tok as f64 * self.out_micros) as u64;
         let msg = &v["choices"][0]["message"];
-        if let Some(tcs) = msg["tool_calls"].as_array() {
-            if !tcs.is_empty() {
+        if let Some(tcs) = msg["tool_calls"].as_array()
+            && !tcs.is_empty() {
                 let mut calls = vec![];
                 for tc in tcs {
                     let id = tc["id"].as_str().unwrap_or("c0").to_string();
@@ -492,7 +490,6 @@ impl CriticModel for ProviderCritic {
                 }
                 return Ok(CriticReply::ToolCalls(calls));
             }
-        }
         let content = msg["content"]
             .as_str()
             .ok_or_else(|| format!("{} critic: completion carried neither tool calls nor content", self.name))?;

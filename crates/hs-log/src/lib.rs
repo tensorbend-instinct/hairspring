@@ -353,15 +353,14 @@ impl StreamWriter {
         }
         e.prev_hash = self.last_hash;
         // Payload-by-hash: large bodies move to the blob store (spec 3).
-        if let Payload::Inline(bytes) = &e.payload {
-            if bytes.len() > INLINE_CAP {
+        if let Payload::Inline(bytes) = &e.payload
+            && bytes.len() > INLINE_CAP {
                 let hash = self.store_blob(bytes)?;
                 e.payload = Payload::BlobRef {
                     hash,
                     len: bytes.len() as u64,
                 };
             }
-        }
         e.hash = e.compute_hash();
 
         let body = e.encode();
@@ -636,8 +635,8 @@ pub mod testing {
                 let len = u32::from_le_bytes(hdr[0..4].try_into().unwrap()) as usize;
                 let mut body = vec![0u8; len];
                 f.read_exact(&mut body).unwrap();
-                if let Ok(e) = Event::decode(&body) {
-                    if e.seq == seq {
+                if let Ok(e) = Event::decode(&body)
+                    && e.seq == seq {
                         let off = body_offset.min(len - 1);
                         f.seek(SeekFrom::Start(frame_start + 8 + off as u64))
                             .unwrap();
@@ -649,7 +648,6 @@ pub mod testing {
                         f.sync_all().unwrap();
                         return;
                     }
-                }
                 frame_start += 8 + len as u64;
             }
         }

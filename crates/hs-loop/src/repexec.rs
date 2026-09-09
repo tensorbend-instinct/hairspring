@@ -277,13 +277,11 @@ pub fn edit_path_violation(command: &str) -> Option<String> {
         }
         // redirection writes to .diff/.patch
         for (i, t) in toks.iter().enumerate() {
-            if t.contains('>') && t.chars().all(|c| c == '>' || c.is_ascii_digit()) {
-                if let Some(target) = toks.get(i + 1) {
-                    if is_diff_target(target) {
+            if t.contains('>') && t.chars().all(|c| c == '>' || c.is_ascii_digit())
+                && let Some(target) = toks.get(i + 1)
+                    && is_diff_target(target) {
                         return Some(format!("raw diff-file write ({t} {target})"));
                     }
-                }
-            }
         }
         // tee writes (all operands are write targets)
         if let Some(i) = toks.iter().position(|t| t == "tee") {
@@ -300,13 +298,10 @@ pub fn edit_path_violation(command: &str) -> Option<String> {
         if let Some(i) = toks
             .iter()
             .position(|t| matches!(t.as_str(), "cp" | "mv" | "install"))
-        {
-            if let Some(dst) = toks[i + 1..].iter().rfind(|a| !a.starts_with('-')) {
-                if is_diff_target(dst) {
+            && let Some(dst) = toks[i + 1..].iter().rfind(|a| !a.starts_with('-'))
+                && is_diff_target(dst) {
                     return Some(format!("raw diff-file write ({} {dst})", toks[i]));
                 }
-            }
-        }
     }
     None
 }

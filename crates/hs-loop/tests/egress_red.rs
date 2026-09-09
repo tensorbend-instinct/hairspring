@@ -13,14 +13,16 @@ static ENV_LOCK: Mutex<()> = Mutex::new(());
 #[test]
 fn sandbox_omits_share_net_when_egress_off() {
     let _g = ENV_LOCK.lock().unwrap();
-    std::env::set_var("HS_SWE_NET", "off");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SWE_NET", "off") };
     let argv = hs_loop::repexec::sandbox_argv(
         Path::new("/tmp/x"),
         Path::new("/tmp/o"),
         Path::new("/tmp/e"),
         "true",
     );
-    std::env::remove_var("HS_SWE_NET");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SWE_NET") };
     assert!(
         !argv.iter().any(|a| a == "--share-net"),
         "egress off: sandbox must NOT share the host net: {argv:?}"
@@ -30,7 +32,8 @@ fn sandbox_omits_share_net_when_egress_off() {
 #[test]
 fn sandbox_shares_net_by_default() {
     let _g = ENV_LOCK.lock().unwrap();
-    std::env::remove_var("HS_SWE_NET");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SWE_NET") };
     let argv = hs_loop::repexec::sandbox_argv(
         Path::new("/tmp/x"),
         Path::new("/tmp/o"),
@@ -46,9 +49,11 @@ fn sandbox_shares_net_by_default() {
 #[test]
 fn host_eval_wraps_unshare_net_when_egress_off() {
     let _g = ENV_LOCK.lock().unwrap();
-    std::env::set_var("HS_SWE_NET", "off");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SWE_NET", "off") };
     let w = hs_loop::repexec::host_command_wrapper("pytest t -x");
-    std::env::remove_var("HS_SWE_NET");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SWE_NET") };
     assert!(
         w.contains("unshare -n"),
         "host-side f2p must lose egress too: {w}"
@@ -58,7 +63,8 @@ fn host_eval_wraps_unshare_net_when_egress_off() {
 #[test]
 fn host_eval_unwrapped_by_default() {
     let _g = ENV_LOCK.lock().unwrap();
-    std::env::remove_var("HS_SWE_NET");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SWE_NET") };
     let w = hs_loop::repexec::host_command_wrapper("pytest t -x");
     assert!(
         !w.contains("unshare -n"),
@@ -79,9 +85,11 @@ fn prompt_states_network_off_when_egress_off() {
         orientation: String::new(),
         mcp_tools: String::new(),
     };
-    std::env::set_var("HS_SWE_NET", "off");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SWE_NET", "off") };
     let p = hs_loop::sweprompt::build_mission_prompt(None, &args);
-    std::env::remove_var("HS_SWE_NET");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SWE_NET") };
     assert!(
         p.contains("Network: OFF"),
         "egress-off prompt must say so: {}",

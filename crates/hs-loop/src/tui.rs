@@ -237,23 +237,21 @@ fn inline_spans(text: &str, base: Style, theme: &crate::uipaint::Theme) -> Vec<S
         }
         let after = &rest[i..];
         if let Some(body) = after.strip_prefix('`') {
-            if let Some(close) = body.find('`') {
-                if close > 0 {
+            if let Some(close) = body.find('`')
+                && close > 0 {
                     spans.push(Span::styled(body[..close].to_string(), code_style));
                     rest = &body[close + 1..];
                     continue;
                 }
-            }
             spans.push(Span::styled("`".to_string(), base));
             rest = body;
         } else if let Some(body) = after.strip_prefix("**") {
-            if let Some(close) = body.find("**") {
-                if close > 0 {
+            if let Some(close) = body.find("**")
+                && close > 0 {
                     spans.push(Span::styled(body[..close].to_string(), bold));
                     rest = &body[close + 2..];
                     continue;
                 }
-            }
             spans.push(Span::styled("**".to_string(), base));
             rest = body;
         } else {
@@ -701,14 +699,14 @@ impl DelegationGraph {
                 .to_string();
             g.note_spawn(child, Some(stream), &mission, &model);
             // Completion: the child stream's latest GoalUpdate done flag.
-            if let Ok(cr) = hs_log::StreamReader::open(log_root, child) {
-                if let Ok(cevents) = cr.events() {
+            if let Ok(cr) = hs_log::StreamReader::open(log_root, child)
+                && let Ok(cevents) = cr.events() {
                     for cev in cevents.iter().rev() {
                         if cev.kind != EventKind::GoalUpdate {
                             continue;
                         }
-                        if let hs_core::Payload::Inline(cb) = &cev.payload {
-                            if let Ok(cv) = serde_json::from_slice::<serde_json::Value>(cb) {
+                        if let hs_core::Payload::Inline(cb) = &cev.payload
+                            && let Ok(cv) = serde_json::from_slice::<serde_json::Value>(cb) {
                                 // M12: terminal = done:true, or any close
                                 // carrying an outcome. hs-swarm's spawn-time
                                 // GoalUpdate {done:false} has no outcome -
@@ -718,11 +716,9 @@ impl DelegationGraph {
                                     g.note_done(child, done.unwrap_or(false));
                                 }
                             }
-                        }
                         break; // latest GoalUpdate decides
                     }
                 }
-            }
         }
         Ok(g)
     }
@@ -817,8 +813,8 @@ pub fn backfill_transcript(
 fn extract_mission_text(v: &serde_json::Value) -> Option<String> {
     let msgs = v.get("messages")?.as_array()?;
     for m in msgs {
-        if let Some(c) = m.get("content").and_then(|c| c.as_str()) {
-            if let Some(i) = c.find("MISSION: ") {
+        if let Some(c) = m.get("content").and_then(|c| c.as_str())
+            && let Some(i) = c.find("MISSION: ") {
                 let rest = &c[i + 9..];
                 let end = rest.find("\n\n").unwrap_or(rest.len());
                 let goal = rest[..end].trim();
@@ -826,7 +822,6 @@ fn extract_mission_text(v: &serde_json::Value) -> Option<String> {
                     return Some(goal.to_string());
                 }
             }
-        }
     }
     None
 }

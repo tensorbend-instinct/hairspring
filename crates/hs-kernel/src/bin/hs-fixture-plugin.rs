@@ -19,8 +19,8 @@ fn main() {
     if mode == "stderr-spew" {
         eprintln!("fixture-stderr-marker: spew plugin starting");
     }
-    if mode == "usage-error" {
-        if let Some(state) = std::env::args().nth(2) {
+    if mode == "usage-error"
+        && let Some(state) = std::env::args().nth(2) {
             use std::io::Write as _;
             let mut f = std::fs::OpenOptions::new()
                 .create(true)
@@ -29,9 +29,8 @@ fn main() {
                 .unwrap();
             writeln!(f, "spawn").unwrap();
         }
-    }
-    if mode == "dies-always" {
-        if let Some(state) = std::env::args().nth(3) {
+    if mode == "dies-always"
+        && let Some(state) = std::env::args().nth(3) {
             use std::io::Write as _;
             let mut f = std::fs::OpenOptions::new()
                 .create(true)
@@ -40,7 +39,6 @@ fn main() {
                 .unwrap();
             writeln!(f, "spawn").unwrap();
         }
-    }
     let stdin = std::io::stdin();
     let mut out = std::io::stdout();
     for line in BufReader::new(stdin.lock()).lines() {

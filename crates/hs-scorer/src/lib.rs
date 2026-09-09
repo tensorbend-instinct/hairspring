@@ -625,9 +625,9 @@ impl Scorer {
                 r.tasks_total
             ),
         );
-        if !r.passed {
-            if let Some(p) = prior {
-                if p.kind == ClaimKind::VerifiedClaim {
+        if !r.passed
+            && let Some(p) = prior
+                && p.kind == ClaimKind::VerifiedClaim {
                     self.emit(
                         EventKind::Regression,
                         &format!(
@@ -638,8 +638,6 @@ impl Scorer {
                         ),
                     );
                 }
-            }
-        }
         Ok(r)
     }
 

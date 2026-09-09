@@ -112,14 +112,16 @@ fn honest_work_passes_with_one_verifier_round() {
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let ws = git_ws(dir.path());
-    std::env::set_var("HS_SWE_WORKSPACE", &ws);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SWE_WORKSPACE", &ws) };
     let answer = log.path().join("work").join("task-21").join("answer.txt");
     let diff = "```diff\\n--- a/code.txt\\n+++ b/code.txt\\n@@ -1 +1 @@\\n-broken\\n+fixed\\n```";
     let script = dir.path().join("script.jsonl");
     std::fs::write(&script, format!(
         "{{\"tool\":\"repo.exec\",\"args\":{{\"command\":\"cat code.txt\",\"diff\":\"{diff}\"}}}}\n{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"TOKEN-21-SECRET\"}}}}",
         answer.display())).unwrap();
-    std::env::set_var("HS_VF_SCRIPT", &script);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_VF_SCRIPT", &script) };
     let config = config_with(dir.path(), CHECKER, VFMODEL, "vfmodel", true);
     let kernel = hs_kernel::Kernel::load(&config).unwrap();
     let mut l = InnerLoop::new(kernel, log.path(), true, 5).unwrap();
@@ -161,7 +163,8 @@ fn fabricated_claim_is_refuted_until_the_ratchet_cap() {
     std::fs::write(&script, format!(
         "{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"TOKEN-22-SECRET\"}}}}",
         answer.display())).unwrap();
-    std::env::set_var("HS_VF_SCRIPT", &script);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_VF_SCRIPT", &script) };
     let config = config_with(dir.path(), CHECKER, VFMODEL, "vfmodel", false);
     let kernel = hs_kernel::Kernel::load(&config).unwrap();
     let mut l = InnerLoop::new(kernel, log.path(), true, 6).unwrap();
@@ -206,14 +209,16 @@ fn lying_checker_green_is_vetoed_when_the_answer_is_wrong() {
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let ws = git_ws(dir.path());
-    std::env::set_var("HS_SWE_WORKSPACE", &ws);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SWE_WORKSPACE", &ws) };
     let answer = log.path().join("work").join("task-23").join("answer.txt");
     let diff = "```diff\\n--- a/code.txt\\n+++ b/code.txt\\n@@ -1 +1 @@\\n-broken\\n+fixed\\n```";
     let script = dir.path().join("script.jsonl");
     std::fs::write(&script, format!(
         "{{\"tool\":\"repo.exec\",\"args\":{{\"command\":\"cat code.txt\",\"diff\":\"{diff}\"}}}}\n{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"HACKED\"}}}}\n{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"TOKEN-23-SECRET\"}}}}",
         answer.display(), answer.display())).unwrap();
-    std::env::set_var("HS_VF_SCRIPT", &script);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_VF_SCRIPT", &script) };
     let config = config_with(dir.path(), LIECHECKER, VFMODEL, "vfmodel", true);
     let kernel = hs_kernel::Kernel::load(&config).unwrap();
     let mut l = InnerLoop::new(kernel, log.path(), true, 6).unwrap();
@@ -256,7 +261,8 @@ fn malformed_verdict_books_error_and_the_checker_stands() {
     std::fs::write(&script, format!(
         "{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"TOKEN-20-SECRET\"}}}}",
         answer.display())).unwrap();
-    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let config = config_with(dir.path(), CHECKER, SCRIPTED, "scripted", false);
     let kernel = hs_kernel::Kernel::load(&config).unwrap();
     let mut l = InnerLoop::new(kernel, log.path(), true, 4).unwrap();

@@ -57,14 +57,18 @@ fn run_dir_and_instance_material_unreachable_inside_sandbox() {
 #[test]
 fn no_hs_env_leaks_into_sandbox() {
     let d = mkscratch();
-    std::env::set_var("HS_SWE_F2P", "bash /secret/f2p.sh");
-    std::env::set_var(
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SWE_F2P", "bash /secret/f2p.sh") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var(
         "HS_DEEPSEEK_API_KEY_FILE",
         "/home/sandbox/.keys/deepseek.key",
-    );
+    ); };
     let out = probe(d.path(), "env");
-    std::env::remove_var("HS_SWE_F2P");
-    std::env::remove_var("HS_DEEPSEEK_API_KEY_FILE");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SWE_F2P") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_DEEPSEEK_API_KEY_FILE") };
     assert!(
         !out.contains("HS_"),
         "harness env leaked into sandbox: {out}"

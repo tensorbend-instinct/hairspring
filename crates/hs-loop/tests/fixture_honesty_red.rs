@@ -54,8 +54,10 @@ fn r1_mission_passes_honestly() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     // answersubmit's tb mode (the mode the TUI runs in): the submission is a
     // completion summary, not a git diff (that path needs HS_SWE_WORKSPACE).
-    std::env::set_var("HS_ANSWER_RAW", "1");
-    std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_ANSWER_RAW", "1") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     let dir = std::env::temp_dir().join("fixture-honesty-r1");
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
@@ -82,8 +84,10 @@ fn r1_mission_passes_honestly() {
 #[test]
 fn r2_exhausted_script_still_lands() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    std::env::set_var("HS_ANSWER_RAW", "1");
-    std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_ANSWER_RAW", "1") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     let dir = std::env::temp_dir().join("fixture-honesty-r2");
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();

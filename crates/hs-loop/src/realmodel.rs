@@ -196,11 +196,10 @@ fn env_f64(key: &str, default: f64) -> f64 {
 /// Load the API key from env or file. The value is returned for the auth
 /// header and must never be logged or included in an error.
 pub fn load_key(p: &Provider) -> Result<String, String> {
-    if let Ok(k) = std::env::var(&p.key_env) {
-        if !k.trim().is_empty() {
+    if let Ok(k) = std::env::var(&p.key_env)
+        && !k.trim().is_empty() {
             return Ok(k.trim().to_string());
         }
-    }
     if let Ok(path) = std::env::var(&p.key_file_env) {
         return std::fs::read_to_string(&path)
             .map(|s| s.trim().to_string())
@@ -832,12 +831,11 @@ fn attempt_streaming(
             finish_reason = fr.to_string();
         }
         let delta = &choice["delta"];
-        if let Some(c) = delta["content"].as_str() {
-            if !c.is_empty() {
+        if let Some(c) = delta["content"].as_str()
+            && !c.is_empty() {
                 content.push_str(c);
                 on_delta(c);
             }
-        }
         if let Some(r) = delta["reasoning_content"].as_str() {
             reasoning.push_str(r);
         }

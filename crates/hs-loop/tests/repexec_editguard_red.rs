@@ -114,7 +114,8 @@ fn gate_allows_normal_shell_and_reads() {
 
 #[test]
 fn sandbox_rejects_b7s_verbatim_git_apply_payload() {
-    std::env::remove_var("HS_SWE_ANSWER");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SWE_ANSWER") };
     let ws = mk_ws();
     let r = hs_loop::repexec::run_sandboxed_no_patch(
         ws.path(),
@@ -131,7 +132,8 @@ fn sandbox_rejects_b7s_verbatim_git_apply_payload() {
 
 #[test]
 fn sandbox_gates_diff_writes_before_any_work() {
-    std::env::remove_var("HS_SWE_ANSWER");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SWE_ANSWER") };
     let ws = mk_ws();
     let r = hs_loop::repexec::run_sandboxed_no_patch(
         ws.path(),
@@ -164,7 +166,8 @@ fn diff_mode_and_answer_mode_are_gated_too() {
 
 #[test]
 fn allowed_command_still_executes_end_to_end() {
-    std::env::remove_var("HS_SWE_ANSWER");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SWE_ANSWER") };
     let ws = mk_ws();
     let r = hs_loop::repexec::run_sandboxed_no_patch(
         ws.path(),
@@ -201,7 +204,8 @@ fn prompt_steers_edits_only_via_edit_apply() {
         orientation: String::new(),
         mcp_tools: String::new(),
     };
-    std::env::remove_var("HS_SWE_EDIT_PATH");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SWE_EDIT_PATH") };
     let p_default = hs_loop::sweprompt::build_mission_prompt(None, &args);
     assert!(
         p_default.contains("edit.patch"),
@@ -211,9 +215,11 @@ fn prompt_steers_edits_only_via_edit_apply() {
         !p_default.contains("edit.anchor"),
         "default arm never names edit.anchor"
     );
-    std::env::set_var("HS_SWE_EDIT_PATH", "anchor");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SWE_EDIT_PATH", "anchor") };
     let p_anchor = hs_loop::sweprompt::build_mission_prompt(None, &args);
-    std::env::remove_var("HS_SWE_EDIT_PATH");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SWE_EDIT_PATH") };
     assert!(
         p_anchor.contains("edit.anchor"),
         "anchor arm renders edit.anchor"
@@ -250,11 +256,13 @@ fn prompt_steers_edits_only_via_edit_apply() {
 /// mission must still pass - the guardrail steers, it does not doom.
 #[test]
 fn mission_git_apply_payload_is_steered_not_executed() {
-    std::env::remove_var("HS_SWE_ANSWER");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SWE_ANSWER") };
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let ws = mk_ws();
-    std::env::set_var("HS_SWE_WORKSPACE", ws.path());
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SWE_WORKSPACE", ws.path()) };
     let answer = log.path().join("work").join("task-0").join("answer.txt");
     let script = dir.path().join("script.jsonl");
     std::fs::write(
@@ -265,7 +273,8 @@ fn mission_git_apply_payload_is_steered_not_executed() {
         ),
     )
     .unwrap();
-    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let config = dir.path().join("hairspring.toml");
     std::fs::write(
         &config,
@@ -338,6 +347,8 @@ default = true
         "normal shell still runs after a steered call: {allowed}"
     );
 
-    std::env::remove_var("HS_SWE_WORKSPACE");
-    std::env::remove_var("HS_SEQMODEL_SCRIPT");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SWE_WORKSPACE") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SEQMODEL_SCRIPT") };
 }

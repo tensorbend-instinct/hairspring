@@ -64,7 +64,8 @@ fn operator_call_is_a_native_messages_array() {
         ),
     )
     .unwrap();
-    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let config = dir.path().join("hairspring.toml");
     std::fs::write(
         &config,
@@ -229,7 +230,8 @@ fn assemble_messages_pairs_and_compaction() {
         ),
     )
     .unwrap();
-    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let config = dir.path().join("hairspring.toml");
     std::fs::write(
         &config,
@@ -328,14 +330,16 @@ fn verifier_verdict_is_a_native_tool_call() {
             .unwrap()
             .success());
     }
-    std::env::set_var("HS_SWE_WORKSPACE", &ws);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SWE_WORKSPACE", &ws) };
     let answer = log.path().join("work").join("task-21").join("answer.txt");
     let diff = "```diff\\n--- a/code.txt\\n+++ b/code.txt\\n@@ -1 +1 @@\\n-broken\\n+fixed\\n```";
     let script = dir.path().join("script.jsonl");
     std::fs::write(&script, format!(
         "{{\"tool\":\"repo.exec\",\"args\":{{\"command\":\"cat code.txt\",\"diff\":\"{diff}\"}}}}\n{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"TOKEN-21-SECRET\"}}}}",
         answer.display())).unwrap();
-    std::env::set_var("HS_VF_SCRIPT", &script);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_VF_SCRIPT", &script) };
     let config = dir.path().join("hairspring.toml");
     std::fs::write(
         &config,
@@ -415,7 +419,8 @@ fn verifier_prose_reply_is_an_error_not_a_verdict() {
     std::fs::write(&script, format!(
         "{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"TOKEN-22-SECRET\"}}}}\n{{\"refuted\":true,\"findings\":[{{\"kind\":\"bug\",\"location\":\"answer\",\"detail\":\"prose verdict from the old contract\"}}],\"blocking\":\"none\"}}",
         answer.display())).unwrap();
-    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let config = dir.path().join("hairspring.toml");
     std::fs::write(
         &config,
@@ -510,7 +515,8 @@ fn cached_tokens_reach_the_model_call_payload() {
         ),
     )
     .unwrap();
-    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let config = dir.path().join("hairspring.toml");
     std::fs::write(
         &config,

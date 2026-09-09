@@ -84,8 +84,10 @@ fn adapters_against_mock_server() {
     let glm_mock = mock_chat_server(
         r#"{"choices":[{"message":{"content":"```json\n{\"tool\":\"answer.write\",\"args\":{\"path\":\"/p\",\"content\":\"X\"}}\n```"}}],"usage":{"prompt_tokens":1000,"completion_tokens":250}}"#,
     );
-    std::env::set_var(glm().base_url_env, &glm_mock.url);
-    std::env::set_var(glm().key_env, "mock-glm-key");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var(glm().base_url_env, &glm_mock.url) };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var(glm().key_env, "mock-glm-key") };
     let out = call(&glm(), "MISSION: task-0\nANSWER_PATH: /p", None).unwrap();
     assert_eq!(glm_mock.got_auth.recv().unwrap(), "Bearer mock-glm-key");
     let body: serde_json::Value = serde_json::from_str(&glm_mock.got_body.recv().unwrap()).unwrap();
@@ -107,9 +109,12 @@ fn adapters_against_mock_server() {
     let ds_mock = mock_chat_server(
         r#"{"choices":[{"message":{"content":"{\"tool\":\"answer.write\",\"args\":{\"path\":\"/p\",\"content\":\"Y\"}}"}}],"usage":{"prompt_tokens":1000,"completion_tokens":250,"prompt_cache_hit_tokens":600,"prompt_cache_miss_tokens":400}}"#,
     );
-    std::env::remove_var(deepseek().key_env);
-    std::env::set_var(deepseek().key_file_env, &keyfile);
-    std::env::set_var(deepseek().base_url_env, &ds_mock.url);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var(deepseek().key_env) };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var(deepseek().key_file_env, &keyfile) };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var(deepseek().base_url_env, &ds_mock.url) };
     let out = call(&deepseek(), "MISSION: task-1\nANSWER_PATH: /p", None).unwrap();
     assert_eq!(ds_mock.got_auth.recv().unwrap(), "Bearer mock-ds-key");
     let body: serde_json::Value = serde_json::from_str(&ds_mock.got_body.recv().unwrap()).unwrap();
@@ -119,14 +124,17 @@ fn adapters_against_mock_server() {
     assert_eq!(out["cost_usd_micros"], 514);
 
     // missing key is an error that never contains a secret
-    std::env::remove_var(glm().key_env);
-    std::env::remove_var(glm().key_file_env);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var(glm().key_env) };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var(glm().key_file_env) };
     let e = call(&glm(), "x", None).unwrap_err();
     assert!(e.contains("no API key"), "{e}");
     assert!(!e.contains("mock-glm-key"));
 
     // provider 4xx surfaces status only, never the key
-    std::env::set_var(deepseek().key_env, "mock-ds-key");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var(deepseek().key_env, "mock-ds-key") };
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
     std::thread::spawn(move || {
@@ -139,10 +147,11 @@ fn adapters_against_mock_server() {
             );
         }
     });
-    std::env::set_var(
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var(
         deepseek().base_url_env,
         format!("http://127.0.0.1:{port}/chat/completions"),
-    );
+    ); };
     let e = call(&deepseek(), "x", None).unwrap_err();
     assert!(e.contains("401"), "{e}");
     assert!(!e.contains("mock-ds-key"));
@@ -164,12 +173,15 @@ fn watchdog_cutoff_returns_sentinel_not_hang() {
             drop(s);
         }
     });
-    std::env::set_var(
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var(
         "HS_GLM_BASE_URL",
         format!("http://127.0.0.1:{port}/chat/completions"),
-    );
-    std::env::set_var("HS_GLM_API_KEY", "test-dummy-not-a-real-key");
-    std::env::set_var("HS_REALMODEL_CALL_TIMEOUT_SECS", "2");
+    ); };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_GLM_API_KEY", "test-dummy-not-a-real-key") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_REALMODEL_CALL_TIMEOUT_SECS", "2") };
     let t0 = std::time::Instant::now();
     let r = hs_loop::realmodel::call(&hs_loop::realmodel::glm(), "hi", None).unwrap();
     assert!(

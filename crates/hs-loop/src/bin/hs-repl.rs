@@ -76,11 +76,11 @@ fn apply_streaming(session: &mut ReplSession) {
     let md_push = md.clone();
     session.set_delta_sink(Box::new(move |d: &str| {
         let mut err = std::io::stderr();
-        if let Ok(mut s) = md_push.lock() {
+        match md_push.lock() { Ok(mut s) => {
             s.push(d, &mut err);
-        } else {
+        } _ => {
             eprint!("{d}");
-        }
+        }}
         let _ = std::io::Write::flush(&mut std::io::stderr());
     }));
     let md_flush = md.clone();
@@ -498,10 +498,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // log root + kernel config from the environment (plugin processes
     // only see env + args; the loop injects the per-call parent
     // stream id itself).
-    std::env::set_var("HS_SWARM_LOG_ROOT", &opts.dir);
-    std::env::set_var("HS_SWARM_CONFIG", &opts.config);
-    std::env::set_var("HS_SWARM_FEEDBACK", if opts.feedback { "1" } else { "0" });
-    std::env::set_var("HS_SWARM_MAX_STEPS", opts.max_steps.to_string());
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SWARM_LOG_ROOT", &opts.dir) };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SWARM_CONFIG", &opts.config) };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SWARM_FEEDBACK", if opts.feedback { "1" } else { "0" }) };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SWARM_MAX_STEPS", opts.max_steps.to_string()) };
 
     // UI gap #7: `--resume` with no id lists prior sessions and lets the
     // operator pick one instead of pasting a raw stream uuid.
@@ -509,8 +513,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         use std::io::IsTerminal;
         std::io::stdin().is_terminal() && std::env::var("HS_TUI").as_deref() != Ok("off")
     };
-    if let Some(r) = &opts.resume {
-        if r.is_empty() && !tui_active {
+    if let Some(r) = &opts.resume
+        && r.is_empty() && !tui_active {
             use std::io::IsTerminal;
             if !std::io::stdin().is_terminal() {
                 return Err("--resume without an id opens the picker, which needs a TTY; piped mode wants --resume <uuid>".into());
@@ -530,7 +534,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .ok_or("invalid selection")?;
             opts.resume = Some(id.to_string());
         }
-    }
 
     if let Some(goal) = one_shot_goal {
         // Gap #4: --resume <stream-id> continues a prior session's

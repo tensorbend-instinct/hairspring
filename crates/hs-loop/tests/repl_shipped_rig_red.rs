@@ -50,10 +50,14 @@ subjects = ["*"]
         "{\"tool\":\"term.exec\",\"args\":{\"command\":\"mkdir -p .hs && printf 'true\\\\n' > .hs/checks && cat .hs/checks\"}}\n",
     )
     .unwrap();
-    std::env::remove_var("HS_SELFCHECK_DIRECT");
-    std::env::set_var("HS_ANSWER_RAW", "1");
-    std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1");
-    std::env::set_var("HS_SEQMODEL_SCRIPT", dir.join("script.jsonl"));
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SELFCHECK_DIRECT") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_ANSWER_RAW", "1") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", dir.join("script.jsonl")) };
 
     let mut s = load_session(&dir.join("hairspring.toml"), &dir.join("run"), false, 12, None, None)
         .unwrap();

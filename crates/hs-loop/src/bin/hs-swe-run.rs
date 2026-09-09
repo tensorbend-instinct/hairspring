@@ -331,11 +331,10 @@ default = true
         .and_then(|v| v.parse::<usize>().ok())
         .unwrap_or_else(|| hs_loop::default_budget_for_model(&model));
     l.set_context_budget_tokens(budget_tokens);
-    if let Ok(ws) = std::env::var("HS_SWE_WORKSPACE") {
-        if !goal_cmds.is_empty() {
+    if let Ok(ws) = std::env::var("HS_SWE_WORKSPACE")
+        && !goal_cmds.is_empty() {
             l.set_goal_evaluator(std::path::Path::new(&ws), goal_cmds.clone());
         }
-    }
     let memory_db = arg(&args, "--memory-db").map(std::path::PathBuf::from);
     if let Some(db) = &memory_db {
         l.set_memory_db(db);
@@ -347,8 +346,8 @@ default = true
     let wall_secs = started.elapsed().as_secs();
     let cost = l.total_cost_micros();
 
-    if let Some(db) = &memory_db {
-        if let Ok(store) = hs_memory::sqlite::SqliteMemoryStore::open(db).map_err(|e| e.to_string())
+    if let Some(db) = &memory_db
+        && let Ok(store) = hs_memory::sqlite::SqliteMemoryStore::open(db).map_err(|e| e.to_string())
         {
             for rec in hs_memory::extract::extract_stream(
                 &log_root,
@@ -361,7 +360,6 @@ default = true
                 }
             }
         }
-    }
 
     // final patch = last answer content (the loop re-runs checker each step;
     // the workspace holds the passing state on success)

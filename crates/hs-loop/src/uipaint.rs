@@ -488,26 +488,24 @@ impl MarkdownStreamer {
         let mut rest = line;
         while !rest.is_empty() {
             if let Some(after) = rest.strip_prefix("**") {
-                if let Some(close) = after.find("**") {
-                    if close > 0 {
+                if let Some(close) = after.find("**")
+                    && close > 0 {
                         self.styled(out, "1", &after[..close]);
                         rest = &after[close + 2..];
                         continue;
                     }
-                }
                 let _ = write!(out, "**");
                 rest = after;
                 continue;
             }
             if let Some(after) = rest.strip_prefix('`') {
-                if let Some(close) = after.find('`') {
-                    if close > 0 {
+                if let Some(close) = after.find('`')
+                    && close > 0 {
                         let code = self.theme.code.clone();
                         self.styled(out, &code, &after[..close]);
                         rest = &after[close + 1..];
                         continue;
                     }
-                }
                 let _ = write!(out, "`");
                 rest = after;
                 continue;

@@ -48,13 +48,11 @@ fn parse_score(body: &str) -> Option<(String, u32, u32)> {
     for tok in body.split_whitespace() {
         if let Some(c) = tok.strip_prefix("candidate=") {
             candidate = Some(c.to_string());
-        } else if tok.contains('/') && !tok.contains('=') {
-            if let Some((a, b)) = tok.split_once('/') {
-                if let (Ok(x), Ok(y)) = (a.parse::<u32>(), b.parse::<u32>()) {
+        } else if tok.contains('/') && !tok.contains('=')
+            && let Some((a, b)) = tok.split_once('/')
+                && let (Ok(x), Ok(y)) = (a.parse::<u32>(), b.parse::<u32>()) {
                     counts = Some((x, y));
                 }
-            }
-        }
     }
     match (candidate, counts) {
         (Some(c), Some((x, y))) => Some((c, x, y)),

@@ -44,11 +44,13 @@ fn mk_ws() -> tempfile::TempDir {
 
 #[test]
 fn checker_pass_terminates_even_when_goal_evaluator_is_red() {
-    std::env::remove_var("HS_SWE_ANSWER");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SWE_ANSWER") };
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let ws = mk_ws();
-    std::env::set_var("HS_SWE_WORKSPACE", ws.path());
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SWE_WORKSPACE", ws.path()) };
     let answer = log.path().join("work").join("task-0").join("answer.txt");
     let script = dir.path().join("script.jsonl");
     let diff = "```diff\n--- a/code.txt\n+++ b/code.txt\n@@ -1 +1 @@\n-broken\n+fixed\n```";
@@ -61,7 +63,8 @@ fn checker_pass_terminates_even_when_goal_evaluator_is_red() {
         ),
     )
     .unwrap();
-    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let config = dir.path().join("hairspring.toml");
     std::fs::write(
         &config,
@@ -119,6 +122,8 @@ default = true
     }
     assert!(saw_checker_pass, "checker pass verdict on the stream");
 
-    std::env::remove_var("HS_SWE_WORKSPACE");
-    std::env::remove_var("HS_SEQMODEL_SCRIPT");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SWE_WORKSPACE") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SEQMODEL_SCRIPT") };
 }

@@ -139,7 +139,8 @@ fn rails_fire_in_priority_order_with_name_tiebreak() {
     let _guard = TEST_LOCK.lock().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let rail_log = dir.path().join("rail.log");
-    std::env::set_var("RAIL_LOG_FILE", &rail_log);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("RAIL_LOG_FILE", &rail_log) };
     let path = write_config(dir.path(), &base_config());
     let k = Kernel::load(&path).unwrap();
     k.call_tool("anyone", "echo", serde_json::json!({"text": "x"}))

@@ -11,7 +11,7 @@ members = [
 #   crates/hs-gateway           (gate 4: user-facing ingress)
 
 [workspace.package]
-edition = "2021"
+edition = "2024"
 license = "Proprietary"
 
 [profile.release]

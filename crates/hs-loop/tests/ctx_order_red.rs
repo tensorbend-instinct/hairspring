@@ -47,10 +47,14 @@ fn ctx_layout_keeps_stable_prefix_first() {
     )
     .unwrap();
 
-    std::env::set_var("HS_SWE_WORKSPACE", &ws);
-    std::env::set_var("HS_SWE_F2P", "sh check.sh");
-    std::env::set_var("HS_SWE_P2P", "");
-    std::env::set_var("HS_SWE_GOLD_PATCH_FILE", dir.path().join("gold.patch"));
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SWE_WORKSPACE", &ws) };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SWE_F2P", "sh check.sh") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SWE_P2P", "") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SWE_GOLD_PATCH_FILE", dir.path().join("gold.patch")) };
 
     let config = dir.path().join("hairspring.toml");
     std::fs::write(

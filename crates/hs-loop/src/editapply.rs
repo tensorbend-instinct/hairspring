@@ -396,11 +396,10 @@ pub fn apply_codex_patch(ws: &Path, patch_text: &str) -> Value {
     for w in writes {
         match w {
             Write::Set(p, contents) => {
-                if let Some(parent) = p.parent() {
-                    if let Err(e) = std::fs::create_dir_all(parent) {
+                if let Some(parent) = p.parent()
+                    && let Err(e) = std::fs::create_dir_all(parent) {
                         return json!({"applied": false, "$error": format!("mkdir {}: {e}", parent.display())});
                     }
-                }
                 if let Err(e) = std::fs::write(&p, contents) {
                     return json!({"applied": false, "$error": format!("write {}: {e}", p.display())});
                 }

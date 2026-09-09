@@ -44,7 +44,8 @@ fn mk_ws() -> tempfile::TempDir {
 
 #[test]
 fn scratch_shell_runs_general_commands_against_pristine_clone() {
-    std::env::remove_var("HS_SWE_ANSWER");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SWE_ANSWER") };
     let ws = mk_ws();
     let r = hs_loop::repexec::run_sandboxed_no_patch(
         ws.path(),
@@ -70,7 +71,8 @@ fn scratch_shell_runs_general_commands_against_pristine_clone() {
 
 #[test]
 fn scratch_shell_enforces_timeout() {
-    std::env::remove_var("HS_SWE_ANSWER");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SWE_ANSWER") };
     let ws = mk_ws();
     let t0 = std::time::Instant::now();
     let r = hs_loop::repexec::run_sandboxed_no_patch(ws.path(), "sleep 30", 2);
@@ -86,11 +88,13 @@ fn scratch_shell_enforces_timeout() {
 /// writes the answer, so the mission passes. Asserts on the event stream.
 #[test]
 fn mission_model_may_use_repoexec_as_general_shell() {
-    std::env::remove_var("HS_SWE_ANSWER");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SWE_ANSWER") };
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let ws = mk_ws();
-    std::env::set_var("HS_SWE_WORKSPACE", ws.path());
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SWE_WORKSPACE", ws.path()) };
     let answer = log.path().join("work").join("task-0").join("answer.txt");
     let diff = "```diff\n--- a/code.txt\n+++ b/code.txt\n@@ -1 +1 @@\n-broken\n+fixed\n```";
     let script = dir.path().join("script.jsonl");
@@ -103,7 +107,8 @@ fn mission_model_may_use_repoexec_as_general_shell() {
         ),
     )
     .unwrap();
-    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let config = dir.path().join("hairspring.toml");
     std::fs::write(
         &config,
@@ -170,6 +175,8 @@ default = true
         "git log output reached the model: {scratch_call}"
     );
 
-    std::env::remove_var("HS_SWE_WORKSPACE");
-    std::env::remove_var("HS_SEQMODEL_SCRIPT");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SWE_WORKSPACE") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SEQMODEL_SCRIPT") };
 }

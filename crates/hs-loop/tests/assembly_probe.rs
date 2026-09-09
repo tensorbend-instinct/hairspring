@@ -19,7 +19,8 @@ fn assembly_cost_vs_transcript_growth() {
         "{\"tool\":\"bigread.read\",\"args\":{\"path\":\"x\"}}\n".repeat(30),
     )
     .unwrap();
-    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let config = dir.path().join("hairspring.toml");
     std::fs::write(
         &config,

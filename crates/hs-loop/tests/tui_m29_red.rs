@@ -67,12 +67,15 @@ fn ledger_text(log_root: &std::path::Path) -> String {
 // m-beta, and never the other.
 #[test]
 fn r1_model_override_decides_the_call() {
-    std::env::set_var("HS_ANSWER_RAW", "1");
-    std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_ANSWER_RAW", "1") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     let dir = std::env::temp_dir().join("model-override-r1");
     let _ = std::fs::remove_dir_all(&dir);
     write_fixture(&dir);
-    std::env::set_var("HS_SEQMODEL_SCRIPT", dir.join("script.jsonl"));
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", dir.join("script.jsonl")) };
 
     let mut s = load_session(&dir.join("hairspring.toml"), &dir.join("run-a"), false, 5, None, None)
         .unwrap();

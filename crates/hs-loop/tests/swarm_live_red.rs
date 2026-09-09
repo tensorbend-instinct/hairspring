@@ -82,16 +82,22 @@ fn ledger_by_stream(
 
 #[test]
 fn r1_delegation_runs_a_real_child_and_books_it() {
-    std::env::set_var("HS_ANSWER_RAW", "1");
-    std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_ANSWER_RAW", "1") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     let dir = std::env::temp_dir().join("swarm-live-r1");
     let _ = std::fs::remove_dir_all(&dir);
     write_fixture(&dir);
     // The test process is the root of the delegation tree.
-    std::env::remove_var("HS_SWARM_DEPTH");
-    std::env::set_var("HS_SEQMODEL_SCRIPT", dir.join("script.jsonl"));
-    std::env::set_var("HS_SWARM_LOG_ROOT", dir.join("run"));
-    std::env::set_var("HS_SWARM_CONFIG", dir.join("hairspring.toml"));
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SWARM_DEPTH") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", dir.join("script.jsonl")) };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SWARM_LOG_ROOT", dir.join("run")) };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SWARM_CONFIG", dir.join("hairspring.toml")) };
 
     let events: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
     let cap = events.clone();

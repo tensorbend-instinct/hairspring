@@ -85,7 +85,8 @@ fn mission_under_budget_runs_normally() {
             .unwrap();
         assert!(st.success());
     }
-    std::env::set_var("HS_SWE_WORKSPACE", &ws);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SWE_WORKSPACE", &ws) };
     let answer = log.path().join("work").join("task-0").join("answer.txt");
     let diff = "```diff\n--- a/code.txt\n+++ b/code.txt\n@@ -1 +1 @@\n-broken\n+fixed\n```";
     let script = dir.path().join("script.jsonl");
@@ -99,7 +100,8 @@ fn mission_under_budget_runs_normally() {
         ),
     )
     .unwrap();
-    std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let config = dir.path().join("hairspring.toml");
     std::fs::write(
         &config,
@@ -134,6 +136,8 @@ default = true
     let r = l.run_mission("task-0").unwrap();
     assert!(r.passed, "{r:?}");
     assert!(!r.budget_killed);
-    std::env::remove_var("HS_SWE_WORKSPACE");
-    std::env::remove_var("HS_SEQMODEL_SCRIPT");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SWE_WORKSPACE") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_SEQMODEL_SCRIPT") };
 }

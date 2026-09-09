@@ -284,16 +284,21 @@ static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 fn shard_parsing_variants() {
     let _g = ENV_LOCK.lock().unwrap();
     // default: all tasks
-    std::env::remove_var("HS_REALBENCH_TASKS");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_REALBENCH_TASKS") };
     assert_eq!(tasks_from_env(), (0..TASKS).collect::<Vec<_>>());
-    std::env::set_var("HS_REALBENCH_TASKS", "0-5");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_REALBENCH_TASKS", "0-5") };
     assert_eq!(tasks_from_env(), vec![0, 1, 2, 3, 4, 5]);
-    std::env::set_var("HS_REALBENCH_TASKS", "0-2,7,18-19");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_REALBENCH_TASKS", "0-2,7,18-19") };
     assert_eq!(tasks_from_env(), vec![0, 1, 2, 7, 18, 19]);
     // out-of-range and dupes are dropped
-    std::env::set_var("HS_REALBENCH_TASKS", "22-30,3,3");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_REALBENCH_TASKS", "22-30,3,3") };
     assert_eq!(tasks_from_env(), vec![3, 22, 23]);
-    std::env::remove_var("HS_REALBENCH_TASKS");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_REALBENCH_TASKS") };
 }
 
 #[test]
@@ -303,12 +308,14 @@ fn concurrent_appends_never_interleave() {
     // whole parseable lines (O_APPEND + single write_all per line)
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("progress.txt");
-    std::env::set_var("HS_REALBENCH_PROGRESS", &path);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_REALBENCH_PROGRESS", &path) };
     let mut kids = vec![];
     for model in ["m1", "m2"] {
         let path = path.clone();
         kids.push(std::thread::spawn(move || {
-            std::env::set_var("HS_REALBENCH_PROGRESS", &path);
+            // FIXME: Audit that the environment access only happens in single-threaded code.
+            unsafe { std::env::set_var("HS_REALBENCH_PROGRESS", &path) };
             for t in 0..50 {
                 progress_add(model, true, t % TASKS, true, 2, 1000 + t as u64);
             }
@@ -328,7 +335,8 @@ fn concurrent_appends_never_interleave() {
         parts[4].parse::<u32>().unwrap();
         parts[5].parse::<u64>().unwrap();
     }
-    std::env::remove_var("HS_REALBENCH_PROGRESS");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_REALBENCH_PROGRESS") };
 }
 
 #[test]
@@ -336,7 +344,8 @@ fn progress_done_roundtrip_per_model_arm() {
     let _g = ENV_LOCK.lock().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("progress.txt");
-    std::env::set_var("HS_REALBENCH_PROGRESS", &path);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_REALBENCH_PROGRESS", &path) };
     progress_add("glm", true, 3, true, 2, 5000);
     progress_add("glm", false, 3, false, 6, 7000);
     progress_add("deepseek", true, 3, true, 4, 9000);
@@ -348,5 +357,6 @@ fn progress_done_roundtrip_per_model_arm() {
     assert_eq!(ds_on.get("task-3"), Some(&(true, 4, 9000)));
     // a shard's resume view is independent per (model, arm)
     assert!(!glm_on.contains_key("task-4"));
-    std::env::remove_var("HS_REALBENCH_PROGRESS");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_REALBENCH_PROGRESS") };
 }

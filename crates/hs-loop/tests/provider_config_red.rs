@@ -82,10 +82,12 @@ fn toml_provider_becomes_working_provider_and_env_wins() {
         "https://api.z.ai/api/coding/paas/v4/chat/completions"
     );
     // env override still beats the TOML value (ops override without a redeploy)
-    std::env::set_var("HS_GLM_BASE_URL", "http://127.0.0.1:1/override");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_GLM_BASE_URL", "http://127.0.0.1:1/override") };
     let p2 = provider_from_config(glm_cfg).unwrap();
     assert_eq!(p2.default_base_url, "http://127.0.0.1:1/override");
-    std::env::remove_var("HS_GLM_BASE_URL");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_GLM_BASE_URL") };
 }
 
 #[test]
@@ -94,8 +96,10 @@ fn missing_key_is_fill_only_error() {
     let f = toml_file(TWO_PROVIDERS);
     let cfgs = load_providers_toml(f.path()).unwrap();
     let glm_cfg = find_provider(&cfgs, "glm").unwrap();
-    std::env::remove_var("HS_GLM_API_KEY");
-    std::env::remove_var("HS_GLM_API_KEY_FILE");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_GLM_API_KEY") };
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_GLM_API_KEY_FILE") };
     let e = provider_from_config(glm_cfg)
         .and_then(|p| load_key(&p))
         .unwrap_err();
@@ -139,7 +143,8 @@ fn extra_body_json_from_toml_reaches_the_request() {
     );
     let f = toml_file(&toml);
     let cfgs = load_providers_toml(f.path()).unwrap();
-    std::env::set_var("HS_GLM_API_KEY", "mock-key-fill-only");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_GLM_API_KEY", "mock-key-fill-only") };
     let p = provider_from_config(find_provider(&cfgs, "glm").unwrap()).unwrap();
     let out = call(&p, "MISSION: t\nANSWER_PATH: /p", None).unwrap();
     let comp: serde_json::Value =
@@ -149,7 +154,8 @@ fn extra_body_json_from_toml_reaches_the_request() {
     let body = rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap();
     let v: serde_json::Value = serde_json::from_str(&body).unwrap();
     assert_eq!(v["reasoning_effort"], "max", "extra body merged: {body}");
-    std::env::remove_var("HS_GLM_API_KEY");
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("HS_GLM_API_KEY") };
 }
 
 #[test]

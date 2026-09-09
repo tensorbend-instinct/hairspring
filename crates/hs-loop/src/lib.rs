@@ -365,11 +365,10 @@ impl InnerLoop {
     }
 
     pub fn set_model_override(&mut self, model: Option<String>) -> Result<(), LoopError> {
-        if let Some(m) = &model {
-            if !self.kernel.has_model(m) {
+        if let Some(m) = &model
+            && !self.kernel.has_model(m) {
                 return Err(LoopError::Visibility(format!("unknown model: {m}")));
             }
-        }
         self.model_override = model;
         Ok(())
     }
@@ -567,12 +566,11 @@ impl InnerLoop {
                 Ok(v) if v["status"].as_str() == Some("done") => {
                     let pc = self.pending_children.remove(i);
                     let ok = v["passed"].as_bool().unwrap_or(false);
-                    if let Some(c) = v["cost_usd_micros"].as_i64() {
-                        if c > 0 {
+                    if let Some(c) = v["cost_usd_micros"].as_i64()
+                        && c > 0 {
                             self.cost_total_micros =
                                 self.cost_total_micros.saturating_add(c as u64);
                         }
-                    }
                     if let Some(sink) = self.ui_sink.as_mut() {
                         sink(uipaint::UiEvent::SubAgentFinished { child, ok });
                     }
@@ -740,14 +738,14 @@ impl InnerLoop {
             // ToolCall events, replayed as native assistant/tool pairs. No
             // parallel store: both are read models over the log and survive
             // restarts/freeze recovery.
-            if self.feedback_injection {
-                if let Ok(reader) = hs_log::StreamReader::open(&self.log_root, self.stream_id) {
-                    if let Ok(events) = reader.events() {
+            if self.feedback_injection
+                && let Ok(reader) = hs_log::StreamReader::open(&self.log_root, self.stream_id)
+                    && let Ok(events) = reader.events() {
                         volatile.push_str("LEDGER (your work so far, always current):\n");
                         volatile.push_str(&self.ledger.summary());
-                        if let Some(store) = &self.memory_store {
-                            if let Ok(recs) = store.top_k("operator", 5) {
-                                if !recs.is_empty() {
+                        if let Some(store) = &self.memory_store
+                            && let Ok(recs) = store.top_k("operator", 5)
+                                && !recs.is_empty() {
                                     volatile.push_str("MEMORY (earlier missions):\n");
                                     let mut budget = 2000usize;
                                     for r in &recs {
@@ -768,8 +766,6 @@ impl InnerLoop {
                                         volatile.push_str(&line);
                                     }
                                 }
-                            }
-                        }
                         let mut asm = assembler::assemble_messages(
                             &reader,
                             &events,
@@ -852,8 +848,6 @@ impl InnerLoop {
                         }
                         messages.extend(asm.messages);
                     }
-                }
-            }
 
             messages.push(serde_json::json!({"role": "user", "content": volatile}));
             let assembly_ms = t_assembly.elapsed().as_millis() as u64; // capture BEFORE the model call (was after: read as ~latency)
@@ -913,8 +907,8 @@ impl InnerLoop {
             // a mission that did real work (ab2 17092/17102/17117 lost
             // 19-25 steps each to answer-only checkpointing).
             self.checkpoint(steps, model_calls);
-            if let Some(cap) = self.budget_micros {
-                if self.cost_total_micros > cap {
+            if let Some(cap) = self.budget_micros
+                && self.cost_total_micros > cap {
                     self.writer.append(
                         EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
                             serde_json::to_vec(&serde_json::json!({
@@ -938,7 +932,6 @@ impl InnerLoop {
                         outcome: "budget_killed".to_string(),
                     });
                 }
-            }
             // Wall guard fires INSIDE the loop, at the same step boundary
             // as the budget guard. Live burn 2026-09-07 (glm-critic TB
             // trial): enforcement had been delegated to the harness's
@@ -1218,9 +1211,9 @@ impl InnerLoop {
                         // the second fire on, an escalating steer is
                         // injected (B8's model retried the forbidden class
                         // 6 times against the bare refusal).
-                        if tool == "repo.exec" {
-                            if let Some(class) = repexec::extract_gate_class(&tool_out.output.to_string()) {
-                                if let Some(note) = self.guardrail_escalator.record(&class) {
+                        if tool == "repo.exec"
+                            && let Some(class) = repexec::extract_gate_class(&tool_out.output.to_string())
+                                && let Some(note) = self.guardrail_escalator.record(&class) {
                                     self.writer.append(
                                         EventBuilder::new(EventKind::ContextInject).payload(
                                             Payload::Inline(
@@ -1233,8 +1226,6 @@ impl InnerLoop {
                                     )?;
                                     pending_feedback.push(note);
                                 }
-                            }
-                        }
                         // Item 4: doom-loop detection (Grok doom_loop_telemetry,
                         // adapted). Third effectively-identical call in the
                         // window triggers one recovery nudge; it refires only
@@ -1320,8 +1311,8 @@ impl InnerLoop {
                         // Async delegation: the Spawn was pre-booked -
                         // repair the provenance so no phantom Running
                         // child survives on the stream or the panel.
-                        if tool == "agent.spawn" {
-                            if let Some(cid) = args["child_stream_id"]
+                        if tool == "agent.spawn"
+                            && let Some(cid) = args["child_stream_id"]
                                 .as_str()
                                 .and_then(|v| uuid::Uuid::parse_str(v).ok())
                             {
@@ -1342,7 +1333,6 @@ impl InnerLoop {
                                     });
                                 }
                             }
-                        }
                         Some(msg)
                     }
                 }
