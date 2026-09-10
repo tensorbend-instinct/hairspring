@@ -69,6 +69,13 @@ fn load_script() -> Result<Vec<String>, String> {
 }
 
 fn main() {
+    register_preflight(|| match std::env::var("HS_SEQMODEL_SCRIPT") {
+        Ok(v) if !v.trim().is_empty() => Ok(()),
+        _ => Err(
+            "offline model needs HS_SEQMODEL_SCRIPT=<script.jsonl> - see the README's offline quickstart"
+                .to_string(),
+        ),
+    });
     let deltas = std::env::var("HS_SEQMODEL_DELTAS").as_deref() == Ok("1");
     let mut n = 0usize;
     // Per-instance identity: a fixture wiring the same binary as

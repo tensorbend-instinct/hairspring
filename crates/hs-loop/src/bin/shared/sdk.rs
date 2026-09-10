@@ -14,6 +14,23 @@ fn serve(
 
 
 
+
+/// Optional readiness hook behind the "preflight" wire method: a plugin
+/// that needs credentials, files, or services registers its check here.
+/// The kernel calls preflight on DEFAULT models at session load, so a rig
+/// that cannot run fails at startup with the actionable reason instead of
+/// burning a mission step and closing harness_error (stranger burn
+/// 2026-09-10). No hook registered = nothing to check = ready.
+#[allow(dead_code)]
+static PREFLIGHT_HOOK: std::sync::OnceLock<
+    Box<dyn Fn() -> Result<(), String> + Send + Sync>,
+> = std::sync::OnceLock::new();
+
+#[allow(dead_code)]
+fn register_preflight(f: impl Fn() -> Result<(), String> + Send + Sync + 'static) {
+    let _ = PREFLIGHT_HOOK.set(Box::new(f));
+}
+
 /// serve + an emitter for interstitial frames (gap #3 streaming): the
 /// handler may call emit({"delta": "..."}) any number of times BEFORE its
 /// return value becomes the final response. Frames ride the same request
@@ -42,6 +59,14 @@ fn serve_ext(
         };
         if method == "describe" {
             write_frame(serde_json::json!({"id": id, "result": {"name": name, "kind": kind, "version": "0.1.0"}}));
+            continue;
+        }
+        if method == "preflight" {
+            let frame = match PREFLIGHT_HOOK.get().map_or(Ok(()), |f| f()) {
+                Ok(()) => serde_json::json!({"id": id, "result": {"ready": true}}),
+                Err(e) => serde_json::json!({"id": id, "error": e}),
+            };
+            write_frame(frame);
             continue;
         }
         let emit = |mut frame: serde_json::Value| {

@@ -546,7 +546,17 @@ zero-network trial run the scripted model instead - see the README's
 offline quickstart (HS_SEQMODEL_SCRIPT + examples/seqmodel-demo.jsonl).
 ";
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() {
+    // Operator-facing errors print as prose via Display, never Rust
+    // Debug - the Debug wrapper leaked escaped quotes to the user's
+    // terminal on the first-run failure path (2026-09-10).
+    if let Err(e) = run() {
+        eprintln!("hairspring: {e}");
+        std::process::exit(1);
+    }
+}
+
+fn run() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
     // Stranger-path burn (2026-09-09): `--help` must not fall into
     // parse_opts and panic on `--config required` - the first command a
@@ -636,12 +646,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .run_goal(&goal)
             .map_err(|e| format!("mission: {e}"))?;
         hs_loop::repl::print_result(&r);
+        let mut all_passed = r.passed;
         // B3: gateway adds queued mid-run execute after the close.
         for queued in session.take_queued_goals() {
             let r = session
                 .run_goal(&queued)
                 .map_err(|e| format!("queued mission: {e}"))?;
             hs_loop::repl::print_result(&r);
+            all_passed &= r.passed;
+        }
+        // T7: the exit code IS the mission contract (Codex/Claude
+        // convention) - 0 iff every mission passed, so scripts can rely
+        // on `hairspring run ... && next-step`.
+        if !all_passed {
+            std::process::exit(1);
         }
     } else {
         eprintln!("hairspring repl (:help for commands, :quit to exit)");

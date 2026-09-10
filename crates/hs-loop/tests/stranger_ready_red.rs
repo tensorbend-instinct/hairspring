@@ -295,3 +295,133 @@ fn t5_relative_dir_is_canonicalized_at_startup() {
          {done}"
     );
 }
+
+const DEEPSEEK: &str = env!("CARGO_BIN_EXE_hs-plugin-deepseek");
+
+/// T6 (the user's fresh-install burn, 2026-09-10): with a live default
+/// model and NO credential in the environment, the mission must NOT
+/// start. Startup preflight fails fast: non-zero exit, stderr naming the
+/// exact fix, and no mission result JSON (today: the mission burns a
+/// step, ends `harness_error` with model_calls:0, and exits 0 - a
+/// stranger's script cannot even detect the failure).
+#[test]
+fn t6_missing_credential_fails_at_startup_not_mid_mission() {
+    let _g = ENV_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let dir = tempfile::tempdir().unwrap();
+    let cfg = write(
+        dir.path(),
+        "hairspring.toml",
+        &format!(
+            r#"
+[[tools]]
+name = "term.exec"
+command = ["{}"]
+subjects = ["*"]
+
+[[models]]
+name = "deepseek"
+command = ["{DEEPSEEK}"]
+default = true
+subjects = ["*"]
+"#,
+            TERMEXEC
+        ),
+    );
+    let out = std::process::Command::new(REPL)
+        .args([
+            "run",
+            "--goal",
+            "write hello.txt containing hello",
+            "--config",
+            cfg.to_str().unwrap(),
+            "--dir",
+            "run",
+        ])
+        .current_dir(dir.path())
+        .env_remove("HS_DEEPSEEK_API_KEY")
+        .env_remove("HS_DEEPSEEK_API_KEY_FILE")
+        .env_remove("HS_DEEPSEEK_KEY_FILE")
+        .env("HS_TUI", "off")
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        !out.status.success(),
+        "a mission that cannot authenticate must exit non-zero (live: \
+         exit 0 with harness_error JSON): {stdout}"
+    );
+    assert!(
+        stderr.contains("HS_DEEPSEEK_API_KEY"),
+        "the startup error names the exact fix (live: the actionable \
+         string only appeared inside a mission-failure JSON after a \
+         burned step): {stderr}"
+    );
+    assert!(
+        !stdout.contains("\"passed\""),
+        "no mission result is emitted - the mission never starts: {stdout}"
+    );
+    assert!(
+        !stderr.contains("\\\"") && !stderr.contains("plugin  app error"),
+        "the startup error is clean operator prose, not nested JSON escapes          (the user's pasted failure carried them): {stderr}"
+    );
+}
+
+/// T7: run mode's exit code is the mission contract (Codex/Claude
+/// convention): 0 iff the mission passed. A mission that closes
+/// steps_exhausted / failed must exit non-zero (live 2026-09-10: every
+/// outcome exited 0, so `hairspring run ... && echo ok` lies).
+#[test]
+fn t7_failed_mission_exits_nonzero() {
+    let _g = ENV_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let dir = tempfile::tempdir().unwrap();
+    let goal = "write hello.txt containing hello";
+    let answer_abs = dir
+        .path()
+        .join("run")
+        .join("work")
+        .join(goal_slug(goal))
+        .join("answer.txt");
+    let line1 = "{\"tool\":\"term.exec\",\"args\":{\"command\":\"printf 'hello\\n' > hello.txt && mkdir -p .hs && printf 'exit 1\\n' > .hs/checks\"}}";
+    let line2 = format!(
+        "{{\"tool\":\"answer.submit\",\"args\":{{\"path\":\"{}\",\"summary\":\"checks deliberately fail\"}}}}",
+        answer_abs.display()
+    );
+    let script = write(dir.path(), "script.jsonl", &format!("{line1}\n{line2}\n"));
+    let out = std::process::Command::new(REPL)
+        .args([
+            "run",
+            "--goal",
+            goal,
+            "--config",
+            live_config(dir.path()).to_str().unwrap(),
+            "--dir",
+            "run",
+        ])
+        .current_dir(dir.path())
+        .env("HS_SEQMODEL_SCRIPT", &script)
+        .env("HS_SCRIPTED_PROMPT_AWARE", "1")
+        .env("HS_TUI", "off")
+        .env_remove("HS_PROJECT_ROOT")
+        .env_remove("HS_PROJECT_ROOT_EFFECTIVE")
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let done = stdout
+        .lines()
+        .rev()
+        .find(|l| l.contains("\"passed\""))
+        .unwrap_or("");
+    assert!(
+        done.contains("\"passed\":false"),
+        "the checks fail by construction: {done}"
+    );
+    assert!(
+        !out.status.success(),
+        "a failed mission exits non-zero (live: exit 0): {done}"
+    );
+}

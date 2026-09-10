@@ -300,7 +300,14 @@ impl PluginProc {
                 // (PluginSlot) must not strike or kill for this
                 return Err(KernelError::PluginApp {
                     name: String::new(),
-                    detail: err.to_string(),
+                    // String errors keep their text: Display of the JSON
+                    // value would wrap it in literal quotes, and every
+                    // operator-facing error (preflight, harness errors)
+                    // inherits the noise (user-visible 2026-09-10).
+                    detail: err
+                        .as_str()
+                        .map(str::to_string)
+                        .unwrap_or_else(|| err.to_string()),
                 });
             }
             return Ok(v["result"].clone());
@@ -461,6 +468,32 @@ impl Kernel {
                         "plugin {} claims kind {}, expected {kind}",
                         entry.name, desc["kind"]
                     )));
+                }
+                // First-run preflight (stranger burn 2026-09-10): a DEFAULT
+                // model that cannot run (missing credential, missing
+                // script) fails session load with the actionable reason -
+                // not a burned mission step and a harness_error JSON.
+                if kind == "model" && entry.default {
+                    match p.call("preflight", serde_json::json!({}), &mut None) {
+                        Ok(_) => {}
+                        // A legacy plugin without the preflight method
+                        // answers "unknown method": readiness unknown but
+                        // historically allowed - keep it allowed.
+                        Err(KernelError::PluginApp { detail, .. })
+                            if detail.contains("unknown method") => {}
+                        Err(KernelError::PluginApp { detail, .. }) => {
+                            return Err(KernelError::Protocol(format!(
+                                "default model \"{}\" failed preflight: {detail}",
+                                entry.name
+                            )));
+                        }
+                        Err(e) => {
+                            return Err(KernelError::Protocol(format!(
+                                "default model \"{}\" failed preflight: {e}",
+                                entry.name
+                            )));
+                        }
+                    }
                 }
                 Ok(PluginSlot {
                     entry: entry.clone(),

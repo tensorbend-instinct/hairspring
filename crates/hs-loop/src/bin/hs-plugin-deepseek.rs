@@ -5,6 +5,11 @@
 include!("shared/sdk.rs");
 
 fn main() {
+    // Preflight (first-run gate, stranger burn 2026-09-10): credential
+    // presence checked at session load; the error names the exact fix.
+    register_preflight(|| {
+        hs_loop::realmodel::load_key(&hs_loop::realmodel::deepseek()).map(|_| ())
+    });
     serve_ext("deepseek", "model", &mut |method, params, emit| match method {
         "model.call" => {
             let tools = params.get("tools");

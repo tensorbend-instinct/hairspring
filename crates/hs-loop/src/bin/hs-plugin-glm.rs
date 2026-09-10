@@ -5,6 +5,9 @@
 include!("shared/sdk.rs");
 
 fn main() {
+    register_preflight(|| {
+        hs_loop::realmodel::load_key(&hs_loop::realmodel::glm()).map(|_| ())
+    });
     serve("glm", "model", &mut |method, params| match method {
         "model.call" => {
             let tools = params.get("tools");
