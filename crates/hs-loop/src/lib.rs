@@ -171,6 +171,11 @@ pub struct InnerLoop {
     /// that ends this mission ("hybrid" = say-so triggered the checkers,
     /// the checkers decided). None until a checker-driven close runs.
     completion_mode: Option<&'static str>,
+    /// DISC judgment accounting for the mission in flight (reset at
+    /// mission start; booked on the close).
+    idi_interventions: u32,
+    idi_detections: u32,
+    idi_repairs: u32,
     prior_gaps: Vec<String>,
     /// Fix 4: mission wall budget (secs) + start instant, for the per-step
     /// "T-minus" header. None = wall not tracked (old behavior).
@@ -290,6 +295,9 @@ impl InnerLoop {
             guardrail_escalator: Default::default(),
             verifier_rounds: 0,
             completion_mode: None,
+            idi_interventions: 0,
+            idi_detections: 0,
+            idi_repairs: 0,
             prior_gaps: vec![],
             wall_secs: None,
             steering_inbox: None,
@@ -357,6 +365,9 @@ impl InnerLoop {
             guardrail_escalator: Default::default(),
             verifier_rounds: 0,
             completion_mode: None,
+            idi_interventions: 0,
+            idi_detections: 0,
+            idi_repairs: 0,
             prior_gaps: vec![],
             wall_secs: None,
             steering_inbox: None,
@@ -1083,6 +1094,14 @@ impl InnerLoop {
                 serde_json::to_vec(&serde_json::json!({
                     "mission": mission, "done": done, "outcome": outcome,
                     "completion_mode": self.completion_mode.unwrap_or("none"),
+                    "interventions": self.idi_interventions,
+                    "detections": self.idi_detections,
+                    "repairs": self.idi_repairs,
+                    "repair_rate": if self.idi_detections > 0 {
+                        serde_json::Value::from(self.idi_repairs as f64 / self.idi_detections as f64)
+                    } else {
+                        serde_json::Value::Null
+                    },
                 }))
                 .expect("json! values serialize"),
             )),
@@ -1230,6 +1249,9 @@ impl InnerLoop {
             )));
         }
         self.mission_started = Some(std::time::Instant::now());
+        self.idi_interventions = 0;
+        self.idi_detections = 0;
+        self.idi_repairs = 0;
         // M21: per-mission spend is the delta from this point.
         self.mission_cost_start = self.cost_total_micros;
         self.mission_conservative_start = self.conservative_cost_total_micros;
@@ -1995,6 +2017,20 @@ impl InnerLoop {
             )?;
             let passed = verdict.output["passed"].as_bool().unwrap_or(false);
             let error = verdict.output["error"].as_str().unwrap_or("").to_string();
+            // DISC accounting (arXiv 2606.21724 transplant, burn-down 2026-09-09):
+            // every red gate verdict is an INTERVENTION; a red carrying
+            // reproduced evidence (a failed declared check, a critic
+            // refutation) is a DETECTION; infra fail-closed stops count
+            // only as interventions - that split is the precision leak
+            // the matrix priced.
+            if !passed {
+                self.idi_interventions += 1;
+                if error.contains("declared checks failed")
+                    || error.starts_with("critic refuted the submission")
+                {
+                    self.idi_detections += 1;
+                }
+            }
             // D6 (revised post-A7, FIXLIST 2026-09-05 item 1): a green
             // checker.run verdict ENDS the mission - the adversarial
             // verifier veto below still runs after it. A red goal evaluator
@@ -2151,6 +2187,10 @@ impl InnerLoop {
                                             .expect("json! values serialize"),
                                         )),
                                     )?;
+                                    // DISC accounting: a verifier refutation is a judgment
+                                    // intervention WITH findings - detection by construction.
+                                    self.idi_interventions += 1;
+                                    self.idi_detections += 1;
                                     pending_feedback.push(format!(
                                         "VERIFIER REFUTED (blocking={blocking}): {}",
                                         findings.join("; ")
@@ -2225,6 +2265,9 @@ impl InnerLoop {
                         return Ok(res);
                     }
                     std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+                if self.idi_interventions > 0 {
+                    self.idi_repairs += 1;
                 }
                 self.completion_mode = Some("hybrid");
                 self.close_goal(mission, true, outcome)?;

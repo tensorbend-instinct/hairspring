@@ -117,3 +117,82 @@ default = true
         std::env::remove_var("HS_CRITIC_TRACE");
     }
 }
+
+#[test]
+fn close_books_intervention_detection_repair_accounting() {
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let dir = tempfile::tempdir().unwrap();
+    let log = tempfile::tempdir().unwrap();
+    let config = dir.path().join("hairspring.toml");
+    std::fs::write(
+        &config,
+        format!(
+            r#"
+[[tools]]
+name = "answer.write"
+command = ["{ANSWER}"]
+subjects = ["*"]
+
+[[tools]]
+name = "term.exec"
+command = ["{TERMEXEC}"]
+subjects = ["*"]
+
+[[tools]]
+name = "checker.run"
+command = ["{CRITIC}"]
+subjects = ["*"]
+
+[[models]]
+name = "scripted"
+command = ["{SCRIPTED}"]
+default = true
+"#
+        ),
+    )
+    .unwrap();
+
+    // The declared checks START RED: the first verdict is an intervention
+    // with reproduced evidence; the model repairs them and resubmits.
+    let work = log.path().join("work");
+    std::fs::create_dir_all(work.join(".hs")).unwrap();
+    std::fs::write(work.join(".hs/checks"), "false\n").unwrap();
+
+    let goal = "write the token file";
+    let answer = work.join(hs_loop::repl::goal_slug(goal)).join("answer.txt");
+    let script = dir.path().join("model.jsonl");
+    std::fs::write(
+        &script,
+        format!(
+            "{{\"tool\":\"answer.submit\",\"args\":{{\"path\":\"probe\",\"content\":\"probe\"}}}}\n\
+             {{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{0}\",\"content\":\"TOKEN\"}}}}\n\
+             {{\"tool\":\"term.exec\",\"args\":{{\"command\":\"printf 'true\\\\n' > .hs/checks\"}}}}\n\
+             {{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{0}\",\"content\":\"TOKEN\"}}}}\n\
+             {{\"tool\":\"verdict.submit\",\"args\":{{\"refuted\":false,\"blocking\":\"none\",\"findings\":[]}}}}",
+            answer.display()
+        ),
+    )
+    .unwrap();
+    unsafe {
+        std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
+        std::env::set_var("HS_CRITIC_SCRIPT", "tool:cat .hs/instruction.txt|clean");
+    }
+
+    let mut session = ReplSession::load(&config, log.path(), false, 8).expect("session load");
+    let r = session.run_goal(goal).expect("mission runs");
+    assert!(r.passed, "repaired mission closes verified: {r:?}");
+
+    let ledger = stream_ledger(log.path(), r.stream_id);
+    for needle in [
+        "\"interventions\":1",
+        "\"detections\":1",
+        "\"repairs\":1",
+        "\"repair_rate\":1.0",
+    ] {
+        assert!(ledger.contains(needle), "close books {needle}; ledger: {ledger}");
+    }
+
+    unsafe {
+        std::env::remove_var("HS_CRITIC_SCRIPT");
+    }
+}
