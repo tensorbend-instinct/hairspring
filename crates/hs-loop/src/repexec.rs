@@ -1,10 +1,11 @@
-//! repo.exec backend (Eric's 2026-09-04 directives): the model may run ANY
-//! command against its current answer patch before answer.write - open shell,
-//! zero allowlist, safety from ISOLATION ONLY. The patch is applied to a
-//! scratch git worktree (live ws never mutated; checker semantics unchanged)
-//! and the command runs inside bwrap: private mount/net/pid/ipc namespaces,
-//! host home and mission env never enter the sandbox, network off by
-//! construction, rlimits + hard timeout cap resources.
+//! repo.exec backend (Eric's ruling via iMessage 2026-09-10): the model may
+//! run ANY command - open shell, zero allowlist, NO command ACL. The hard
+//! boundary is the FILESYSTEM: no writes or deletes outside the project
+//! workspace. The patch is applied to a scratch git worktree (live ws never
+//! mutated; checker semantics unchanged) and the command runs inside bwrap:
+//! system roots read-only, /ws and /tmp the writable floor, private
+//! mount/pid/ipc namespaces, host home and mission env never enter the
+//! sandbox, rlimits + hard timeout cap resources.
 
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
@@ -18,13 +19,15 @@ fn tail(bytes: &[u8]) -> String {
 }
 
 /// The sandbox command line, as an argv vector (pure, unit-testable).
-/// Full machine floor (fix 1): the mission gets the real box - rw system
-/// roots (apt/pip/cargo/npm actually work), network on, scratch rw at /ws,
-/// tmpfs /tmp. What stays OUT is host secret material, not capability:
-/// /home and /mnt are never bound, /root/.ssh is tmpfs'd over,
-/// /root/.git-credentials is masked with /dev/null, and --clearenv keeps
-/// mission env (HS_*, keys) out. pid/ipc stay unshared so a mission cannot
-/// signal or shm-snoop harness processes.
+/// Workspace floor (Eric 2026-09-10): the mission sees the real box but can
+/// only WRITE to its workspace - system roots are read-only binds, scratch
+/// is rw at /ws, /tmp is a private tmpfs. Reads stay wide (compilers, apt
+/// caches, headers all resolve); writes/deletes outside /ws and /tmp fail
+/// with EROFS. What stays OUT entirely is host secret material: /home and
+/// /mnt are never bound, /root/.ssh is tmpfs'd over, /root/.git-credentials
+/// is masked with an empty file, and --clearenv keeps mission env (HS_*,
+/// keys) out. pid/ipc stay unshared so a mission cannot signal or shm-snoop
+/// harness processes.
 #[must_use]
 pub fn sandbox_argv(scratch: &Path, _out_f: &Path, _err_f: &Path, cmd: &str) -> Vec<String> {
     // out/err paths inside the sandbox: the scratch is mounted at /ws
@@ -48,10 +51,10 @@ pub fn sandbox_argv(scratch: &Path, _out_f: &Path, _err_f: &Path, cmd: &str) -> 
         "--unshare-ipc",
         "--die-with-parent",
         "--clearenv",
-        "--bind",
+        "--ro-bind",
         "/usr",
         "/usr",
-        "--bind",
+        "--ro-bind",
         "/bin",
         "/bin",
     ]
@@ -66,6 +69,25 @@ pub fn sandbox_argv(scratch: &Path, _out_f: &Path, _err_f: &Path, cmd: &str) -> 
     }
     for d in ["/lib", "/lib64", "/etc", "/var", "/opt", "/root"] {
         if Path::new(d).exists() {
+            v.push("--ro-bind".into());
+            v.push(d.into());
+            v.push(d.into());
+        }
+    }
+    // Blessed toolchain caches (Eric 2026-09-10: "package caches are fine
+    // where the tools need them"): uv/pip ($HOME/.cache), cargo
+    // registry+git ($HOME/.cargo), npm ($HOME/.npm), user-level installs
+    // ($HOME/.local), go modules ($HOME/go). Later binds override the ro
+    // /root beneath them; created on the host when missing so missions can
+    // always build envs. The rest of $HOME stays read-only.
+    for d in [
+        "/root/.cache",
+        "/root/.cargo",
+        "/root/.npm",
+        "/root/.local",
+        "/root/go",
+    ] {
+        if std::fs::create_dir_all(d).is_ok() {
             v.push("--bind".into());
             v.push(d.into());
             v.push(d.into());
@@ -76,6 +98,22 @@ pub fn sandbox_argv(scratch: &Path, _out_f: &Path, _err_f: &Path, cmd: &str) -> 
     // this box's device policy)
     let mask = scratch.join(".repexec-mask");
     let _ = std::fs::write(&mask, b"");
+    // DNS: /etc/resolv.conf is commonly a symlink into /run
+    // (systemd-resolved) and /run is never bound, so the symlink dangles
+    // and every lookup dies ("Temporary failure in name resolution").
+    // Copy the RESOLVED contents into the sandbox at the canonical path.
+    if let Ok(target) = std::fs::canonicalize("/etc/resolv.conf") {
+        if let Ok(bytes) = std::fs::read(&target) {
+            let resolv = scratch.join(".repexec-resolv.conf");
+            if std::fs::write(&resolv, bytes).is_ok() {
+                v.extend([
+                    "--ro-bind".into(),
+                    resolv.display().to_string(),
+                    target.display().to_string(),
+                ]);
+            }
+        }
+    }
     if Path::new("/root/.git-credentials").exists() {
         v.extend([
             "--ro-bind".into(),

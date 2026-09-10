@@ -36,7 +36,7 @@ fn default_template_when_no_policy_overlay() {
         "native delivery note: {p}"
     );
     assert!(!p.contains("\"tool\":"), "no hand-rolled tool markup: {p}");
-    // allowlist scaffold was deleted per Eric's ruling - no list in the prompt
+    // no command list in the prompt (Eric's ruling, iMessage 2026-09-10: no ACL)
     assert!(!p.contains("Allowed:"), "no allowlist mention: {p}");
     assert!(!p.contains("{ws}"), "all placeholders substituted: {p}");
 }

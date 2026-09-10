@@ -1,8 +1,9 @@
-//! RED contract tests for the exec sandbox gate (Eric's ruling 2026-09-04:
-//! open shell, any command, ZERO list - safety from isolation only, via the
-//! on-box bwrap primitive). API: `hs_loop::repexec::run_sandboxed(ws`,
-//! `answer_path`, command, `timeout_secs`) -> Value. The allowlist is deleted,
-//! not kept.
+//! RED contract tests for the exec sandbox gate (Eric's ruling via iMessage
+//! 2026-09-10: NO command ACL/whitelist - the mission may run any command it
+//! needs; the hard boundary is the FILESYSTEM: no writes or deletes outside
+//! the project workspace). API: `hs_loop::repexec::run_sandboxed(ws`,
+//! `answer_path`, command, `timeout_secs`) -> Value. Isolation via the on-box
+//! bwrap primitive: system roots read-only, /ws + /tmp the writable floor.
 
 use std::process::Command;
 
@@ -124,10 +125,13 @@ fn sandbox_network_is_on_for_missions() {
 }
 
 #[test]
-fn sandbox_is_a_full_machine_floor() {
+fn sandbox_is_a_readable_machine_with_a_writable_workspace() {
+    // Eric 2026-09-10 (iMessage): any command, but the filesystem outside
+    // the project workspace is read-only. Tools still RESOLVE (read wide),
+    // the mission still runs as root, cargo stays on PATH.
     let d = ws_with_answer();
     let r = hs_loop::repexec::run_sandboxed(d.path(), &d.path().join("answer.txt"),
-        "echo UID=$(id -u); touch /usr/local/.hs-floor-probe && rm /usr/local/.hs-floor-probe && echo USRLOCAL-RW; for t in python3 apt-get; do command -v $t >/dev/null 2>&1 && echo HAVE-$t; done; echo HOME=$HOME; echo PATH=$PATH",
+        "echo UID=$(id -u); touch /usr/local/.hs-floor-probe 2>/dev/null && echo USRLOCAL-RW || echo USRLOCAL-RO; for t in python3 apt-get; do command -v $t >/dev/null 2>&1 && echo HAVE-$t; done; echo HOME=$HOME; echo PATH=$PATH",
         30);
     let out = format!(
         "{}{}",
@@ -137,14 +141,14 @@ fn sandbox_is_a_full_machine_floor() {
     assert_eq!(r["exit_code"], 0, "{out}");
     assert!(
         out.contains("UID=0"),
-        "missions run as root on the machine floor: {out}"
+        "missions run as root in the sandbox: {out}"
     );
     assert!(
-        out.contains("USRLOCAL-RW"),
-        "system roots are writable: {out}"
+        out.contains("USRLOCAL-RO"),
+        "system roots are READ-ONLY (Eric 2026-09-10): {out}"
     );
-    assert!(out.contains("HAVE-python3"), "python3 on the floor: {out}");
-    assert!(out.contains("HAVE-apt-get"), "apt-get on the floor: {out}");
+    assert!(out.contains("HAVE-python3"), "python3 resolves: {out}");
+    assert!(out.contains("HAVE-apt-get"), "apt-get resolves: {out}");
     assert!(out.contains("HOME=/root"), "root's home: {out}");
     assert!(out.contains("/root/.cargo/bin"), "cargo on PATH: {out}");
 }
@@ -249,4 +253,115 @@ fn sandbox_timeout_and_cleanup_still_hold() {
         1,
         "scratch removed after timeout"
     );
+}
+
+#[test]
+fn sandbox_denies_writes_and_deletes_outside_workspace() {
+    // Eric 2026-09-10 (iMessage): no writes, no deletes outside the
+    // project workspace. System roots are read-only inside.
+    let d = ws_with_answer();
+    // host-side sentinel: the delete probe must never target a real file.
+    std::fs::write("/usr/local/hs-del-probe", b"probe\n").unwrap();
+    let r = hs_loop::repexec::run_sandboxed(
+        d.path(),
+        &d.path().join("answer.txt"),
+        "touch /usr/local/hs-escape.marker 2>&1; echo touch_exit=$?; rm /usr/local/hs-del-probe 2>&1; echo rm_exit=$?; touch /root/hs-escape.marker 2>&1; echo root_touch_exit=$?",
+        30,
+    );
+    let out = format!(
+        "{}{}",
+        r["stdout"].as_str().unwrap(),
+        r["stderr"].as_str().unwrap()
+    );
+    assert!(
+        out.contains("touch_exit=1") || out.contains("Read-only file system"),
+        "writes to /usr/local must fail: {out}"
+    );
+    assert!(
+        out.contains("rm_exit=1") || out.contains("Read-only file system"),
+        "deletes in /usr/local must fail: {out}"
+    );
+    assert!(
+        std::path::Path::new("/usr/local/hs-del-probe").exists(),
+        "host sentinel must survive the sandbox: {out}"
+    );
+    let _ = std::fs::remove_file("/usr/local/hs-del-probe");
+    assert!(
+        out.contains("root_touch_exit=1") || out.contains("Read-only file system"),
+        "writes to /root must fail: {out}"
+    );
+    assert!(
+        !std::path::Path::new("/usr/local/hs-escape.marker").exists(),
+        "no host escape marker"
+    );
+    assert!(
+        !std::path::Path::new("/root/hs-escape.marker").exists(),
+        "no host root escape marker"
+    );
+}
+
+#[test]
+fn sandbox_allows_writes_inside_workspace_and_tmp() {
+    // The same ruling keeps the workspace fully writable: the mission
+    // must be able to build, write, and delete inside /ws and /tmp.
+    let d = ws_with_answer();
+    let r = hs_loop::repexec::run_sandboxed(
+        d.path(),
+        &d.path().join("answer.txt"),
+        "touch /ws/ws.marker && rm /ws/ws.marker && echo WS-RW; touch /tmp/t.marker && rm /tmp/t.marker && echo TMP-RW",
+        30,
+    );
+    let out = format!(
+        "{}{}",
+        r["stdout"].as_str().unwrap(),
+        r["stderr"].as_str().unwrap()
+    );
+    assert!(out.contains("WS-RW"), "workspace is writable: {out}");
+    assert!(out.contains("TMP-RW"), "tmp scratch is writable: {out}");
+}
+
+#[test]
+fn sandbox_builds_language_envs_inside_workspace() {
+    // Eric 2026-09-10 (iMessage steering): missions MUST be able to create
+    // uv/venv environments (and other languages' equivalents) inside the
+    // project directory, under confinement. Package caches are writable at
+    // their standard locations (blessed by the same ruling).
+    let d = ws_with_answer();
+    let r = hs_loop::repexec::run_sandboxed(
+        d.path(),
+        &d.path().join("answer.txt"),
+        r#"cd /ws && uv venv .venv 2>&1 && .venv/bin/python -c 'print("UV-VENV-OK")' && uv pip install --python .venv/bin/python --quiet six 2>&1 && .venv/bin/python -c 'import six; print("UV-PIP-OK")' && python3 -m venv .venv2 && .venv2/bin/python -c 'print("PY-VENV-OK")'"#,
+        120,
+    );
+    let out = format!(
+        "{}{}",
+        r["stdout"].as_str().unwrap(),
+        r["stderr"].as_str().unwrap()
+    );
+    assert!(out.contains("UV-VENV-OK"), "uv venv in workspace: {out}");
+    assert!(out.contains("UV-PIP-OK"), "uv pip install in workspace: {out}");
+    assert!(out.contains("PY-VENV-OK"), "python venv in workspace: {out}");
+}
+
+#[test]
+fn sandbox_blesses_standard_toolchain_caches() {
+    // Eric 2026-09-10: package caches are fine where the tools need them.
+    // The standard locations are writable; the REST of $HOME stays
+    // read-only.
+    let d = ws_with_answer();
+    let r = hs_loop::repexec::run_sandboxed(
+        d.path(),
+        &d.path().join("answer.txt"),
+        r#"for c in /root/.cache /root/.cargo /root/.npm /root/.local /root/go; do touch "$c/.hs-probe" 2>/dev/null && rm "$c/.hs-probe" && echo "RW $c" || echo "RO $c"; done; touch /root/.hs-probe 2>/dev/null && rm /root/.hs-probe && echo "RW /root" || echo "RO /root""#,
+        30,
+    );
+    let out = format!(
+        "{}{}",
+        r["stdout"].as_str().unwrap(),
+        r["stderr"].as_str().unwrap()
+    );
+    for d2 in ["/root/.cache", "/root/.cargo", "/root/.npm", "/root/.local", "/root/go"] {
+        assert!(out.contains(&format!("RW {d2}")), "{d2} writable: {out}");
+    }
+    assert!(out.contains("RO /root"), "rest of HOME read-only: {out}");
 }

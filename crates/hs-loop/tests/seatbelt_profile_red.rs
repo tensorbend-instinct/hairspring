@@ -117,7 +117,13 @@ fn b2_environment_is_scrubbed() {
         std::env::remove_var("HS_TEST_LEAK");
     }
     let out = o["stdout"].as_str().unwrap_or("");
-    assert!(out.contains("PATH=/usr/bin:/bin"), "minimal PATH: {out}");
+    // Scrub contract: the confined env is rebuilt, never inherited. PATH
+    // is the fixed toolchain PATH (Eric 2026-09-10, iMessage: missions
+    // must build language envs with standard toolchains -> /usr/local/bin
+    // and homebrew's /opt/homebrew/bin are on it), NOT the host's PATH.
+    assert!(out.contains("/usr/local/bin"), "toolchain bins on PATH: {out}");
+    assert!(out.contains(":/usr/bin:/bin"), "system bins on PATH: {out}");
+    assert!(!out.contains("/root/.cargo"), "host PATH must not leak: {out}");
     assert!(out.contains("LEAK=unset"), "no harness env leaks in: {out}");
 }
 

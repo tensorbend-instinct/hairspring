@@ -260,7 +260,7 @@ fn spawn_confined(
         .arg(command)
         .current_dir(workdir)
         .env_clear()
-        .env("PATH", "/usr/bin:/bin")
+        .env("PATH", "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin")
         .env("HOME", "/tmp")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -294,7 +294,7 @@ fn spawn_confined(
         "--clearenv",
         "--setenv",
         "PATH",
-        "/usr/bin:/bin",
+        "/usr/local/bin:/usr/bin:/bin",
         "--setenv",
         "HOME",
         "/tmp",
@@ -320,6 +320,23 @@ fn spawn_confined(
         "--tmpfs",
         "/tmp",
     ]);
+    // DNS: /etc/resolv.conf commonly symlinks into /run (systemd-resolved)
+    // and /run is never bound, so every lookup dies inside. Copy the
+    // RESOLVED contents to scratch and ro-bind at the canonical path
+    // (same defect + fix as repexec, 2026-09-10).
+    if let Ok(target) = std::fs::canonicalize("/etc/resolv.conf") {
+        if target != std::path::Path::new("/etc/resolv.conf") {
+            if let Ok(bytes) = std::fs::read(&target) {
+                let scratch_resolv = std::env::temp_dir()
+                    .join(format!(".hs-termexec-resolv-{}", std::process::id()));
+                if std::fs::write(&scratch_resolv, bytes).is_ok() {
+                    cmd.arg("--ro-bind")
+                        .arg(&scratch_resolv)
+                        .arg(target.display().to_string());
+                }
+            }
+        }
+    }
     // The VERIFIER's root is READ-ONLY BY MECHANISM: --ro-bind, not the
     // uid drop. Hostile finding 2026-09-10: under --unshare-user bwrap
     // maps the requested inner uid to the OUTER euid (uid_map
