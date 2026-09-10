@@ -183,6 +183,10 @@ pub fn sandbox_probe() -> Result<(), String> {
     )))
 }
 
+// Linux-only like its only caller (the not-macos probe above): without
+// the gate, macOS builds compile it unused and warn (Eric's fresh-install
+// report 2026-09-10). The macOS probe carries its own Seatbelt hint.
+#[cfg(not(target_os = "macos"))]
 fn sandbox_hint(detail: String) -> String {
     format!(
         "missions need the bubblewrap sandbox ({detail}). Every tool call \
