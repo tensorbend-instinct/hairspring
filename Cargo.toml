@@ -9,6 +9,11 @@ members = [
 
 [workspace.package]
 edition = "2024"
+# Oldest supported stable toolchain. edition 2024 floors at 1.85 and the locked dep set at 1.88; the
+# install-gate workflow runs the exact public ./install.sh path on this
+# version (and latest stable) on Linux AND macOS, so a newer-API slip
+# fails CI before it fails a user's install. Bump only with the gate green.
+rust-version = "1.88"
 license = "Proprietary"
 
 [profile.release]

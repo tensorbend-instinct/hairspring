@@ -1,0 +1,29 @@
+# Install regression gate: run the EXACT public install path
+# (clone -> ./install.sh) on the oldest supported stable toolchain and on
+# latest stable, on Linux and macOS. Motivation (2026-09-10): a
+# Duration::from_mins call compiled on the dev box's newer stable but
+# failed a user's older stable at install time - nothing built the
+# install path anywhere but the dev box.
+name: install-gate
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        toolchain: ["1.88.0", stable]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain (${{ matrix.toolchain }})
+        run: rustup toolchain install ${{ matrix.toolchain }} --profile minimal
+      - name: Public install path (exact)
+        run: ./install.sh
+        env:
+          RUSTUP_TOOLCHAIN: ${{ matrix.toolchain }}
+      - name: Smoke
+        run: "$HOME/.local/bin/hairspring --help >/dev/null"
