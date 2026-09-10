@@ -13,7 +13,7 @@ static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[test]
 fn p1_profile_denies_all_writes_then_allows_root_and_tmp() {
-    let p = termexec::seatbelt_profile(Some(Path::new("/work/my root")));
+    let p = termexec::seatbelt_profile(Path::new("/work/my root"), true);
     let deny = p.find("(deny file-write*").expect("deny-all-writes rule");
     let allow = p.find("(allow file-write*").expect("allow rule");
     assert!(
@@ -36,19 +36,30 @@ fn p1_profile_denies_all_writes_then_allows_root_and_tmp() {
 }
 
 #[test]
-fn p2_verifier_profile_omits_the_root() {
-    let p = termexec::seatbelt_profile(None);
+fn p2_verifier_profile_denies_the_root_last() {
+    let p = termexec::seatbelt_profile(Path::new("/private/tmp/hs-demo"), false);
+    let allow_start = p.find("(allow file-write*").expect("an allow rule");
+    let allow_end = allow_start + p[allow_start..].find(")
+").expect("allow rule closes");
+    let allow_rule = &p[allow_start..allow_end];
     assert!(
-        !p.contains("/work"),
-        "the verifier gets NO writable root - task files read-only by \
-         mechanism (the uid-nobody lever on Linux): {p}"
+        !allow_rule.contains("/private/tmp/hs-demo"),
+        "the verifier's ALLOW rule carries no root (agent shape only): {p}"
+    );
+    let root_deny = p.rfind("(deny file-write* (subpath \"/private/tmp/hs-demo\"))");
+    assert!(
+        root_deny.is_some_and(|i| i > allow_end),
+        "a TRAILING deny must re-cover the root: a session root inside a \
+         scratch tree (/tmp/hs-demo, a /var/folders tempdir) stays read-only \
+         to the verifier - the parity hole macOS CI caught (2026-09-10, the \
+         verifier WROTE a task file through the scratch allow): {p}"
     );
     assert!(p.contains("/private/tmp"), "scratch stays writable: {p}");
 }
 
 #[test]
 fn p3_profile_escapes_sbpl_string_metachars() {
-    let p = termexec::seatbelt_profile(Some(Path::new("/weird\"quo\\te")));
+    let p = termexec::seatbelt_profile(Path::new("/weird\"quo\\te"), true);
     assert!(
         p.contains("/weird\\\"quo\\\\te"),
         "a quote/backslash in the root cannot break out of the literal: {p}"

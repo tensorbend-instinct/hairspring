@@ -203,26 +203,37 @@ fn sbpl_escape(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
-/// The Seatbelt profile for a mission exec. `writable_root` is the ONLY
-/// host directory tree the command may modify (None for the VERIFIER:
-/// task files stay read-only by mechanism). `(allow default)` keeps the
-/// network up (terminal-bench ruling) and exec/mach basics working; the
-/// deny-all-writes + later-allow pattern relies on documented Seatbelt
-/// precedence: LATER rules win for a matching operation. Compiled on
-/// every platform: the profile shape is unit-tested from Linux.
-pub fn seatbelt_profile(writable_root: Option<&std::path::Path>) -> String {
+/// The Seatbelt profile for a mission exec. `root` is the session work
+/// root; `writable` selects the surface: the AUTHORING agent gets `root`
+/// as the only writable host tree, the VERIFIER gets NO writable root -
+/// and because a session root can sit INSIDE a scratch tree (/tmp/hs-demo
+/// resolves to /private/tmp; tempdir roots land in /private/var/folders),
+/// the verifier profile ends with a LATER deny for the root itself.
+/// Seatbelt precedence is "last match wins", so the trailing deny
+/// overrides the scratch allows for the submission only (hostile CI
+/// finding 2026-09-10: the scratch-only profile let the verifier write
+/// a submission rooted under the scratch tree). `(allow default)` keeps
+/// the network up (terminal-bench ruling) and exec/mach basics working.
+/// Compiled on every platform: the profile shape is unit-tested from
+/// Linux.
+pub fn seatbelt_profile(root: &std::path::Path, writable: bool) -> String {
+    let root_e = sbpl_escape(&root.to_string_lossy());
     let mut allows = String::new();
-    if let Some(root) = writable_root {
-        allows.push_str(&format!("    (subpath \"{}\")\n", sbpl_escape(&root.to_string_lossy())));
+    if writable {
+        allows.push_str(&format!("    (subpath \"{root_e}\")\n"));
     }
     // /tmp and /var are symlinks; Seatbelt matches on resolved paths.
     allows.push_str("    (subpath \"/private/tmp\")\n");
     allows.push_str("    (subpath \"/private/var/folders\")\n");
     allows.push_str("    (literal \"/dev/null\")\n");
     allows.push_str("    (literal \"/dev/tty\")\n");
-    format!(
+    let mut profile = format!(
         "(version 1)\n(allow default)\n(deny file-write* (regex \".*\"))\n(allow file-write*\n{allows})\n"
-    )
+    );
+    if !writable {
+        profile.push_str(&format!("(deny file-write* (subpath \"{root_e}\"))\n"));
+    }
+    profile
 }
 
 /// Confined spawn: see the module doc. On macOS `identity` (uid/gid
@@ -236,8 +247,7 @@ fn spawn_confined(
     command: &str,
     identity: Option<(u32, u32)>,
 ) -> Result<std::process::Child, Value> {
-    let writable = if identity.is_some() { None } else { Some(root) };
-    let profile = seatbelt_profile(writable);
+    let profile = seatbelt_profile(root, identity.is_none());
     let mut cmd = std::process::Command::new("sandbox-exec");
     cmd.arg("-p")
         .arg(&profile)
