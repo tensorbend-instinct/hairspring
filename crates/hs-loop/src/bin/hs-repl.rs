@@ -590,15 +590,6 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     // loader (work anchor) and every spawned plugin (bwrap confinement,
     // answer-write guard) see the same root. A bad path is a startup
     // error, never a silent fall-back to an unconfined anchor.
-    if let Some(dir) = &opts.project_dir {
-        let canonical = std::fs::canonicalize(dir)
-            .map_err(|e| format!("--project-dir {}: {e}", dir.display()))?;
-        if !canonical.is_dir() {
-            return Err(format!("--project-dir {} is not a directory", canonical.display()).into());
-        }
-        unsafe { std::env::set_var("HS_PROJECT_ROOT", &canonical) };
-        println!("project root: {} (missions confined to this directory)", canonical.display());
-    }
     std::fs::create_dir_all(&opts.dir)?;
     // Stranger-path burn (2026-09-10): a relative --dir leaked the
     // relative anchor downstream - the reported answer_path went out as
@@ -608,6 +599,43 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     // every reported path share one absolute root.
     opts.dir = std::fs::canonicalize(&opts.dir)
         .map_err(|e| format!("--dir {}: {e}", opts.dir.display()))?;
+    // Project root, resolved once and printed in EVERY mode (Eric
+    // 2026-09-10: the confinement boundary is an explicit pre-mission
+    // input, never invisible). Explicit --project-dir wins; the default
+    // is <dir>/work - the same anchor wire_tool_env already falls back
+    // to. A TTY run without --project-dir gets one prompt with the
+    // default shown; non-TTY (CI/scripts) takes the default silently.
+    let interactive = std::io::IsTerminal::is_terminal(&std::io::stdin());
+    let mut ask = |default: &str| -> Result<String, String> {
+        eprint!("project directory missions are confined to [{default}]: ");
+        use std::io::Write as _;
+        let _ = std::io::stderr().flush();
+        let mut line = String::new();
+        use std::io::BufRead as _;
+        std::io::stdin()
+            .lock()
+            .read_line(&mut line)
+            .map_err(|e| format!("read project directory: {e}"))?;
+        Ok(line)
+    };
+    let project_root = hs_loop::projectroot::resolve_project_root(
+        opts.project_dir.as_deref(),
+        &opts.dir,
+        if interactive { Some(&mut ask) } else { None },
+    )?;
+    // SAFETY: written once at startup before any plugin process or
+    // thread exists; the same value wire_tool_env would default to.
+    unsafe { std::env::set_var("HS_PROJECT_ROOT", &project_root) };
+    println!(
+        "project root: {} (missions confined to this directory)",
+        project_root.display()
+    );
+    // First-run readiness gate: the configured default model must be
+    // offline (scripted) or credentialed BEFORE any mission machinery
+    // starts - a TTY gets the guided wizard inline, non-TTY an
+    // actionable error (Eric 2026-09-10: never a mid-mission 400).
+    hs_loop::setup::readiness_gate(&opts.config, interactive)?;
+
     // Eric's five #5: the agent.spawn tool plugin learns the session's
     // log root + kernel config from the environment (plugin processes
     // only see env + args; the loop injects the per-call parent

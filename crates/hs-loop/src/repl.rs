@@ -182,7 +182,7 @@ fn offer_unique(native_tools: &mut Vec<serde_json::Value>, t: serde_json::Value)
 /// assembler's compactor would ever fire.
 /// UI gap #1: the configured default model's NAME, for the status bar.
 /// Same TOML stanza walk as `configured_context_tokens`.
-fn configured_model_label(config: &Path) -> Option<String> {
+pub fn configured_model_label(config: &Path) -> Option<String> {
     let text = std::fs::read_to_string(config).ok()?;
     let v: toml::Value = toml::from_str(&text).ok()?;
     let models = v.get("models")?.as_array()?;

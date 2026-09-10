@@ -49,8 +49,11 @@ Installed. Next:
   2. Add your model key:  hairspring setup
      (guided: checks what is configured, stores the key owner-only under
      $CONFIG_DIR/keys/, validates it, and prints the next command)
-  3. Run a mission:       hairspring run --goal "your goal" --config $CONFIG_DIR/hairspring.toml --dir /tmp/hs-run
-     Interactive TUI:     hairspring --config $CONFIG_DIR/hairspring.toml --dir /tmp/hs-run
+  3. Run a mission in your project:
+                          hairspring run --goal "your goal" --config $CONFIG_DIR/hairspring.toml --dir ./hs-run --project-dir .
+     Interactive TUI:     hairspring --config $CONFIG_DIR/hairspring.toml --dir ./hs-run
+     (--dir holds run state; missions are confined to --project-dir,
+      default <dir>/work - the TUI asks once, and the root always prints)
 
 No API key? Offline demo mission (zero network):
   export HS_SEQMODEL_SCRIPT=$PREFIX/seqmodel-demo.jsonl
@@ -58,5 +61,5 @@ No API key? Offline demo mission (zero network):
   In $CONFIG_DIR/hairspring.toml, move default = true from the
   deepseek model to the scripted model (it has a commented line ready),
   then:
-  hairspring run --goal "write hello.txt containing hello" --config $CONFIG_DIR/hairspring.toml --dir /tmp/hs-demo
+  hairspring run --goal "write hello.txt containing hello" --config $CONFIG_DIR/hairspring.toml --dir ./hs-demo
 MSG

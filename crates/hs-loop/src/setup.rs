@@ -47,6 +47,56 @@ pub fn check_readiness() -> Vec<Readiness> {
         .collect()
 }
 
+/// First-run readiness gate (Eric 2026-09-10 stranger bar: a fresh TUI
+/// must never discover a missing credential as a mid-mission provider
+/// 400). Runs before any mission machinery: the configured DEFAULT model
+/// must be offline (scripted) or backed by a resolvable credential
+/// (env, key file, or the guided-setup config-dir file). A TTY with no
+/// credential is offered the wizard inline; non-TTY (CI, scripts) gets
+/// an actionable error naming the remedy.
+pub fn readiness_gate(config: &std::path::Path, interactive: bool) -> Result<(), String> {
+    let Some(name) = crate::repl::ReplSession::configured_model_label(config) else {
+        return Ok(()); // unparseable rig: the session loader errors with its own message
+    };
+    let Some(provider) = providers().into_iter().find(|p| p.name == name) else {
+        return Ok(()); // scripted / offline default needs no credential
+    };
+    if realmodel::load_key(&provider).is_ok() {
+        return Ok(());
+    }
+    let remedy = format!(
+        "no credential for the default model \"{}\". Run `hairspring setup` \
+         (guided: validates the key and saves it owner-only under \
+         ~/.config/hairspring/keys/) or export {} / {} pointing at the key.",
+        provider.name, provider.key_env, provider.key_file_env
+    );
+    if !interactive {
+        return Err(remedy);
+    }
+    eprintln!("hairspring: {remedy}");
+    eprint!("launch guided setup now? [Y/n] ");
+    {
+        use std::io::Write as _;
+        let _ = std::io::stderr().flush();
+    }
+    let mut line = String::new();
+    {
+        use std::io::BufRead as _;
+        let _ = std::io::stdin().lock().read_line(&mut line);
+    }
+    if line.trim().eq_ignore_ascii_case("n") {
+        return Err(remedy);
+    }
+    cli(&[])?;
+    realmodel::load_key(&provider).map(|_| ()).map_err(|_| {
+        format!(
+            "setup finished but {} still has no usable credential - run \
+             `hairspring setup` again or export {}",
+            provider.name, provider.key_env
+        )
+    })
+}
+
 pub enum Validation {
     Valid,
     Rejected(String),

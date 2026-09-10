@@ -35,15 +35,25 @@ and says what is missing; an unconfined run is never the fallback.
 ## Quickstart
 
 ```sh
-export HS_DEEPSEEK_API_KEY=<your key>
+export HS_DEEPSEEK_API_KEY=<your key>   # or: hairspring setup (guided)
 
-# One-shot mission
+# One-shot mission, in your project
 hairspring run --goal "fix the off-by-one in src/parser.rs" \
-    --config ~/.config/hairspring/hairspring.toml --dir /tmp/hs-run
+    --config ~/.config/hairspring/hairspring.toml \
+    --dir ./hs-run --project-dir .
 
 # Interactive fullscreen TUI
-hairspring --config ~/.config/hairspring/hairspring.toml --dir /tmp/hs-run
+hairspring --config ~/.config/hairspring/hairspring.toml --dir ./hs-run
 ```
+
+`--dir` holds the run state (streams, logs, memory); missions are
+confined to the project root: `--project-dir`, default `<dir>/work`. On
+a TTY, a run without `--project-dir` asks once with the default shown,
+and the resolved root prints at startup in every mode. Before any
+mission machinery starts, a readiness gate checks that the configured
+default model has a credential: a terminal gets the guided setup offered
+inline, a non-interactive run gets an actionable error - never a
+mid-mission provider 400.
 
 In the TUI, `:agents` shows live sub-agent delegations mid-run.
 
@@ -66,19 +76,21 @@ export HS_CRITIC_SCRIPT='tool:grep -q hello hello.txt|clean'
 # deepseek model, uncomment it on the scripted model (line ready)
 
 hairspring run --goal "write hello.txt containing hello" \
-    --config ~/.config/hairspring/hairspring.toml --dir /tmp/hs-demo
+    --config ~/.config/hairspring/hairspring.toml --dir ./hs-demo
 ```
 
-The demo writes `hello.txt` under `/tmp/hs-demo/work`, declares its own
+The demo writes `hello.txt` under `./hs-demo/work`, declares its own
 check, submits, and closes `verified` (checker green + verifier audit) - a
 full graded mission with no provider. The critic stand-in is for this
 demo only: live missions leave `HS_CRITIC_SCRIPT` unset so the critic
 resolves from `HS_CRITIC_MODEL` (deepseek or glm) with a real provider
 key, and every abnormal critic exit fails closed. Without
 `HS_SEQMODEL_SCRIPT` the scripted model stays inert: missions that call it
-get an error naming the variable, and live models are unaffected. A missing
-or wrong live key fails the mission with a message naming the key env var -
-check the run's `stderr/` logs for a plugin's own dying words.
+get an error naming the variable, and live models are unaffected. A missing live
+key is caught at startup by the readiness gate, which names
+`hairspring setup` and the key env var; a wrong key fails the mission
+with the provider's own error - check the run's `stderr/` logs for a
+plugin's dying words.
 
 ## Architecture
 

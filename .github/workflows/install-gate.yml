@@ -18,7 +18,7 @@ jobs:
         toolchain: ["1.88.0", stable]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install toolchain (${{ matrix.toolchain }})
         run: rustup toolchain install ${{ matrix.toolchain }} --profile minimal
       - name: Public install path (exact)

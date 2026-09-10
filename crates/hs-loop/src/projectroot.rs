@@ -33,6 +33,49 @@ pub fn project_root() -> Option<PathBuf> {
     None
 }
 
+/// The mission project root resolved ONCE at startup (Eric 2026-09-10:
+/// the project directory is an explicit pre-mission input). Explicit
+/// --project-dir wins and must already exist; otherwise the default is
+/// `<run-dir>/work` - the same anchor `wire_tool_env` defaults to -
+/// created on demand. A TTY run without --project-dir gets ONE prompt
+/// with the default shown (inject the reader); non-TTY (CI/scripts)
+/// takes the default silently. The caller prints the result in every
+/// mode so the confinement boundary is never invisible.
+pub fn resolve_project_root(
+    explicit: Option<&Path>,
+    run_dir: &Path,
+    mut prompt: Option<&mut dyn FnMut(&str) -> Result<String, String>>,
+) -> Result<PathBuf, String> {
+    let default = run_dir.join("work");
+    let chosen = match (explicit, prompt.as_deref_mut()) {
+        (Some(p), _) => p.to_path_buf(),
+        (None, Some(ask)) => {
+            let answer = ask(&format!("{}", default.display()))?;
+            let trimmed = answer.trim();
+            if trimmed.is_empty() {
+                default.clone()
+            } else {
+                PathBuf::from(trimmed)
+            }
+        }
+        (None, None) => default.clone(),
+    };
+    if explicit.is_none() && chosen == default {
+        std::fs::create_dir_all(&chosen)
+            .map_err(|e| format!("create {}: {e}", chosen.display()))?;
+    }
+    let canonical = chosen
+        .canonicalize()
+        .map_err(|e| format!("--project-dir {}: {e}", chosen.display()))?;
+    if !canonical.is_dir() {
+        return Err(format!(
+            "--project-dir {} is not a directory",
+            canonical.display()
+        ));
+    }
+    Ok(canonical)
+}
+
 fn escape_error(what: &str, resolved: &Path, root: &Path) -> Value {
     serde_json::json!({"$error": format!(
         "{what}: {} escapes the project root {} - refused",
