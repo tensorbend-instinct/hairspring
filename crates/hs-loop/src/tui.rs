@@ -94,20 +94,66 @@ pub fn kind_glyph(k: EventKind) -> char {
 /// and never mentioned :resume/:agents.
 pub const TUI_HELP: &str = "hairspring - full-screen surface
   <text>    run <text> as a goal (queues behind a running mission)
-  :status   model, missions, steps, calls, cost, stream of this session
-  :history  goals you have submitted this session
-  :last     the latest mission's answer artifact
-  :resume   pick a prior session to continue
-  :models   pick the operator model (next mission onward)
-  :theme    pick the surface theme
-  :agents   toggle the delegation graph panel
-  :lineage  toggle the selfmod lineage panel
-  :scorer   toggle the scorer stream panel
-  :evidence toggle the evidence claims panel
-  :time     toggle the T_mission decomposition panel
-  :help     this text
-  :quit     exit (Ctrl+C works too)
+  /status   model, missions, steps, calls, cost, stream of this session
+  /history  goals you have submitted this session
+  /last     the latest mission's answer artifact
+  /resume   pick a prior session to continue
+  /models   pick the operator model (next mission onward)
+  /theme    pick the surface theme
+  /agents   toggle the delegation graph panel
+  /lineage  toggle the selfmod lineage panel
+  /scorer   toggle the scorer stream panel
+  /evidence toggle the evidence claims panel
+  /time     toggle the T_mission decomposition panel
+  /help     this text
+  /quit     exit (Ctrl+C works too)
+  type / to open the live palette; :command is a backward-compatible alias
   keys: Enter run - Alt+Enter newline - PgUp/PgDn scroll - wheel scrolls";
+
+/// The command registry behind the palette (Eric 2026-09-10: "commands
+/// in common TUIs are /<command> with immediate feedback on options").
+/// Canonical spelling is "/name"; ":" is a backward-compatible alias
+/// resolving the same set. Both the handle_key dispatch and the bin's
+/// Submit handler read this table - one source, no drift.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CommandSpec {
+    pub name: &'static str,
+    pub summary: &'static str,
+    /// Argument hint for the palette row (None = takes no args; the
+    /// current set is arg-less, the slot renders for future commands).
+    pub args: Option<&'static str>,
+}
+
+pub const TUI_COMMANDS: &[CommandSpec] = &[
+    CommandSpec { name: "help", summary: "list commands", args: None },
+    CommandSpec { name: "status", summary: "model, missions, steps, calls, cost, stream", args: None },
+    CommandSpec { name: "history", summary: "goals submitted this session", args: None },
+    CommandSpec { name: "last", summary: "the latest mission's answer artifact", args: None },
+    CommandSpec { name: "resume", summary: "pick a prior session to continue", args: None },
+    CommandSpec { name: "models", summary: "pick the operator model", args: None },
+    CommandSpec { name: "theme", summary: "pick the surface theme", args: None },
+    CommandSpec { name: "agents", summary: "toggle the delegation graph panel", args: None },
+    CommandSpec { name: "lineage", summary: "toggle the selfmod lineage panel", args: None },
+    CommandSpec { name: "scorer", summary: "toggle the scorer stream panel", args: None },
+    CommandSpec { name: "evidence", summary: "toggle the evidence claims panel", args: None },
+    CommandSpec { name: "time", summary: "toggle the T_mission decomposition panel", args: None },
+    CommandSpec { name: "quit", summary: "exit (Ctrl+C works too)", args: None },
+];
+
+/// Exact command resolution (the "q" shorthand rides along).
+pub fn command_lookup(name: &str) -> Option<&'static CommandSpec> {
+    let name = if name == "q" { "quit" } else { name };
+    TUI_COMMANDS.iter().find(|c| c.name == name)
+}
+
+/// Palette filtering: commands whose name starts with the typed prefix
+/// (empty prefix = the whole registry).
+pub fn command_matches(prefix: &str) -> Vec<&'static CommandSpec> {
+    TUI_COMMANDS
+        .iter()
+        .filter(|c| c.name.starts_with(prefix))
+        .collect()
+}
 
 /// The four screen regions. The composer and HUD are pinned at the
 /// bottom; the viewport takes everything above the rail.
@@ -310,7 +356,7 @@ impl EditorState {
         self.lines.get(row).map_or(0, |l| l.chars().count())
     }
 
-    fn set_text(&mut self, text: &str) {
+    pub fn set_text(&mut self, text: &str) {
         self.lines = text.split('\n').map(str::to_string).collect();
         if self.lines.is_empty() {
             self.lines.push(String::new());
@@ -509,41 +555,86 @@ pub fn handle_key(state: &mut TuiState, key: ratatui::crossterm::event::KeyEvent
         (KeyCode::Char('c'), KeyModifiers::CONTROL) => KeyAction::Quit,
         (KeyCode::Char(c), KeyModifiers::NONE | KeyModifiers::SHIFT) => {
             state.editor.input_char(c);
+            state.palette_sync();
             KeyAction::Continue
         }
         (KeyCode::Enter, KeyModifiers::ALT) => {
             state.editor.insert_newline();
             KeyAction::Continue
         }
-        (KeyCode::Enter, _) => match state.editor.submit() {
-            None => KeyAction::Continue,
-            Some(text) => match text.trim() {
-                ":quit" | ":q" => KeyAction::Quit,
-                ":agents" => {
-                    state.toggle_agents_panel();
-                    KeyAction::ToggleAgents
+        (KeyCode::Enter, _) => {
+            // Palette acceptance: with the palette open and the
+            // highlight differing from the typed prefix, Enter first
+            // accepts the command into the buffer in canonical
+            // spelling; the exact name then dispatches below.
+            // Arg-taking commands stop at the buffer for the argument.
+            if let Some(p) = &state.palette {
+                if !p.matches.is_empty() {
+                    let cmd = p.matches[p.selected.min(p.matches.len() - 1)];
+                    let text = state.editor.text().trim().to_string();
+                    let typed = text
+                        .strip_prefix('/')
+                        .or_else(|| text.strip_prefix(':'))
+                        .unwrap_or("");
+                    if typed != cmd.name {
+                        if cmd.args.is_some() {
+                            state.editor.set_text(&format!("/{} ", cmd.name));
+                            state.palette_sync();
+                            return KeyAction::Continue;
+                        }
+                        state.editor.set_text(&format!("/{}", cmd.name));
+                    }
                 }
-                ":lineage" => {
-                    state.toggle_lineage_panel();
-                    KeyAction::ToggleLineage
+            }
+            match state.editor.submit() {
+                None => KeyAction::Continue,
+                Some(text) => {
+                    state.palette = None;
+                    let t = text.trim();
+                    match t.strip_prefix('/').or_else(|| t.strip_prefix(':')) {
+                        Some(rest) => {
+                            let word = rest.split_whitespace().next().unwrap_or("");
+                            match command_lookup(word) {
+                                None => {
+                                    state.push_transcript_line(&format!(
+                                        "unknown command {t} (/help lists commands)"
+                                    ));
+                                    KeyAction::Continue
+                                }
+                                Some(spec) => match spec.name {
+                                    "quit" => KeyAction::Quit,
+                                    "agents" => {
+                                        state.toggle_agents_panel();
+                                        KeyAction::ToggleAgents
+                                    }
+                                    "lineage" => {
+                                        state.toggle_lineage_panel();
+                                        KeyAction::ToggleLineage
+                                    }
+                                    "scorer" => {
+                                        state.toggle_scorer_panel();
+                                        KeyAction::ToggleScorer
+                                    }
+                                    "evidence" => {
+                                        state.toggle_evidence_panel();
+                                        KeyAction::ToggleEvidence
+                                    }
+                                    "time" => {
+                                        state.toggle_time_panel();
+                                        KeyAction::ToggleTime
+                                    }
+                                    _ => KeyAction::Submit(text),
+                                },
+                            }
+                        }
+                        None => KeyAction::Submit(text),
+                    }
                 }
-                ":scorer" => {
-                    state.toggle_scorer_panel();
-                    KeyAction::ToggleScorer
-                }
-                ":evidence" => {
-                    state.toggle_evidence_panel();
-                    KeyAction::ToggleEvidence
-                }
-                ":time" => {
-                    state.toggle_time_panel();
-                    KeyAction::ToggleTime
-                }
-                _ => KeyAction::Submit(text),
-            },
-        },
+            }
+        }
         (KeyCode::Backspace, _) => {
             state.editor.backspace();
+            state.palette_sync();
             KeyAction::Continue
         }
         (KeyCode::Left, _) => {
@@ -563,9 +654,12 @@ pub fn handle_key(state: &mut TuiState, key: ratatui::crossterm::event::KeyEvent
             KeyAction::Continue
         }
         (KeyCode::Up, _) => {
-            // History when the cursor sits on the first row; otherwise
-            // plain cursor movement inside a multi-line buffer.
-            if state.editor.cursor().0 == 0 {
+            // The open palette owns Up/Down (selection); otherwise
+            // history when the cursor sits on the first row, plain
+            // cursor movement inside a multi-line buffer.
+            if state.palette.is_some() {
+                state.palette_up();
+            } else if state.editor.cursor().0 == 0 {
                 state.editor.history_up();
             } else {
                 state.editor.move_up();
@@ -573,6 +667,10 @@ pub fn handle_key(state: &mut TuiState, key: ratatui::crossterm::event::KeyEvent
             KeyAction::Continue
         }
         (KeyCode::Down, _) => {
+            if state.palette.is_some() {
+                state.palette_down();
+                return KeyAction::Continue;
+            }
             let (row, _) = state.editor.cursor();
             let last = state.editor.line_count().saturating_sub(1);
             if row >= last {
@@ -588,6 +686,18 @@ pub fn handle_key(state: &mut TuiState, key: ratatui::crossterm::event::KeyEvent
         }
         (KeyCode::PageDown, _) => {
             state.transcript_wheel_down(20);
+            KeyAction::Continue
+        }
+        (KeyCode::Tab, _) => {
+            // Complete the highlighted palette command into the
+            // buffer (canonical spelling, no submit).
+            state.palette_complete();
+            KeyAction::Continue
+        }
+        (KeyCode::Esc, _) => {
+            // Esc closes the palette (the picker handled its own Esc
+            // above). Without either open it is a no-op.
+            state.palette = None;
             KeyAction::Continue
         }
         _ => KeyAction::Continue,
@@ -855,6 +965,14 @@ fn extract_mission_text(v: &serde_json::Value) -> Option<String> {
     None
 }
 
+/// The live command palette (Eric 2026-09-10). Open while the editor
+/// buffer starts with "/" or ":"; matches recompute on every edit.
+#[derive(Debug, Clone, Default)]
+pub struct PaletteState {
+    pub matches: Vec<&'static CommandSpec>,
+    pub selected: usize,
+}
+
 /// M4: the picker overlay state (resume picker first, model/theme
 /// pickers later). Entries are pre-rendered display lines; selection
 /// is an index.
@@ -1015,6 +1133,8 @@ pub struct TuiState {
     pub rows_cache: std::cell::RefCell<RowsCache>,
     /// Active picker overlay, if any (M4).
     pub picker: Option<PickerState>,
+    /// Live command palette, open while the buffer starts with a sigil.
+    pub palette: Option<PaletteState>,
     /// In-flight streaming answer text; committed per line (M5).
     pub answer_inflight: String,
     /// Delegation graph for this session (M6).
@@ -1065,6 +1185,7 @@ impl Default for TuiState {
             last_vp_width: std::cell::Cell::new(80),
             rows_cache: std::cell::RefCell::new(RowsCache::default()),
             picker: None,
+            palette: None,
             answer_inflight: String::new(),
             agents: DelegationGraph::new(),
             agents_panel: false,
@@ -1339,6 +1460,66 @@ impl TuiState {
         self.time_panel = !self.time_panel;
     }
 
+    /// Live palette sync: a leading sigil in the buffer opens it, the
+    /// typed prefix filters, anything else closes it (Eric 2026-09-10).
+    pub fn palette_sync(&mut self) {
+        let text = self.editor.text();
+        let t = text.trim_start();
+        let Some(rest) = t.strip_prefix('/').or_else(|| t.strip_prefix(':')) else {
+            self.palette = None;
+            return;
+        };
+        if rest.contains(char::is_whitespace) {
+            // accepted into the argument zone: the palette's job is done
+            self.palette = None;
+            return;
+        }
+        let matches = command_matches(rest);
+        let selected = self.palette.as_ref().map_or(0, |p| {
+            p.selected.min(matches.len().saturating_sub(1))
+        });
+        self.palette = Some(PaletteState { matches, selected });
+    }
+
+    /// Command names currently matching, for tests and rendering.
+    pub fn palette_matches(&self) -> Option<Vec<&str>> {
+        self.palette
+            .as_ref()
+            .map(|p| p.matches.iter().map(|c| c.name).collect())
+    }
+
+    pub fn palette_selected(&self) -> Option<usize> {
+        self.palette.as_ref().map(|p| p.selected)
+    }
+
+    fn palette_down(&mut self) {
+        if let Some(p) = &mut self.palette {
+            if !p.matches.is_empty() {
+                p.selected = (p.selected + 1).min(p.matches.len() - 1);
+            }
+        }
+    }
+
+    fn palette_up(&mut self) {
+        if let Some(p) = &mut self.palette {
+            p.selected = p.selected.saturating_sub(1);
+        }
+    }
+
+    /// Tab acceptance: the highlighted command lands in the buffer in
+    /// canonical spelling (arg-taking commands gain a trailing space).
+    fn palette_complete(&mut self) {
+        let Some(p) = &self.palette else { return };
+        let Some(cmd) = p.matches.get(p.selected) else { return };
+        let text = if cmd.args.is_some() {
+            format!("/{} ", cmd.name)
+        } else {
+            format!("/{}", cmd.name)
+        };
+        self.editor.set_text(&text);
+        self.palette_sync();
+    }
+
     /// Open a picker overlay over the transcript (M4).
     pub fn open_picker(&mut self, entries: Vec<String>) {
         if entries.is_empty() {
@@ -1513,7 +1694,7 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
         && state.transcript.is_empty()
         && state.answer_inflight.is_empty()
     {
-        let hint = "type a goal and press Enter \u{00b7} :help for commands \u{00b7} :resume to pick a session";
+        let hint = "type a goal and press Enter \u{00b7} /help for commands \u{00b7} /resume to pick a session";
         let hy = viewport.y + viewport.height / 2;
         let hw = hint.chars().count() as u16;
         let hx = viewport.x + viewport.width.saturating_sub(hw) / 2;
@@ -1656,6 +1837,51 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
     if l.hud.height > 0 && l.hud.width > 0 {
         let hud = Paragraph::new(state.hud_line());
         f.render_widget(hud, l.hud);
+    }
+
+    // M32: the live command palette - anchored above the composer,
+    // capped at 8 rows so short terminals keep the transcript.
+    if let Some(p) = &state.palette {
+        let rows = p.matches.len().clamp(1, 8) as u16;
+        let ph = rows + 2;
+        if composer.y > ph + 1 {
+            let w = area.width.min(64);
+            let rect = Rect::new(composer.x, composer.y - ph, w, ph);
+            f.render_widget(ratatui::widgets::Clear, rect);
+            let mut lines: Vec<Line> = Vec::new();
+            if p.matches.is_empty() {
+                lines.push(Line::from(Span::styled(
+                    "  no matching commands",
+                    Style::default().add_modifier(Modifier::DIM),
+                )));
+            } else {
+                // Scroll window: the highlight is always visible when
+                // the registry outgrows the 8-row cap.
+                let start = p.selected.saturating_sub(7);
+                for (i, cmd) in p.matches.iter().enumerate().skip(start).take(8) {
+                    let selected = i == p.selected;
+                    let row_style = if selected {
+                        Style::default().add_modifier(Modifier::REVERSED)
+                    } else {
+                        Style::default()
+                    };
+                    let arg = cmd.args.map(|a| format!(" {a}")).unwrap_or_default();
+                    let marker = if selected { "\u{25b6}" } else { " " };
+                    lines.push(Line::from(vec![
+                        Span::styled(format!("{marker} /{}{arg}", cmd.name), row_style),
+                        Span::styled(
+                            format!("  {}", cmd.summary),
+                            Style::default().add_modifier(Modifier::DIM),
+                        ),
+                    ]));
+                }
+            }
+            let block = Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title(" commands ");
+            f.render_widget(Paragraph::new(lines).block(block), rect);
+        }
     }
 
     // M4: the picker overlay - centered box over the transcript,

@@ -428,19 +428,28 @@ fn run_fullscreen(
                             }
                         }
                         tui::KeyAction::Submit(text) => {
+                            // Sigil normalization: ":cmd" is a
+                            // backward-compatible alias of "/cmd"
+                            // (Eric 2026-09-10: canonical spelling is
+                            // /<command>).
                             let t = text.trim().to_string();
-                            if t == ":resume" {
+                            let t = if let Some(rest) = t.strip_prefix(':') {
+                                format!("/{rest}")
+                            } else {
+                                t
+                            };
+                            if t == "/resume" {
                                 resume_sessions = open_resume_picker(&mut st, current_stream);
-                            } else if t == ":help" {
+                            } else if t == "/help" {
                                 // M26: the surface's OWN help - the
                                 // line-mode REPL_HELP advertised
                                 // commands that were dead ends here.
                                 for line in hs_loop::tui::TUI_HELP.lines() {
                                     st.push_transcript_line(line);
                                 }
-                            } else if t == ":status" {
+                            } else if t == "/status" {
                                 st.push_transcript_line(&st.status_line());
-                            } else if t == ":history" {
+                            } else if t == "/history" {
                                 let h = st.editor.history_entries();
                                 if h.is_empty() {
                                     st.push_transcript_line("(no goals submitted yet)");
@@ -449,7 +458,7 @@ fn run_fullscreen(
                                         st.push_transcript_line(&format!("  {e}"));
                                     }
                                 }
-                            } else if t == ":models" {
+                            } else if t == "/models" {
                                 let entries: Vec<String> = model_entries
                                     .iter()
                                     .map(|(n, d)| {
@@ -464,14 +473,14 @@ fn run_fullscreen(
                                     })
                                     .collect();
                                 st.open_picker_kind(tui::PickerKind::Models, entries);
-                            } else if t == ":theme" {
+                            } else if t == "/theme" {
                                 let entries: Vec<String> =
                                     hs_loop::uipaint::available_themes()
                                         .iter()
                                         .map(|(n, _)| n.to_string())
                                         .collect();
                                 st.open_picker_kind(tui::PickerKind::Themes, entries);
-                            } else if t == ":last" {
+                            } else if t == "/last" {
                                 match &last_answer {
                                     Some(p) => {
                                         st.push_transcript_line(&format!(
@@ -491,9 +500,9 @@ fn run_fullscreen(
                                     None => st
                                         .push_transcript_line("(no mission has finished yet)"),
                                 }
-                            } else if let Some(goal) = t.strip_prefix(":") {
+                            } else if let Some(goal) = t.strip_prefix('/') {
                                 st.push_transcript_line(&format!(
-                                    "unknown command :{goal} (:help lists commands)"
+                                    "unknown command /{goal} (/help lists commands)"
                                 ));
                             } else if !running {
                                 running = true;
@@ -667,7 +676,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             std::process::exit(1);
         }
     } else {
-        eprintln!("hairspring repl (:help for commands, :quit to exit)");
+        eprintln!("hairspring repl (/help for commands, /quit to exit)");
         // UI gap #7: interactive honors --resume/--fork like one-shot
         // (the picker resolves to a uuid above; previously the
         // interactive arm ignored it and opened a fresh stream).

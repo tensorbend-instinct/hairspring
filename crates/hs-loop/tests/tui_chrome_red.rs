@@ -223,10 +223,11 @@ fn v5_empty_views_render_honest_lines() {
     );
 }
 
-// v6: the surface help names all three commands.
+// v6: the surface help names all three commands (canonical "/" per
+// the 2026-09-10 ruling; ":cmd" survives only as an input alias).
 #[test]
 fn v6_help_lists_chrome_commands() {
-    for cmd in [":lineage", ":scorer", ":time", ":evidence"] {
+    for cmd in ["/lineage", "/scorer", "/time", "/evidence"] {
         assert!(
             tui::TUI_HELP.contains(cmd),
             "TUI_HELP must document {cmd}"

@@ -35,7 +35,7 @@ fn r1_empty_session_shows_hint() {
     let st = TuiState::default();
     let text = screen(&st, 80, 24);
     assert!(
-        text.contains(":help"),
+        text.contains("/help"),
         "empty viewport names a true next action: {text:?}"
     );
 }
@@ -57,7 +57,7 @@ fn r2_hint_vanishes_with_content() {
 #[test]
 fn r3_help_matches_reality() {
     let help = tui::TUI_HELP;
-    for cmd in [":status", ":history", ":last", ":resume", ":agents", ":help", ":quit"] {
+    for cmd in ["/status", "/history", "/last", "/resume", "/agents", "/help", "/quit"] {
         assert!(help.contains(cmd), "help lists implemented command {cmd}");
     }
 }

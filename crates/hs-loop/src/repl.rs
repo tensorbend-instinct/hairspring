@@ -34,6 +34,15 @@ pub enum ReplCommand {
 #[must_use]
 pub fn parse_command(line: &str) -> ReplCommand {
     let t = line.trim();
+    // Sigil normalization: "/cmd" is the canonical spelling; ":cmd"
+    // is a backward-compatible alias (Eric 2026-09-10).
+    let owned;
+    let t = if let Some(rest) = t.strip_prefix('/') {
+        owned = format!(":{rest}");
+        &owned
+    } else {
+        t
+    };
     match t {
         ":quit" | ":q" | ":exit" => ReplCommand::Quit,
         ":help" | ":h" | ":?" => ReplCommand::Help,
@@ -965,17 +974,22 @@ pub fn session_line(i: usize, info: &SessionInfo) -> String {
 pub const REPL_COMMANDS: &[&str] =
     &[":help", ":history", ":last", ":quit", ":restore", ":snapshot", ":status"];
 
-/// Completions for a command prefix. Only colon-prefixed input
-/// completes; goal text never does.
+/// Completions for a command prefix. Sigil-prefixed input completes
+/// ("/" canonical, ":" the backward-compatible alias); goal text
+/// never does.
 #[must_use]
 pub fn command_completions(prefix: &str) -> Vec<String> {
-    if !prefix.starts_with(':') {
+    let sigil = if prefix.starts_with('/') {
+        '/'
+    } else if prefix.starts_with(':') {
+        ':'
+    } else {
         return Vec::new();
-    }
+    };
     REPL_COMMANDS
         .iter()
-        .filter(|c| c.starts_with(prefix))
-        .map(std::string::ToString::to_string)
+        .filter(|c| c[1..].starts_with(&prefix[1..]))
+        .map(|c| format!("{sigil}{}", &c[1..]))
         .collect()
 }
 
