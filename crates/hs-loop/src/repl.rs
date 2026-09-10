@@ -353,6 +353,7 @@ pub fn load(
         ]);
         inner.set_tools(serde_json::Value::Array(native_tools));
         let model_label = Self::configured_model_label(config).unwrap_or_else(|| "?".to_string());
+        let (missions_run, total_steps, total_model_calls) = (0u64, 0u64, 0u64);
         Ok(ReplSession {
             inner,
             used_ids: std::collections::HashSet::new(),
@@ -360,9 +361,9 @@ pub fn load(
             mcp_catalog,
             model_label,
             started: std::time::Instant::now(),
-            missions_run: 0,
-            total_steps: 0,
-            total_model_calls: 0,
+            missions_run,
+            total_steps,
+            total_model_calls,
             ui_flush: None,
             work_dir: log_root.join("work"),
         })
@@ -462,6 +463,49 @@ pub fn load(
         ]);
         inner.set_tools(serde_json::Value::Array(native_tools));
         let model_label = Self::configured_model_label(config).unwrap_or_else(|| "?".to_string());
+        // Accounting reset fix (Eric 2026-09-10): fold the adopted
+        // stream's history into the session counters so :resume restores
+        // the accounting surfaces (HUD totals, :status cost, the vitals
+        // behind the panels) instead of reading zeros. Semantics mirror
+        // the live loop: one GoalUpdate per closed mission; steps are
+        // loop iterations (one booked ModelCall each, excluding
+        // autocompact distills, which book a call but no step); the cost
+        // totals themselves are folded inside InnerLoop::with_stream.
+        let mut missions_run = 0u64;
+        let mut total_steps = 0u64;
+        let mut total_model_calls = 0u64;
+        if let Ok(r) = hs_log::StreamReader::open(log_root, stream_id) {
+            if let Ok(events) = r.events() {
+                for e in &events {
+                    match e.kind {
+                        hs_core::EventKind::GoalUpdate => missions_run += 1,
+                        hs_core::EventKind::ModelCall => {
+                            total_model_calls += 1;
+                            let meta = r.resolve_payload(e).ok().and_then(|b| {
+                                serde_json::from_slice::<serde_json::Value>(&b).ok()
+                            });
+                            let get = {
+                                let meta = meta.clone();
+                                move |k: &str| {
+                                    meta.as_ref()
+                                        .and_then(|v| v.get(k))
+                                        .and_then(|w| w.as_str())
+                                        .map(str::to_owned)
+                                }
+                            };
+                            // distill and verifier rounds book a model call
+                            // (and its cost) but no loop step - mirror that.
+                            let no_step = get("why").as_deref() == Some("distill")
+                                || get("role").as_deref() == Some("verifier");
+                            if !no_step {
+                                total_steps += 1;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
         Ok(ReplSession {
             inner,
             used_ids: std::collections::HashSet::new(),
@@ -469,9 +513,9 @@ pub fn load(
             mcp_catalog,
             model_label,
             started: std::time::Instant::now(),
-            missions_run: 0,
-            total_steps: 0,
-            total_model_calls: 0,
+            missions_run,
+            total_steps,
+            total_model_calls,
             ui_flush: None,
             work_dir: log_root.join("work"),
         })

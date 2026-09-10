@@ -331,11 +331,39 @@ impl InnerLoop {
         // B1: a resumed/forked stream already holds the parent's mission
         // events; without this floor the first close here would re-distill
         // them into THIS mission's record (same overlap defect class).
-        let distill_floor = hs_log::StreamReader::open(log_root, stream_id)
-            .ok()
-            .and_then(|r| r.events().ok())
-            .and_then(|ev| ev.last().map(|e| e.seq))
-            .unwrap_or(0);
+        //
+        // Accounting reset fix (Eric 2026-09-10): the same pass folds the
+        // stream's priced ModelCall events back into the cumulative cost
+        // counters, so a resumed session reports (and budgets against)
+        // what the stream actually spent before the restart - pre-fix
+        // both counters read 0 after :resume and the budget guard reset
+        // with the display.
+        let mut distill_floor = 0;
+        let mut restored_cost = 0u64;
+        let mut restored_conservative = 0u64;
+        if let Ok(r) = hs_log::StreamReader::open(log_root, stream_id) {
+            if let Ok(ev) = r.events() {
+                distill_floor = ev.last().map(|e| e.seq).unwrap_or(0);
+                for e in &ev {
+                    if e.kind != hs_core::EventKind::ModelCall {
+                        continue;
+                    }
+                    let Ok(b) = r.resolve_payload(e) else { continue };
+                    let Ok(v) = serde_json::from_slice::<serde_json::Value>(&b) else {
+                        continue;
+                    };
+                    let micros = |k: &str| {
+                        v.get(k)
+                            .and_then(serde_json::Value::as_i64)
+                            .unwrap_or(0)
+                            .max(0) as u64
+                    };
+                    restored_cost = restored_cost.saturating_add(micros("cost_usd_micros"));
+                    restored_conservative =
+                        restored_conservative.saturating_add(micros("conservative_cost_usd_micros"));
+                }
+            }
+        }
         Ok(InnerLoop {
             kernel,
             writer: outcome.writer,
@@ -343,10 +371,10 @@ impl InnerLoop {
             log_root: log_root.to_path_buf(),
             feedback_injection,
             max_steps,
-            cost_total_micros: 0,
-            conservative_cost_total_micros: 0,
-            mission_cost_start: 0,
-            mission_conservative_start: 0,
+            cost_total_micros: restored_cost,
+            conservative_cost_total_micros: restored_conservative,
+            mission_cost_start: restored_cost,
+            mission_conservative_start: restored_conservative,
             budget_micros: None,
             tools: None,
             model_override: None,
@@ -2224,6 +2252,15 @@ impl InnerLoop {
                                         "reasoning_tokens": vout.reasoning_tokens,
                                         "reasoning_content": vout.reasoning_content,
                                         "cached_tokens": vout.cached_tokens,
+                                        // Accounting reset fix (2026-09-10):
+                                        // the in-process counters booked this
+                                        // spend but the durable event dropped
+                                        // it, so a resume fold under-restored
+                                        // (live: C48 41314 of 43600 micros).
+                                        "input_tokens": vout.input_tokens,
+                                        "output_tokens": vout.output_tokens,
+                                        "cost_usd_micros": vout.cost_usd_micros,
+                                        "conservative_cost_usd_micros": vout.conservative_cost_usd_micros,
                                     }))
                                     .expect("json! values serialize"),
                                 )),
