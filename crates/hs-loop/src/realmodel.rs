@@ -456,6 +456,41 @@ fn parse_response_legacy(p: &Provider, v: &serde_json::Value) -> Result<ParsedCa
     })
 }
 
+
+/// The provider's error body carries the actionable cause (live burn
+/// 2026-09-10: DeepSeek's "Tool names must be unique." was discarded and
+/// the stranger saw a bare "HTTP 400 from provider" - undiagnosable).
+/// Read it bounded, prefer the structured message, never touch the
+/// request or key.
+fn provider_error_detail(body: &mut ureq::Body) -> String {
+    use std::io::Read as _;
+    let mut buf = String::new();
+    let _ = body
+        .as_reader()
+        .take(4096)
+        .read_to_string(&mut buf);
+    let trimmed = buf.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(trimmed) {
+        for ptr in ["/error/message", "/message", "/error"] {
+            if let Some(m) = v.pointer(ptr).and_then(|x| x.as_str()) {
+                return m.chars().take(300).collect();
+            }
+        }
+    }
+    trimmed.chars().take(300).collect()
+}
+
+fn provider_error_msg(p: &Provider, code: u16, detail: &str) -> String {
+    if detail.is_empty() {
+        format!("{}: HTTP {code} from provider", p.name)
+    } else {
+        format!("{}: HTTP {code} from provider: {detail}", p.name)
+    }
+}
+
 fn attempt(
     p: &Provider,
     agent: &ureq::Agent,
@@ -477,10 +512,11 @@ fn attempt(
             .get("retry-after")
             .and_then(|v| v.to_str().ok())
             .and_then(|s| s.trim().parse::<u64>().ok());
+        let detail = provider_error_detail(resp.body_mut());
         return Err(AttemptError::Status {
             code: status.as_u16(),
             retry_after_secs,
-            msg: format!("{}: HTTP {} from provider", p.name, status.as_u16()),
+            msg: provider_error_msg(p, status.as_u16(), &detail),
         });
     }
     let v: serde_json::Value = resp.body_mut().read_json().map_err(|e| {
@@ -809,10 +845,11 @@ fn attempt_streaming(
             .get("retry-after")
             .and_then(|v| v.to_str().ok())
             .and_then(|s| s.trim().parse::<u64>().ok());
+        let detail = provider_error_detail(resp.body_mut());
         return Err(AttemptError::Status {
             code: status.as_u16(),
             retry_after_secs,
-            msg: format!("{}: HTTP {} from provider", p.name, status.as_u16()),
+            msg: provider_error_msg(p, status.as_u16(), &detail),
         });
     }
     use std::io::BufRead;

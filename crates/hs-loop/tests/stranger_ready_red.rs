@@ -229,3 +229,69 @@ fn t4_offline_demo_closes_verified_in_prompt_aware_mode() {
          (live stranger demo without it closed verifier_malfunction): {r:?}"
     );
 }
+
+/// T5 (live burn, stranger proof 2026-09-10): a RELATIVE `--dir` - the
+/// exact shape of the README quickstart and the user's pasted run
+/// (`--dir tmp/hs-demo91026`) - leaks the relative anchor downstream: the
+/// mission's answer artifact world_path stays relative, the world rejects
+/// every proposal ("world_path must be absolute", observed 48x), and the
+/// mission burns to steps_exhausted. Startup must canonicalize `--dir`
+/// before any layer sees it.
+#[test]
+fn t5_relative_dir_is_canonicalized_at_startup() {
+    let _g = ENV_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let dir = tempfile::tempdir().unwrap();
+    let goal = "write hello.txt containing hello";
+    let answer_abs = dir
+        .path()
+        .join("relrun")
+        .join("work")
+        .join(goal_slug(goal))
+        .join("answer.txt");
+    let line1 = "{\"tool\":\"term.exec\",\"args\":{\"command\":\"printf 'hello\\n' > hello.txt && mkdir -p .hs && printf 'grep -q hello hello.txt\\n' > .hs/checks\"}}";
+    let line2 = format!(
+        "{{\"tool\":\"answer.submit\",\"args\":{{\"path\":\"{}\",\"summary\":\"wrote hello.txt containing hello; verified by the declared grep check\"}}}}",
+        answer_abs.display()
+    );
+    let script = write(dir.path(), "script.jsonl", &format!("{line1}\n{line2}\n"));
+    let out = std::process::Command::new(REPL)
+        .args([
+            "run",
+            "--goal",
+            goal,
+            "--config",
+            live_config(dir.path()).to_str().unwrap(),
+            "--dir",
+            "relrun",
+        ])
+        .current_dir(dir.path())
+        .env("HS_SEQMODEL_SCRIPT", &script)
+        .env("HS_SCRIPTED_PROMPT_AWARE", "1")
+        .env("HS_TUI", "off")
+        .env_remove("HS_PROJECT_ROOT")
+        .env_remove("HS_PROJECT_ROOT_EFFECTIVE")
+        .env_remove("HS_MCP_SERVERS")
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let done = stdout
+        .lines()
+        .rev()
+        .find(|l| l.contains("\"passed\""))
+        .unwrap_or("");
+    assert!(
+        done.contains("\"passed\":true"),
+        "relative --dir must run the stranger mission GREEN (live burn \
+         2026-09-10: 48x `world rejected ... world_path must be absolute`, \
+         steps_exhausted 50/50): done={done} stderr={stderr}"
+    );
+    assert!(
+        done.contains(&format!("\"answer_path\":\"{}\"", answer_abs.display())),
+        "the reported answer path is absolute after startup \
+         canonicalization (live: relrun/work/... leaked into the result): \
+         {done}"
+    );
+}

@@ -576,6 +576,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("project root: {} (missions confined to this directory)", canonical.display());
     }
     std::fs::create_dir_all(&opts.dir)?;
+    // Stranger-path burn (2026-09-10): a relative --dir leaked the
+    // relative anchor downstream - the reported answer_path went out as
+    // "relrun/work/..." and on the live surface world artifact proposals
+    // stayed relative, drawing "world_path must be absolute" rejections.
+    // Canonicalize once at startup so the work anchor, the swarm env, and
+    // every reported path share one absolute root.
+    opts.dir = std::fs::canonicalize(&opts.dir)
+        .map_err(|e| format!("--dir {}: {e}", opts.dir.display()))?;
     // Eric's five #5: the agent.spawn tool plugin learns the session's
     // log root + kernel config from the environment (plugin processes
     // only see env + args; the loop injects the per-call parent

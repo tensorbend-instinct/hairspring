@@ -196,3 +196,46 @@ fn watchdog_cutoff_returns_sentinel_not_hang() {
     );
     assert_eq!(r["cost_usd_micros"], 0);
 }
+
+/// The provider's 4xx/5xx BODY carries the actionable cause (live burn
+/// 2026-09-10: DeepSeek's "Tool names must be unique." was discarded and
+/// the stranger saw a bare "HTTP 400 from provider" - undiagnosable). The
+/// surfaced error must include the provider's message, never the key.
+#[test]
+fn provider_error_body_is_surfaced() {
+    let _g = ENV_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var("HS_GLM_API_KEY", "mock-key-never-leak") };
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        while let Ok((mut s, _)) = listener.accept() {
+            let mut buf = [0u8; 8192];
+            let _ = s.read(&mut buf);
+            let body = r#"{"error":{"message":"Tool names must be unique."}}"#;
+            let _ = s.write_all(
+                format!(
+                    "HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                )
+                .as_bytes(),
+            );
+        }
+    });
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::set_var(
+        "HS_GLM_BASE_URL",
+        format!("http://127.0.0.1:{port}/chat/completions"),
+    ) };
+    let e = call(&glm(), "x", None).unwrap_err();
+    assert!(e.contains("400"), "status still named: {e}");
+    assert!(
+        e.contains("Tool names must be unique"),
+        "the provider's actionable body must reach the user (live burn: \
+         discarded at the attempt layer): {e}"
+    );
+    assert!(!e.contains("mock-key-never-leak"), "key never leaks: {e}");
+}
