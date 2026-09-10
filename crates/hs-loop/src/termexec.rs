@@ -167,10 +167,20 @@ pub fn sandbox_probe() -> Result<(), String> {
         }
     };
     if status.success() {
-        Ok(())
-    } else {
-        Err(sandbox_hint(format!("probe exited {status}")))
+        return Ok(());
     }
+    // The probe's own stderr carries the actionable cause (Ubuntu 24.04
+    // AppArmor userns denial, container policy, ...) - a bare exit code
+    // leaves the stranger (and CI) guessing.
+    let mut probe_err = String::new();
+    if let Some(mut se) = child.stderr.take() {
+        use std::io::Read as _;
+        let _ = se.read_to_string(&mut probe_err);
+    }
+    Err(sandbox_hint(format!(
+        "probe exited {status}: {}",
+        probe_err.trim()
+    )))
 }
 
 fn sandbox_hint(detail: String) -> String {
@@ -179,10 +189,11 @@ fn sandbox_hint(detail: String) -> String {
          is confined by mechanism and never falls back to an unconfined \
          run. Install \
          it - Debian/Ubuntu: apt install bubblewrap; Fedora: dnf install \
-         bubblewrap; Arch: pacman -S bubblewrap - or, inside a container, \
-         allow unprivileged user namespaces. (macOS has no bubblewrap: \
-         everything builds and starts, but missions need a Linux host \
-         until a seatbelt backend lands.)"
+         bubblewrap; Arch: pacman -S bubblewrap. Inside a container, allow \
+         unprivileged user namespaces; on Ubuntu 24.04+ they are \
+         AppArmor-restricted by default: sudo sysctl -w \
+         kernel.apparmor_restrict_unprivileged_userns=0. (macOS confines \
+         with the Seatbelt backend instead - this check is Linux-only.)"
     )
 }
 

@@ -32,6 +32,12 @@ jobs:
       # (2026-09-10): the trial was broken as documented for a real user -
       # the phase-2 critic fail-closed with no key and the verifier audit
       # needed prompt-aware mode. A green --help never exercised a mission.
+      # Ubuntu 24.04 restricts unprivileged user namespaces via AppArmor
+      # by default; bwrap exits 1 ("setting up uid map: Permission
+      # denied") without this (install-gate run 34513274656, 2026-09-10).
+      - name: Allow unprivileged user namespaces (Ubuntu 24.04 AppArmor)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Install bubblewrap (mission sandbox, Linux legs)
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get update && sudo apt-get install -y bubblewrap

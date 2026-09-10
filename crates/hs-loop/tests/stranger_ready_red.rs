@@ -701,3 +701,76 @@ fn t6_sandbox_preflight_names_bubblewrap_and_refuses_to_start() {
         "no mission stream opens when the sandbox is missing"
     );
 }
+
+/// T7: preflight diagnostics passthrough. When the sandbox probe spawns
+/// but fails INSIDE the namespace (Ubuntu 24.04's AppArmor restriction
+/// on unprivileged userns - observed on the install-gate runners,
+/// 2026-09-10: "bwrap: setting up uid map: Permission denied", probe
+/// exit 1), the refusal must carry the probe's own dying words and the
+/// OS-specific remedy, not a bare "probe exited 1" that leaves the
+/// stranger guessing (and left US guessing - the CI failure had no
+/// stderr in the message).
+#[test]
+fn t7_sandbox_preflight_carries_probe_stderr_and_sysctl_hint() {
+    let _g = ENV_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let home = tempfile::tempdir().unwrap();
+    let bin = tempfile::tempdir().unwrap();
+    for t in [
+        "sh", "bash", "grep", "printf", "cat", "ls", "sed", "awk", "rm", "mkdir", "cp", "env",
+        "uname", "dirname", "readlink", "head", "tail", "sleep", "touch",
+    ] {
+        let src = format!("/usr/bin/{t}");
+        if std::path::Path::new(&src).exists() {
+            std::os::unix::fs::symlink(&src, bin.path().join(t)).unwrap();
+        }
+    }
+    // A bwrap that spawns but fails the way Ubuntu 24.04's restricted
+    // userns makes it fail.
+    std::fs::write(
+        bin.path().join("bwrap"),
+        "#!/bin/sh\necho 'bwrap: setting up uid map: Permission denied' >&2\nexit 1\n",
+    )
+    .unwrap();
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(
+            bin.path().join("bwrap"),
+            std::fs::Permissions::from_mode(0o755),
+        )
+        .unwrap();
+    }
+    let fixture = tempfile::tempdir().unwrap();
+    let script = write(fixture.path(), "s.jsonl", "\"prose\"\n");
+    let cfg = live_config(fixture.path());
+    let demo = tempfile::tempdir().unwrap();
+    let out = std::process::Command::new(REPL)
+        .args([
+            "run",
+            "--goal",
+            "probe the sandbox gate",
+            "--config",
+            &cfg.display().to_string(),
+            "--dir",
+            &demo.path().display().to_string(),
+        ])
+        .env("HOME", home.path())
+        .env("PATH", bin.path())
+        .env("HS_SEQMODEL_SCRIPT", &script)
+        .env_remove("HS_MCP_SERVERS")
+        .env_remove("HS_CRITIC_SCRIPT")
+        .output()
+        .expect("hs-repl spawns");
+    assert!(!out.status.success(), "the failing probe refuses to start");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("setting up uid map"),
+        "the refusal carries the probe's own stderr (CI 2026-09-10: bare \
+         'probe exited 1' with the cause swallowed): {stderr}"
+    );
+    assert!(
+        stderr.contains("apparmor_restrict_unprivileged_userns"),
+        "the refusal names the Ubuntu 24.04 sysctl remedy: {stderr}"
+    );
+}
