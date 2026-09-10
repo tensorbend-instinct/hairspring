@@ -2546,3 +2546,8 @@ pub fn artifact_section(answer_path: &std::path::Path, artifact: &str) -> String
         shown
     )
 }
+
+/// Default per-mission step cap for the live REPL loop (`hs-repl
+/// --max-steps`). Measured 2026-09-10 (cap matrix, P48): 25 exhausts a
+/// refute-history mission before the corrected submit can verdict.
+pub const DEFAULT_MISSION_MAX_STEPS: u32 = 50;

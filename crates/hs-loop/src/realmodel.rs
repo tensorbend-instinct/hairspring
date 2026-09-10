@@ -9,6 +9,11 @@
 //!   deepseek-v4-flash (= "deepseek-chat" alias = base V4 latest, verified
 //!   2026-09-02): peak in $0.44/M (miss), $0.014/M (hit), out $1.32/M;
 //!   off-peak half  (api-docs.deepseek.com/quick_start/pricing)
+//!   deepseek-v4-pro (default since 2026-09-10, Eric's ruling): prices
+//!   UNVERIFIED - the provider gateway exposes no pricing endpoint and
+//!   DeepSeek had published no v4-pro rates at change time; conservative
+//!   5x-flash assumptions below so internal budgets fail safe. Override
+//!   via HS_DEEPSEEK_PRICE_*_MICROS when official rates land.
 //! Rates and endpoints are env-overridable so a price change is a config
 //! change, not a code change.
 
@@ -90,10 +95,10 @@ pub fn deepseek() -> Provider {
     let mut p = builtin(
         "deepseek",
         "https://api.deepseek.com/chat/completions",
-        "deepseek-v4-flash",
-        0.44,
-        0.014,
-        1.32,
+        "deepseek-v4-pro",
+        2.2,
+        0.07,
+        6.6,
         None,
     );
     // DeepSeek v4 thinking mode rejects tool_choice:"required" (400, live).

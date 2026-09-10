@@ -269,7 +269,7 @@ fn real_ablation_deepseek() {
         keep = tempfile::tempdir().unwrap().keep();
         &keep
     };
-    let label = std::env::var("HS_DEEPSEEK_MODEL").unwrap_or_else(|_| "deepseek-v4-flash".into());
+    let label = std::env::var("HS_DEEPSEEK_MODEL").unwrap_or_else(|_| "deepseek-v4-pro".into());
     let on = run_arm(root, true, "deepseek", DEEPSEEK_BIN, &tasks);
     let off = run_arm(root, false, "deepseek", DEEPSEEK_BIN, &tasks);
     report(&label, &on, &off, tasks.len());

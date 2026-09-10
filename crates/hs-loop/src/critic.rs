@@ -70,7 +70,7 @@ pub struct RefuteConfig {
 
 impl Default for RefuteConfig {
     fn default() -> Self {
-        Self { max_steps: 12, wall_secs: 600, budget_micros: 1_000_000, cmd_timeout_secs: 120 }
+        Self { max_steps: 48, wall_secs: 1800, budget_micros: 1_000_000, cmd_timeout_secs: 120 }
     }
 }
 

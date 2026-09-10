@@ -118,10 +118,10 @@ fn adapters_against_mock_server() {
     let out = call(&deepseek(), "MISSION: task-1\nANSWER_PATH: /p", None).unwrap();
     assert_eq!(ds_mock.got_auth.recv().unwrap(), "Bearer mock-ds-key");
     let body: serde_json::Value = serde_json::from_str(&ds_mock.got_body.recv().unwrap()).unwrap();
-    assert_eq!(body["model"], "deepseek-v4-flash");
+    assert_eq!(body["model"], "deepseek-v4-pro");
     assert_eq!(out["cached_tokens"], 600);
-    // 600*0.014 + 400*0.44 + 250*1.32 = 8.4 + 176 + 330 = 514.4 -> 514
-    assert_eq!(out["cost_usd_micros"], 514);
+    // v4-pro conservative 5x prices: 600*0.07 + 400*2.2 + 250*6.6 = 42 + 880 + 1650 = 2572
+    assert_eq!(out["cost_usd_micros"], 2572);
 
     // missing key is an error that never contains a secret
     // FIXME: Audit that the environment access only happens in single-threaded code.

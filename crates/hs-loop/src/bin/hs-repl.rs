@@ -36,7 +36,7 @@ fn parse_opts(args: &[String]) -> Result<Opts, Box<dyn std::error::Error>> {
         dir: PathBuf::from(arg(args, "--dir").expect("--dir required")),
         feedback: arg(args, "--feedback").as_deref() == Some("on"),
         max_steps: arg(args, "--max-steps")
-            .unwrap_or("25".into())
+            .unwrap_or_else(|| hs_loop::DEFAULT_MISSION_MAX_STEPS.to_string())
             .parse()
             .map_err(|_| "--max-steps must be an integer")?,
         budget_micros: arg(args, "--budget-micros")
@@ -531,7 +531,7 @@ FLAGS:
   --dir <path>           run directory (streams/, work/, stderr/ plugin logs)
   --goal <text>          one-shot mission (run mode); omit for the REPL
   --feedback on          mission memory feedback (default off)
-  --max-steps <n>        step cap per mission (default 25)
+  --max-steps <n>        step cap per mission (default 50)
   --budget-micros <n>    per-mission spend cap in USD micros
   --wall-secs <n>        wall-clock cap per mission
   --resume [stream-id]   resume a prior session (bare: pick from a list)
