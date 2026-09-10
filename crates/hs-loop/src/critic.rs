@@ -396,17 +396,13 @@ impl ProviderCritic {
     }
 
     pub fn for_provider(p: crate::realmodel::Provider) -> Result<Self, String> {
-        let key = std::env::var(&p.key_env)
-            .ok()
-            .filter(|k| !k.trim().is_empty())
-            .or_else(|| {
-                std::env::var(&p.key_file_env)
-                    .ok()
-                    .and_then(|f| std::fs::read_to_string(f).ok())
-                    .map(|k| k.trim().to_string())
-            })
-            .filter(|k| !k.is_empty())
-            .ok_or_else(|| format!("neither {} nor {} is set", p.key_env, p.key_file_env))?;
+        // Beat 6: key resolution mirrors the operator model's
+        // (realmodel::load_key): env var, key-file env, then the
+        // `hairspring setup` config-dir file - pre-fix the critic
+        // read only the two env vars, so a fresh shell after guided
+        // setup fail-closed on EVERY answer.submit (live proof:
+        // caprun7 stream, 2026-09-10).
+        let key = crate::realmodel::load_key(&p)?;
         let envf = |k: &str, d: f64| std::env::var(k).ok().and_then(|v| v.parse().ok()).unwrap_or(d);
         Ok(Self {
             name: p.name.clone(),
