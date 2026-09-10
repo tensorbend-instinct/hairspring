@@ -103,6 +103,7 @@ pub const TUI_HELP: &str = "hairspring - full-screen surface
   :agents   toggle the delegation graph panel
   :lineage  toggle the selfmod lineage panel
   :scorer   toggle the scorer stream panel
+  :evidence toggle the evidence claims panel
   :time     toggle the T_mission decomposition panel
   :help     this text
   :quit     exit (Ctrl+C works too)
@@ -465,6 +466,8 @@ pub enum KeyAction {
     ToggleLineage,
     /// ":scorer" toggled the scorer stream panel.
     ToggleScorer,
+    /// ":evidence" toggled the evidence claims panel.
+    ToggleEvidence,
     /// ":time" toggled the `T_mission` decomposition panel.
     ToggleTime,
     /// Ctrl+C or ":quit".
@@ -527,6 +530,10 @@ pub fn handle_key(state: &mut TuiState, key: ratatui::crossterm::event::KeyEvent
                 ":scorer" => {
                     state.toggle_scorer_panel();
                     KeyAction::ToggleScorer
+                }
+                ":evidence" => {
+                    state.toggle_evidence_panel();
+                    KeyAction::ToggleEvidence
                 }
                 ":time" => {
                     state.toggle_time_panel();
@@ -1018,12 +1025,16 @@ pub struct TuiState {
     pub lineage_panel: bool,
     /// B8c: the scorer stream overlay is open.
     pub scorer_panel: bool,
+    /// B8c: the evidence claims overlay is open.
+    pub evidence_panel: bool,
     /// B8c: the `T_mission` decomposition overlay is open.
     pub time_panel: bool,
     /// B8c: the session layer injects the lineage view on toggle.
     pub lineage_view: Option<crate::tui_views::SelfmodView>,
     /// B8c: the session layer injects the scorer view on toggle.
     pub scorer_view: Option<crate::tui_views::ScorerView>,
+    /// B8c: the session layer injects the evidence view on toggle.
+    pub evidence_view: Option<crate::tui_views::EvidenceView>,
     /// B8c: the session layer injects the mission decomposition on toggle.
     pub time_view: Option<crate::mission_time::Decomposition>,
     /// Recent stream events, oldest first; the rail ticker shows the tail.
@@ -1059,9 +1070,11 @@ impl Default for TuiState {
             agents_panel: false,
             lineage_panel: false,
             scorer_panel: false,
+            evidence_panel: false,
             time_panel: false,
             lineage_view: None,
             scorer_view: None,
+            evidence_view: None,
             time_view: None,
             ticker: VecDeque::new(),
             queued_goals: VecDeque::new(),
@@ -1316,6 +1329,10 @@ impl TuiState {
     /// B8c: open/close the scorer stream overlay.
     pub fn toggle_scorer_panel(&mut self) {
         self.scorer_panel = !self.scorer_panel;
+    }
+    /// B8c: open/close the evidence claims overlay.
+    pub fn toggle_evidence_panel(&mut self) {
+        self.evidence_panel = !self.evidence_panel;
     }
     /// B8c: open/close the `T_mission` decomposition overlay.
     pub fn toggle_time_panel(&mut self) {
@@ -1832,6 +1849,68 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .title(" scorer ");
+        f.render_widget(Paragraph::new(lines).block(block), rect);
+    }
+
+    // B8c: the evidence overlay - the GATE 9c claim record plus the
+    // unfoldable drift regressions, from the registered scorer stream.
+    if state.evidence_panel {
+        let dim = Style::default().add_modifier(Modifier::DIM);
+        let lines: Vec<Line> = match &state.evidence_view {
+            None => vec![Line::styled("no evidence claims this session", dim)],
+            Some(v) => {
+                let mut ls: Vec<Line> = Vec::new();
+                for c in &v.claims {
+                    use crate::tui_views::{EvidenceClaimKind as K, EvidenceClaimStatus as S};
+                    let refs = |u: Option<uuid::Uuid>| {
+                        u.map(|u| {
+                            let s = u.to_string();
+                            s.chars().take(8).collect::<String>()
+                        })
+                        .unwrap_or_else(|| "-".to_string())
+                    };
+                    let line = match c.kind {
+                        K::Verified => {
+                            format!("\u{2713} {} verified @{}", c.subject, refs(c.verified_at))
+                        }
+                        K::OpenFailure => format!("\u{2717} {} open failure", c.subject),
+                        K::Regression => format!(
+                            "\u{26a0} {} REGRESSED {} \u{2192} {}{}",
+                            c.subject,
+                            refs(c.verified_at),
+                            refs(c.regressed_at),
+                            if c.status == S::Superseded {
+                                " superseded"
+                            } else {
+                                ""
+                            },
+                        ),
+                    };
+                    ls.push(Line::from(line));
+                }
+                if !v.unresolved_regressions.is_empty() {
+                    ls.push(Line::styled(
+                        "drift regressions (not in the claim record):",
+                        dim,
+                    ));
+                    for r in &v.unresolved_regressions {
+                        ls.push(Line::from(format!("  \u{25e6} {r}")));
+                    }
+                }
+                if ls.is_empty() {
+                    ls.push(Line::styled("no evidence claims this session", dim));
+                }
+                ls
+            }
+        };
+        let box_w = (area.width * 2 / 3).max(40).min(area.width);
+        let box_h = (lines.len() as u16 + 2).min(viewport.height.max(3));
+        let rect = Rect::new(area.width - box_w, viewport.y, box_w, box_h);
+        f.render_widget(ratatui::widgets::Clear, rect);
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .title(" evidence ");
         f.render_widget(Paragraph::new(lines).block(block), rect);
     }
 

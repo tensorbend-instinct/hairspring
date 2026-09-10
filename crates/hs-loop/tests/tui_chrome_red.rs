@@ -179,6 +179,11 @@ fn v4_commands_toggle_panels() {
 
     assert_eq!(type_and_submit(&mut st, ":time"), KeyAction::ToggleTime);
     assert!(st.time_panel, "time panel open");
+
+    assert_eq!(type_and_submit(&mut st, ":evidence"), KeyAction::ToggleEvidence);
+    assert!(st.evidence_panel, "evidence panel open");
+    assert_eq!(type_and_submit(&mut st, ":evidence"), KeyAction::ToggleEvidence);
+    assert!(!st.evidence_panel, "evidence panel closed");
 }
 
 // v5: an open panel over an absent stream renders an honest empty
@@ -208,15 +213,63 @@ fn v5_empty_views_render_honest_lines() {
         text.contains("no mission decomposition yet"),
         "time empty line: {text:?}"
     );
+
+    let mut st = TuiState::default();
+    st.toggle_evidence_panel();
+    let text = viewport_text(&st, 110, 32);
+    assert!(
+        text.contains("no evidence claims this session"),
+        "evidence empty line: {text:?}"
+    );
 }
 
 // v6: the surface help names all three commands.
 #[test]
 fn v6_help_lists_chrome_commands() {
-    for cmd in [":lineage", ":scorer", ":time"] {
+    for cmd in [":lineage", ":scorer", ":time", ":evidence"] {
         assert!(
             tui::TUI_HELP.contains(cmd),
             "TUI_HELP must document {cmd}"
         );
+    }
+}
+
+// v7: the evidence overlay renders claims (verified, regressed with
+// both event refs, superseded) and surfaces unfoldable drift
+// regressions under their own heading.
+#[test]
+fn v7_evidence_overlay_renders_claims_and_unresolved_lines() {
+    use hs_loop::tui_views::{
+        EvidenceClaimKind, EvidenceClaimStatus, EvidenceClaimView, EvidenceView,
+    };
+    let v = uuid::Uuid::parse_str("aaaaaaaa-1111-2222-3333-444444444444").unwrap();
+    let m = uuid::Uuid::parse_str("bbbbbbbb-1111-2222-3333-444444444444").unwrap();
+    let view = EvidenceView {
+        claims: vec![
+            EvidenceClaimView {
+                subject: "cap-7".to_string(),
+                kind: EvidenceClaimKind::Verified,
+                status: EvidenceClaimStatus::Open,
+                verified_at: Some(v),
+                regressed_at: None,
+            },
+            EvidenceClaimView {
+                subject: "cap-9".to_string(),
+                kind: EvidenceClaimKind::Regression,
+                status: EvidenceClaimStatus::Superseded,
+                verified_at: Some(v),
+                regressed_at: Some(m),
+            },
+        ],
+        unresolved_regressions: vec![
+            "regression candidate=cap-9 suite=token-heldout pass_rate=0.500".to_string(),
+        ],
+    };
+    let mut st = TuiState::default();
+    st.evidence_view = Some(view);
+    st.toggle_evidence_panel();
+    let text = viewport_text(&st, 110, 32);
+    for needle in ["evidence", "cap-7", "cap-9", "REGRESSED", "superseded", "pass_rate=0.500"] {
+        assert!(text.contains(needle), "missing {needle:?}: {text:?}");
     }
 }

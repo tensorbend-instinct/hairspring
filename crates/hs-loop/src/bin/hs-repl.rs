@@ -387,6 +387,9 @@ fn run_fullscreen(
                         tui::KeyAction::ToggleScorer => {
                             st.scorer_view = hs_loop::tui_views::scorer_view(&opts.dir);
                         }
+                        tui::KeyAction::ToggleEvidence => {
+                            st.evidence_view = hs_loop::tui_views::evidence_view(&opts.dir);
+                        }
                         tui::KeyAction::ToggleTime => {
                             st.time_view = hs_log::StreamReader::open(&opts.dir, current_stream)
                                 .ok()

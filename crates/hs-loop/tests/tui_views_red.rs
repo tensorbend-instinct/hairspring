@@ -122,10 +122,97 @@ fn v2_selfmod_view_projects_mutations_from_the_registered_stream() {
 }
 
 #[test]
+fn v4_evidence_view_projects_the_claim_record_from_the_registered_stream() {
+    // A verified-then-failed subject is a REGRESSION pointing at both
+    // events; a re-verification supersedes the regression and opens a
+    // fresh verified claim - the scorer's own GATE 9c fold, readable
+    // from the TUI's side (checklist B8 evidence half).
+    let dir = std::env::temp_dir().join(format!("tui-evidence-view-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let mut scorer = Scorer::new(&dir, ScorerConfig::default()).unwrap();
+    scorer
+        .tier01_execution(&Candidate::new("cand-ev", generalizing_artifact()), &visible_suite())
+        .unwrap();
+    scorer
+        .tier01_execution(&Candidate::new("cand-ev", Artifact::by_rule(|_: &Task| None)), &visible_suite())
+        .unwrap();
+    scorer
+        .tier01_execution(&Candidate::new("cand-ev", generalizing_artifact()), &visible_suite())
+        .unwrap();
+
+    let view = hs_loop::tui_views::evidence_view(&dir)
+        .expect("the registered scorer stream projects an evidence view");
+    let reg = view
+        .claims
+        .iter()
+        .find(|c| c.kind == hs_loop::tui_views::EvidenceClaimKind::Regression)
+        .expect("the regressed claim: {view:?}");
+    assert!(reg.verified_at.is_some() && reg.regressed_at.is_some());
+    assert_eq!(
+        reg.status,
+        hs_loop::tui_views::EvidenceClaimStatus::Superseded,
+        "re-verification supersedes the regression, the record is kept: {view:?}"
+    );
+    let fresh = view
+        .claims
+        .iter()
+        .find(|c| c.kind == hs_loop::tui_views::EvidenceClaimKind::Verified)
+        .expect("the fresh verified claim after re-repair: {view:?}");
+    assert_eq!(
+        fresh.status,
+        hs_loop::tui_views::EvidenceClaimStatus::Open
+    );
+    assert_ne!(
+        fresh.verified_at,
+        reg.verified_at,
+        "the fresh claim points at the new verification event"
+    );
+}
+
+#[test]
+fn v5_unfoldable_drift_regressions_surface_as_unresolved_lines() {
+    // The scorer's tier-3 drift path books
+    // "regression candidate=X suite=S pass_rate=F" - no subject/uuid
+    // refs, so the GATE 9c claim fold cannot subsume it. The view
+    // shows the raw line under an explicit heading: what the log
+    // verifiably holds, never silently dropped, never reshaped.
+    let ev1 = uuid::Uuid::parse_str("11111111-1111-1111-1111-111111111111").unwrap();
+    let ev2 = uuid::Uuid::parse_str("22222222-2222-2222-2222-222222222222").unwrap();
+    let events = vec![
+        (
+            hs_core::EventKind::Score,
+            ev1,
+            "tier01 candidate=cap-7 suite=token-visible passed=true 6/6".to_string(),
+        ),
+        (
+            hs_core::EventKind::Regression,
+            ev2,
+            "regression candidate=cap-7 suite=token-heldout pass_rate=0.500".to_string(),
+        ),
+    ];
+    let view = hs_loop::tui_views::fold_evidence(&events);
+    assert_eq!(
+        view.claims
+            .iter()
+            .filter(|c| c.kind == hs_loop::tui_views::EvidenceClaimKind::Verified)
+            .count(),
+        1,
+        "the score folded into a verified claim: {view:?}"
+    );
+    assert_eq!(view.claims.len(), 1, "the drift line did not fold: {view:?}");
+    assert_eq!(view.unresolved_regressions.len(), 1, "and is surfaced raw");
+    assert!(
+        view.unresolved_regressions[0].contains("pass_rate=0.500"),
+        "verbatim body: {view:?}"
+    );
+}
+
+#[test]
 fn v3_no_registered_stream_is_an_honest_none() {
     let dir = std::env::temp_dir().join(format!("tui-views-empty-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     assert!(hs_loop::tui_views::scorer_view(&dir).is_none());
     assert!(hs_loop::tui_views::selfmod_view(&dir).is_none());
+    assert!(hs_loop::tui_views::evidence_view(&dir).is_none());
 }

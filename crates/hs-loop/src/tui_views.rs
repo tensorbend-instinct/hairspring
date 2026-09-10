@@ -120,7 +120,7 @@ fn kv(fields: &[&str]) -> std::collections::HashMap<String, String> {
 fn events_payloads(
     log_root: &Path,
     role: &str,
-) -> Option<Vec<(EventKind, String)>> {
+) -> Option<Vec<(EventKind, uuid::Uuid, String)>> {
     let stream = hs_log::registered_stream(log_root, role)?;
     let reader = hs_log::StreamReader::open(log_root, stream).ok()?;
     let events = reader.events().ok()?;
@@ -132,7 +132,7 @@ fn events_payloads(
                     .resolve_payload(e)
                     .map(|b| String::from_utf8_lossy(&b).into_owned())
                     .unwrap_or_default();
-                (e.kind, body)
+                (e.kind, e.event_id, body)
             })
             .collect(),
     )
@@ -145,7 +145,7 @@ fn events_payloads(
 pub fn selfmod_view(log_root: &Path) -> Option<SelfmodView> {
     let events = events_payloads(log_root, "selfmod")?;
     let mut view = SelfmodView::default();
-    for (kind, body) in events {
+    for (kind, _id, body) in events {
         let fields: Vec<&str> = body.split_whitespace().collect();
         match kind {
             EventKind::Mutation => {
@@ -191,7 +191,7 @@ pub fn selfmod_view(log_root: &Path) -> Option<SelfmodView> {
 pub fn scorer_view(log_root: &Path) -> Option<ScorerView> {
     let events = events_payloads(log_root, "scorer")?;
     let mut view = ScorerView::default();
-    for (kind, body) in events {
+    for (kind, _id, body) in events {
         let fields: Vec<&str> = body.split_whitespace().collect();
         match kind {
             EventKind::ScorerPin => {
@@ -235,4 +235,151 @@ pub fn scorer_view(log_root: &Path) -> Option<ScorerView> {
         }
     }
     Some(view)
+}
+
+/// One projected evidence claim. The fold MIRRORS hs-scorer's GATE 9c
+/// `evidence::project` exactly - the same claim record the scorer
+/// itself reads, projected from the same registered stream the TUI
+/// can reach (`scorer` role); this module links `hs-log` + `hs-core`
+/// only, so the mirror is by contract, and the contract is pinned by
+/// the v4/v5 tests in `tui_views_red.rs`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EvidenceClaimView {
+    /// The claimed-about subject (candidate name).
+    pub subject: String,
+    /// verified / open failure / regression.
+    pub kind: EvidenceClaimKind,
+    /// open / superseded (a regression re-verified later).
+    pub status: EvidenceClaimStatus,
+    /// The event that verified the claim, when the fold carries it.
+    pub verified_at: Option<uuid::Uuid>,
+    /// The event that regressed the claim, when the fold carries it.
+    pub regressed_at: Option<uuid::Uuid>,
+}
+
+/// Kind of an evidence claim (mirror of `ClaimKind`, minus nothing).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EvidenceClaimKind {
+    /// Passed with evidence booked.
+    Verified,
+    /// Failed without a prior verification.
+    OpenFailure,
+    /// Verified earlier, failing now - both event refs carried.
+    Regression,
+}
+
+/// Status of an evidence claim (mirror of `ClaimStatus`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EvidenceClaimStatus {
+    /// Current.
+    Open,
+    /// Kept in the record but no longer current (a later green
+    /// superseded this regression).
+    Superseded,
+}
+
+/// The evidence view over the registered `scorer` stream (checklist
+/// B8 evidence half; checklist 4.3 "evidence state is a first-class
+/// record - the TUI does not show it").
+#[derive(Clone, Debug, Default)]
+pub struct EvidenceView {
+    /// The claim record, in fold order.
+    pub claims: Vec<EvidenceClaimView>,
+    /// Regression log lines the GATE 9c fold cannot subsume (the
+    /// scorer's tier-3 drift shape books `regression candidate=...
+    /// pass_rate=...` with no subject/uuid refs). Surfaced raw: the
+    /// view shows what the log verifiably holds and never silently
+    /// drops an event.
+    pub unresolved_regressions: Vec<String>,
+}
+
+/// The GATE 9c fold over resolved payloads. Pure - one seam for both
+/// the live projection (`evidence_view`) and the drift-shape pin test.
+#[must_use]
+pub fn fold_evidence(events: &[(EventKind, uuid::Uuid, String)]) -> EvidenceView {
+    let mut view = EvidenceView::default();
+    for (kind, event_id, body) in events {
+        let fields: Vec<&str> = body.split_whitespace().collect();
+        match kind {
+            EventKind::Score => {
+                let m = kv(&fields);
+                let (Some(subject), Some(passed)) = (m.get("candidate"), m.get("passed")) else {
+                    continue;
+                };
+                let passed = passed == "true";
+                let idx = if let Some(i) = view.claims.iter().position(|c| &c.subject == subject) {
+                    i
+                } else {
+                    view.claims.push(EvidenceClaimView {
+                        subject: subject.clone(),
+                        kind: EvidenceClaimKind::OpenFailure,
+                        status: EvidenceClaimStatus::Open,
+                        verified_at: None,
+                        regressed_at: None,
+                    });
+                    view.claims.len() - 1
+                };
+                if passed {
+                    if view.claims[idx].kind == EvidenceClaimKind::Regression {
+                        // re-verification after a regression supersedes it;
+                        // the regression record stays either way
+                        view.claims[idx].status = EvidenceClaimStatus::Superseded;
+                        view.claims.push(EvidenceClaimView {
+                            subject: subject.clone(),
+                            kind: EvidenceClaimKind::Verified,
+                            status: EvidenceClaimStatus::Open,
+                            verified_at: Some(*event_id),
+                            regressed_at: None,
+                        });
+                    } else {
+                        view.claims[idx].kind = EvidenceClaimKind::Verified;
+                        view.claims[idx].verified_at = Some(*event_id);
+                    }
+                } else if view.claims[idx].kind != EvidenceClaimKind::Regression {
+                    view.claims[idx].kind = EvidenceClaimKind::OpenFailure;
+                }
+            }
+            EventKind::Regression => {
+                let m = kv(&fields);
+                let (Some(subject), Some(n), Some(mr)) =
+                    (m.get("subject"), m.get("verified_at"), m.get("regressed_at"))
+                else {
+                    // the drift shape carries no subject/uuid refs; the
+                    // claim fold cannot subsume it - surface it raw
+                    view.unresolved_regressions.push(body.clone());
+                    continue;
+                };
+                let (Ok(n), Ok(mr)) = (uuid::Uuid::parse_str(n), uuid::Uuid::parse_str(mr))
+                else {
+                    view.unresolved_regressions.push(body.clone());
+                    continue;
+                };
+                let idx = if let Some(i) = view.claims.iter().position(|c| &c.subject == subject) {
+                    i
+                } else {
+                    view.claims.push(EvidenceClaimView {
+                        subject: subject.clone(),
+                        kind: EvidenceClaimKind::OpenFailure,
+                        status: EvidenceClaimStatus::Open,
+                        verified_at: None,
+                        regressed_at: None,
+                    });
+                    view.claims.len() - 1
+                };
+                view.claims[idx].kind = EvidenceClaimKind::Regression;
+                view.claims[idx].verified_at = Some(n);
+                view.claims[idx].regressed_at = Some(mr);
+            }
+            _ => {}
+        }
+    }
+    view
+}
+
+/// Project the registered `scorer` stream into the evidence view.
+/// None when no scorer has registered a stream under this root.
+#[must_use]
+pub fn evidence_view(log_root: &Path) -> Option<EvidenceView> {
+    let events = events_payloads(log_root, "scorer")?;
+    Some(fold_evidence(&events))
 }
