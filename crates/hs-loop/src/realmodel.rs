@@ -611,7 +611,7 @@ fn call_with_body(
 ) -> Result<serde_json::Value, String> {
     let (key, url, _) = wire(p)?;
     let agent: ureq::Agent = ureq::Agent::config_builder()
-        .timeout_global(Some(Duration::from_mins(25)))
+        .timeout_global(Some(Duration::from_secs(25 * 60)))
         // Error statuses must arrive as responses: the retry policy needs
         // the status code and the Retry-After header, which ureq's error
         // path discards.
@@ -703,7 +703,7 @@ fn call_with_body_streaming(
 ) -> Result<serde_json::Value, String> {
     let (key, url, _) = wire(p)?;
     let agent: ureq::Agent = ureq::Agent::config_builder()
-        .timeout_global(Some(Duration::from_mins(25)))
+        .timeout_global(Some(Duration::from_secs(25 * 60)))
         .http_status_as_error(false)
         .build()
         .into();

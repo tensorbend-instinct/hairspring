@@ -250,7 +250,7 @@ impl OuterLoop {
                 .map_err(|e| GoalError::ModelOutput(e.to_string()))?;
 
             let mut artifact_changed = false;
-            let mut declared_done = plan["done"].as_bool().unwrap_or(false);
+            let declared_done = plan["done"].as_bool().unwrap_or(false);
             if !declared_done {
                 let tool = plan["tool"]
                     .as_str()
@@ -288,7 +288,6 @@ impl OuterLoop {
                     }
                     // say-so is ignored entirely
                     let _ = declared_done;
-                    declared_done = false;
                 }
                 CompletionMode::Hybrid => {
                     if declared_done {
