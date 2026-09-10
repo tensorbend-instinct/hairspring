@@ -129,7 +129,23 @@ pub struct ReplSession {
     work_dir: PathBuf,
 }
 
-impl ReplSession {
+/// Offered-surface dedupe (live 400, 2026-09-10): the config may itself
+/// register agent.spawn/agent.spawn_poll (the shipped rig does) while the
+/// interactive surface offers its own pair - the registry-derived list
+/// plus the unconditional pushes produced DUPLICATE wire names and
+/// DeepSeek rejected every live mission ("Tool names must be unique").
+/// Every offered-extra goes through here: offered == registered, once.
+fn offer_unique(native_tools: &mut Vec<serde_json::Value>, t: serde_json::Value) {
+    let name = t["function"]["name"].as_str().unwrap_or("").to_string();
+    if !native_tools
+        .iter()
+        .any(|x| x["function"]["name"].as_str() == Some(name.as_str()))
+    {
+        native_tools.push(t);
+    }
+}
+
+    impl ReplSession {
 
 /// Gap #6: the REPL's compaction budget comes from the configured
 /// model's real window, not the loop's ~1M-token default. The default
@@ -252,7 +268,7 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
     /// Load the kernel from `config`, gated by `require_visibility` (the
     /// production startup rule: no blind runs), and build the loop on
     /// `log_root`.
-    pub fn load(
+pub fn load(
         config: &Path,
         log_root: &Path,
         feedback: bool,
@@ -306,8 +322,8 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         let mut native_tools =
             crate::toolschema::schemas_for_registry(&registered, &mcp_native, "applypatch");
         // Eric's five #5: the interactive surface offers delegation.
-        native_tools.push(crate::toolschema::agent_spawn_tool());
-        native_tools.push(crate::toolschema::agent_spawn_poll_tool());
+        offer_unique(&mut native_tools, crate::toolschema::agent_spawn_tool());
+        offer_unique(&mut native_tools, crate::toolschema::agent_spawn_poll_tool());
         let mut inner = InnerLoop::new(kernel, log_root, feedback, max_steps)?;
         if let Some(tokens) = Self::configured_context_tokens(config) {
             inner.set_context_budget_tokens(tokens * 3 / 4);
@@ -322,7 +338,7 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         // cannot be created the tool simply is not offered (fail-open).
         let memory_db = log_root.join("memory.db");
         if hs_memory::sqlite::SqliteMemoryStore::open(&memory_db).is_ok() {
-            native_tools.push(crate::toolschema::memory_recall_tool());
+            offer_unique(&mut native_tools, crate::toolschema::memory_recall_tool());
             inner.set_memory_db(&memory_db);
         }
         // B2 (v5 gate 6): every REPL session also joins the shared world
@@ -415,8 +431,8 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         let mut native_tools =
             crate::toolschema::schemas_for_registry(&registered, &mcp_native, "applypatch");
         // Eric's five #5: the interactive surface offers delegation.
-        native_tools.push(crate::toolschema::agent_spawn_tool());
-        native_tools.push(crate::toolschema::agent_spawn_poll_tool());
+        offer_unique(&mut native_tools, crate::toolschema::agent_spawn_tool());
+        offer_unique(&mut native_tools, crate::toolschema::agent_spawn_poll_tool());
         let mut inner = InnerLoop::with_stream(kernel, log_root, stream_id, feedback, max_steps)?;
         if let Some(tokens) = Self::configured_context_tokens(config) {
             inner.set_context_budget_tokens(tokens * 3 / 4);
@@ -431,7 +447,7 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         // cannot be created the tool simply is not offered (fail-open).
         let memory_db = log_root.join("memory.db");
         if hs_memory::sqlite::SqliteMemoryStore::open(&memory_db).is_ok() {
-            native_tools.push(crate::toolschema::memory_recall_tool());
+            offer_unique(&mut native_tools, crate::toolschema::memory_recall_tool());
             inner.set_memory_db(&memory_db);
         }
         // B2 (v5 gate 6): every REPL session also joins the shared world

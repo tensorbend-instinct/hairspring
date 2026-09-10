@@ -19,7 +19,15 @@ fn main() {
                     .append(true)
                     .open(dump)
                     .unwrap();
-                writeln!(f, "===PROMPT===\n{prompt}").unwrap();
+                let names: Vec<&str> = params["tools"]
+                    .as_array()
+                    .map(|t| {
+                        t.iter()
+                            .filter_map(|x| x["function"]["name"].as_str())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                writeln!(f, "===PROMPT===\n{prompt}\n===TOOLS===\n{}", names.join(",")).unwrap();
             }
             let mode = std::env::var("REC_MODE").unwrap_or_else(|_| "pressure".into());
             let path = prompt
