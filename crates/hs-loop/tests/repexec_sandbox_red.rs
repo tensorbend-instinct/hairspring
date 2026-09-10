@@ -152,6 +152,19 @@ fn sandbox_is_a_full_machine_floor() {
 #[test]
 fn sandbox_still_hides_host_secrets() {
     let d = ws_with_answer();
+    // hermetic: the mask only applies when the host file exists, so the
+    // fixture guarantees the precondition on a fresh box and restores state.
+    let creds = std::path::Path::new("/root/.git-credentials");
+    let preexisting = creds.exists();
+    if !preexisting {
+        std::fs::write(creds, b"https://canary:canary@example.invalid
+").unwrap();
+    }
+    let restore = |existed: bool| {
+        if !existed {
+            let _ = std::fs::remove_file(creds);
+        }
+    };
     // the floor is the whole machine EXCEPT host secret material: /home
     // (glm.key), /mnt (ledger/bundle), /root/.ssh, /root/.git-credentials
     let r = hs_loop::repexec::run_sandboxed(
@@ -177,9 +190,14 @@ fn sandbox_still_hides_host_secrets() {
         !out.contains("authorized_keys"),
         "ssh keys must not be readable: {out}"
     );
+    restore(preexisting);
     assert!(
         out.contains("0 /root/.git-credentials"),
         "git-credentials masked to zero bytes: {out}"
+    );
+    assert!(
+        !out.contains("canary"),
+        "git-credentials content must not leak: {out}"
     );
 }
 
