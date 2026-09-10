@@ -312,7 +312,10 @@ impl ScriptedCritic {
         &self.seen
     }
     /// `HS_CRITIC_SCRIPT`: "|"-separated segments, each "tool:<cmd>",
-    /// "refute:<reason>", or "clean". Test seam only - never set in prod.
+    /// "refute:<reason>", or "clean". The zero-network critic for the
+    /// README offline trial (and the test seam): the probe commands run
+    /// for real against the candidate workdir. Live missions leave it
+    /// unset so the real HS_CRITIC_MODEL critic (deepseek/glm) serves.
     #[must_use]
     pub fn from_env() -> Option<Self> {
         let s = std::env::var("HS_CRITIC_SCRIPT").ok()?;

@@ -535,3 +535,99 @@ fn t9_setup_key_stdin_persists_owner_only_and_flips_readiness() {
         String::from_utf8_lossy(&check.stdout)
     );
 }
+
+/// T5: the README's OFFLINE TRIAL, executed verbatim end to end through
+/// the real `hs-repl` binary, the SHIPPED example config template, and
+/// the SHIPPED demo script (regression lock for the documented stranger
+/// path). Live runs on 2026-09-10 proved the trial was broken as
+/// documented: the checker's phase-2 critic (hs-plugin-critic) had no
+/// zero-network model - HS_CRITIC_MODEL accepts only deepseek/glm - so
+/// with no key every answer.submit fail-closed, and even the scripted
+/// stand-in needed HS_CRITIC_SCRIPT exported (absent from the docs).
+/// The docs now carry the full export set; this test pins the promised
+/// outcome: the mission closes `verified`.
+#[test]
+fn t5_readme_offline_trial_closes_verified() {
+    let _g = ENV_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let home = tempfile::tempdir().unwrap();
+    // The shipped demo script hardcodes /tmp/hs-demo (the README tells
+    // the stranger the same --dir); start clean.
+    let demo = std::path::Path::new("/tmp/hs-demo");
+    let _ = std::fs::remove_dir_all(demo);
+    std::fs::create_dir_all(demo).unwrap();
+
+    // The config install.sh writes: the shipped template with @PREFIX@
+    // resolved and the default flipped from deepseek to scripted,
+    // exactly as the README instructs (comment one, uncomment other).
+    let prefix = std::path::Path::new(SCRIPTED).parent().unwrap().to_path_buf();
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .unwrap();
+    let mut toml = std::fs::read_to_string(root.join("hairspring.example.toml"))
+        .expect("shipped example template");
+    let deepseek_default =
+        "name = \"deepseek\"\ncommand = [\"@PREFIX@/bin/hs-plugin-deepseek\"]\ndefault = true";
+    let deepseek_nodefault =
+        "name = \"deepseek\"\ncommand = [\"@PREFIX@/bin/hs-plugin-deepseek\"]";
+    assert!(toml.contains(deepseek_default), "template deepseek stanza");
+    toml = toml.replacen(deepseek_default, deepseek_nodefault, 1);
+    assert_eq!(toml.matches("# default = true").count(), 1, "one scripted default marker");
+    toml = toml.replacen("# default = true", "default = true", 1);
+    // The template installs plugins under @PREFIX@/bin; the debug
+    // workspace keeps them at target/debug - point @PREFIX@/bin there.
+    toml = toml.replace("@PREFIX@/bin", &prefix.display().to_string());
+    toml = toml.replace("@PREFIX@", &prefix.display().to_string());
+    let cfgdir = tempfile::tempdir().unwrap();
+    let cfg = write(cfgdir.path(), "hairspring.toml", &toml);
+    let script = root.join("examples/seqmodel-demo.jsonl");
+    assert!(script.is_file(), "shipped demo script");
+
+    let out = std::process::Command::new(REPL)
+        .args([
+            "run",
+            "--goal",
+            "write hello.txt containing hello",
+            "--config",
+            &cfg.display().to_string(),
+            "--dir",
+            "/tmp/hs-demo",
+        ])
+        .env("HOME", home.path())
+        .env("HS_SEQMODEL_SCRIPT", &script)
+        .env("HS_SCRIPTED_PROMPT_AWARE", "1")
+        .env("HS_CRITIC_SCRIPT", "tool:grep -q hello hello.txt|clean")
+        .env_remove("HS_MCP_SERVERS")
+        .env_remove("HS_CRITIC_MODEL")
+        .env_remove("HS_DEEPSEEK_API_KEY")
+        .env_remove("HS_DEEPSEEK_API_KEY_FILE")
+        .env_remove("HS_GLM_API_KEY")
+        .env_remove("HS_GLM_API_KEY_FILE")
+        .output()
+        .expect("hs-repl run spawns");
+    assert!(
+        out.status.success(),
+        "the documented offline trial must exit 0: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    // The stream segments are a binary log; read lossy (as `strings` does)
+    // and scan every stream (mission + critic + verifier).
+    let mut log = String::new();
+    for e in std::fs::read_dir(demo.join("streams")).expect("streams dir") {
+        let seg = e.unwrap().path().join("seg-000000.hslog");
+        if seg.is_file() {
+            let bytes = std::fs::read(&seg).unwrap();
+            log.push_str(&String::from_utf8_lossy(&bytes));
+        }
+    }
+    assert!(
+        log.contains("\"passed\":true"),
+        "the documented trial passes: {log}"
+    );
+    assert!(
+        log.contains("\"outcome\":\"verified\""),
+        "the documented trial closes VERIFIED (live 2026-09-10: without          HS_CRITIC_SCRIPT the critic fail-closed every submission; without          HS_SCRIPTED_PROMPT_AWARE the audit closed verifier_malfunction): {log}"
+    );
+}

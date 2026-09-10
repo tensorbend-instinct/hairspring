@@ -117,6 +117,15 @@ fn r2_unknown_model_rejected_and_names_listed() {
     let dir = std::env::temp_dir().join("model-override-r2");
     let _ = std::fs::remove_dir_all(&dir);
     write_fixture(&dir);
+    // Hermetic preflight: loading the session preflights the default
+    // model (the scripted plugin reads the PROCESS-GLOBAL
+    // HS_SEQMODEL_SCRIPT, which only r1 sets) - r2 used to pass only
+    // when thread scheduling ran r1's set_var first (observed failing
+    // in a full workspace run, 2026-09-10). The unknown-name rejection
+    // fires before any model call, so the script is never read.
+    let script = dir.join("unused.jsonl");
+    std::fs::write(&script, "\"never read\"\n").unwrap();
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let mut s = load_session(&dir.join("hairspring.toml"), &dir.join("run"), false, 5, None, None)
         .unwrap();
     let err = s

@@ -33,6 +33,16 @@ fn rig(dir: &std::path::Path, log: &std::path::Path, max_steps: u32) -> hs_loop:
 fn m1_traversal_mission_id_refused_and_writes_nothing_outside() {
     let dir = std::env::temp_dir().join("mission-path-m1");
     let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    // Hermetic preflight: the scripted plugin's preflight reads the
+    // PROCESS-GLOBAL HS_SEQMODEL_SCRIPT, which only m3 sets - m1/m2
+    // used to pass only when thread scheduling ran m3's set_var first
+    // (observed failing in a full workspace run, 2026-09-10). The
+    // traversal id is refused before any model call, so the script is
+    // never read; it only has to exist for preflight.
+    let script = dir.join("unused.jsonl");
+    std::fs::write(&script, "\"never read\"\n").unwrap();
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let log = dir.join("run");
     let escape = dir.join("escape-hatch");
     let mut l = rig(&dir.join("cfg"), &log, 4);
@@ -55,6 +65,12 @@ fn m2_absolute_mission_id_refused() {
     let _ = std::fs::remove_dir_all("/tmp/abs-mission-probe");
     let dir = std::env::temp_dir().join("mission-path-m2");
     let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    // Same hermetic-preflight fix as m1 (process-global env, not thread
+    // scheduling).
+    let script = dir.join("unused.jsonl");
+    std::fs::write(&script, "\"never read\"\n").unwrap();
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
     let mut l = rig(&dir.join("cfg"), &dir.join("run"), 4);
     let r = l.run_mission_full("/tmp/abs-mission-probe", "probe");
     let err = r.err().unwrap_or_else(|| panic!("an absolute id must be refused"));

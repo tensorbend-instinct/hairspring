@@ -50,6 +50,11 @@ the default:
 export HS_SEQMODEL_SCRIPT=~/.local/share/hairspring/seqmodel-demo.jsonl
 export HS_SCRIPTED_PROMPT_AWARE=1   # scripted model answers the verifier
                                     # audit honestly, not just replay lines
+export HS_CRITIC_SCRIPT='tool:grep -q hello hello.txt|clean'
+                                    # a deterministic stand-in for the
+                                    # checker's phase-2 critic: it really
+                                    # probes the submission and reports
+                                    # clean only when the probe passes
 # in ~/.config/hairspring/hairspring.toml: comment `default = true` on the
 # deepseek model, uncomment it on the scripted model (line ready)
 
@@ -59,7 +64,10 @@ hairspring run --goal "write hello.txt containing hello" \
 
 The demo writes `hello.txt` under `/tmp/hs-demo/work`, declares its own
 check, submits, and closes `verified` (checker green + verifier audit) - a
-full graded mission with no provider. Without
+full graded mission with no provider. The critic stand-in is for this
+demo only: live missions leave `HS_CRITIC_SCRIPT` unset so the critic
+resolves from `HS_CRITIC_MODEL` (deepseek or glm) with a real provider
+key, and every abnormal critic exit fails closed. Without
 `HS_SEQMODEL_SCRIPT` the scripted model stays inert: missions that call it
 get an error naming the variable, and live models are unaffected. A missing
 or wrong live key fails the mission with a message naming the key env var -
