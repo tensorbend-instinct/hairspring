@@ -239,3 +239,26 @@ fn provider_error_body_is_surfaced() {
     );
     assert!(!e.contains("mock-key-never-leak"), "key never leaks: {e}");
 }
+
+/// The setup wizard's persistence IS the mission path's lookup (t9's
+/// fresh-shell contract): load_key finds the conventional config-dir key
+/// file with no env vars set.
+#[test]
+fn load_key_falls_back_to_config_dir_key_file() {
+    let _g = ENV_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let home = tempfile::tempdir().unwrap();
+    let dir = home.path().join(".config/hairspring/keys");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("deepseek.key"), "sk-from-config-dir\n").unwrap();
+    // FIXME: Audit that the environment access only happens in single-threaded code.
+    unsafe {
+        std::env::remove_var("HS_DEEPSEEK_API_KEY");
+        std::env::remove_var("HS_DEEPSEEK_API_KEY_FILE");
+        std::env::set_var("HOME", home.path());
+        std::env::remove_var("XDG_CONFIG_HOME");
+    }
+    let k = load_key(&deepseek()).expect("config-dir key file is found");
+    assert_eq!(k, "sk-from-config-dir");
+}

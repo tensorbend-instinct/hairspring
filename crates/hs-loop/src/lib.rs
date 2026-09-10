@@ -25,6 +25,7 @@ pub mod selfcheck;
 pub mod termexec;
 pub mod sweprompt;
 pub mod toolschema;
+pub mod setup;
 pub mod tui;
 pub mod tui_views;
 pub mod uipaint;

@@ -340,6 +340,8 @@ subjects = ["*"]
             "run",
         ])
         .current_dir(dir.path())
+        .env("HOME", dir.path())
+        .env_remove("XDG_CONFIG_HOME")
         .env_remove("HS_DEEPSEEK_API_KEY")
         .env_remove("HS_DEEPSEEK_API_KEY_FILE")
         .env_remove("HS_DEEPSEEK_KEY_FILE")
@@ -423,5 +425,113 @@ fn t7_failed_mission_exits_nonzero() {
     assert!(
         !out.status.success(),
         "a failed mission exits non-zero (live: exit 0): {done}"
+    );
+}
+
+/// T8: `hairspring setup --check` is the readiness surface a stranger (or
+/// their script) consults first: per-provider status, exit 0 when any
+/// live provider can run, 1 otherwise (Codex `auth status` parity).
+/// Today the subcommand does not exist - it falls into flag parsing and
+/// panics on `--config required`.
+#[test]
+fn t8_setup_check_reports_readiness() {
+    let _g = ENV_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let home = tempfile::tempdir().unwrap();
+    let out = std::process::Command::new(REPL)
+        .args(["setup", "--check"])
+        .env("HOME", home.path())
+        .env_remove("XDG_CONFIG_HOME")
+        .env_remove("HS_DEEPSEEK_API_KEY")
+        .env_remove("HS_DEEPSEEK_API_KEY_FILE")
+        .env_remove("HS_GLM_API_KEY")
+        .env_remove("HS_GLM_API_KEY_FILE")
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        !out.status.success(),
+        "no credentials anywhere => exit 1: {stdout}"
+    );
+    assert!(
+        stdout.contains("deepseek"),
+        "readiness names the providers a stranger can set up: {stdout}"
+    );
+    assert!(
+        stdout.contains("hairspring setup"),
+        "the fix is the guided setup itself: {stdout}"
+    );
+}
+
+/// T9: the guided save path (non-interactive form for scripts): the key
+/// lands in the config dir with owner-only permissions, readiness flips,
+/// and the same file is what the mission path's load_key finds - no env
+/// export needed in a fresh shell.
+#[test]
+fn t9_setup_key_stdin_persists_owner_only_and_flips_readiness() {
+    let _g = ENV_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let home = tempfile::tempdir().unwrap();
+    let key = "sk-test-t9-never-leaves-the-box";
+    let mut child = std::process::Command::new(REPL)
+        .args(["setup", "--provider", "deepseek", "--key-stdin"])
+        .env("HOME", home.path())
+        .env_remove("XDG_CONFIG_HOME")
+        .env_remove("HS_DEEPSEEK_API_KEY")
+        .env_remove("HS_DEEPSEEK_API_KEY_FILE")
+        .env("HS_DEEPSEEK_BASE_URL", "http://127.0.0.1:1/chat/completions")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    use std::io::Write as _;
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(format!("{key}\n").as_bytes())
+        .unwrap();
+    let out = child.wait_with_output().unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        out.status.success(),
+        "save succeeds even with validation unreachable (warn, not fail): {stdout} {stderr}"
+    );
+    assert!(
+        !stdout.contains(key) && !stderr.contains(key),
+        "the key is never echoed: {stdout} {stderr}"
+    );
+    let key_file = home
+        .path()
+        .join(".config/hairspring/keys/deepseek.key");
+    let saved = std::fs::read_to_string(&key_file)
+        .unwrap_or_else(|e| panic!("key file saved at {}: {e}", key_file.display()));
+    assert_eq!(saved.trim(), key, "the saved key is exactly what was piped");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(&key_file).unwrap().permissions().mode();
+        assert_eq!(
+            mode & 0o777,
+            0o600,
+            "key material is owner-only (0600), got {mode:o}"
+        );
+    }
+    let check = std::process::Command::new(REPL)
+        .args(["setup", "--check"])
+        .env("HOME", home.path())
+        .env_remove("XDG_CONFIG_HOME")
+        .env_remove("HS_DEEPSEEK_API_KEY")
+        .env_remove("HS_DEEPSEEK_API_KEY_FILE")
+        .output()
+        .unwrap();
+    assert!(
+        check.status.success(),
+        "readiness flips to ready after setup - the fresh-shell contract: {}",
+        String::from_utf8_lossy(&check.stdout)
     );
 }

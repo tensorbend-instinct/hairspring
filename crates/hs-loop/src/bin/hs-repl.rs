@@ -524,6 +524,8 @@ fn run_fullscreen(
 const USAGE: &str = "hairspring - the HAIRSPRING loop: one-shot missions and the interactive REPL
 
 USAGE:
+  hairspring setup            guided first-run setup (provider key + rig config)
+  hairspring setup --check    provider readiness (exit 1 when none ready)
   hairspring run --goal \"<goal>\" --config <rig.toml> --dir <run-dir> [flags]
   hairspring --config <rig.toml> --dir <run-dir> [flags]     (interactive REPL)
 
@@ -564,6 +566,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     if args.iter().skip(1).any(|a| a == "--help" || a == "-h") {
         print!("{USAGE}");
         return Ok(());
+    }
+    if args.get(1).map(std::string::String::as_str) == Some("setup") {
+        return hs_loop::setup::cli(&args[2..]).map_err(Into::into);
     }
     let one_shot_goal = if args.get(1).map(std::string::String::as_str) == Some("run") {
         Some(arg(&args, "--goal").expect("--goal required in run mode"))

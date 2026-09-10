@@ -210,8 +210,31 @@ pub fn load_key(p: &Provider) -> Result<String, String> {
             .map(|s| s.trim().to_string())
             .map_err(|e| format!("{}: cannot read key file {path}: {e}", p.name));
     }
+    // Guided-setup persistence (2026-09-10): `hairspring setup` writes
+    // the conventional config-dir key file; a fresh shell finds it with
+    // no exports.
+    let cfg = std::env::var("XDG_CONFIG_HOME")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            std::env::var("HOME")
+                .ok()
+                .map(|h| std::path::PathBuf::from(h).join(".config"))
+        });
+    if let Some(c) = cfg {
+        let f = c
+            .join("hairspring")
+            .join("keys")
+            .join(format!("{}.key", p.name));
+        if f.is_file() {
+            return std::fs::read_to_string(&f)
+                .map(|s| s.trim().to_string())
+                .map_err(|e| format!("{}: cannot read key file {}: {e}", p.name, f.display()));
+        }
+    }
     Err(format!(
-        "{}: no API key - set {} or {} (vault-populated, never in the repo)",
+        "{}: no API key - run `hairspring setup`, or set {} or {} (vault-populated, never in the repo)",
         p.name, p.key_env, p.key_file_env
     ))
 }

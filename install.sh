@@ -46,8 +46,9 @@ cat <<MSG
 
 Installed. Next:
   1. Make sure $BINLINK_DIR is on your PATH.
-  2. Set your model key:  export HS_DEEPSEEK_API_KEY=<key>
-     (or point HS_DEEPSEEK_API_KEY_FILE at a file holding it)
+  2. Add your model key:  hairspring setup
+     (guided: checks what is configured, stores the key owner-only under
+     $CONFIG_DIR/keys/, validates it, and prints the next command)
   3. Run a mission:       hairspring run --goal "your goal" --config $CONFIG_DIR/hairspring.toml --dir /tmp/hs-run
      Interactive TUI:     hairspring --config $CONFIG_DIR/hairspring.toml --dir /tmp/hs-run
 
