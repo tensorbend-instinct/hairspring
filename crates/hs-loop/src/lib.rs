@@ -167,6 +167,10 @@ pub struct InnerLoop {
     /// item 3: adversarial verifier state - rounds spent and the findings
     /// the last refuted round handed back (the next round's `PRIOR_GAPS`)
     verifier_rounds: u32,
+    /// Spec 5.2 goal record: how completion was arbitrated on the close
+    /// that ends this mission ("hybrid" = say-so triggered the checkers,
+    /// the checkers decided). None until a checker-driven close runs.
+    completion_mode: Option<&'static str>,
     prior_gaps: Vec<String>,
     /// Fix 4: mission wall budget (secs) + start instant, for the per-step
     /// "T-minus" header. None = wall not tracked (old behavior).
@@ -285,6 +289,7 @@ impl InnerLoop {
             doom_nudges: Default::default(),
             guardrail_escalator: Default::default(),
             verifier_rounds: 0,
+            completion_mode: None,
             prior_gaps: vec![],
             wall_secs: None,
             steering_inbox: None,
@@ -351,6 +356,7 @@ impl InnerLoop {
             doom_nudges: Default::default(),
             guardrail_escalator: Default::default(),
             verifier_rounds: 0,
+            completion_mode: None,
             prior_gaps: vec![],
             wall_secs: None,
             steering_inbox: None,
@@ -1076,6 +1082,7 @@ impl InnerLoop {
             EventBuilder::new(EventKind::GoalUpdate).payload(Payload::Inline(
                 serde_json::to_vec(&serde_json::json!({
                     "mission": mission, "done": done, "outcome": outcome,
+                    "completion_mode": self.completion_mode.unwrap_or("none"),
                 }))
                 .expect("json! values serialize"),
             )),
@@ -2219,6 +2226,7 @@ impl InnerLoop {
                     }
                     std::thread::sleep(std::time::Duration::from_millis(50));
                 }
+                self.completion_mode = Some("hybrid");
                 self.close_goal(mission, true, outcome)?;
                 self.checkpoint(steps, model_calls);
                 return Ok(MissionResult {

@@ -7,11 +7,19 @@
 # The REPL serves the terminal surface: term.exec runs commands on the
 # live machine (state persists), repo.read/repo.search inspect the
 # workdir, notes.scratch holds durable notes, answer.submit finishes.
-# checker.run is the BLIND self-check rig, triggered by answer.submit
-# (the model never calls it directly): the agent declares its own
-# verification commands, one per line, in .hs/checks in the workdir,
-# and the checker is green only when every one passes. No ground truth
-# enters the mission.
+# checker.run is the mission's stop authority, triggered by
+# answer.submit (the model never calls it directly). It has TWO phases:
+# phase 1 re-runs the agent's declared checks (.hs/checks in the
+# workdir - green only when every one passes); phase 2 is an
+# INDEPENDENT critic - a fresh model context that never saw the
+# session, given the mission instruction (the REPL writes it to
+# .hs/instruction.txt at mission start) and read-only shell access,
+# with one directive: REFUTE the submission. The critic model is
+# HS_CRITIC_MODEL (default "deepseek"); its caps are
+# HS_CRITIC_MAX_STEPS / HS_CRITIC_WALL_SECS / HS_CRITIC_BUDGET_MICROS
+# (defaults 12 / 600 / $1.00, every abnormal exit fails closed).
+# To run the old blind rig (declared checks only), point checker.run
+# at @PREFIX@/bin/hs-plugin-selfcheck instead.
 #
 # Required env for live models:
 #   HS_DEEPSEEK_API_KEY       - DeepSeek API key
@@ -44,7 +52,7 @@ subjects = ["*"]
 
 [[tools]]
 name = "checker.run"
-command = ["@PREFIX@/bin/hs-plugin-selfcheck"]
+command = ["@PREFIX@/bin/hs-plugin-critic"]
 subjects = ["*"]
 
 # Async sub-agent delegation: agent.spawn returns immediately, children

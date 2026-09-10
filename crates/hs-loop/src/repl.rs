@@ -126,6 +126,7 @@ pub struct ReplSession {
     total_steps: u64,
     total_model_calls: u64,
     ui_flush: Option<Box<dyn FnMut() + Send>>,
+    work_dir: PathBuf,
 }
 
 impl ReplSession {
@@ -347,6 +348,7 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
             total_steps: 0,
             total_model_calls: 0,
             ui_flush: None,
+            work_dir: log_root.join("work"),
         })
     }
 
@@ -455,6 +457,7 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
             total_steps: 0,
             total_model_calls: 0,
             ui_flush: None,
+            work_dir: log_root.join("work"),
         })
     }
 
@@ -487,6 +490,14 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         } else {
             format!("{goal}\n\nAVAILABLE MCP TOOLS (call them like any other tool):\n{}", self.mcp_catalog)
         };
+        // Burn-down (critic on the default path): the independent critic
+        // gate refutes against the mission's INSTRUCTION. The tb rig
+        // hands it over via HS_TB_INSTRUCTION_FILE; a TUI session is
+        // long-lived with one plugin process, so the anchor lives at
+        // <work>/.hs/instruction.txt, rewritten at every mission start.
+        let hs_dir = self.work_dir.join(".hs");
+        std::fs::create_dir_all(&hs_dir)?;
+        std::fs::write(hs_dir.join("instruction.txt"), &prompt)?;
         let r = self.inner.run_mission_full(&id, &prompt)?;
         self.missions_run += 1;
         self.total_steps += u64::from(r.steps);

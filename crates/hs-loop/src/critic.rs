@@ -237,12 +237,17 @@ pub fn checker_gate(ws: &Path) -> Value {
     if phase1["passed"].as_bool() != Some(true) {
         return phase1;
     }
+    // The tb rig hands the instruction over via HS_TB_INSTRUCTION_FILE;
+    // the TUI session (long-lived plugin processes, env set at spawn)
+    // writes it per mission to <ws>/.hs/instruction.txt (repl run_goal).
     let instruction = std::env::var("HS_TB_INSTRUCTION_FILE")
         .ok()
         .and_then(|f| std::fs::read_to_string(f).ok())
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| std::fs::read_to_string(ws.join(".hs/instruction.txt")).ok())
         .unwrap_or_default();
     if instruction.trim().is_empty() {
-        return json!({"passed": false, "error": "critic gate: HS_TB_INSTRUCTION_FILE missing or unreadable - fail-closed"});
+        return json!({"passed": false, "error": "critic gate: no instruction anchor (HS_TB_INSTRUCTION_FILE unreadable and <ws>/.hs/instruction.txt missing) - fail-closed"});
     }
     // The author's own answer summary (when present) is part of what the
     // critic reviews: its claims are refutation targets.

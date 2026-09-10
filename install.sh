@@ -25,7 +25,7 @@ echo "Building HAIRSPRING (release, locked)..."
 (cd "$SRC" && cargo build --release --locked --workspace --bins)
 
 BINS="hs-repl hs-log-cli \
-hs-plugin-answer hs-plugin-answersubmit hs-plugin-selfcheck \
+hs-plugin-answer hs-plugin-answersubmit hs-plugin-selfcheck hs-plugin-critic \
 hs-plugin-fileread hs-plugin-reposearch hs-plugin-repoexec \
 hs-plugin-editapply hs-plugin-notescratch hs-plugin-termexec \
 hs-plugin-swarm hs-plugin-scripted hs-plugin-deepseek"
