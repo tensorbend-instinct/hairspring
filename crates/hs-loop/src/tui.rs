@@ -244,9 +244,16 @@ pub fn md_to_lines(md: &str, theme: &crate::uipaint::Theme) -> Vec<Line<'static>
             continue;
         }
         let hashes = trimmed.chars().take_while(|c| *c == '#').count();
-        if hashes >= 2 && trimmed.chars().nth(hashes) == Some(' ') {
+        if hashes >= 1 && trimmed.chars().nth(hashes) == Some(' ') {
             let text = trimmed[hashes + 1..].trim_end();
-            out.push(Line::from(inline_spans(text, sgr_style(&theme.header), theme)));
+            // H1 carries the full header treatment; deeper levels keep
+            // the weight but drop the underline (visual hierarchy).
+            let style = if hashes == 1 {
+                sgr_style(&theme.header)
+            } else {
+                sgr_style(&theme.header).remove_modifier(Modifier::UNDERLINED)
+            };
+            out.push(Line::from(inline_spans(text, style, theme)));
             continue;
         }
         if let Some(rest) = trimmed.strip_prefix("- ") {
@@ -1553,7 +1560,17 @@ impl TuiState {
                 self.answer_inflight.clear();
                 self.phase = LoopPhase::Act;
                 self.push_ticker(EventKind::ToolCall);
-                self.push_transcript_line(&format!("\u{25b6} {plugin}  {args_summary}"));
+                let accent = sgr_style(&self.theme.accent);
+                let tool = sgr_style(&self.theme.tool);
+                let dim = sgr_style(&self.theme.dim);
+                let mut spans = vec![
+                    Span::styled("\u{25b6} ", accent),
+                    Span::styled(plugin.clone(), tool),
+                ];
+                if !args_summary.is_empty() {
+                    spans.push(Span::styled(format!("  {args_summary}"), dim));
+                }
+                self.push_transcript_spans(spans);
             }
             U::SubAgentSpawned {
                 child,
@@ -1577,12 +1594,21 @@ impl TuiState {
                 self.flush_inflight();
                 self.phase = LoopPhase::Observe;
                 self.push_ticker(EventKind::Observation);
-                let mark = if *ok { "\u{2713} ok" } else { "\u{2717} fail" };
-                let mut line = format!("  {mark}  {elapsed_ms}ms");
+                let (code, mark) = if *ok {
+                    (sgr_style(&self.theme.ok), "\u{2713} ok")
+                } else {
+                    (sgr_style(&self.theme.fail), "\u{2717} fail")
+                };
+                let dim = sgr_style(&self.theme.dim);
+                let mut spans = vec![
+                    Span::raw("  "),
+                    Span::styled(mark, code),
+                    Span::styled(format!("  {elapsed_ms}ms"), dim),
+                ];
                 if !output_summary.is_empty() {
-                    line.push_str(&format!("  {output_summary}"));
+                    spans.push(Span::styled(format!("  {output_summary}"), dim));
                 }
-                self.push_transcript_line(&line);
+                self.push_transcript_spans(spans);
             }
         }
     }
@@ -1647,12 +1673,20 @@ impl TuiState {
     }
 
     pub fn push_goal_echo(&mut self, text: &str) {
+        let accent = sgr_style(&self.theme.accent);
         for (i, line) in text.lines().enumerate() {
-            if i == 0 {
-                self.push_transcript_line(&format!("\u{203a} {line}"));
+            let l = if i == 0 {
+                Line::from(vec![
+                    Span::styled("\u{203a} ".to_string(), accent),
+                    Span::raw(line.to_string()),
+                ])
             } else {
-                self.push_transcript_line(line);
+                Line::from(line.to_string())
+            };
+            if let Some(h) = self.transcript_scroll.as_mut() {
+                *h += wrapped_rows(&l, self.last_vp_width.get());
             }
+            self.transcript.push(l);
         }
     }
 
@@ -1671,6 +1705,16 @@ impl TuiState {
     /// were visually identical dim text (live capture cap-06).
     pub fn push_transcript_styled(&mut self, text: &str, style: Style) {
         let line = Line::from(Span::styled(text.to_string(), style));
+        if let Some(h) = self.transcript_scroll.as_mut() {
+            *h += wrapped_rows(&line, self.last_vp_width.get());
+        }
+        self.transcript.push(line);
+    }
+
+    /// Append one transcript line built from styled spans (visual audit:
+    /// the TUI speaks the same color language as the line-mode painter).
+    pub fn push_transcript_spans(&mut self, spans: Vec<Span<'static>>) {
+        let line = Line::from(spans);
         if let Some(h) = self.transcript_scroll.as_mut() {
             *h += wrapped_rows(&line, self.last_vp_width.get());
         }
@@ -1872,6 +1916,39 @@ impl TuiState {
 
     /// M24: pub so the HUD text is test-pinnable (was private until
     /// the pluralization pin needed it).
+    /// The HUD as styled spans: dim separators, metered cost in the
+    /// theme's cost color (visual audit - the HUD was monochrome).
+    #[must_use]
+    pub fn hud_spans(&self) -> Line<'static> {
+        let dim = sgr_style(&self.theme.dim);
+        let cost = sgr_style(&self.theme.cost);
+        let mut spans = vec![
+            Span::raw(format!(
+                "{} mission{}",
+                self.missions_run,
+                if self.missions_run == 1 { "" } else { "s" }
+            )),
+            Span::styled(" \u{00b7} ", dim),
+            Span::raw(format!(
+                "{} step{}",
+                self.total_steps,
+                if self.total_steps == 1 { "" } else { "s" }
+            )),
+            Span::styled(" \u{00b7} ", dim),
+            Span::raw(format!("{} calls", self.total_model_calls)),
+            Span::styled(" \u{00b7} ", dim),
+            Span::styled(
+                crate::uipaint::format_usd_micros(self.total_cost_micros),
+                cost,
+            ),
+        ];
+        if !self.stream_short.is_empty() {
+            spans.push(Span::styled(" \u{00b7} ", dim));
+            spans.push(Span::styled(self.stream_short.clone(), dim));
+        }
+        Line::from(spans)
+    }
+
     pub fn hud_line(&self) -> String {
         format!(
             "{} mission{} \u{00b7} {} step{} \u{00b7} {} calls \u{00b7} {}{}",
@@ -2040,14 +2117,24 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
     // on the editor's cell. The box grows with the buffer (viewport
     // yields), capped so the chrome always fits.
     if composer.height > 0 && composer.width > 0 {
-        let title = format!(
-            " {} \u{00b7} {} ",
-            state.model_label,
-            crate::uipaint::format_usd_micros(state.total_cost_micros)
-        );
+        let title = Line::from(vec![
+            Span::styled(
+                format!(" {} ", state.model_label),
+                sgr_style(&state.theme.accent),
+            ),
+            Span::styled("\u{00b7} ", sgr_style(&state.theme.dim)),
+            Span::styled(
+                format!(
+                    "{} ",
+                    crate::uipaint::format_usd_micros(state.total_cost_micros)
+                ),
+                sgr_style(&state.theme.cost),
+            ),
+        ]);
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
+            .border_style(sgr_style(&state.theme.dim))
             .title(title);
         let mut content: Vec<Line> = Vec::new();
         for l in raw.split('\n') {
@@ -2084,7 +2171,7 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
 
     // HUD: session vitals on the last row.
     if l.hud.height > 0 && l.hud.width > 0 {
-        let hud = Paragraph::new(state.hud_line());
+        let hud = Paragraph::new(state.hud_spans());
         f.render_widget(hud, l.hud);
     }
 
@@ -2128,7 +2215,8 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
             let block = Block::default()
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
-                .title(" commands ");
+                .border_style(sgr_style(&state.theme.dim))
+                .title(Span::styled(" commands ", sgr_style(&state.theme.accent)));
             f.render_widget(Paragraph::new(lines).block(block), rect);
         }
     }
@@ -2158,11 +2246,15 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .title(match p.kind {
-                PickerKind::Resume => " resume ",
-                PickerKind::Models => " models ",
-                PickerKind::Themes => " theme ",
-            });
+            .border_style(sgr_style(&state.theme.dim))
+            .title(Span::styled(
+                match p.kind {
+                    PickerKind::Resume => " resume ",
+                    PickerKind::Models => " models ",
+                    PickerKind::Themes => " theme ",
+                },
+                sgr_style(&state.theme.accent),
+            ));
         f.render_widget(Paragraph::new(lines).block(block), rect);
     }
 
