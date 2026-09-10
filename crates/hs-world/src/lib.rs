@@ -210,6 +210,21 @@ impl World {
         if !artifact.world_path.starts_with('/') {
             return Err(WorldError::Rejected("world_path must be absolute".into()));
         }
+        // spec 4.4: the world service's validation pass includes the
+        // quarantine status of the proposing stream. Effects inside the
+        // session's sandbox are always allowed; outside it, only the
+        // world's authorization decides - a quarantined fork proposing an
+        // external effect is rejected HERE, by the world, not by the
+        // proposer's discipline. The rejected proposal stays booked.
+        let effect = if artifact
+            .world_path
+            .starts_with(&*self.log_root.to_string_lossy())
+        {
+            Effect::SandboxWrite
+        } else {
+            Effect::WriteOutsideSandbox
+        };
+        self.authorize_effect(artifact.author_stream, effect)?;
         let hash: [u8; 32] = sha2::Sha256::digest(content).into();
         if hash != artifact.content_hash {
             return Err(WorldError::Rejected(
@@ -232,6 +247,37 @@ impl World {
         artifact.status = ArtifactStatus::Validated;
         self.consequence(&artifact)?;
         Ok(artifact)
+    }
+
+    /// Apply a validated File artifact: the content-addressed bytes land
+    /// at its world_path. The EFFECT happens here, in the world service -
+    /// the proposing agent only ever booked a proposal event (spec 4.4).
+    pub fn materialize(&self, artifact: &Artifact) -> Result<std::path::PathBuf, WorldError> {
+        let known = self
+            .state
+            .lock()
+            .expect("world state mutex poisoned")
+            .artifacts
+            .get(&(artifact.artifact_id, artifact.version))
+            .cloned()
+            .ok_or_else(|| {
+                WorldError::Rejected("materialize: no such validated artifact".into())
+            })?;
+        if known.status != ArtifactStatus::Validated {
+            return Err(WorldError::Rejected(format!(
+                "materialize: artifact is {:?}, not validated",
+                known.status
+            )));
+        }
+        let content = self.content_of(&known)?;
+        let dest = std::path::PathBuf::from(&known.world_path);
+        if let Some(parent) = dest.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| WorldError::Rejected(format!("materialize mkdir: {e}")))?;
+        }
+        std::fs::write(&dest, &content)
+            .map_err(|e| WorldError::Rejected(format!("materialize write: {e}")))?;
+        Ok(dest)
     }
 
     /// Install a validated controller/program artifact: it starts acting

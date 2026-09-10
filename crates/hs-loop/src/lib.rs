@@ -923,6 +923,52 @@ impl InnerLoop {
         }
     }
 
+    /// Spec 4.4 on the mission path (burn-down item 4): the mission's
+    /// artifact write - answer.write - rides the proposal-consequence
+    /// separation like any world effect. The agent only ever writes a
+    /// PROPOSAL event; the world service alone validates (schema, hash,
+    /// quarantine status of the proposing stream) and the CONSEQUENCE is
+    /// what materializes the file the checker grades. Rejections are
+    /// ordinary tool output, never fatal. Sessions with no world plane
+    /// (crate-level loop tests) keep the direct plugin path.
+    ///
+    /// The sandbox plane (term.exec) is the execution environment
+    /// itself, not an artifact effect - spec section 4: "for software
+    /// work, the world is the execution environment" - so it is not
+    /// routed here; artifact effects are.
+    fn world_artifact_write(&mut self, tool: &str, args: &serde_json::Value) -> Option<ToolCallOutcome> {
+        if tool != "answer.write" {
+            return None;
+        }
+        let world = self.world.as_ref()?;
+        let started = std::time::Instant::now();
+        let path = args["path"].as_str().unwrap_or("").to_string();
+        let content = args["content"].as_str().unwrap_or("").to_string();
+        use sha2::Digest as _;
+        let artifact = hs_world::Artifact {
+            artifact_id: uuid::Uuid::new_v4(),
+            version: 1,
+            kind: hs_world::ArtifactKind::File,
+            content_hash: sha2::Sha256::digest(content.as_bytes()).into(),
+            world_path: path,
+            author_stream: self.stream_id,
+            parent_version: None,
+            status: hs_world::ArtifactStatus::Proposed,
+        };
+        let output = match world.propose(artifact, content.as_bytes()) {
+            Err(e) => serde_json::json!({"error": format!("world rejected the proposal: {e:?}")}),
+            Ok(a) => match world.materialize(&a) {
+                Ok(p) => serde_json::json!({"path": p.display().to_string(), "written": true}),
+                Err(e) => serde_json::json!({"error": format!("world materialization failed: {e:?}")}),
+            },
+        };
+        Some(ToolCallOutcome {
+            resolved: None,
+            output,
+            latency_ms: u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX),
+        })
+    }
+
     fn dispatch_tool(
         &mut self,
         tool: &str,
@@ -932,6 +978,9 @@ impl InnerLoop {
             return Ok(self.memory_recall(args));
         }
         if let Some(out) = self.world_dispatch(tool, args) {
+            return Ok(out);
+        }
+        if let Some(out) = self.world_artifact_write(tool, args) {
             return Ok(out);
         }
         self.kernel.call_tool("operator", tool, args.clone())
