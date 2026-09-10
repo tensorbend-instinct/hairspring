@@ -27,3 +27,25 @@ jobs:
           RUSTUP_TOOLCHAIN: ${{ matrix.toolchain }}
       - name: Smoke
         run: "$HOME/.local/bin/hairspring --help >/dev/null"
+      # First-run mission smoke: the README's zero-network offline trial,
+      # verbatim, on a HOME the workflow just installed into. Motivation
+      # (2026-09-10): the trial was broken as documented for a real user -
+      # the phase-2 critic fail-closed with no key and the verifier audit
+      # needed prompt-aware mode. A green --help never exercised a mission.
+      - name: First-run mission smoke (offline trial, README verbatim)
+        run: |
+          set -euo pipefail
+          export HS_SEQMODEL_SCRIPT="$HOME/.local/share/hairspring/seqmodel-demo.jsonl"
+          export HS_SCRIPTED_PROMPT_AWARE=1
+          export HS_CRITIC_SCRIPT='tool:grep -q hello hello.txt|clean'
+          cfg="$HOME/.config/hairspring/hairspring.toml"
+          # README step: make the scripted model the default (uncomment
+          # its marker, comment deepseek's). Portable sed/awk only -
+          # no GNU-only sed -i or 0,/re/ on the macOS runner.
+          sed 's/^# default = true$/default = true/' "$cfg" > "$cfg.tmp" && mv "$cfg.tmp" "$cfg"
+          awk '/^default = true$/ && !done { print "# default = true"; done=1; next } { print }' "$cfg" > "$cfg.tmp" && mv "$cfg.tmp" "$cfg"
+          rm -rf /tmp/hs-demo
+          "$HOME/.local/bin/hairspring" run --goal "write hello.txt containing hello" \
+            --config "$cfg" --dir /tmp/hs-demo
+          test -f /tmp/hs-demo/work/write-hello-txt-containing-hello/answer.txt
+          strings /tmp/hs-demo/streams/*/seg-000000.hslog | grep -q '"outcome":"verified"'
