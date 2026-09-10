@@ -696,8 +696,17 @@ pub fn handle_key(state: &mut TuiState, key: ratatui::crossterm::event::KeyEvent
         }
         (KeyCode::Esc, _) => {
             // Esc closes the palette (the picker handled its own Esc
-            // above). Without either open it is a no-op.
-            state.palette = None;
+            // above). A leftover sigil in the composer silently
+            // turned the next plain-text goal into an "unknown
+            // command" (live capture cap-22, 60x20), so closing also
+            // clears a sigil-only buffer; plain text is untouched.
+            if state.palette.is_some() {
+                state.palette = None;
+                let t = state.editor.text().trim_start().to_string();
+                if t.starts_with('/') || t.starts_with(':') {
+                    state.editor.set_text("");
+                }
+            }
             KeyAction::Continue
         }
         _ => KeyAction::Continue,
@@ -929,10 +938,18 @@ pub fn backfill_transcript(
                 if terminal && mission_open {
                     let outcome =
                         v.get("outcome").and_then(|o| o.as_str()).unwrap_or("done");
-                    st.push_transcript_line(&format!(
-                        "\u{2500}\u{2500} done: {steps} steps, {calls} calls, {} ({outcome})",
-                        crate::uipaint::format_usd_micros(cost)
-                    ));
+                    let verdict = if outcome == "verified" {
+                        st.theme.ok.clone()
+                    } else {
+                        st.theme.fail.clone()
+                    };
+                    st.push_transcript_styled(
+                        &format!(
+                            "\u{2500}\u{2500} done: {steps} steps, {calls} calls, {} ({outcome})",
+                            crate::uipaint::format_usd_micros(cost)
+                        ),
+                        sgr_style(&verdict).add_modifier(Modifier::BOLD),
+                    );
                     mission_open = false;
                     steps = 0;
                     calls = 0;
@@ -1028,6 +1045,39 @@ pub struct RowsCache {
 /// would straddle the edge moves whole to the next row (ratatui
 /// renders the same constraint); an empty line is one empty row.
 #[must_use]
+/// Beat 5 W2: overlay-panel content wraps to the box's inner width.
+/// Ratatui's Paragraph CLIPS long lines at the border (live capture
+/// cap-11: T_mission rows cut mid-word) - and a clipped number is a
+/// wrong number.
+pub fn wrap_panel_lines(lines: &[Line<'static>], inner_w: u16) -> Vec<Line<'static>> {
+    if inner_w == 0 {
+        return lines.to_vec();
+    }
+    lines.iter().flat_map(|l| wrap_line(l, inner_w)).collect()
+}
+
+/// The T_mission panel's inner width for a terminal width (box is
+/// 3/4 of the surface, min 50, capped at the surface; two columns of
+/// border). Shared by the render path and the fit test.
+pub fn panel_inner_width(term_w: u16) -> u16 {
+    let box_w = (term_w * 3 / 4).max(50).min(term_w);
+    box_w.saturating_sub(2)
+}
+
+/// The T_mission panel's display lines, wrapped to the inner width.
+pub fn time_panel_lines(
+    d: &crate::mission_time::Decomposition,
+    inner_w: u16,
+) -> Vec<Line<'static>> {
+    let raw: Vec<Line<'static>> = d
+        .report_lines("session")
+        .into_iter()
+        .skip(2)
+        .map(Line::from)
+        .collect();
+    wrap_panel_lines(&raw, inner_w)
+}
+
 pub fn wrap_line(line: &Line<'static>, width: u16) -> Vec<Line<'static>> {
     use unicode_width::UnicodeWidthChar;
     let width = width as usize;
@@ -1262,13 +1312,21 @@ impl TuiState {
         // a steps_exhausted / ratchet_capped / harness_error mission
         // printed the same line as a verified one while a RESUMED
         // session showed the outcome. Live and resume now agree.
-        self.push_transcript_line(&format!(
-            "\u{2500}\u{2500} done: {} steps, {} calls, {} ({})",
-            steps,
-            calls,
-            crate::uipaint::format_usd_micros(mission_cost_micros),
-            outcome
-        ));
+        let verdict = if outcome == "verified" {
+            self.theme.ok.clone()
+        } else {
+            self.theme.fail.clone()
+        };
+        self.push_transcript_styled(
+            &format!(
+                "\u{2500}\u{2500} done: {} steps, {} calls, {} ({})",
+                steps,
+                calls,
+                crate::uipaint::format_usd_micros(mission_cost_micros),
+                outcome
+            ),
+            sgr_style(&verdict).add_modifier(Modifier::BOLD),
+        );
     }
 
     pub fn on_ui_event(&mut self, ev: &crate::uipaint::UiEvent) {
@@ -1422,6 +1480,17 @@ impl TuiState {
     /// moves by the line's wrapped ROWS at the last rendered width.
     pub fn push_transcript_line(&mut self, text: &str) {
         let line = Line::from(text.to_string());
+        if let Some(h) = self.transcript_scroll.as_mut() {
+            *h += wrapped_rows(&line, self.last_vp_width.get());
+        }
+        self.transcript.push(line);
+    }
+
+    /// Append one styled transcript line (beat 5 W1): the mission
+    /// outcome carries its verdict in color + weight - pass and fail
+    /// were visually identical dim text (live capture cap-06).
+    pub fn push_transcript_styled(&mut self, text: &str, style: Style) {
+        let line = Line::from(Span::styled(text.to_string(), style));
         if let Some(h) = self.transcript_scroll.as_mut() {
             *h += wrapped_rows(&line, self.last_vp_width.get());
         }
@@ -2017,6 +2086,7 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
             }
         };
         let box_w = (area.width * 2 / 3).max(40).min(area.width);
+        let lines = wrap_panel_lines(&lines, box_w.saturating_sub(2));
         let box_h = (lines.len() as u16 + 2).min(viewport.height.max(3));
         let rect = Rect::new(area.width - box_w, viewport.y, box_w, box_h);
         f.render_widget(ratatui::widgets::Clear, rect);
@@ -2068,6 +2138,7 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
             }
         };
         let box_w = (area.width * 2 / 3).max(40).min(area.width);
+        let lines = wrap_panel_lines(&lines, box_w.saturating_sub(2));
         let box_h = (lines.len() as u16 + 2).min(viewport.height.max(3));
         let rect = Rect::new(area.width - box_w, viewport.y, box_w, box_h);
         f.render_widget(ratatui::widgets::Clear, rect);
@@ -2130,6 +2201,7 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
             }
         };
         let box_w = (area.width * 2 / 3).max(40).min(area.width);
+        let lines = wrap_panel_lines(&lines, box_w.saturating_sub(2));
         let box_h = (lines.len() as u16 + 2).min(viewport.height.max(3));
         let rect = Rect::new(area.width - box_w, viewport.y, box_w, box_h);
         f.render_widget(ratatui::widgets::Clear, rect);
@@ -2144,16 +2216,12 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
     // decomposition (the published report lines, header rows dropped).
     if state.time_panel {
         let dim = Style::default().add_modifier(Modifier::DIM);
+        let inner = panel_inner_width(area.width);
         let lines: Vec<Line> = match &state.time_view {
             None => vec![Line::styled("no mission decomposition yet", dim)],
-            Some(d) => d
-                .report_lines("session")
-                .into_iter()
-                .skip(2)
-                .map(Line::from)
-                .collect(),
+            Some(d) => time_panel_lines(d, inner),
         };
-        let box_w = (area.width * 3 / 4).max(50).min(area.width);
+        let box_w = (inner + 2).min(area.width);
         let box_h = (lines.len() as u16 + 2).min(viewport.height.max(3));
         let rect = Rect::new(area.width - box_w, viewport.y, box_w, box_h);
         f.render_widget(ratatui::widgets::Clear, rect);

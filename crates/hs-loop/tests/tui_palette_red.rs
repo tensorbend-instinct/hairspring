@@ -81,14 +81,16 @@ fn p5_tab_completes_without_submit() {
     assert_eq!(st.editor.text(), "/agents", "completion lands in the buffer");
 }
 
-// P6: Esc closes the palette; the buffer stays as typed.
+// P6: Esc closes the palette AND clears the sigil buffer - a
+// leftover '/' silently turned the next plain-text goal into an
+// "unknown command" (live capture cap-22, 60x20; beat-5 W3).
 #[test]
 fn p6_esc_closes_palette() {
     let mut st = TuiState::default();
     type_str(&mut st, "/ag");
     tui::handle_key(&mut st, KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
     assert!(st.palette_matches().is_none(), "palette closed");
-    assert_eq!(st.editor.text(), "/ag", "buffer preserved");
+    assert_eq!(st.editor.text(), "", "sigil buffer cleared");
 }
 
 // P7: an unknown command draws immediate feedback and NEVER becomes a
