@@ -35,13 +35,11 @@ jobs:
       - name: Install bubblewrap (mission sandbox, Linux legs)
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get update && sudo apt-get install -y bubblewrap
-      # Missions confine every tool call with bubblewrap (Linux-only
-      # mechanism, fail-closed by design). The macOS legs gate compile +
-      # start; the mission smoke runs on Linux until a seatbelt backend
-      # lands. All four legs burned to steps_exhausted without bwrap
-      # (run 34511166478, 2026-09-10).
+      # Missions confine every tool call BY MECHANISM on both platforms:
+      # bubblewrap on Linux (installed above), kernel Seatbelt via
+      # sandbox-exec on macOS (ships with the OS). The smoke exercises
+      # the platform backend on every leg.
       - name: First-run mission smoke (offline trial, README verbatim)
-        if: matrix.os == 'ubuntu-latest'
         run: |
           set -euo pipefail
           export HS_SEQMODEL_SCRIPT="$HOME/.local/share/hairspring/seqmodel-demo.jsonl"
@@ -58,3 +56,10 @@ jobs:
             --config "$cfg" --dir /tmp/hs-demo
           test -f /tmp/hs-demo/work/write-hello-txt-containing-hello/answer.txt
           strings /tmp/hs-demo/streams/*/seg-000000.hslog | grep -q '"outcome":"verified"'
+      # Hostile confinement proof on the platform backend: project-root
+      # boundary, env scrub, verifier read-only parity (Linux bwrap /
+      # macOS seatbelt).
+      - name: Hostile confinement tests (platform backend)
+        run: cargo test --release --locked -p hs-loop --test seatbelt_profile_red
+        env:
+          RUSTUP_TOOLCHAIN: ${{ matrix.toolchain }}

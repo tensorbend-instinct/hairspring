@@ -18,14 +18,28 @@
 //! it let missions read every harness file on the host. Fail-closed: no
 //! bwrap, no run.
 //!
+//! macOS backend (2026-09-10, Eric: missions are first-class on macOS):
+//! the same contract is enforced with the kernel Seatbelt sandbox via
+//! sandbox-exec - the mechanism Bazel, Nix, Homebrew, and Claude Code
+//! rely on, functional on macOS 15. The generated profile is
+//! `(allow default)` (network stays up, same ruling) + `deny file-write*`
+//! everywhere + later, higher-precedence `allow file-write*` under the
+//! project root, /private/tmp, /private/var/folders and /dev/null: the
+//! root is the ONLY host filesystem writable, the environment is scrubbed
+//! to the same minimal PATH/HOME, and no sandbox-exec means no run.
+//! `run_readonly` parity: instead of a uid drop (no root on a stranger's
+//! Mac) the verifier profile OMITS the root from the writable set - task
+//! files are read-only BY MECHANISM, same guarantee, different lever.
+//!
 //! Two surfaces: `run` for the AUTHORING agent (root inside the task
 //! container - the agent is supposed to mutate), `run_readonly` for the
-//! VERIFIER (the independent critic): the command runs as uid/gid `nobody`
-//! with the supplementary group list cleared, so root-owned task files are
-//! read-only BY MECHANISM (deep pass 2026-09-09: the critic's prompt claimed
-//! read-only while the shell ran as unrestricted root). Fail-closed: a
-//! non-root caller cannot drop privileges, so the call refuses instead of
-//! running unenforced.
+//! VERIFIER (the independent critic): the project root is bound READ-ONLY
+//! (Linux) or omitted from the profile's writable set (macOS), so task
+//! files are read-only BY MECHANISM. (The Linux uid/gid `nobody` drop
+//! remains as defense-in-depth but is NOT the enforcement: bwrap maps the
+//! inner uid to the outer euid - hostile finding 2026-09-10.) Fail-closed:
+//! a non-root caller on the legacy path cannot drop privileges, so the
+//! call refuses instead of running unenforced.
 
 use serde_json::Value;
 use std::os::unix::process::CommandExt;
@@ -104,6 +118,34 @@ fn collect(mut child: std::process::Child, timeout_secs: u64) -> Value {
 /// at startup with the install hint, not as a mid-mission burn of tool
 /// refusals (observed 2026-09-10: a bwrap-less first run looped
 /// "bwrap sandbox unavailable" to steps_exhausted).
+#[cfg(target_os = "macos")]
+pub fn sandbox_probe() -> Result<(), String> {
+    let out = std::process::Command::new("sandbox-exec")
+        .arg("-p")
+        .arg("(version 1)(allow default)")
+        .arg("/usr/bin/true")
+        .env_clear()
+        .output();
+    match out {
+        Ok(o) if o.status.success() => Ok(()),
+        Ok(o) => Err(format!(
+            "missions need the macOS Seatbelt sandbox: the sandbox-exec probe \
+             exited {status} ({stderr}). sandbox-exec ships with macOS - this \
+             system cannot confine missions, and an unconfined run is never \
+             the fallback.",
+            status = o.status,
+            stderr = String::from_utf8_lossy(&o.stderr).trim()
+        )),
+        Err(e) => Err(format!(
+            "missions need the macOS Seatbelt sandbox: sandbox-exec not found \
+             ({e}). It ships with macOS (the mechanism Bazel, Homebrew, and \
+             Claude Code use) - its absence means a stripped system; refusing \
+             to run unconfined."
+        )),
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
 pub fn sandbox_probe() -> Result<(), String> {
     let tmp = std::env::temp_dir();
     let work = tmp.canonicalize().unwrap_or(tmp);
@@ -144,9 +186,71 @@ fn sandbox_hint(detail: String) -> String {
     )
 }
 
+/// Escape a path for embedding in an SBPL string literal. Compiled on
+/// every platform: the profile shape is unit-tested from Linux.
+fn sbpl_escape(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+/// The Seatbelt profile for a mission exec. `writable_root` is the ONLY
+/// host directory tree the command may modify (None for the VERIFIER:
+/// task files stay read-only by mechanism). `(allow default)` keeps the
+/// network up (terminal-bench ruling) and exec/mach basics working; the
+/// deny-all-writes + later-allow pattern relies on documented Seatbelt
+/// precedence: LATER rules win for a matching operation. Compiled on
+/// every platform: the profile shape is unit-tested from Linux.
+pub fn seatbelt_profile(writable_root: Option<&std::path::Path>) -> String {
+    let mut allows = String::new();
+    if let Some(root) = writable_root {
+        allows.push_str(&format!("    (subpath \"{}\")\n", sbpl_escape(&root.to_string_lossy())));
+    }
+    // /tmp and /var are symlinks; Seatbelt matches on resolved paths.
+    allows.push_str("    (subpath \"/private/tmp\")\n");
+    allows.push_str("    (subpath \"/private/var/folders\")\n");
+    allows.push_str("    (literal \"/dev/null\")\n");
+    allows.push_str("    (literal \"/dev/tty\")\n");
+    format!(
+        "(version 1)\n(allow default)\n(deny file-write* (regex \".*\"))\n(allow file-write*\n{allows})\n"
+    )
+}
+
+/// Confined spawn: see the module doc. On macOS `identity` (uid/gid
+/// nobody for the verifier) is honored BY THE PROFILE instead: dropping
+/// to nobody needs root, which a stranger's Mac does not grant, and the
+/// read-only-by-mechanism guarantee comes from the writable set.
+#[cfg(target_os = "macos")]
+fn spawn_confined(
+    root: &std::path::Path,
+    workdir: &std::path::Path,
+    command: &str,
+    identity: Option<(u32, u32)>,
+) -> Result<std::process::Child, Value> {
+    let writable = if identity.is_some() { None } else { Some(root) };
+    let profile = seatbelt_profile(writable);
+    let mut cmd = std::process::Command::new("sandbox-exec");
+    cmd.arg("-p")
+        .arg(&profile)
+        .arg("/bin/bash")
+        .arg("-c")
+        .arg(command)
+        .current_dir(workdir)
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("HOME", "/tmp")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .process_group(0);
+    cmd.spawn().map_err(|e| {
+        serde_json::json!({"$error": format!(
+            "seatbelt sandbox unavailable ({e}) - refusing to run unconfined"
+        )})
+    })
+}
+
 /// Confined spawn: see the module doc. `identity` drops to uid/gid
 /// nobody for the verifier surface. The bwrap binary missing is a
 /// fail-CLOSED error - an unconfined run is never the fallback.
+#[cfg(not(target_os = "macos"))]
 fn spawn_confined(
     root: &std::path::Path,
     workdir: &std::path::Path,
@@ -190,10 +294,15 @@ fn spawn_confined(
         "/proc",
         "--tmpfs",
         "/tmp",
-        "--bind",
-        &root_s,
-        &root_s,
     ]);
+    // The VERIFIER's root is READ-ONLY BY MECHANISM: --ro-bind, not the
+    // uid drop. Hostile finding 2026-09-10: under --unshare-user bwrap
+    // maps the requested inner uid to the OUTER euid (uid_map
+    // "65534 0 1" on a root host), so the inner-nobody drop alone let
+    // the critic write root-owned task files. The uid args stay as
+    // defense-in-depth; the bind mode is the enforcement.
+    let bind = if identity.is_some() { "--ro-bind" } else { "--bind" };
+    cmd.args([bind, &root_s, &root_s]);
     if let Some((uid, gid)) = identity {
         cmd.args(["--uid", &uid.to_string(), "--gid", &gid.to_string()]);
     }
@@ -250,12 +359,12 @@ pub fn run_readonly(workdir: &std::path::Path, command: &str, timeout_secs: u64)
         return serde_json::json!({"$error": "pass command: a bash command line"});
     }
     if let Some(root) = crate::projectroot::project_root() {
-        // Same confinement as `run`, executed as nobody inside the
-        // namespace: the verifier's commands are model-authored too, so
-        // they get the same mechanical boundary. bwrap's --uid/--gid also
-        // clears the supplementary group list (single group in the new
-        // userns), and the root-only requirement of the legacy path does
-        // not apply - the userns provides the identity.
+        // Same confinement as `run`, but the project root is bound
+        // READ-ONLY (--ro-bind in spawn_confined): the verifier's
+        // commands are model-authored too, and task files stay
+        // unmodifiable BY MECHANISM no matter how the userns maps uids
+        // (bwrap maps inner nobody to the outer euid - the 2026-09-10
+        // hostile finding). Scratch in /tmp persists between calls.
         let workdir = match crate::projectroot::confine_existing(workdir, "verify workdir") {
             Ok(w) => w,
             Err(e) => return e,

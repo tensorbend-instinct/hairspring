@@ -25,11 +25,12 @@ One command from a clone: it builds the release binaries, installs them to
 `~/.config/hairspring/hairspring.toml`. Rust is installed via rustup if
 `cargo` is missing.
 
-Missions confine every tool call with bubblewrap (Linux) - install it
-first (`apt install bubblewrap` / `dnf install bubblewrap` /
-`pacman -S bubblewrap`); the startup preflight checks it and says so if
-it is missing. On macOS everything builds and starts, but missions need
-a Linux host until a seatbelt backend lands.
+Missions confine every tool call by mechanism: bubblewrap on Linux
+(install it first: `apt install bubblewrap` / `dnf install bubblewrap` /
+`pacman -S bubblewrap`) and the kernel Seatbelt sandbox on macOS (via
+`sandbox-exec`, which ships with the OS - the mechanism Bazel, Homebrew,
+and Claude Code use). The startup preflight probes the platform sandbox
+and says what is missing; an unconfined run is never the fallback.
 
 ## Quickstart
 
