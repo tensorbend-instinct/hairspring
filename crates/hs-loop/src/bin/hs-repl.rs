@@ -28,6 +28,7 @@ struct Opts {
     interrupt_file: Option<PathBuf>,
     resume: Option<String>,
     fork: Option<String>,
+    project_dir: Option<PathBuf>,
 }
 
 fn parse_opts(args: &[String]) -> Result<Opts, Box<dyn std::error::Error>> {
@@ -47,6 +48,7 @@ fn parse_opts(args: &[String]) -> Result<Opts, Box<dyn std::error::Error>> {
             .map(|v| v.parse())
             .transpose()
             .map_err(|_| "--wall-secs must be an integer")?,
+        project_dir: arg(args, "--project-dir").map(PathBuf::from),
         steering_inbox: arg(args, "--steering-inbox").map(PathBuf::from),
         task_inbox: arg(args, "--task-inbox").map(PathBuf::from),
         interrupt_file: arg(args, "--interrupt-file").map(PathBuf::from),
@@ -532,6 +534,7 @@ FLAGS:
   --goal <text>          one-shot mission (run mode); omit for the REPL
   --feedback on          mission memory feedback (default off)
   --max-steps <n>        step cap per mission (default 50)
+  --project-dir <path>   project directory missions are confined to (default: <dir>/work)
   --budget-micros <n>    per-mission spend cap in USD micros
   --wall-secs <n>        wall-clock cap per mission
   --resume [stream-id]   resume a prior session (bare: pick from a list)
@@ -558,6 +561,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         None
     };
     let mut opts = parse_opts(&args)?;
+    // Mission isolation: the project directory is a mission-start input.
+    // Validate + canonicalize NOW (startup), then export so the session
+    // loader (work anchor) and every spawned plugin (bwrap confinement,
+    // answer-write guard) see the same root. A bad path is a startup
+    // error, never a silent fall-back to an unconfined anchor.
+    if let Some(dir) = &opts.project_dir {
+        let canonical = std::fs::canonicalize(dir)
+            .map_err(|e| format!("--project-dir {}: {e}", dir.display()))?;
+        if !canonical.is_dir() {
+            return Err(format!("--project-dir {} is not a directory", canonical.display()).into());
+        }
+        unsafe { std::env::set_var("HS_PROJECT_ROOT", &canonical) };
+        println!("project root: {} (missions confined to this directory)", canonical.display());
+    }
     std::fs::create_dir_all(&opts.dir)?;
     // Eric's five #5: the agent.spawn tool plugin learns the session's
     // log root + kernel config from the environment (plugin processes

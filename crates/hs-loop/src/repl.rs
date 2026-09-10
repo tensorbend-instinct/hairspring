@@ -115,6 +115,24 @@ pub struct SessionVitals {
 }
 
 /// A loaded kernel + loop pair that runs goals as missions, in order.
+/// Mission work-anchor resolution (isolation: the project directory is a
+/// mission-start input). `hs-repl --project-dir` exports HS_PROJECT_ROOT
+/// after startup validation + canonicalization; the mission work anchor IS
+/// that root. Without it the anchor stays `<log_root>/work`, which
+/// `wire_tool_env` also exports as the default confinement root - every
+/// TUI session is confined by default. A root that no longer canonicalizes
+/// is a startup-integrity failure: refuse loudly, never anchor silently.
+pub fn resolve_work_dir(log_root: &std::path::Path) -> std::path::PathBuf {
+    match std::env::var("HS_PROJECT_ROOT") {
+        Ok(raw) if !raw.is_empty() => std::fs::canonicalize(&raw).unwrap_or_else(|e| {
+            panic!(
+                "HS_PROJECT_ROOT {raw} cannot be canonicalized: {e} - refusing to anchor missions on an unverifiable root"
+            )
+        }),
+        _ => log_root.join("work"),
+    }
+}
+
 pub struct ReplSession {
     inner: InnerLoop,
     used_ids: std::collections::HashSet<String>,
@@ -219,7 +237,11 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         // session's WORK area, never the run root - the root holds
         // harness state (streams/, blobs/, memory.db) the mission must
         // not read through repo.read/repo.search.
-        let work = log_root.join("work");
+        // Isolation (2026-09-10): the anchor honors HS_PROJECT_ROOT when
+        // the operator passed --project-dir; otherwise it is the session
+        // work area. Both cases export the root below, so confinement is
+        // always on for TUI sessions.
+        let work = resolve_work_dir(log_root);
         std::fs::create_dir_all(&work)?;
         // D10 (live burn 2026-09-09, realrun3): HS_SELFCHECK_DIRECT binds
         // the checker to the REGISTERED surface, never unconditionally.
@@ -247,6 +269,18 @@ fn configured_context_tokens(config: &Path) -> Option<usize> {
         unsafe {
             std::env::set_var("HS_TERM_WORKDIR", &work);
             std::env::set_var("HS_SWE_WORKSPACE", &work);
+            // The EFFECTIVE confinement root for this session's plugins:
+            // the operator's --project-dir when present, else the session
+            // work area. Written on every session load (kernels spawn
+            // long-lived plugins), so a later session in the same process
+            // never inherits a stale root - suite-15 caught exactly that
+            // (a deleted prior work dir panicking session two's anchor).
+            let effective_root = std::env::var("HS_PROJECT_ROOT")
+                .ok()
+                .filter(|v| !v.is_empty())
+                .map(PathBuf::from)
+                .unwrap_or_else(|| work.clone());
+            std::env::set_var("HS_PROJECT_ROOT_EFFECTIVE", &effective_root);
             if live_machine {
                 std::env::set_var("HS_SELFCHECK_DIRECT", "1");
                 // Stranger-path burn (2026-09-09, run dir /tmp/hs-demo): on
@@ -365,7 +399,7 @@ pub fn load(
             total_steps,
             total_model_calls,
             ui_flush: None,
-            work_dir: log_root.join("work"),
+            work_dir: resolve_work_dir(&log_root),
         })
     }
 
@@ -517,7 +551,7 @@ pub fn load(
             total_steps,
             total_model_calls,
             ui_flush: None,
-            work_dir: log_root.join("work"),
+            work_dir: resolve_work_dir(&log_root),
         })
     }
 

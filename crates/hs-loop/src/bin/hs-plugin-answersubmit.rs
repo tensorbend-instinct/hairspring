@@ -23,7 +23,14 @@ fn main() {
                     if summary.trim().is_empty() {
                         return serde_json::json!({"$error": "pass summary: what you changed and how you verified it"});
                     }
-                    return match std::fs::write(path, summary) {
+                    let path = match hs_loop::projectroot::confine_write(
+                        std::path::Path::new(path),
+                        "answer.submit",
+                    ) {
+                        Ok(p) => p,
+                        Err(e) => return e,
+                    };
+                    return match std::fs::write(&path, summary) {
                         Ok(()) => serde_json::json!({"written": true, "bytes": summary.len()}),
                         Err(e) => serde_json::json!({"$error": format!("write: {e}")}),
                     };
@@ -36,7 +43,14 @@ fn main() {
                 if path.is_empty() {
                     return serde_json::json!({"$error": "pass path: the ANSWER_PATH value"});
                 }
-                hs_loop::editapply::answer_submit(&ws, std::path::Path::new(path))
+                let path = match hs_loop::projectroot::confine_write(
+                    std::path::Path::new(path),
+                    "answer.submit",
+                ) {
+                    Ok(p) => p,
+                    Err(e) => return e,
+                };
+                hs_loop::editapply::answer_submit(&ws, &path)
             }
             _ => serde_json::json!({"$error": "unknown method"}),
         },

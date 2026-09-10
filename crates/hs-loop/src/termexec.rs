@@ -1,8 +1,22 @@
 //! Terminal-bench mission tool "term.exec": run a command DIRECTLY in the
-//! task container's workdir. The container is the sandbox - no bwrap, no
-//! per-call filesystem copy: files, installs, and services persist between
-//! calls, which is exactly the machine state terminal-bench grades after the
-//! agent finishes. Hard timeout enforced (kill on expiry).
+//! mission workdir. No per-call filesystem copy: files, installs, and
+//! services persist between calls, which is exactly the machine state
+//! terminal-bench grades after the agent finishes. Hard timeout enforced
+//! (kill on expiry).
+//!
+//! Confinement (mission isolation, 2026-09-10): when the harness exports
+//! HS_PROJECT_ROOT (hs-repl always does - `--project-dir` or the session
+//! work area by default) the command runs inside a bwrap namespace where
+//! the project root is the ONLY host filesystem bound read-write: /usr,
+//! /etc and the /bin|/lib symlinks are read-only binds, /tmp is a fresh
+//! tmpfs scratch, the environment is scrubbed to a minimal PATH/HOME (no
+//! harness HS_* config, no provider keys), and the network stays up -
+//! package installs are part of the terminal-bench contract. Hostile
+//! absolute reads and `..` escapes find nothing because nothing outside
+//! the root is mounted. The old "the container is the sandbox" assumption
+//! held on the one-container-per-task bench rig; in shared-box REPL mode
+//! it let missions read every harness file on the host. Fail-closed: no
+//! bwrap, no run.
 //!
 //! Two surfaces: `run` for the AUTHORING agent (root inside the task
 //! container - the agent is supposed to mutate), `run_readonly` for the
@@ -82,10 +96,85 @@ fn collect(mut child: std::process::Child, timeout_secs: u64) -> Value {
     })
 }
 
+/// Confined spawn: see the module doc. `identity` drops to uid/gid
+/// nobody for the verifier surface. The bwrap binary missing is a
+/// fail-CLOSED error - an unconfined run is never the fallback.
+fn spawn_confined(
+    root: &std::path::Path,
+    workdir: &std::path::Path,
+    command: &str,
+    identity: Option<(u32, u32)>,
+) -> Result<std::process::Child, Value> {
+    let root_s = root.to_string_lossy().into_owned();
+    let mut cmd = std::process::Command::new("bwrap");
+    cmd.args([
+        "--unshare-user",
+        "--unshare-pid",
+        "--unshare-uts",
+        "--unshare-ipc",
+        "--unshare-cgroup",
+        "--die-with-parent",
+        "--clearenv",
+        "--setenv",
+        "PATH",
+        "/usr/bin:/bin",
+        "--setenv",
+        "HOME",
+        "/tmp",
+        "--ro-bind",
+        "/usr",
+        "/usr",
+        "--symlink",
+        "usr/bin",
+        "/bin",
+        "--symlink",
+        "usr/lib",
+        "/lib",
+        "--symlink",
+        "usr/lib64",
+        "/lib64",
+        "--ro-bind",
+        "/etc",
+        "/etc",
+        "--dev",
+        "/dev",
+        "--proc",
+        "/proc",
+        "--tmpfs",
+        "/tmp",
+        "--bind",
+        &root_s,
+        &root_s,
+    ]);
+    if let Some((uid, gid)) = identity {
+        cmd.args(["--uid", &uid.to_string(), "--gid", &gid.to_string()]);
+    }
+    cmd.args(["--chdir", &workdir.to_string_lossy(), "bash", "-c", command])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .process_group(0);
+    cmd.spawn().map_err(|e| {
+        serde_json::json!({"$error": format!(
+            "bwrap sandbox unavailable ({e}) - refusing to run unconfined"
+        )})
+    })
+}
+
 #[must_use]
 pub fn run(workdir: &std::path::Path, command: &str, timeout_secs: u64) -> Value {
     if command.trim().is_empty() {
         return serde_json::json!({"$error": "pass command: a bash command line"});
+    }
+    if let Some(root) = crate::projectroot::project_root() {
+        let workdir = match crate::projectroot::confine_existing(workdir, "term.exec workdir") {
+            Ok(w) => w,
+            Err(e) => return e,
+        };
+        let child = match spawn_confined(&root, &workdir, command, None) {
+            Ok(c) => c,
+            Err(e) => return e,
+        };
+        return collect(child, timeout_secs);
     }
     let child = match std::process::Command::new("bash")
         .args(["-c", command])
@@ -111,6 +200,23 @@ pub fn run(workdir: &std::path::Path, command: &str, timeout_secs: u64) -> Value
 pub fn run_readonly(workdir: &std::path::Path, command: &str, timeout_secs: u64) -> Value {
     if command.trim().is_empty() {
         return serde_json::json!({"$error": "pass command: a bash command line"});
+    }
+    if let Some(root) = crate::projectroot::project_root() {
+        // Same confinement as `run`, executed as nobody inside the
+        // namespace: the verifier's commands are model-authored too, so
+        // they get the same mechanical boundary. bwrap's --uid/--gid also
+        // clears the supplementary group list (single group in the new
+        // userns), and the root-only requirement of the legacy path does
+        // not apply - the userns provides the identity.
+        let workdir = match crate::projectroot::confine_existing(workdir, "verify workdir") {
+            Ok(w) => w,
+            Err(e) => return e,
+        };
+        let child = match spawn_confined(&root, &workdir, command, Some((NOBODY, NOBODY))) {
+            Ok(c) => c,
+            Err(e) => return e,
+        };
+        return collect(child, timeout_secs);
     }
     if euid() != 0 {
         return serde_json::json!({"$error": "run_readonly requires root to drop privileges (setuid nobody); refusing to run unenforced"});
