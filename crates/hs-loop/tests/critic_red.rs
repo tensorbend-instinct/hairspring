@@ -313,3 +313,51 @@ fn t11_critic_model_env_selection() {
     let result2 = run_driver(&run_dir2, &ws2, &inst, "tool:cat code.txt|clean");
     assert_eq!(result2["passed"], true, "{result2}");
 }
+
+// BURN-DOWN (spec-cut: critic precision) - RED first.
+// The DISC matrix measured 13 fail-closed false vetoes vs 1 real catch;
+// "verdict unparseable" was the top cause. One malformed reply must earn
+// a schema-tightening retry, not an instant fail-closed.
+#[test]
+fn critic_parse_retry_recovers_verdict() {
+    let dir = tempfile::tempdir().unwrap();
+    let ws = dir.path().join("ws");
+    std::fs::create_dir_all(&ws).unwrap();
+    let mut m = hs_loop::critic::ScriptedCritic::new(vec![
+        hs_loop::critic::CriticReply::Final("let me think out loud with no json at all".into()),
+        hs_loop::critic::CriticReply::ToolCalls(vec![("c1".into(), "true".into())]),
+        hs_loop::critic::CriticReply::Final("{\"refuted\": false, \"reason\": \"re-derived by independent method\"}".into()),
+    ]);
+    let r = hs_loop::critic::refute(
+        &ws,
+        "task",
+        "checks",
+        &hs_loop::critic::RefuteConfig::default(),
+        &mut m,
+    );
+    assert!(r.passed, "one malformed verdict must earn a retry, not a fail-closed: {}", r.reason);
+    assert!(
+        r.trace.iter().any(|t| t["kind"] == "verdict_retry"),
+        "the retry must be visible in the trace: {:?}", r.trace
+    );
+}
+
+#[test]
+fn critic_parse_retry_twice_unparseable_fails_closed() {
+    let dir = tempfile::tempdir().unwrap();
+    let ws = dir.path().join("ws");
+    std::fs::create_dir_all(&ws).unwrap();
+    let mut m = hs_loop::critic::ScriptedCritic::new(vec![
+        hs_loop::critic::CriticReply::Final("junk one".into()),
+        hs_loop::critic::CriticReply::Final("junk two".into()),
+    ]);
+    let r = hs_loop::critic::refute(
+        &ws,
+        "task",
+        "checks",
+        &hs_loop::critic::RefuteConfig::default(),
+        &mut m,
+    );
+    assert!(!r.passed, "two consecutive unparseable verdicts must still fail closed");
+    assert!(r.reason.contains("unparseable"), "honest reason: {}", r.reason);
+}

@@ -139,6 +139,12 @@ pub fn refute(
     ];
     let mut steps: u32 = 0;
     let mut probes: u32 = 0;
+    // Burn-down (critic precision, DISC matrix 2026-09-09: 13 fail-closed
+    // false vetoes vs 1 real catch, "unparseable" the top cause): ONE
+    // malformed verdict earns a schema-tightening retry instead of an
+    // instant fail-closed. A second consecutive malformed verdict is a
+    // genuinely broken critic and still fails closed.
+    let mut verdict_retried = false;
     macro_rules! out {
         ($passed:expr_2021, $reason:expr_2021) => {{
             let (i, o, c) = model.usage();
@@ -179,7 +185,18 @@ pub fn refute(
                         "critic returned a clean verdict without a single machine probe - fail-closed".to_string()
                     ),
                     Some((false, reason)) => out!(true, reason),
-                    None => out!(false, "critic verdict unparseable - fail-closed".to_string()),
+                    None => {
+                        if verdict_retried {
+                            out!(false, "critic verdict unparseable after retry - fail-closed".to_string());
+                        }
+                        verdict_retried = true;
+                        trace.push(json!({"kind": "verdict_retry", "text": text}));
+                        messages.push(json!({"role": "assistant", "content": text}));
+                        messages.push(json!({"role": "user", "content":
+                            "Your verdict was not parseable. Reply with EXACTLY one JSON object and nothing else: {\"refuted\": true, \"reason\": \"<reproduced failure, quoting command and output>\"} or {\"refuted\": false, \"reason\": \"<what you tested and re-derived>\"}. No prose, no markdown fences."
+                        }));
+                        continue;
+                    }
                 }
             }
             CriticReply::ToolCalls(calls) => {
