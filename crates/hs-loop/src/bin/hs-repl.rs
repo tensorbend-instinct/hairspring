@@ -650,6 +650,17 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             opts.resume = Some(id.to_string());
         }
 
+    // Sandbox preflight: every mission exec is confined by mechanism
+    // (bwrap userns). A missing or blocked sandbox must be a STARTUP
+    // error with the install hint, never a mid-mission burn of tool
+    // refusals (observed 2026-09-10: a bwrap-less first run looped to
+    // steps_exhausted). --help and `setup` return above this point -
+    // they stay usable on any host.
+    if let Err(e) = hs_loop::termexec::sandbox_probe() {
+        eprintln!("hairspring: {e}");
+        std::process::exit(2);
+    }
+
     if let Some(goal) = one_shot_goal {
         // Gap #4: --resume <stream-id> continues a prior session's
         // stream (history replays from the log); default opens fresh.

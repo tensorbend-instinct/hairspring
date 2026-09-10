@@ -96,6 +96,54 @@ fn collect(mut child: std::process::Child, timeout_secs: u64) -> Value {
     })
 }
 
+/// Startup probe for the confinement mechanism (hs-repl runs this once
+/// before any mission). The bwrap binary being present is not the whole
+/// story - blocked unprivileged userns (a sysctl, container policy)
+/// spawns fine and fails inside the namespace - so the probe runs the
+/// real namespace shape with `true`. Either failure must surface HERE,
+/// at startup with the install hint, not as a mid-mission burn of tool
+/// refusals (observed 2026-09-10: a bwrap-less first run looped
+/// "bwrap sandbox unavailable" to steps_exhausted).
+pub fn sandbox_probe() -> Result<(), String> {
+    let tmp = std::env::temp_dir();
+    let work = tmp.canonicalize().unwrap_or(tmp);
+    let mut child = spawn_confined(&work, &work, "true", None)
+        .map_err(|e| sandbox_hint(e["$error"].as_str().unwrap_or("spawn failed").to_string()))?;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(s)) => break s,
+            Ok(None) if std::time::Instant::now() < deadline => {
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+            Ok(None) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(sandbox_hint("probe timed out".to_string()));
+            }
+            Err(e) => return Err(sandbox_hint(e.to_string())),
+        }
+    };
+    if status.success() {
+        Ok(())
+    } else {
+        Err(sandbox_hint(format!("probe exited {status}")))
+    }
+}
+
+fn sandbox_hint(detail: String) -> String {
+    format!(
+        "missions need the bubblewrap sandbox ({detail}). Every tool call \
+         is confined by mechanism and never falls back to an unconfined \
+         run. Install \
+         it - Debian/Ubuntu: apt install bubblewrap; Fedora: dnf install \
+         bubblewrap; Arch: pacman -S bubblewrap - or, inside a container, \
+         allow unprivileged user namespaces. (macOS has no bubblewrap: \
+         everything builds and starts, but missions need a Linux host \
+         until a seatbelt backend lands.)"
+    )
+}
+
 /// Confined spawn: see the module doc. `identity` drops to uid/gid
 /// nobody for the verifier surface. The bwrap binary missing is a
 /// fail-CLOSED error - an unconfined run is never the fallback.

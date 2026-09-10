@@ -631,3 +631,73 @@ fn t5_readme_offline_trial_closes_verified() {
         "the documented trial closes VERIFIED (live 2026-09-10: without          HS_CRITIC_SCRIPT the critic fail-closed every submission; without          HS_SCRIPTED_PROMPT_AWARE the audit closed verifier_malfunction): {log}"
     );
 }
+
+/// T6: sandbox preflight. Every mission exec is confined by mechanism
+/// (bwrap userns). On a host WITHOUT bubblewrap the first run used to
+/// burn the whole step budget: every term.exec refused "bwrap sandbox
+/// unavailable - refusing to run unconfined", the scripted demo kept
+/// replaying its answer.submit, and the mission closed steps_exhausted
+/// (observed 2026-09-10 on this box with bwrap hidden from PATH, and
+/// the same burn on the install-gate CI runners). The sandbox must be
+/// a STARTUP gate: fast non-zero exit, stderr naming bubblewrap and
+/// the install hint, and no mission stream opened.
+#[test]
+fn t6_sandbox_preflight_names_bubblewrap_and_refuses_to_start() {
+    let _g = ENV_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    assert!(
+        std::process::Command::new("sh")
+            .args(["-c", "command -v bwrap"])
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false),
+        "the dev box has bwrap (otherwise this test proves nothing)"
+    );
+    let home = tempfile::tempdir().unwrap();
+    // A PATH with the shell + coreutils but NO bwrap.
+    let bin = tempfile::tempdir().unwrap();
+    for t in [
+        "sh", "bash", "grep", "printf", "cat", "ls", "sed", "awk", "rm", "mkdir", "cp", "env",
+        "uname", "dirname", "readlink", "head", "tail", "sleep", "touch",
+    ] {
+        let src = format!("/usr/bin/{t}");
+        if std::path::Path::new(&src).exists() {
+            std::os::unix::fs::symlink(&src, bin.path().join(t)).unwrap();
+        }
+    }
+    let fixture = tempfile::tempdir().unwrap();
+    let script = write(fixture.path(), "s.jsonl", "\"prose\"\n");
+    let cfg = live_config(fixture.path());
+    let demo = tempfile::tempdir().unwrap();
+    let out = std::process::Command::new(REPL)
+        .args([
+            "run",
+            "--goal",
+            "probe the sandbox gate",
+            "--config",
+            &cfg.display().to_string(),
+            "--dir",
+            &demo.path().display().to_string(),
+        ])
+        .env("HOME", home.path())
+        .env("PATH", bin.path())
+        .env("HS_SEQMODEL_SCRIPT", &script)
+        .env_remove("HS_MCP_SERVERS")
+        .env_remove("HS_CRITIC_SCRIPT")
+        .output()
+        .expect("hs-repl spawns");
+    assert!(
+        !out.status.success(),
+        "a mission on a sandbox-less host must not start"
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("bubblewrap"),
+        "startup names the missing mechanism and the install hint, not a          50-step burn (live 2026-09-10: steps_exhausted, every term.exec          refused): {stderr}"
+    );
+    assert!(
+        !demo.path().join("streams").exists(),
+        "no mission stream opens when the sandbox is missing"
+    );
+}

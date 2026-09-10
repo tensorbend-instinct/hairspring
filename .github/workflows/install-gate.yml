@@ -32,7 +32,16 @@ jobs:
       # (2026-09-10): the trial was broken as documented for a real user -
       # the phase-2 critic fail-closed with no key and the verifier audit
       # needed prompt-aware mode. A green --help never exercised a mission.
+      - name: Install bubblewrap (mission sandbox, Linux legs)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y bubblewrap
+      # Missions confine every tool call with bubblewrap (Linux-only
+      # mechanism, fail-closed by design). The macOS legs gate compile +
+      # start; the mission smoke runs on Linux until a seatbelt backend
+      # lands. All four legs burned to steps_exhausted without bwrap
+      # (run 34511166478, 2026-09-10).
       - name: First-run mission smoke (offline trial, README verbatim)
+        if: matrix.os == 'ubuntu-latest'
         run: |
           set -euo pipefail
           export HS_SEQMODEL_SCRIPT="$HOME/.local/share/hairspring/seqmodel-demo.jsonl"
