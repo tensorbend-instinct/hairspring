@@ -448,19 +448,28 @@ pub fn apply_codex_patch(ws: &Path, patch_text: &str) -> Value {
 /// untouched candidate is a steering error, not a submission (replay class:
 /// 8609's literal empty `diff` fence, 2026-09-06).
 #[must_use]
-pub fn answer_submit(ws: &Path, answer_path: &Path) -> Value {
+/// The submission CONTENT: the candidate worktree's cumulative diff,
+/// computed - never hand-written by the model. Separated from the write
+/// so the world write path (spec 4.4) can hash and propose the content
+/// while the world service alone lands the effect (`materialize`).
+pub fn answer_diff_text(ws: &Path) -> Result<String, Value> {
     let cand = candidate_dir(ws);
     let diff = if cand.join(".git").exists() {
-        match read_cumulative(&cand) {
-            Ok(d) => d,
-            Err(e) => return e,
-        }
+        read_cumulative(&cand)?
     } else {
         String::new()
     };
     if diff.trim().is_empty() {
-        return json!({"$error": "nothing to submit: the candidate has no edits - make your fix with edit.patch first, verify it with repo.exec, then answer.submit"});
+        return Err(json!({"$error": "nothing to submit: the candidate has no edits - make your fix with edit.patch first, verify it with repo.exec, then answer.submit"}));
     }
+    Ok(diff)
+}
+
+pub fn answer_submit(ws: &Path, answer_path: &Path) -> Value {
+    let diff = match answer_diff_text(ws) {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
     match std::fs::write(answer_path, &diff) {
         Ok(()) => {
             json!({"written": true, "path": answer_path.to_string_lossy(), "bytes": diff.len()})

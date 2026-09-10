@@ -19,6 +19,7 @@ static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 const ANSWER: &str = env!("CARGO_BIN_EXE_hs-plugin-answer");
 const CHECKER: &str = env!("CARGO_BIN_EXE_hs-plugin-checker");
 const SCRIPTED: &str = env!("CARGO_BIN_EXE_hs-plugin-scripted");
+const ANSWERSUBMIT: &str = env!("CARGO_BIN_EXE_hs-plugin-answersubmit");
 
 fn rig(dir: &std::path::Path, log: &std::path::Path, max_steps: u32) -> InnerLoop {
     let config = dir.join("hairspring.toml");
@@ -29,6 +30,11 @@ fn rig(dir: &std::path::Path, log: &std::path::Path, max_steps: u32) -> InnerLoo
 [[tools]]
 name = "answer.write"
 command = ["{ANSWER}"]
+subjects = ["*"]
+
+[[tools]]
+name = "answer.submit"
+command = ["{ANSWERSUBMIT}"]
 subjects = ["*"]
 
 [[tools]]
@@ -420,4 +426,65 @@ fn w6_quarantined_stream_cannot_write_outside_the_sandbox() {
         rejected.contains("quarantined"),
         "the quarantine reason is named: {rejected}"
     );
+}
+
+// w7 (spec 4.4, burn-down item 4, LIVE surface shape): the live TUI's
+// submission tool is answer.submit (HS_ANSWER_RAW mode: the deliverable
+// is machine state + summary), not answer.write. The world write path
+// must route THAT one too - otherwise the surface Eric runs bypasses
+// propose/validate.
+#[test]
+fn w7_live_submit_routes_proposal_then_consequence() {
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let dir = tempfile::tempdir().unwrap();
+    let log = tempfile::tempdir().unwrap();
+    unsafe {
+        std::env::set_var("HS_ANSWER_RAW", "1");
+    }
+    let answer_path = format!("{}/work/task-11/answer.txt", log.path().display());
+    let script = write_script(
+        dir.path(),
+        &[
+            serde_json::json!({"tool":"answer.submit","args":{"path":answer_path,"summary":"TOKEN-11-SECRET"}}),
+            serde_json::json!("nothing further to audit"),
+        ],
+    );
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
+    let mut l = rig(dir.path(), log.path(), 4);
+    l.attach_world();
+    let stream = l.stream_id();
+    let r = l.run_mission("task-11").unwrap();
+    assert!(r.passed, "live-surface submit rides the world: {r:?}");
+
+    let world = world_events(log.path(), l.world_stream_id());
+    assert!(world.len() >= 2, "proposal + consequence booked: {world:?}");
+    assert_eq!(world[0].0, EventKind::Proposal);
+    assert_eq!(world[1].0, EventKind::Consequence);
+    assert!(
+        world[0].1.contains(&answer_path) && world[0].1.contains("\"proposed\""),
+        "the submit enters as a proposal: {}",
+        world[0].1
+    );
+    assert!(
+        world[1].1.contains("\"validated\"") && world[1].1.contains(&stream.to_string()),
+        "the world validated the mission stream's artifact: {}",
+        world[1].1
+    );
+
+    let on_disk = std::fs::read_to_string(&answer_path).expect("the consequence materialized the file");
+    assert_eq!(on_disk, "TOKEN-11-SECRET");
+
+    let calls = tool_payloads(log.path(), stream);
+    let submit = calls
+        .iter()
+        .find(|p| p.contains("\"plugin\":\"answer.submit\""))
+        .expect("the submit call is booked");
+    assert!(
+        submit.contains("\"written\":true"),
+        "the result is the world's consequence: {submit}"
+    );
+
+    unsafe {
+        std::env::remove_var("HS_ANSWER_RAW");
+    }
 }

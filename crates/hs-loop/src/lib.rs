@@ -937,13 +937,43 @@ impl InnerLoop {
     /// work, the world is the execution environment" - so it is not
     /// routed here; artifact effects are.
     fn world_artifact_write(&mut self, tool: &str, args: &serde_json::Value) -> Option<ToolCallOutcome> {
-        if tool != "answer.write" {
+        if tool != "answer.write" && tool != "answer.submit" {
             return None;
         }
         let world = self.world.as_ref()?;
         let started = std::time::Instant::now();
+        // Compute the submission CONTENT on the agent side (hash input for
+        // the proposal); the EFFECT belongs to the world alone. INVALID
+        // submissions fall through (None) to the real plugin: its own
+        // $error then flows through the kernel's normal error arm (booked
+        // as a tool error, feedback, no artifact to grade) - only the
+        // happy path changes hands, so a REJECTED submit can never look
+        // like a graded one (critic_tui_red close-accounting burn,
+        // 2026-09-10).
+        let (content, submit_shape) = if tool == "answer.write" {
+            (args["content"].as_str().unwrap_or("").to_string(), false)
+        } else {
+            let path = args["path"].as_str().unwrap_or("");
+            if path.is_empty() {
+                return None;
+            }
+            if std::env::var("HS_ANSWER_RAW").as_deref() == Ok("1") {
+                let summary = args["summary"].as_str().unwrap_or("").to_string();
+                if summary.trim().is_empty() {
+                    return None;
+                }
+                (summary, true)
+            } else {
+                let Ok(ws) = std::env::var("HS_SWE_WORKSPACE") else {
+                    return None;
+                };
+                match crate::editapply::answer_diff_text(std::path::Path::new(&ws)) {
+                    Ok(d) => (d, true),
+                    Err(_) => return None,
+                }
+            }
+        };
         let path = args["path"].as_str().unwrap_or("").to_string();
-        let content = args["content"].as_str().unwrap_or("").to_string();
         use sha2::Digest as _;
         let artifact = hs_world::Artifact {
             artifact_id: uuid::Uuid::new_v4(),
@@ -958,7 +988,13 @@ impl InnerLoop {
         let output = match world.propose(artifact, content.as_bytes()) {
             Err(e) => serde_json::json!({"error": format!("world rejected the proposal: {e:?}")}),
             Ok(a) => match world.materialize(&a) {
-                Ok(p) => serde_json::json!({"path": p.display().to_string(), "written": true}),
+                Ok(p) => {
+                    if submit_shape {
+                        serde_json::json!({"written": true, "path": p.display().to_string(), "bytes": content.len()})
+                    } else {
+                        serde_json::json!({"path": p.display().to_string(), "written": true})
+                    }
+                }
                 Err(e) => serde_json::json!({"error": format!("world materialization failed: {e:?}")}),
             },
         };

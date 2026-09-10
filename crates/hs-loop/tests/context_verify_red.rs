@@ -17,36 +17,54 @@ use hs_loop::repl::load_session;
 
 fn write_fixture(dir: &std::path::Path) {
     std::fs::create_dir_all(dir).unwrap();
-    let toml = r#"
+    // CARGO_BIN_EXE_* pins the fixture to the binaries cargo just built
+    // for THIS profile - a hardcoded /target/debug path silently goes
+    // stale the moment the suite only builds --release (the 2026-09-10
+    // burn: a pre-summary-contract answersubmit accepted "content" and
+    // hid the fixture's contract break).
+    let toml = format!(
+        r#"
 [[tools]]
 name = "answer.submit"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-answersubmit"]
+command = ["{}"]
 subjects = ["*"]
 
 [[tools]]
 name = "checker.run"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-liechecker"]
+command = ["{}"]
 subjects = ["*"]
 
 [[models]]
 name = "scripted"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted"]
+command = ["{}"]
 default = true
 context_tokens = 300
 subjects = ["*"]
-"#;
+"#,
+        env!("CARGO_BIN_EXE_hs-plugin-answersubmit"),
+        env!("CARGO_BIN_EXE_hs-plugin-checker"),
+        env!("CARGO_BIN_EXE_hs-plugin-scripted")
+    );
     std::fs::write(dir.join("hairspring.toml"), toml).unwrap();
     let mut lines = String::new();
-    // three wrong submissions keep the mission alive long enough for
-    // pressure compaction; the fourth passes; verifier sacrificial last.
-    for i in 1..=3 {
+    // the current answer.submit contract takes path+summary in raw mode
+    // ("content" was only ever swallowed by a stale debug plugin build).
+    // The real hs-plugin-checker grades task-1: WRONG-1..6 fail with the
+    // expected token named (repairable signal), keeping the mission alive
+    // long enough for the 300-token window to cross the pressure
+    // threshold (the pre-2026-09-10 fixture leaned on four $error'd
+    // submits + fallback rounds for the same window growth; six honest
+    // failed rounds reproduce it without the broken contract calls);
+    // TOKEN-1-SECRET passes; the verifier (prompt-aware scripted) closes
+    // the mission; the trailing prose line is the sacrificial script tail.
+    for i in 1..=6 {
         lines.push_str(&format!(
-            "{{\"tool\":\"answer.submit\",\"args\":{{\"path\":\"{}/work/task-1/answer.txt\",\"content\":\"WRONG-{i}\"}}}}\n",
+            "{{\"tool\":\"answer.submit\",\"args\":{{\"path\":\"{}/work/task-1/answer.txt\",\"summary\":\"WRONG-{i}\"}}}}\n",
             dir.join("run").display()
         ));
     }
     lines.push_str(&format!(
-        "{{\"tool\":\"answer.submit\",\"args\":{{\"path\":\"{}/work/task-1/answer.txt\",\"content\":\"TOKEN-1-SECRET\"}}}}\n",
+        "{{\"tool\":\"answer.submit\",\"args\":{{\"path\":\"{}/work/task-1/answer.txt\",\"summary\":\"TOKEN-1-SECRET\"}}}}\n",
         dir.join("run").display()
     ));
     lines.push_str("\"nothing further to audit\"\n");
