@@ -166,7 +166,7 @@ fn run_fullscreen(
     session: ReplSession,
     opts: &Opts,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    use crossterm::event::{self, Event, MouseEventKind};
+    use crossterm::event::{self, DisableBracketedPaste, EnableBracketedPaste, Event, MouseEventKind};
     use crossterm::execute;
     use crossterm::terminal::{
         disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
@@ -280,11 +280,11 @@ fn run_fullscreen(
     impl Drop for Guard {
         fn drop(&mut self) {
             let _ = disable_raw_mode();
-            let _ = execute!(stdout(), LeaveAlternateScreen);
+            let _ = execute!(stdout(), LeaveAlternateScreen, DisableBracketedPaste);
         }
     }
     enable_raw_mode()?;
-    execute!(stdout(), EnterAlternateScreen)?;
+    execute!(stdout(), EnterAlternateScreen, EnableBracketedPaste)?;
     let _guard = Guard;
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
 
@@ -398,6 +398,19 @@ fn run_fullscreen(
                                 .and_then(|r| {
                                     hs_loop::mission_time::MissionTime::decompose(&r).ok()
                                 });
+                        }
+                        tui::KeyAction::Interrupt => {
+                            // Ctrl+C mid-mission: touch the interrupt
+                            // flag; the loop stops cleanly at the next
+                            // step boundary, booked "interrupted".
+                            let flag = opts
+                                .interrupt_file
+                                .clone()
+                                .unwrap_or_else(|| opts.dir.join("interrupt"));
+                            let _ = std::fs::write(&flag, b"");
+                            st.push_transcript_line(
+                                "interrupt sent - the mission stops at the next step boundary",
+                            );
                         }
                         tui::KeyAction::Quit => break,
                         tui::KeyAction::Picked(tui::PickerKind::Models, choice) => {
@@ -515,6 +528,12 @@ fn run_fullscreen(
                             }
                         }
                     }
+                }
+                Event::Paste(s) => {
+                    // Bracketed paste (ESC[?2004h enabled above): one
+                    // pasted block is ONE buffer - newlines insert,
+                    // never submit (Eric's multi-line paste report).
+                    let _ = tui::handle_paste(&mut st, &s);
                 }
                 Event::Mouse(m) => match m.kind {
                     MouseEventKind::ScrollUp => st.transcript_wheel_up(3),

@@ -108,7 +108,7 @@ pub const TUI_HELP: &str = "hairspring - full-screen surface
   /help     this text
   /quit     exit (Ctrl+C works too)
   type / to open the live palette; :command is a backward-compatible alias
-  keys: Enter run - Alt+Enter newline - PgUp/PgDn scroll - wheel scrolls";
+  keys: Enter run - Alt+Enter newline - ^C interrupt/clear/quit - PgUp/PgDn scroll";
 
 /// The command registry behind the palette (Eric 2026-09-10: "commands
 /// in common TUIs are /<command> with immediate feedback on options").
@@ -436,6 +436,102 @@ impl EditorState {
         }
     }
 
+    /// Insert a pasted/typed string: newlines split lines (same as
+    /// Alt+Enter), tabs become two spaces for predictable layout, and
+    /// other control chars are stripped. Never submits.
+    pub fn insert_str(&mut self, s: &str) {
+        for c in s.chars() {
+            match c {
+                '\n' => self.insert_newline(),
+                '\t' => {
+                    self.input_char(' ');
+                    self.input_char(' ');
+                }
+                c if c.is_control() => {}
+                c => self.input_char(c),
+            }
+        }
+    }
+
+    /// Delete the char under the cursor; at end of line join with the
+    /// line below (Delete key, Ctrl+D on a non-empty buffer).
+    pub fn delete_forward(&mut self) {
+        if self.col < self.line_len(self.row) {
+            let line = &mut self.lines[self.row];
+            let byte = line.char_indices().nth(self.col).map_or(line.len(), |(b, _)| b);
+            line.remove(byte);
+        } else if self.row + 1 < self.lines.len() {
+            let next = self.lines.remove(self.row + 1);
+            self.lines[self.row].push_str(&next);
+        }
+    }
+
+    /// Kill the current line's text before the cursor (Ctrl+U).
+    pub fn kill_to_start(&mut self) {
+        if self.col > 0 {
+            let line = &mut self.lines[self.row];
+            let byte = line.char_indices().nth(self.col).map_or(line.len(), |(b, _)| b);
+            line.replace_range(..byte, "");
+            self.col = 0;
+        }
+    }
+
+    /// Kill the current line's text from the cursor on (Ctrl+K). At end
+    /// of a non-last line the newline dies instead, joining the next.
+    pub fn kill_to_end(&mut self) {
+        let len = self.line_len(self.row);
+        if self.col < len {
+            let line = &mut self.lines[self.row];
+            let byte = line.char_indices().nth(self.col).map_or(line.len(), |(b, _)| b);
+            line.truncate(byte);
+        } else if self.row + 1 < self.lines.len() {
+            let next = self.lines.remove(self.row + 1);
+            self.lines[self.row].push_str(&next);
+        }
+    }
+
+    /// Column a word-left move would land on: skip whitespace left,
+    /// then skip the word left. Line-local (no row hops).
+    fn word_left_col(&self) -> usize {
+        let line: Vec<char> = self.lines.get(self.row).map(|l| l.chars().collect()).unwrap_or_default();
+        let mut c = self.col.min(line.len());
+        while c > 0 && line[c - 1].is_whitespace() {
+            c -= 1;
+        }
+        while c > 0 && !line[c - 1].is_whitespace() {
+            c -= 1;
+        }
+        c
+    }
+
+    /// Word back (Alt+Left / Alt+B / Ctrl+Left).
+    pub fn move_word_left(&mut self) {
+        self.col = self.word_left_col();
+    }
+
+    /// Word forward (Alt+Right / Alt+F / Ctrl+Right): skip the word,
+    /// then the whitespace after it. Line-local.
+    pub fn move_word_right(&mut self) {
+        let line: Vec<char> = self.lines.get(self.row).map(|l| l.chars().collect()).unwrap_or_default();
+        let len = line.len();
+        let mut c = self.col.min(len);
+        while c < len && !line[c].is_whitespace() {
+            c += 1;
+        }
+        while c < len && line[c].is_whitespace() {
+            c += 1;
+        }
+        self.col = c;
+    }
+
+    /// Delete the word before the cursor (Ctrl+W).
+    pub fn delete_word_back(&mut self) {
+        let target = self.word_left_col();
+        while self.col > target {
+            self.backspace();
+        }
+    }
+
     /// Submit the buffer: returns the text, clears the editor, pushes
     /// history. An empty buffer submits nothing.
     pub fn submit(&mut self) -> Option<String> {
@@ -504,6 +600,10 @@ pub enum KeyAction {
     Continue,
     /// Editor submitted a line (mission text or a caller command).
     Submit(String),
+    /// Ctrl+C while a mission is in flight: stop it cleanly at the
+    /// next step boundary (the bin touches the interrupt file; the
+    /// mission is booked "interrupted", never a harness error).
+    Interrupt,
     /// Picker chose an entry (kind, entry text).
     Picked(PickerKind, String),
     /// ":agents" toggled the delegation panel.
@@ -552,7 +652,61 @@ pub fn handle_key(state: &mut TuiState, key: ratatui::crossterm::event::KeyEvent
     }
 
     match (key.code, key.modifiers) {
-        (KeyCode::Char('c'), KeyModifiers::CONTROL) => KeyAction::Quit,
+        (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
+            // Claude Code escalation: interrupt a running mission, else
+            // clear a non-empty buffer, else quit. One press, one step.
+            if state.phase != LoopPhase::Idle {
+                KeyAction::Interrupt
+            } else if !state.editor.text().is_empty() {
+                state.editor.set_text("");
+                state.palette = None;
+                KeyAction::Continue
+            } else {
+                KeyAction::Quit
+            }
+        }
+        (KeyCode::Char('d'), KeyModifiers::CONTROL) => {
+            // EOF semantics: quit on an empty buffer, forward-delete
+            // on a non-empty one.
+            if state.editor.text().is_empty() {
+                KeyAction::Quit
+            } else {
+                state.editor.delete_forward();
+                state.palette_sync();
+                KeyAction::Continue
+            }
+        }
+        (KeyCode::Char('a'), KeyModifiers::CONTROL) => {
+            state.editor.move_home();
+            KeyAction::Continue
+        }
+        (KeyCode::Char('e'), KeyModifiers::CONTROL) => {
+            state.editor.move_end();
+            KeyAction::Continue
+        }
+        (KeyCode::Char('u'), KeyModifiers::CONTROL) => {
+            state.editor.kill_to_start();
+            state.palette_sync();
+            KeyAction::Continue
+        }
+        (KeyCode::Char('k'), KeyModifiers::CONTROL) => {
+            state.editor.kill_to_end();
+            state.palette_sync();
+            KeyAction::Continue
+        }
+        (KeyCode::Char('w'), KeyModifiers::CONTROL) => {
+            state.editor.delete_word_back();
+            state.palette_sync();
+            KeyAction::Continue
+        }
+        (KeyCode::Char('b'), KeyModifiers::ALT) => {
+            state.editor.move_word_left();
+            KeyAction::Continue
+        }
+        (KeyCode::Char('f'), KeyModifiers::ALT) => {
+            state.editor.move_word_right();
+            KeyAction::Continue
+        }
         (KeyCode::Char(c), KeyModifiers::NONE | KeyModifiers::SHIFT) => {
             state.editor.input_char(c);
             state.palette_sync();
@@ -637,6 +791,19 @@ pub fn handle_key(state: &mut TuiState, key: ratatui::crossterm::event::KeyEvent
             state.palette_sync();
             KeyAction::Continue
         }
+        (KeyCode::Delete, _) => {
+            state.editor.delete_forward();
+            state.palette_sync();
+            KeyAction::Continue
+        }
+        (KeyCode::Left, KeyModifiers::ALT) | (KeyCode::Left, KeyModifiers::CONTROL) => {
+            state.editor.move_word_left();
+            KeyAction::Continue
+        }
+        (KeyCode::Right, KeyModifiers::ALT) | (KeyCode::Right, KeyModifiers::CONTROL) => {
+            state.editor.move_word_right();
+            KeyAction::Continue
+        }
         (KeyCode::Left, _) => {
             state.editor.move_left();
             KeyAction::Continue
@@ -711,6 +878,19 @@ pub fn handle_key(state: &mut TuiState, key: ratatui::crossterm::event::KeyEvent
         }
         _ => KeyAction::Continue,
     }
+}
+
+/// M29: one pasted block is ONE buffer. The bin enables bracketed paste
+/// (ESC[?2004h) so the terminal delivers the whole block as a single
+/// `Event::Paste`; newlines inside it become buffer newlines (the same
+/// as Alt+Enter), never submits. Without this every pasted line arrived
+/// as its own Enter key event and launched its own mission - Eric's
+/// "pasting multi-line text creates new missions" report.
+pub fn handle_paste(state: &mut TuiState, text: &str) -> KeyAction {
+    let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
+    state.editor.insert_str(&normalized);
+    state.palette_sync();
+    KeyAction::Continue
 }
 
 /// M6: delegation graph - the loop substrate's Spawn/Message structure

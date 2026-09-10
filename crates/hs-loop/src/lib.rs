@@ -1370,6 +1370,12 @@ impl InnerLoop {
         // M21: per-mission spend is the delta from this point.
         self.mission_cost_start = self.cost_total_micros;
         self.mission_conservative_start = self.conservative_cost_total_micros;
+        // A stale interrupt flag from a previous mission must not abort
+        // THIS one: the flag applies to the mission that was running
+        // when it was set. Clear it once at mission start.
+        if let Some(p) = &self.interrupt_file {
+            let _ = std::fs::remove_file(p);
+        }
         let answer_path = self.log_root.join("work").join(mission).join("answer.txt");
         std::fs::create_dir_all(
             answer_path
