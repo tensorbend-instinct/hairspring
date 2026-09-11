@@ -1,15 +1,42 @@
 # HAIRSPRING
 
-A self-improving agent harness, judged by its own history.
+**A self-improving agent harness, judged by its own history.**
 
-HAIRSPRING runs coding missions inside a strict rig: every model call, tool
-call, and verdict lands in an append-only, hash-chained event log that can be
-verified, rewound, and replayed. Tools and models are isolated plugin
-processes speaking a small NDJSON protocol, so a misbehaving plugin cannot
-touch the books. Missions close under a graded contract - the agent's own
-declared checks must pass - under explicit dollar and wall-clock guards.
-Sub-agent delegation is async: children run concurrently and the parent
-joins them before it may pass.
+<p align="center">
+  <img src="docs/assets/system.png" alt="The hairspring system: mission loop, event log, memory, world, swarm, and self-modification planes" width="960">
+</p>
+
+## The claim
+
+Hairspring runs coding missions inside a strict rig. Model calls, tool
+calls, and verdicts land in an append-only, hash-chained event log that
+verifies, rewinds, and replays. Tools and models run as isolated plugin
+processes speaking a small NDJSON protocol, so a misbehaving plugin
+cannot touch the books. Missions close under a graded contract: the
+agent declares its own checks, the checker re-runs them, and an
+independent critic - a fresh model context with read-only access and
+one directive, refute the submission - gets the last word before
+`verified`. Sub-agent delegation is async: children run concurrently
+and the parent joins them before it may pass.
+
+Memory scores itself. Notes written at mission close earn +1 when later
+missions cite them and -1 when served and ignored, and the running
+balance decides what the agent keeps. Skills move between agents
+through a shared world plane: reuse is credited, and the log says who
+used which skill where. Self-modification ships only when the scorer
+measures it better on held-out assays.
+
+## The evidence
+
+| Number | Regenerate it |
+|--------|---------------|
+| 64,498 lines of Rust across 14 crates | `find crates -name '*.rs' \| xargs wc -l` |
+| 918 tests, 0 failed | `cargo test --workspace --locked --no-fail-fast` |
+| 0 clippy warnings, pedantic workspace-wide | `cargo clippy --workspace --all-targets` |
+| 23 event kinds in the hash-chained log | `EventKind` in `crates/hs-core/src/lib.rs` |
+| Offline demo mission closes `verified` | the offline trial below; `install-gate` CI runs it verbatim on Linux and macOS, Rust 1.88 and latest stable |
+
+Each command runs against a fresh clone and reproduces its number.
 
 ## Install
 
@@ -19,18 +46,24 @@ cd hairspring
 ./install.sh
 ```
 
-One command from a clone: it builds the release binaries, installs them to
-`~/.local/share/hairspring/bin`, puts a `hairspring` command in
+One command from a clone: it builds the release binaries, installs them
+to `~/.local/share/hairspring/bin`, puts a `hairspring` command in
 `~/.local/bin`, and writes a starter rig to
 `~/.config/hairspring/hairspring.toml`. Rust is installed via rustup if
 `cargo` is missing.
 
-Missions confine every tool call by mechanism: bubblewrap on Linux
+The sandbox confines tool calls by mechanism: bubblewrap on Linux
 (install it first: `apt install bubblewrap` / `dnf install bubblewrap` /
 `pacman -S bubblewrap`) and the kernel Seatbelt sandbox on macOS (via
 `sandbox-exec`, which ships with the OS - the mechanism Bazel, Homebrew,
 and Claude Code use). The startup preflight probes the platform sandbox
-and says what is missing; an unconfined run is never the fallback. Inside the sandbox, system dirs are read-only while the project root, /tmp, and the standard toolchain caches stay writable: missions install whatever toolchain they need into the workspace (uv/node/go/rustup style downloads work - network is on), and archives should be extracted with `tar --no-same-owner` (tar as sandbox-root otherwise floods one chown warning per file).
+and says what is missing; an unconfined run is never the fallback.
+Inside the sandbox, system dirs are read-only while the project root,
+/tmp, and the standard toolchain caches stay writable: missions install
+whatever toolchain they need into the workspace (uv/node/go/rustup
+style downloads work - network is on), and archives should be extracted
+with `tar --no-same-owner` (tar as sandbox-root otherwise floods one
+chown warning per file).
 
 ## Quickstart
 
@@ -51,9 +84,9 @@ confined to the project root: `--project-dir`, default `<dir>/work`. On
 a TTY, a run without `--project-dir` asks once with the default shown,
 and the resolved root prints at startup in every mode. Before any
 mission machinery starts, a readiness gate checks that the configured
-default model has a credential: a terminal gets the guided setup offered
-inline, a non-interactive run gets an actionable error - never a
-mid-mission provider 400.
+default model has a credential: a terminal gets the guided setup
+offered inline, a non-interactive run gets an actionable error - never
+a mid-mission provider 400.
 
 In the TUI, `:agents` shows live sub-agent delegations mid-run.
 
@@ -80,73 +113,23 @@ hairspring run --goal "write hello.txt containing hello" \
 ```
 
 The demo writes `hello.txt` under `./hs-demo/work`, declares its own
-check, submits, and closes `verified` (checker green + verifier audit) - a
-full graded mission with no provider. The critic stand-in is for this
+check, submits, and closes `verified` (checker green + verifier audit) -
+a full graded mission with no provider. The critic stand-in is for this
 demo only: live missions leave `HS_CRITIC_SCRIPT` unset so the critic
 resolves from `HS_CRITIC_MODEL` (deepseek or glm) with a real provider
-key, and every abnormal critic exit fails closed. Without
-`HS_SEQMODEL_SCRIPT` the scripted model stays inert: missions that call it
-get an error naming the variable, and live models are unaffected. A missing live
-key is caught at startup by the readiness gate, which names
-`hairspring setup` and the key env var; a wrong key fails the mission
-with the provider's own error - check the run's `stderr/` logs for a
-plugin's dying words.
-
-## Providers (models)
-
-DeepSeek and GLM are built in. Any other OpenAI-compatible endpoint -
-OpenRouter, OpenAI direct, a local server - is configuration, not code.
-Three pieces, all under `~/.config/hairspring/`:
-
-1. `providers.toml` declares the endpoint (prices feed the conservative
-   cost ledger; keys never appear here):
-
-```toml
-[[providers]]
-name = "openrouter"
-base_url = "https://openrouter.ai/api/v1/chat/completions"
-model = "openai/gpt-6-astra-pro"
-key_env = "HS_OPENROUTER_API_KEY"
-price_in_micros = 10.0
-price_cached_micros = 1.0
-price_out_micros = 50.0
-```
-
-2. A `[[models]]` block in `hairspring.toml` makes it pickable in the TUI
-   (`/models`; the pick persists across restarts). The command is the
-   generic provider plugin with the TOML name as its argument:
-
-```toml
-[[models]]
-name = "openrouter"
-command = ["@PREFIX@/bin/hs-plugin-provmodel", "openrouter"]
-subjects = ["*"]
-```
-
-3. The key: `hairspring setup` lists every provider in `providers.toml`
-   alongside the builtins, validates the key with one zero-cost
-   round-trip, and saves it owner-only to `keys/<name>.key`.
-   Non-interactive: `hairspring setup --provider openrouter --key-stdin`.
-   Or export the env var the entry names. Resolution order: env var,
-   `$HS_<NAME>_API_KEY_FILE`, `keys/<name>.key`.
-
-OpenAI direct is the same shape:
-
-```toml
-[[providers]]
-name = "openai"
-base_url = "https://api.openai.com/v1/chat/completions"
-model = "gpt-5"
-key_env = "HS_OPENAI_API_KEY"
-```
-
-Per-provider env overrides win over the TOML values: `HS_<NAME>_MODEL`,
-`HS_<NAME>_BASE_URL`, `HS_<NAME>_EXTRA_BODY_JSON` (e.g. reasoning
-effort), `HS_<NAME>_PRICE_*_MICROS`. `HS_PROVIDERS_TOML` points at a
-different providers file. The critic uses the mission model by default;
-`HS_CRITIC_MODEL=<name>` pins it to any provider, builtin or TOML.
+key, and each abnormal critic exit fails closed. Without
+`HS_SEQMODEL_SCRIPT` the scripted model stays inert: missions that call
+it get an error naming the variable, and live models are unaffected. A
+missing live key is caught at startup by the readiness gate, which
+names `hairspring setup` and the key env var; a wrong key fails the
+mission with the provider's own error - check the run's `stderr/` logs
+for a plugin's dying words.
 
 ## Architecture
+
+The event log is the spine: plugins never write it, the loop is its
+only writer, and a crash at any point leaves consistent provenance on
+each stream.
 
 | Crate | What it owns |
 |-------|--------------|
@@ -162,15 +145,17 @@ different providers file. The critic uses the mission model by default;
 | `hs-memory` / `hs-world` | Memory and world services |
 | `hs-cli` | Log inspection (`hs-log-cli`) and test fixtures |
 
-The event log is the spine: plugins never write it, the loop is its only
-writer, and a crash at any point leaves consistent provenance on every
-stream.
+Doc comments cite the project's internal design spec by gate and
+section ("gate 3", "spec section 10 row 7") and live incidents by
+date. The spec itself is not in this repo; the anchors stay so each
+fix traces back to the incident and design section that motivated it.
 
-A note on the comments: doc comments cite the project's internal design
-spec by gate and section ("gate 3", "spec section 10 row 7") and live
-incidents by date. The spec itself is not in this repo; the anchors are
-kept so every fix stays traceable to the incident and design section that
-motivated it.
+## Documentation
+
+- [`docs/providers.md`](docs/providers.md) - DeepSeek and GLM are built in; any other OpenAI-compatible endpoint (OpenRouter, OpenAI direct, a local server) is configuration, not code.
+- [`docs/deep-pass-ledger.md`](docs/deep-pass-ledger.md) - the line-by-line audit ledger: each crate, what it yielded, what was left and why.
+- [`hairspring.example.toml`](hairspring.example.toml) - the annotated rig config: tools, models, the two-phase checker, delegation, budgets.
+- [`.github/workflows/install-gate.yml`](.github/workflows/install-gate.yml) - the public install path and the offline trial, gated on Linux and macOS across the oldest-supported and latest stable toolchains.
 
 ## Development
 
@@ -180,9 +165,20 @@ cargo test --workspace --no-fail-fast
 cargo clippy --workspace --all-targets   # held at zero warnings
 ```
 
-The suite is strict RED-first: every behavioral change lands with a failing
-test that pins it first. Test sessions, bench output, and proof captures are
-runtime artifacts and are never committed.
+The suite is strict RED-first: a behavioral change lands with a failing
+test that pins it first. Test sessions, bench output, and proof
+captures are runtime artifacts and are never committed.
+
+## Citation
+
+```bibtex
+@software{hairspring,
+  title  = {Hairspring: a self-improving agent harness, judged by its own history},
+  author = {{Tensorbend Instinct}},
+  year   = {2026},
+  url    = {https://github.com/tensorbend-instinct/hairspring}
+}
+```
 
 ## License
 

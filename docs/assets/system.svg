@@ -1,0 +1,190 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1150" viewBox="0 0 1800 1150" font-family="Helvetica, Arial, sans-serif">
+<defs>
+  <marker id="ink" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#141413"/></marker>
+  <marker id="clay" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#C9602F"/></marker>
+  <marker id="slate" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#44597A"/></marker>
+</defs>
+<style>
+  .h1{font:600 34px Georgia, 'Times New Roman', serif;fill:#141413}
+  .sub{font-size:15px;fill:#6E6A61}
+  .t{font-size:15.5px;font-weight:bold;fill:#141413}
+  .b{font-size:12.5px;fill:#3A3835}
+  .s{font-size:11.5px;fill:#6E6A61}
+  .lab{font-size:12px;fill:#141413}
+  .chip{font-size:12px;font-weight:bold;fill:#FAF9F5}
+  .leg{font-size:12px;fill:#3A3835}
+  .foot{font-size:12px;fill:#6E6A61}
+  .box{fill:#FFFFFF;stroke:#141413;stroke-width:1.2}
+  .plane{fill:none;stroke:#141413;stroke-width:1.2}
+</style>
+
+<rect width="1800" height="1150" fill="#FAF9F5"/>
+
+<text x="70" y="72" class="h1">HAIRSPRING</text>
+<text x="70" y="100" class="sub">Records each run completely. Verifies passes against ground truth. Scores its own memory by use. Spreads skills without messages. Ships self-improvement only when it measures better. Follow the numbered chips.</text>
+
+<!-- legend -->
+<line x1="1200" y1="58" x2="1236" y2="58" stroke="#C9602F" stroke-width="2.2" marker-end="url(#clay)"/><text x="1246" y="62" class="leg">writes and scores</text>
+<line x1="1200" y1="82" x2="1236" y2="82" stroke="#44597A" stroke-width="2.2" marker-end="url(#slate)"/><text x="1246" y="86" class="leg">reads</text>
+<line x1="1390" y1="58" x2="1426" y2="58" stroke="#141413" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#ink)"/><text x="1436" y="62" class="leg">recorded in the log</text>
+<circle cx="1403" cy="80" r="9" fill="#141413"/><text x="1403" y="84" text-anchor="middle" class="chip">n</text><text x="1436" y="86" class="leg">reading order</text>
+
+<!-- 1: surfaces -->
+<rect x="70" y="180" width="280" height="58" rx="6" class="box"/>
+<text x="90" y="204" class="t">The user</text>
+<text x="90" y="224" class="s">describes a job in plain language</text>
+<rect x="70" y="286" width="280" height="70" rx="6" class="box"/>
+<text x="90" y="312" class="t">The terminal app</text>
+<text x="90" y="331" class="s">turns the job into a mission and</text>
+<text x="90" y="346" class="s">shows it running, step by step</text>
+<line x1="210" y1="238" x2="210" y2="280" stroke="#141413" stroke-width="1.4" marker-end="url(#ink)"/>
+<circle cx="362" cy="322" r="10" fill="#141413"/><text x="362" y="326" text-anchor="middle" class="chip">1</text>
+<line x1="350" y1="321" x2="540" y2="321" stroke="#141413" stroke-width="1.4" marker-end="url(#ink)"/>
+<text x="380" y="310" class="lab">runs a mission</text>
+
+<!-- installer -->
+<rect x="70" y="400" width="280" height="62" rx="6" class="box"/>
+<text x="90" y="424" class="t">The installer</text>
+<text x="90" y="443" class="s">one command installs the app on any</text>
+<text x="90" y="458" class="s">machine, batteries included</text>
+<line x1="210" y1="400" x2="210" y2="362" stroke="#141413" stroke-width="1.2" marker-end="url(#ink)"/>
+<!-- benchmark -->
+<rect x="70" y="500" width="280" height="76" rx="6" class="box"/>
+<text x="90" y="524" class="t">The benchmark harness</text>
+<text x="90" y="543" class="s">the loop is scored against real coding</text>
+<text x="90" y="559" class="s">benchmarks, end to end</text>
+<line x1="210" y1="576" x2="210" y2="710" stroke="#141413" stroke-width="1.1" stroke-dasharray="5 4" marker-end="url(#ink)"/>
+<!-- kernel -->
+<rect x="620" y="150" width="420" height="76" rx="6" class="box"/>
+<text x="640" y="174" class="t">The wiring - any model, plug-and-play</text>
+<text x="640" y="193" class="s">one config file swaps the AI model - DeepSeek, GLM, or any</text>
+<text x="640" y="209" class="s">OpenAI-compatible API; the model is a part, not the system</text>
+<line x1="830" y1="226" x2="830" y2="262" stroke="#141413" stroke-width="1.4" marker-end="url(#ink)"/>
+<text x="842" y="246" class="s">connects model and tools to the loop</text>
+
+<!-- 2: inner loop -->
+<circle cx="560" cy="300" r="10" fill="#141413"/><text x="560" y="304" text-anchor="middle" class="chip">2</text>
+<rect x="540" y="268" width="220" height="54" rx="6" class="box"/>
+<text x="650" y="292" text-anchor="middle" class="t">1. Think</text>
+<text x="650" y="310" text-anchor="middle" class="s">the AI model decides the next step</text>
+<rect x="830" y="268" width="220" height="54" rx="6" class="box"/>
+<text x="940" y="292" text-anchor="middle" class="t">2. Act</text>
+<text x="940" y="310" text-anchor="middle" class="s">a tool runs: edit files, run commands</text>
+<rect x="685" y="430" width="220" height="54" rx="6" class="box"/>
+<text x="795" y="454" text-anchor="middle" class="t">3. Observe</text>
+<text x="795" y="472" text-anchor="middle" class="s">the result comes back to the model</text>
+<line x1="760" y1="295" x2="824" y2="295" stroke="#141413" stroke-width="1.6" marker-end="url(#ink)"/>
+<path d="M 940 322 L 940 380 L 795 380 L 795 424" fill="none" stroke="#141413" stroke-width="1.6" marker-end="url(#ink)"/>
+<path d="M 685 457 L 610 457 L 610 322 L 644 322" fill="none" stroke="#141413" stroke-width="1.6" marker-end="url(#ink)"/>
+<text x="655" y="406" class="s">the working loop repeats</text>
+<text x="655" y="421" class="s">until the checker stops it</text>
+
+<!-- toolbox -->
+<rect x="1180" y="268" width="400" height="76" rx="6" class="box"/>
+<text x="1200" y="292" class="t">The toolbox - real tools, real work</text>
+<text x="1200" y="311" class="s">edit files (line-anchored patches), run commands, read and</text>
+<text x="1200" y="327" class="s">search the project, search memory, use the shelf, spawn, submit</text>
+<line x1="1050" y1="306" x2="1174" y2="306" stroke="#141413" stroke-width="1.6" marker-end="url(#ink)"/>
+<!-- 3: checker -->
+<circle cx="1200" cy="182" r="10" fill="#141413"/><text x="1200" y="186" text-anchor="middle" class="chip">3</text>
+<rect x="1180" y="150" width="400" height="76" rx="6" class="box"/>
+<text x="1200" y="174" class="t">The checker - verified, or it didn&#8217;t happen</text>
+<text x="1200" y="193" class="s">the mission&#8217;s declared tests must pass - then an independent</text>
+<text x="1200" y="209" class="s">critic attacks the work from a fresh context</text>
+<path d="M 1050 285 L 1110 285 L 1110 190 L 1174 190" fill="none" stroke="#141413" stroke-width="1.6" marker-end="url(#ink)"/>
+<text x="1056" y="275" class="lab">submits the work</text>
+<path d="M 1580 188 L 1640 188 L 1640 560 L 1050 560 L 1050 604" fill="none" stroke="#C9602F" stroke-width="2" marker-end="url(#clay)"/>
+<text x="1652" y="380" class="lab" fill="#C9602F">verdict</text>
+
+<!-- self-improvement -->
+<rect x="1180" y="380" width="400" height="90" rx="6" class="box"/>
+<text x="1200" y="404" class="t">Self-improvement that proves itself</text>
+<text x="1200" y="423" class="s">the system rewrites its own code and wiring; a change is</text>
+<text x="1200" y="439" class="s">adopted only when it posts measured score gains</text>
+
+<path d="M 1180 425 L 940 425 L 940 452 L 911 452" fill="none" stroke="#141413" stroke-width="1.2" marker-end="url(#ink)"/>
+<text x="1000" y="415" class="s">gated proposals</text>
+<!-- 4: mission close -->
+<circle cx="540" cy="636" r="10" fill="#141413"/><text x="540" y="640" text-anchor="middle" class="chip">4</text>
+<rect x="560" y="604" width="490" height="56" rx="6" class="box"/>
+<text x="580" y="628" class="t">Mission close</text>
+<text x="580" y="647" class="s">missions end as evidence - goal, outcome, write-up, filed</text>
+<path d="M 795 484 L 795 540 L 700 540 L 700 598" fill="none" stroke="#141413" stroke-width="1.4" marker-end="url(#ink)"/>
+
+<!-- event log band -->
+<rect x="70" y="716" width="1660" height="64" rx="6" class="box"/>
+<text x="90" y="742" class="t">The event log - the system&#8217;s complete work record</text>
+<text x="90" y="762" class="s">the log holds each mission&#8217;s steps, in order, permanent and replayable (23 event kinds) - the rest of the system answers to it</text>
+<line x1="650" y1="322" x2="650" y2="710" stroke="#141413" stroke-width="1.1" stroke-dasharray="5 4" marker-end="url(#ink)"/>
+<line x1="940" y1="322" x2="940" y2="710" stroke="#141413" stroke-width="1.1" stroke-dasharray="5 4" marker-end="url(#ink)"/>
+<line x1="805" y1="660" x2="805" y2="710" stroke="#141413" stroke-width="1.1" stroke-dasharray="5 4" marker-end="url(#ink)"/>
+
+<!-- 5: planes -->
+<circle cx="90" cy="836" r="10" fill="#141413"/><text x="90" y="840" text-anchor="middle" class="chip">5</text>
+
+<!-- K plane -->
+<rect x="70" y="830" width="500" height="230" rx="6" class="plane"/>
+<text x="90" y="858" class="t">Long-term memory (&#8220;K&#8221;)</text>
+<text x="90" y="876" class="s">the system&#8217;s accumulated experience, kept across sessions</text>
+<rect x="90" y="890" width="460" height="46" rx="6" class="box"/>
+<text x="104" y="909" class="b">Notes - written automatically at mission close</text>
+<text x="104" y="926" class="s">what happened, linked back to the raw record</text>
+<rect x="90" y="946" width="460" height="46" rx="6" class="box"/>
+<text x="104" y="965" class="b">The agent searches its own history on demand -</text>
+<text x="104" y="982" class="s">retrieval by decision, never by push</text>
+<rect x="90" y="1002" width="460" height="46" rx="6" class="box"/>
+<text x="104" y="1021" class="b">The usefulness ledger - memory that scores itself:</text>
+<text x="104" y="1038" class="s">cited +1, ignored -1, summed across missions</text>
+
+<!-- world plane -->
+<rect x="640" y="830" width="500" height="230" rx="6" class="plane"/>
+<text x="660" y="858" class="t">The shared shelf (&#8220;world&#8221;)</text>
+<text x="660" y="876" class="s">skills and knowledge that spread across agents</text>
+<rect x="660" y="890" width="460" height="46" rx="6" class="box"/>
+<text x="674" y="909" class="b">New skills are proposed, checked, then installed -</text>
+<text x="674" y="926" class="s">adoption is earned through the gate</text>
+<rect x="660" y="946" width="460" height="46" rx="6" class="box"/>
+<text x="674" y="965" class="b">Reuse is credited: who used which skill,</text>
+<text x="674" y="982" class="s">and how often, is counted from the record</text>
+<rect x="660" y="1002" width="460" height="46" rx="6" class="box"/>
+<text x="674" y="1021" class="b">Skills written up at mission close land here for</text>
+<text x="674" y="1038" class="s">later missions - and other agents - to reuse</text>
+
+<!-- swarm -->
+<circle cx="1230" cy="836" r="10" fill="#141413"/><text x="1230" y="840" text-anchor="middle" class="chip">6</text>
+<rect x="1210" y="830" width="520" height="230" rx="6" class="plane"/>
+<text x="1252" y="858" class="t">The swarm - missions hire missions</text>
+<text x="1230" y="876" class="s">a mission can spawn child missions for subtasks</text>
+<text x="1230" y="906" class="b">A child runs the same think-act-observe loop and shares</text>
+<text x="1230" y="923" class="s">the same memory and the same shelf - and writes its own</text>
+<text x="1230" y="940" class="s">notes when it closes.</text>
+<text x="1230" y="970" class="b">Children reuse each other&#8217;s skills without ever talking:</text>
+<text x="1230" y="987" class="s">one child found another&#8217;s skill on the shelf and</text>
+<text x="1230" y="1004" class="s">no messages between them.</text>
+
+<!-- plane arrows -->
+<path d="M 560 632 L 320 632 L 320 824" fill="none" stroke="#C9602F" stroke-width="2" marker-end="url(#clay)"/>
+<text x="330" y="700" class="lab" fill="#C9602F">close writes notes</text>
+<path d="M 400 830 L 400 400 L 534 310" fill="none" stroke="#44597A" stroke-width="2" marker-end="url(#slate)"/>
+<text x="410" y="560" class="lab" fill="#44597A">search finds notes</text>
+<line x1="240" y1="780" x2="240" y2="824" stroke="#44597A" stroke-width="1.6" marker-end="url(#slate)"/>
+<text x="250" y="806" class="lab" fill="#44597A">close re-reads the log to score notes</text>
+<path d="M 1050 632 L 1140 632 L 1140 700 L 890 700 L 890 824" fill="none" stroke="#C9602F" stroke-width="2" marker-end="url(#clay)"/>
+<text x="1060" y="690" class="lab" fill="#C9602F">close shelves new skills</text>
+
+<!-- world reuse booked to log -->
+<path d="M 912 830 L 912 786" fill="none" stroke="#141413" stroke-width="1.1" stroke-dasharray="5 4" marker-end="url(#ink)"/>
+<text x="922" y="810" class="s">reuse recorded</text>
+
+<!-- swarm joins planes -->
+<line x1="1210" y1="910" x2="1146" y2="910" stroke="#44597A" stroke-width="1.6" marker-end="url(#slate)"/>
+<path d="M 1450 1060 L 1450 1078 L 320 1078 L 320 1066" fill="none" stroke="#44597A" stroke-width="1.6" marker-end="url(#slate)"/>
+<text x="620" y="1070" class="lab" fill="#44597A">children search the same memory</text>
+<path d="M 1330 830 L 1330 800 L 1330 784" fill="none" stroke="#141413" stroke-width="1.1" stroke-dasharray="5 4" marker-end="url(#ink)"/>
+<text x="1342" y="810" class="s">children on their own streams</text>
+
+<!-- measured strip -->
+<line x1="70" y1="1100" x2="1730" y2="1100" stroke="#D8D3C8" stroke-width="1"/>
+<text x="70" y="1122" class="foot">Measured from the live system, September 11, 2026: 14 code modules, 64,498 lines of Rust - test suite 918 passed / 0 failed / 0 warnings - installs cleanly from a fresh download.</text>
+<text x="70" y="1139" class="foot">Live proof of the usefulness ledger: a mission was shown 6 notes and cited one - the ledger scored that note +1 and each ignored note -1.</text>
+</svg>
