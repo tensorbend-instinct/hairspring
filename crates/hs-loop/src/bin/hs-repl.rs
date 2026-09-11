@@ -203,6 +203,13 @@ fn run_fullscreen(
     let (tx, rx) = mpsc::channel::<TuiMsg>();
     let (goal_tx, goal_rx) = mpsc::channel::<UiCmd>();
 
+    // The session's steering inbox (set up in run_with): mid-mission
+    // typed text lands here and the loop drains it at the next step.
+    let steering_inbox = opts
+        .steering_inbox
+        .clone()
+        .unwrap_or_else(|| opts.dir.join("steering.txt"));
+
     // Vitals snapshot before the session moves to the worker.
     let v0 = session.vitals();
     let theme = Theme::from_env();
@@ -598,9 +605,17 @@ running = false;
                                 st.push_goal_echo(&t);
                                 let _ = goal_tx.send(UiCmd::Goal(t));
                             } else {
-                                // Eric's five #1: mid-mission goals
-                                // QUEUE (FIFO) instead of dropping.
-                                st.queue_goal(&t);
+                                // Eric 2026-09-11: mid-mission text
+                                // STEERS the running mission - appended
+                                // to the steering inbox the loop drains
+                                // at the next step boundary; never a
+                                // queued new mission.
+                                match tui::append_steering(&steering_inbox, &t) {
+                                    Ok(()) => st.push_steering_echo(&t),
+                                    Err(e) => st.push_transcript_line(&format!(
+                                        "(steering undelivered: {e})"
+                                    )),
+                                }
                             }
                         }
                     }

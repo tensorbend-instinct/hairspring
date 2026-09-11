@@ -128,7 +128,14 @@ fn adapters_against_mock_server() {
     unsafe { std::env::remove_var(glm().key_env) };
     // FIXME: Audit that the environment access only happens in single-threaded code.
     unsafe { std::env::remove_var(glm().key_file_env) };
+    // Isolate the config dir: the conventional keys/<name>.key fallback
+    // must not find a real operator key on a dev machine (live burn
+    // 2026-09-11: a box with keys/glm.key turned this into a hung
+    // 12-attempt retry against the dead mock).
+    let home2 = tempfile::tempdir().unwrap();
+    unsafe { std::env::set_var("XDG_CONFIG_HOME", home2.path()) };
     let e = call(&glm(), "x", None).unwrap_err();
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
     assert!(e.contains("no API key"), "{e}");
     assert!(!e.contains("mock-glm-key"));
 

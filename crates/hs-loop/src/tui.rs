@@ -1750,6 +1750,19 @@ impl TuiState {
         pos
     }
 
+    /// Acknowledge steering handed to the running mission's inbox
+    /// (Eric 2026-09-11: mid-mission feedback steers; it never queues
+    /// as a new mission). Drained by the loop at the next step boundary.
+    pub fn push_steering_echo(&mut self, text: &str) {
+        let mut lines = text.lines();
+        if let Some(first) = lines.next() {
+            self.push_transcript_line(&format!("steering \u{203a} {first}"));
+            for l in lines {
+                self.push_transcript_line(&format!("  {l}"));
+            }
+        }
+    }
+
     /// Pop the next queued goal (FIFO) for dispatch after the running
     /// mission reports Done.
     pub fn next_queued_goal(&mut self) -> Option<String> {
@@ -2653,4 +2666,24 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
             .title(" T_mission ");
         f.render_widget(Paragraph::new(lines).block(block), rect);
     }
+}
+
+/// Append operator steering to the loop's steering inbox (Eric 2026-09-11:
+/// mid-mission feedback steers the running mission; the loop drains the
+/// inbox at the next step boundary into the model's volatile tail as a
+/// STEERING section). Append + create, one trimmed line per input line -
+/// the drain reads line-wise and deletes the file after reading.
+pub fn append_steering(path: &std::path::Path, text: &str) -> std::io::Result<()> {
+    use std::io::Write as _;
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)?;
+    for line in text.lines() {
+        let l = line.trim();
+        if !l.is_empty() {
+            writeln!(f, "{l}")?;
+        }
+    }
+    Ok(())
 }
