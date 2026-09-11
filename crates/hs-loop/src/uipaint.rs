@@ -147,11 +147,28 @@ impl Theme {
     }
 }
 
+/// The provider's own reasoning text as a UiEvent, but ONLY when real
+/// text arrived (Eric 2026-09-10: show reasoning, never fabricate it).
+#[must_use]
+pub fn reasoning_event(text: &str) -> Option<UiEvent> {
+    let t = text.trim();
+    if t.is_empty() {
+        None
+    } else {
+        Some(UiEvent::ModelReasoning { text: t.to_string() })
+    }
+}
+
 /// One visible beat of a running mission.
 #[derive(Debug, Clone)]
 pub enum UiEvent {
     /// A model call started (per mission step).
     ModelCallStart { model: String },
+    /// A loop step began: the activity rail shows step/max live.
+    Step { step: u32, max_steps: u32 },
+    /// The provider's own reasoning for a call (v4-pro
+    /// reasoning_content). Emitted only when real text arrived.
+    ModelReasoning { text: String },
     /// A model call finished; token counts and cost as reported by the
     /// provider (D12: the HUD books the provider cost, never a token-rate
     /// estimate - live and done must tell one truth).
@@ -281,6 +298,14 @@ impl<'a, W: Write> Painter<'a, W> {
                     self.paint(&dim, &format!("  {output_summary}"));
                 }
                 let _ = writeln!(self.out);
+            }
+            UiEvent::Step { .. } => {}
+            UiEvent::ModelReasoning { text } => {
+                let dim = self.theme.dim.clone();
+                for line in text.lines().take(8) {
+                    self.paint(&dim, &format!("  \u{2546} {line}"));
+                    let _ = writeln!(self.out);
+                }
             }
             UiEvent::ModelCallStart { model } => {
                 let dim = self.theme.dim.clone();

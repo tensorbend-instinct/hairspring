@@ -683,6 +683,91 @@ pub fn load(
         self.inner.set_budget_micros(micros);
     }
 
+    /// Every cap the config holds, snapshotted for /caps (Eric
+    /// 2026-09-10). Critic caps read env-over-default like the critic
+    /// itself, so the listing is what the next refute actually arms.
+    #[must_use]
+    pub fn caps_snapshot(&self) -> crate::tui::CapsSnapshot {
+        let c = crate::critic::RefuteConfig::from_env();
+        crate::tui::CapsSnapshot {
+            steps: self.inner.max_steps(),
+            wall_secs: self.inner.wall_secs(),
+            budget_micros: self.inner.budget_micros(),
+            critic_steps: c.max_steps,
+            critic_wall_secs: c.wall_secs,
+            critic_budget_micros: c.budget_micros,
+        }
+    }
+
+    /// Eric 2026-09-10 (/caps): change one live cap mid-session.
+    /// Operator caps apply from the next mission (a running loop keeps
+    /// its range); critic caps are env the critic reads at spawn, so
+    /// they bind the next refute.
+    pub fn set_cap(&mut self, key: &str, value: &str) -> Result<String, String> {
+        let n_of = |what: &str| -> Result<u64, String> {
+            value
+                .parse::<u64>()
+                .map_err(|_| format!("{what} needs a number, got '{value}'"))
+        };
+        let usd_of = |what: &str| -> Result<u64, String> {
+            value
+                .trim_start_matches('$')
+                .parse::<f64>()
+                .map(|d| (d * 1_000_000.0) as u64)
+                .map_err(|_| format!("{what} needs dollars, got '{value}'"))
+        };
+        match key {
+            "steps" => {
+                let n = n_of("steps")?;
+                self.inner.set_max_steps(n as u32);
+                Ok(format!("steps \u{203a} {n} (next mission onward)"))
+            }
+            "wall" => {
+                if value == "off" {
+                    self.inner.clear_wall_secs();
+                    Ok("wall \u{203a} off".to_string())
+                } else {
+                    let n = n_of("wall")?;
+                    self.inner.set_wall_secs(n);
+                    Ok(format!("wall \u{203a} {n}s (next mission onward)"))
+                }
+            }
+            "budget" => {
+                let m = usd_of("budget")?;
+                self.inner.set_budget_micros(m);
+                Ok(format!(
+                    "budget \u{203a} {}",
+                    crate::uipaint::format_usd_micros(m)
+                ))
+            }
+            "critic-steps" => {
+                let n = n_of("critic-steps")?;
+                // SAFETY: set between missions from the single command
+                // worker; the critic reads this env once at spawn.
+                unsafe { std::env::set_var("HS_CRITIC_MAX_STEPS", n.to_string()) };
+                Ok(format!("critic steps \u{203a} {n}"))
+            }
+            "critic-wall" => {
+                let n = n_of("critic-wall")?;
+                // SAFETY: as above.
+                unsafe { std::env::set_var("HS_CRITIC_WALL_SECS", n.to_string()) };
+                Ok(format!("critic wall \u{203a} {n}s"))
+            }
+            "critic-budget" => {
+                let m = usd_of("critic-budget")?;
+                // SAFETY: as above.
+                unsafe { std::env::set_var("HS_CRITIC_BUDGET_MICROS", m.to_string()) };
+                Ok(format!(
+                    "critic budget \u{203a} {}",
+                    crate::uipaint::format_usd_micros(m)
+                ))
+            }
+            other => Err(format!(
+                "unknown cap '{other}' - keys: steps, wall, budget, critic-steps, critic-wall, critic-budget"
+            )),
+        }
+    }
+
     /// The armed session budget (micro-USD) - always `Some` after
     /// construction (D4): config `[run] budget_usd`/`budget_micros` when
     /// declared, else `DEFAULT_SESSION_BUDGET_MICROS`.
@@ -1279,4 +1364,34 @@ pub fn run_interactive<E: Editor + ?Sized>(
         }
     }
     Ok(())
+}
+
+
+/// Eric 2026-09-10: resuming a session whose last mission died AT a
+/// cap must say so and name the fix (/caps); a clean outcome stays
+/// quiet. `outcome` is the last GoalUpdate's outcome string.
+#[must_use]
+pub fn capped_resume_notice(outcome: Option<&str>) -> Option<String> {
+    let o = outcome?;
+    if !(o.contains("exhausted") || o.contains("killed")) {
+        return None;
+    }
+    Some(format!(
+        "\u{26a0} last mission ended at the cap ({o}) - raise it with /caps (e.g. /caps steps 100) before re-running the goal"
+    ))
+}
+
+/// The last mission outcome recorded on a stream (its final
+/// GoalUpdate's outcome field) - feeds the resume banner.
+#[must_use]
+pub fn last_mission_outcome(log_root: &Path, stream_id: uuid::Uuid) -> Option<String> {
+    let r = hs_log::StreamReader::open(log_root, stream_id).ok()?;
+    let events = r.events().ok()?;
+    let e = events
+        .iter()
+        .rev()
+        .find(|e| e.kind == hs_core::EventKind::GoalUpdate)?;
+    let bytes = r.resolve_payload(e).ok()?;
+    let v: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
+    v.get("outcome")?.as_str().map(str::to_owned)
 }

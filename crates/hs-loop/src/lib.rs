@@ -451,6 +451,29 @@ impl InnerLoop {
 
     /// Fix 4 (ab2): the mission's wall budget in seconds. The runner enforces
     /// it externally; this makes it VISIBLE to the model every step.
+    /// Live step cap (Eric 2026-09-10: /caps changes it mid-session).
+    #[must_use]
+    pub fn max_steps(&self) -> u32 {
+        self.max_steps
+    }
+
+    /// Change the step cap mid-session; the next mission's loop range
+    /// uses it (a running loop keeps the range it started with).
+    pub fn set_max_steps(&mut self, steps: u32) {
+        self.max_steps = steps.max(1);
+    }
+
+    /// The armed wall-clock cap in seconds, if any.
+    #[must_use]
+    pub fn wall_secs(&self) -> Option<u64> {
+        self.wall_secs
+    }
+
+    /// Disarm the wall-clock cap (/caps wall off).
+    pub fn clear_wall_secs(&mut self) {
+        self.wall_secs = None;
+    }
+
     pub fn set_wall_secs(&mut self, secs: u64) {
         self.wall_secs = Some(secs);
     }
@@ -1387,6 +1410,12 @@ impl InnerLoop {
         let mut model_calls = 0u32;
 
         for step in 1..=self.max_steps {
+            if let Some(sink) = self.ui_sink.as_mut() {
+                sink(uipaint::UiEvent::Step {
+                    step,
+                    max_steps: self.max_steps,
+                });
+            }
             // Gap #2: operator interrupt at the step boundary. Booked as
             // its own outcome - operator intent, never a harness error,
             // never a pass.
@@ -1555,6 +1584,11 @@ impl InnerLoop {
                                         cost_usd_micros: out.cost_usd_micros,
                                     });
                                 }
+                                    if let Some(ev) = uipaint::reasoning_event(&out.reasoning_content) {
+                                        if let Some(sink) = self.ui_sink.as_mut() {
+                                            sink(ev);
+                                        }
+                                    }
                                 let _ = self.writer.append(
                                         EventBuilder::new(EventKind::ModelCall)
                                             .payload(Payload::Inline(
@@ -1658,6 +1692,11 @@ impl InnerLoop {
                     cost_usd_micros: out.cost_usd_micros,
                 });
             }
+                if let Some(ev) = uipaint::reasoning_event(&out.reasoning_content) {
+                    if let Some(sink) = self.ui_sink.as_mut() {
+                        sink(ev);
+                    }
+                }
             // T5c: checkpoint EVERY step after the model-call accounting,
             // answer or not - a wall kill must never book a 0-step row for
             // a mission that did real work (ab2 17092/17102/17117 lost
@@ -2251,6 +2290,11 @@ impl InnerLoop {
                                     cost_usd_micros: vout.cost_usd_micros,
                                 });
                             }
+                                if let Some(ev) = uipaint::reasoning_event(&vout.reasoning_content) {
+                                    if let Some(sink) = self.ui_sink.as_mut() {
+                                        sink(ev);
+                                    }
+                                }
                             self.writer.append(
                                 EventBuilder::new(EventKind::ModelCall).payload(Payload::Inline(
                                     serde_json::to_vec(&serde_json::json!({

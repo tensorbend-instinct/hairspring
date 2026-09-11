@@ -98,6 +98,7 @@ pub const TUI_HELP: &str = "hairspring - full-screen surface
   /history  goals you have submitted this session
   /last     the latest mission's answer artifact
   /resume   pick a prior session to continue
+  /caps     view or change the live caps (steps, wall, budget, critic)
   /models   pick the operator model (next mission onward)
   /theme    pick the surface theme
   /agents   toggle the delegation graph panel
@@ -124,12 +125,64 @@ pub struct CommandSpec {
     pub args: Option<&'static str>,
 }
 
+/// /caps command (Eric 2026-09-10: every cap live from the palette).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CapsCmd {
+    Query,
+    Set { key: String, value: String },
+}
+
+/// Parse "/caps" (query) and "/caps <key> <value>" (set). None = malformed.
+#[must_use]
+pub fn parse_caps_command(input: &str) -> Option<CapsCmd> {
+    let t = input.trim();
+    if t == "/caps" || t == ":caps" {
+        return Some(CapsCmd::Query);
+    }
+    let rest = t.strip_prefix("/caps ").or_else(|| t.strip_prefix(":caps "))?;
+    let mut parts = rest.split_whitespace();
+    let key = parts.next()?.to_string();
+    let value = parts.next()?.to_string();
+    if parts.next().is_some() || key.is_empty() || value.is_empty() {
+        return None;
+    }
+    Some(CapsCmd::Set { key, value })
+}
+
+/// Every cap the config holds, snapshotted for display.
+#[derive(Debug, Clone)]
+pub struct CapsSnapshot {
+    pub steps: u32,
+    pub wall_secs: Option<u64>,
+    pub budget_micros: Option<u64>,
+    pub critic_steps: u32,
+    pub critic_wall_secs: u64,
+    pub critic_budget_micros: u64,
+}
+
+/// The /caps listing: every cap, its current value, and how to set it.
+#[must_use]
+pub fn format_caps_listing(s: &CapsSnapshot) -> String {
+    let wall = s.wall_secs.map_or("off".to_string(), |v| format!("{v}s"));
+    let budget = s
+        .budget_micros
+        .map_or("off".to_string(), crate::uipaint::format_usd_micros);
+    format!(
+        "caps (live this session):\n  steps {}  - /caps steps N\n  wall {wall}  - /caps wall SECS (off to disable)\n  budget {budget}  - /caps budget USD\n  critic steps {}  - /caps critic-steps N\n  critic wall {}s  - /caps critic-wall SECS\n  critic budget {}  - /caps critic-budget USD",
+        s.steps,
+        s.critic_steps,
+        s.critic_wall_secs,
+        crate::uipaint::format_usd_micros(s.critic_budget_micros),
+    )
+}
+
 pub const TUI_COMMANDS: &[CommandSpec] = &[
     CommandSpec { name: "help", summary: "list commands", args: None },
     CommandSpec { name: "status", summary: "model, missions, steps, calls, cost, stream", args: None },
     CommandSpec { name: "history", summary: "goals submitted this session", args: None },
     CommandSpec { name: "last", summary: "the latest mission's answer artifact", args: None },
     CommandSpec { name: "resume", summary: "pick a prior session to continue", args: None },
+    CommandSpec { name: "caps", summary: "view or change the live caps (steps, wall, budget, critic)", args: Some("[key value]") },
     CommandSpec { name: "models", summary: "pick the operator model", args: None },
     CommandSpec { name: "theme", summary: "pick the surface theme", args: None },
     CommandSpec { name: "agents", summary: "toggle the delegation graph panel", args: None },
@@ -1396,6 +1449,11 @@ pub struct TuiState {
     pub time_view: Option<crate::mission_time::Decomposition>,
     /// Recent stream events, oldest first; the rail ticker shows the tail.
     pub ticker: VecDeque<EventKind>,
+    /// Activity rail state: the step the loop is on (0 = idle).
+    pub cur_step: u32,
+    pub cur_max_steps: u32,
+    /// What is happening right now ("thinking \u{b7} deepseek").
+    pub cur_action: String,
     /// Eric's five #1: goals submitted while a mission runs queue here
     /// FIFO instead of being dropped. Drained by the bin's event loop
     /// when the in-flight mission reports Done.
@@ -1435,6 +1493,9 @@ impl Default for TuiState {
             evidence_view: None,
             time_view: None,
             ticker: VecDeque::new(),
+            cur_step: 0,
+            cur_max_steps: 0,
+            cur_action: String::new(),
             queued_goals: VecDeque::new(),
             theme: crate::uipaint::Theme::dark(),
             model_label: "hs".to_string(),
@@ -1519,6 +1580,24 @@ impl TuiState {
     pub fn on_ui_event(&mut self, ev: &crate::uipaint::UiEvent) {
         use crate::uipaint::UiEvent as U;
         match ev {
+            U::Step { step, max_steps } => {
+                self.cur_step = *step;
+                self.cur_max_steps = *max_steps;
+                self.cur_action.clear();
+            }
+            U::ModelReasoning { text } => {
+                // The provider's own reasoning, rendered dim so it
+                // never reads as the model's answer; emitted only when
+                // real text arrived (never fabricated).
+                self.flush_inflight();
+                let dim = Style::default().add_modifier(Modifier::DIM);
+                for line in text.lines().take(8) {
+                    self.push_transcript_spans(vec![Span::styled(
+                        format!("  \u{2546} {line}"),
+                        dim,
+                    )]);
+                }
+            }
             U::ModelCallStart { model } => {
                 // M19: reaching the next call means the held text was
                 // prose (a rejected no-tool-call reply) - commit it.
@@ -1535,6 +1614,11 @@ impl TuiState {
                     self.model_label = model.clone();
                 }
                 self.push_ticker(EventKind::ModelCall);
+                self.cur_action = if model.is_empty() {
+                    "thinking".to_string()
+                } else {
+                    format!("thinking \u{b7} {model}")
+                };
             }
             U::ModelCallEnd {
                 cost_usd_micros, ..
@@ -1558,6 +1642,11 @@ impl TuiState {
                 // M19: the held text is this call's raw JSON envelope;
                 // the beat below narrates it - never scrollback.
                 self.answer_inflight.clear();
+                self.cur_action = if args_summary.is_empty() {
+                    plugin.clone()
+                } else {
+                    format!("{plugin} \u{b7} {args_summary}")
+                };
                 self.phase = LoopPhase::Act;
                 self.push_ticker(EventKind::ToolCall);
                 let accent = sgr_style(&self.theme.accent);
@@ -1911,7 +2000,17 @@ impl TuiState {
         // The HUD line already carries the stream when set - compose,
         // don't repeat (first M26 capture read "... 79adb802 - stream
         // 79adb802").
-        format!("status: {} \u{00b7} {}", self.model_label, self.hud_line())
+        let activity = self.activity_line();
+        if activity.is_empty() {
+            format!("status: {} \u{00b7} {}", self.model_label, self.hud_line())
+        } else {
+            format!(
+                "status: {} \u{00b7} {} \u{00b7} {}",
+                activity,
+                self.model_label,
+                self.hud_line()
+            )
+        }
     }
 
     /// M24: pub so the HUD text is test-pinnable (was private until
@@ -1947,6 +2046,47 @@ impl TuiState {
             spans.push(Span::styled(self.stream_short.clone(), dim));
         }
         Line::from(spans)
+    }
+
+    /// The activity rail text: what the loop is doing right now
+    /// (Eric 2026-09-10: "I can't tell what's what when the model is
+    /// working"). Empty when idle - the rail shows the ticker alone.
+    #[must_use]
+    pub fn activity_line(&self) -> String {
+        if self.cur_step == 0 {
+            return String::new();
+        }
+        let action = if self.cur_action.is_empty() {
+            "working".to_string()
+        } else {
+            self.cur_action.clone()
+        };
+        format!(
+            "step {}/{} \u{b7} {}",
+            self.cur_step, self.cur_max_steps, action
+        )
+    }
+
+    /// Test surface: the tail transcript line as (text, style-tags)
+    /// spans; tags name the ratatui modifiers in effect ("Dim").
+    #[must_use]
+    pub fn transcript_spans_tail(&self) -> Vec<(String, String)> {
+        let Some(line) = self.transcript.last() else {
+            return Vec::new();
+        };
+        line.spans
+            .iter()
+            .map(|s| {
+                let mut tags: Vec<&str> = Vec::new();
+                if s.style.add_modifier.contains(Modifier::DIM) {
+                    tags.push("Dim");
+                }
+                if s.style.add_modifier.contains(Modifier::BOLD) {
+                    tags.push("Bold");
+                }
+                (s.content.to_string(), tags.join("+"))
+            })
+            .collect()
     }
 
     pub fn hud_line(&self) -> String {
@@ -2105,7 +2245,17 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
         let right_w = rail.width - left_w;
         if right_w >= 4 {
             let ticker: String = state.ticker.iter().map(|k| kind_glyph(*k)).collect();
-            let tick = Paragraph::new(ticker).alignment(ratatui::layout::Alignment::Right);
+            // Eric 2026-09-10: the rail names what is happening NOW
+            // (step/max + action), ticker glyphs trailing behind it.
+            let activity = state.activity_line();
+            let right = if activity.is_empty() {
+                ticker
+            } else if ticker.is_empty() {
+                activity
+            } else {
+                format!("{activity}  {ticker}")
+            };
+            let tick = Paragraph::new(right).alignment(ratatui::layout::Alignment::Right);
             f.render_widget(
                 tick,
                 Rect::new(rail.x + left_w.min(rail.width), rail.y, right_w, 1),

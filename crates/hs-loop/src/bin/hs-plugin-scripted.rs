@@ -168,6 +168,19 @@ fn main() {
                 } else {
                     "I have nothing further to add. ## Done".to_string()
                 };
+                // Reasoning seam (Eric 2026-09-10: the surface shows the
+                // provider's REAL reasoning, never fabricated): a script
+                // line of {"completion": ..., "reasoning": ...} supplies
+                // the scripted provider's reasoning_content. Plain lines
+                // keep their exact replay contract.
+                let (completion, reasoning) =
+                    match serde_json::from_str::<serde_json::Value>(&completion) {
+                        Ok(v) if v.get("completion").and_then(|c| c.as_str()).is_some() => (
+                            v["completion"].as_str().unwrap_or_default().to_string(),
+                            v["reasoning"].as_str().unwrap_or("").to_string(),
+                        ),
+                        _ => (completion, String::new()),
+                    };
                 // Gap #3 test seam: when the kernel negotiated streaming
                 // (stream_deltas in params) and the fixture is armed, emit
                 // the completion as ordered delta frames first.
@@ -188,6 +201,7 @@ fn main() {
                     }
                 serde_json::json!({
                     "completion": completion,
+                    "reasoning_content": reasoning,
                     "cached_tokens": 42,
                     "input_tokens": prompt.len() / 4 + 1,
                     "output_tokens": 9,

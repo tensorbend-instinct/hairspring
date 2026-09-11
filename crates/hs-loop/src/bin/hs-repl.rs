@@ -183,14 +183,21 @@ fn run_fullscreen(
         Ui(UiEvent),
         Delta(String),
         Done(Result<(hs_loop::MissionResult, u64), String>),
-        Switched(Result<(String, String, uuid::Uuid), String>),
+        #[allow(clippy::type_complexity)]
+        Switched(
+            Result<(String, String, uuid::Uuid, (u64, u64, u64, u64), Option<String>), String>,
+        ),
         ModelSet(Result<String, String>),
+        CapsInfo(String),
+        CapsSet(String),
     }
 
     enum UiCmd {
         Goal(String),
         Switch(uuid::Uuid),
         SetModel(String),
+        CapsQuery,
+        SetCap { key: String, value: String },
     }
 
     let (tx, rx) = mpsc::channel::<TuiMsg>();
@@ -247,6 +254,18 @@ fn run_fullscreen(
                         let _ = tx.send(TuiMsg::Done(r));
                     }
                 }
+                UiCmd::CapsQuery => {
+                    let _ = tx.send(TuiMsg::CapsInfo(hs_loop::tui::format_caps_listing(
+                        &session.caps_snapshot(),
+                    )));
+                }
+                UiCmd::SetCap { key, value } => {
+                    let s = match session.set_cap(&key, &value) {
+                        Ok(s) => s,
+                        Err(e) => format!("caps: {e}"),
+                    };
+                    let _ = tx.send(TuiMsg::CapsSet(s));
+                }
                 UiCmd::SetModel(name) => {
                     let r = session
                         .set_model_override(Some(name.clone()))
@@ -263,8 +282,31 @@ fn run_fullscreen(
                             let label = v.model_label.clone();
                             let short: String =
                                 v.stream_id.to_string().chars().take(8).collect();
+                            // Restored accounting mirrors into the HUD
+                            // (pre-resume totals, not zeros).
+                            let stats = (
+                                v.missions_run,
+                                v.total_steps,
+                                v.total_model_calls,
+                                v.total_cost_micros,
+                            );
+                            // Capped-mission banner: if the resumed
+                            // session's last mission died at a cap, say
+                            // so and name the fix.
+                            let notice = hs_loop::repl::capped_resume_notice(
+                                hs_loop::repl::last_mission_outcome(&wdir, id).as_deref(),
+                            );
                             session = new_session;
-                            let _ = tx.send(TuiMsg::Switched(Ok((label, short, id))));
+                            // The resumed session needs the UI sink
+                            // re-attached - it ships with none, so
+                            // without this a resumed mission runs blind
+                            // (no live rail/HUD/beats; calls counter
+                            // frozen, found 2026-09-10 tmux capx).
+                            let txs = tx.clone();
+                            session.set_ui_sink(Box::new(move |ev| {
+                                let _ = txs.send(TuiMsg::Ui(ev));
+                            }));
+                            let _ = tx.send(TuiMsg::Switched(Ok((label, short, id, stats, notice))));
                         }
                         Err(e) => {
                             let _ = tx.send(TuiMsg::Switched(Err(e.to_string())));
@@ -320,7 +362,9 @@ fn run_fullscreen(
                 TuiMsg::Ui(ev) => st.on_ui_event(&ev),
                 TuiMsg::Delta(d) => st.on_answer_delta(&d),
                 TuiMsg::Done(r) => {
-                    running = false;
+                    st.cur_step = 0;
+                    st.cur_action.clear();
+running = false;
                     match r {
                         Ok((m, cost_total)) => {
                             last_answer = Some(m.answer_path.clone());
@@ -348,22 +392,36 @@ fn run_fullscreen(
                     }
                 }
                 TuiMsg::Switched(r) => match r {
-                    Ok((label, short, id)) => {
+                    Ok((label, short, id, stats, notice)) => {
                         st.model_label = label;
                         st.stream_short = short.clone();
                         current_stream = id;
-                        st.missions_run = 0;
-                        st.total_steps = 0;
-                        st.total_model_calls = 0;
-                        st.total_cost_micros = 0;
+                        // Mirror the RESTORED counters (the resume
+                        // adopted the stream's accounting; zeros here
+                        // made the HUD contradict it).
+                        st.missions_run = stats.0;
+                        st.total_steps = stats.1;
+                        st.total_model_calls = stats.2;
+                        st.total_cost_micros = stats.3;
                         // M14: restore the resumed session's visible
                         // history BEFORE the marker, so the screen
                         // reads like the session you picked.
                         tui::backfill_transcript(&mut st, &opts.dir, id);
                         st.push_transcript_line(&format!("\u{2500}\u{2500} resumed stream {short}"));
+                        if let Some(n) = notice {
+                            st.push_transcript_line(&n);
+                        }
                     }
                     Err(e) => st.push_transcript_line(&format!("resume failed: {e}")),
                 },
+                TuiMsg::CapsInfo(s) => {
+                    for line in s.lines() {
+                        st.push_transcript_line(line);
+                    }
+                }
+                TuiMsg::CapsSet(s) => {
+                    st.push_transcript_line(&format!("caps \u{203a} {s}"));
+                }
                 TuiMsg::ModelSet(r) => match r {
                     Ok(name) => {
                         st.model_label = name.clone();
@@ -453,6 +511,18 @@ fn run_fullscreen(
                             };
                             if t == "/resume" {
                                 resume_sessions = open_resume_picker(&mut st, current_stream);
+                            } else if t == "/caps" || t.starts_with("/caps ") {
+                                match tui::parse_caps_command(&t) {
+                                    Some(tui::CapsCmd::Query) => {
+                                        let _ = goal_tx.send(UiCmd::CapsQuery);
+                                    }
+                                    Some(tui::CapsCmd::Set { key, value }) => {
+                                        let _ = goal_tx.send(UiCmd::SetCap { key, value });
+                                    }
+                                    None => st.push_transcript_line(
+                                        "usage: /caps [steps|wall|budget|critic-steps|critic-wall|critic-budget VALUE]",
+                                    ),
+                                }
                             } else if t == "/help" {
                                 // M26: the surface's OWN help - the
                                 // line-mode REPL_HELP advertised

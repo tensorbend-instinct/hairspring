@@ -25,6 +25,8 @@ fn kind(e: &UiEvent) -> &'static str {
         UiEvent::ToolCallEnd { .. } => "ToolCallEnd",
         UiEvent::SubAgentSpawned { .. } => "SubAgentSpawned",
         UiEvent::SubAgentFinished { .. } => "SubAgentFinished",
+        UiEvent::Step { .. } => "Step",
+        UiEvent::ModelReasoning { .. } => "ModelReasoning",
     }
 }
 

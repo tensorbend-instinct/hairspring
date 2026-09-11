@@ -76,6 +76,8 @@ fn loop_emits_typed_ui_events_for_a_mission() {
             UiEvent::ToolCallEnd { .. } => "tool_end",
             UiEvent::SubAgentSpawned { .. } => "agent_spawn",
             UiEvent::SubAgentFinished { .. } => "agent_finish",
+            UiEvent::Step { .. } => "step",
+            UiEvent::ModelReasoning { .. } => "reasoning",
         })
         .collect();
     assert!(
