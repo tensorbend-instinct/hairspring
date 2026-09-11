@@ -154,6 +154,7 @@ pub struct ReplSession {
     total_model_calls: u64,
     ui_flush: Option<Box<dyn FnMut() + Send>>,
     work_dir: PathBuf,
+    config_path: PathBuf,
 }
 
 /// Offered-surface dedupe (live 400, 2026-09-10): the config may itself
@@ -172,7 +173,112 @@ fn offer_unique(native_tools: &mut Vec<serde_json::Value>, t: serde_json::Value)
     }
 }
 
-    impl ReplSession {
+    /// Eric 2026-09-10: /caps persists to the config file; a restarted
+/// session arms what the file holds. `[run] max_steps = <n>`.
+#[must_use]
+pub fn configured_max_steps(config: &Path) -> Option<u32> {
+    let text = std::fs::read_to_string(config).ok()?;
+    let v: toml::Value = toml::from_str(&text).ok()?;
+    v.get("run")?
+        .as_table()?
+        .get("max_steps")?
+        .as_integer()
+        .and_then(|n| u32::try_from(n.max(1)).ok())
+}
+
+/// `[run] wall_secs = <n>` (absent or removed = no wall cap).
+#[must_use]
+pub fn configured_wall_secs(config: &Path) -> Option<u64> {
+    let text = std::fs::read_to_string(config).ok()?;
+    let v: toml::Value = toml::from_str(&text).ok()?;
+    v.get("run")?
+        .as_table()?
+        .get("wall_secs")?
+        .as_integer()
+        .map(|n| n.max(0) as u64)
+}
+
+/// `[critic] max_steps / wall_secs / budget_micros` - persisted critic
+/// caps; armed as env at load so the spawned critic plugin inherits
+/// them (RefuteConfig::from_env stays the single reader).
+#[must_use]
+pub fn configured_critic_caps(config: &Path) -> (Option<u64>, Option<u64>, Option<u64>) {
+    let get = |k: &str| -> Option<u64> {
+        let text = std::fs::read_to_string(config).ok()?;
+        let v: toml::Value = toml::from_str(&text).ok()?;
+        v.get("critic")?
+            .as_table()?
+            .get(k)?
+            .as_integer()
+            .map(|n| n.max(0) as u64)
+    };
+    (get("max_steps"), get("wall_secs"), get("budget_micros"))
+}
+
+/// One key in one TOML section: created when missing, replaced in
+/// place when present, removed when `value` is None. Everything else
+/// in the file (comments, other keys, other sections) is preserved
+/// byte-for-byte. Flat scalars only - the caps writer's whole job.
+pub fn toml_upsert(
+    text: &str,
+    section: &str,
+    key: &str,
+    value: Option<&str>,
+) -> Result<String, String> {
+    if section.is_empty()
+        || key.is_empty()
+        || section.contains(['[', ']', '\n'])
+        || key.contains(['=', '\n'])
+    {
+        return Err(format!("bad section/key for toml_upsert: [{section}] {key}"));
+    }
+    let header = format!("[{section}]");
+    let mut lines: Vec<String> = text.lines().map(str::to_string).collect();
+    match lines.iter().position(|l| l.trim() == header) {
+        Some(h) => {
+            let mut found = None;
+            let mut i = h + 1;
+            while i < lines.len() {
+                let t = lines[i].trim();
+                if t.starts_with('[') {
+                    break;
+                }
+                if let Some(eq) = t.find('=')
+                    && t[..eq].trim() == key
+                {
+                    found = Some(i);
+                    break;
+                }
+                i += 1;
+            }
+            match (found, value) {
+                (Some(i), Some(v)) => lines[i] = format!("{key} = {v}"),
+                (Some(i), None) => {
+                    lines.remove(i);
+                }
+                (None, Some(v)) => lines.insert(h + 1, format!("{key} = {v}")),
+                (None, None) => {}
+            }
+        }
+        None => {
+            if let Some(v) = value {
+                if lines.last().is_some_and(|l| !l.is_empty()) {
+                    lines.push(String::new());
+                }
+                lines.push(header);
+                lines.push(format!("{key} = {v}"));
+            }
+        }
+    }
+    let mut out = lines.join("\n");
+    if text.ends_with('\n') && !out.ends_with('\n') {
+        out.push('\n');
+    }
+    Ok(out)
+}
+
+
+impl ReplSession {
 
 /// Gap #6: the REPL's compaction budget comes from the configured
 /// model's real window, not the loop's ~1M-token default. The default
@@ -368,6 +474,7 @@ pub fn load(
         offer_unique(&mut native_tools, crate::toolschema::agent_spawn_tool());
         offer_unique(&mut native_tools, crate::toolschema::agent_spawn_poll_tool());
         let mut inner = InnerLoop::new(kernel, log_root, feedback, max_steps)?;
+        Self::apply_config_caps(&mut inner, config, max_steps);
         if let Some(tokens) = Self::configured_context_tokens(config) {
             inner.set_context_budget_tokens(tokens * 3 / 4);
         }
@@ -409,6 +516,7 @@ pub fn load(
             total_model_calls,
             ui_flush: None,
             work_dir: resolve_work_dir(&log_root),
+            config_path: config.to_path_buf(),
         })
     }
 
@@ -478,6 +586,7 @@ pub fn load(
         offer_unique(&mut native_tools, crate::toolschema::agent_spawn_tool());
         offer_unique(&mut native_tools, crate::toolschema::agent_spawn_poll_tool());
         let mut inner = InnerLoop::with_stream(kernel, log_root, stream_id, feedback, max_steps)?;
+        Self::apply_config_caps(&mut inner, config, max_steps);
         if let Some(tokens) = Self::configured_context_tokens(config) {
             inner.set_context_budget_tokens(tokens * 3 / 4);
         }
@@ -561,6 +670,7 @@ pub fn load(
             total_model_calls,
             ui_flush: None,
             work_dir: resolve_work_dir(&log_root),
+            config_path: config.to_path_buf(),
         })
     }
 
@@ -683,6 +793,36 @@ pub fn load(
         self.inner.set_budget_micros(micros);
     }
 
+    /// Config-persisted caps (Eric 2026-09-10: /caps writes them, so a
+    /// restart keeps them). `[run] max_steps` yields to an explicit
+    /// CLI --max-steps: it applies only when the caller passed the
+    /// CLI default. `[critic]` caps arm as env - the critic plugin is a
+    /// spawned process whose RefuteConfig::from_env stays the reader.
+    fn apply_config_caps(inner: &mut InnerLoop, config: &Path, max_steps: u32) {
+        if max_steps == crate::DEFAULT_MISSION_MAX_STEPS
+            && let Some(n) = configured_max_steps(config)
+        {
+            inner.set_max_steps(n);
+        }
+        if let Some(w) = configured_wall_secs(config) {
+            inner.set_wall_secs(w);
+        }
+        let (cs, cw, cb) = configured_critic_caps(config);
+        // SAFETY: session construction, before any mission thread or
+        // critic spawn; single-threaded command dispatch otherwise.
+        unsafe {
+            if let Some(n) = cs {
+                std::env::set_var("HS_CRITIC_MAX_STEPS", n.to_string());
+            }
+            if let Some(n) = cw {
+                std::env::set_var("HS_CRITIC_WALL_SECS", n.to_string());
+            }
+            if let Some(n) = cb {
+                std::env::set_var("HS_CRITIC_BUDGET_MICROS", n.to_string());
+            }
+        }
+    }
+
     /// Every cap the config holds, snapshotted for /caps (Eric
     /// 2026-09-10). Critic caps read env-over-default like the critic
     /// itself, so the listing is what the next refute actually arms.
@@ -704,6 +844,10 @@ pub fn load(
     /// its range); critic caps are env the critic reads at spawn, so
     /// they bind the next refute.
     pub fn set_cap(&mut self, key: &str, value: &str) -> Result<String, String> {
+        // Eric 2026-09-10: a cap change PERSISTS to the config file
+        // (a setting that silently resets on restart is a gap).
+        // Persist first - a failed write changes nothing live.
+        self.persist_cap(key, value)?;
         let n_of = |what: &str| -> Result<u64, String> {
             value
                 .parse::<u64>()
@@ -766,6 +910,68 @@ pub fn load(
                 "unknown cap '{other}' - keys: steps, wall, budget, critic-steps, critic-wall, critic-budget"
             )),
         }
+    }
+
+    /// Write one cap change into the session's config file. Budget
+    /// lands as `budget_usd` (the reader prefers it) and any stale
+    /// `budget_micros` line goes away so the file tells one truth.
+    fn persist_cap(&self, key: &str, value: &str) -> Result<(), String> {
+        let text = std::fs::read_to_string(&self.config_path)
+            .map_err(|e| format!("read {}: {e}", self.config_path.display()))?;
+        let ups = |t: &str, sec: &str, k: &str, v: Option<String>| {
+            toml_upsert(t, sec, k, v.as_deref())
+        };
+        let out = match key {
+            "steps" => {
+                let n: u64 = value
+                    .parse()
+                    .map_err(|_| format!("steps needs a number, got '{value}'"))?;
+                ups(&text, "run", "max_steps", Some(n.to_string()))?
+            }
+            "wall" => {
+                if value == "off" {
+                    ups(&text, "run", "wall_secs", None)?
+                } else {
+                    let n: u64 = value
+                        .parse()
+                        .map_err(|_| format!("wall needs seconds, got '{value}'"))?;
+                    ups(&text, "run", "wall_secs", Some(n.to_string()))?
+                }
+            }
+            "budget" => {
+                let micros: u64 = value
+                    .trim_start_matches('$')
+                    .parse::<f64>()
+                    .map(|d| (d * 1_000_000.0) as u64)
+                    .map_err(|_| format!("budget needs dollars, got '{value}'"))?;
+                let dollars = micros as f64 / 1e6;
+                let t = ups(&text, "run", "budget_usd", Some(format!("{dollars}")))?;
+                ups(&t, "run", "budget_micros", None)?
+            }
+            "critic-steps" => {
+                let n: u64 = value
+                    .parse()
+                    .map_err(|_| format!("critic-steps needs a number, got '{value}'"))?;
+                ups(&text, "critic", "max_steps", Some(n.to_string()))?
+            }
+            "critic-wall" => {
+                let n: u64 = value
+                    .parse()
+                    .map_err(|_| format!("critic-wall needs seconds, got '{value}'"))?;
+                ups(&text, "critic", "wall_secs", Some(n.to_string()))?
+            }
+            "critic-budget" => {
+                let micros: u64 = value
+                    .trim_start_matches('$')
+                    .parse::<f64>()
+                    .map(|d| (d * 1_000_000.0) as u64)
+                    .map_err(|_| format!("critic-budget needs dollars, got '{value}'"))?;
+                ups(&text, "critic", "budget_micros", Some(micros.to_string()))?
+            }
+            other => return Err(format!("unknown cap '{other}'")),
+        };
+        std::fs::write(&self.config_path, out)
+            .map_err(|e| format!("write {}: {e}", self.config_path.display()))
     }
 
     /// The armed session budget (micro-USD) - always `Some` after
