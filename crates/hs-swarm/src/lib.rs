@@ -191,10 +191,19 @@ impl Spawner {
             self.feedback,
             self.max_steps,
         )?;
-        // A child is a full operator: same native tool set as the
-        // interactive surface, including delegation (the depth guard
-        // in hs-plugin-swarm bounds the tree).
+        // A child is a full operator: same native tool set AND the same
+        // shared planes as the interactive surface - the typed memory
+        // plane K and the world plane (SwarmWorld fidelity gap 1) -
+        // including delegation (the depth guard in hs-plugin-swarm
+        // bounds the tree).
+        l.set_memory_db(&self.log_root.join("memory.db"));
+        l.attach_world();
         let mut tools = hs_loop::toolschema::tb_tools();
+        tools.push(hs_loop::toolschema::memory_recall_tool());
+        tools.push(hs_loop::toolschema::world_propose_tool());
+        tools.push(hs_loop::toolschema::world_observe_tool());
+        tools.push(hs_loop::toolschema::world_install_tool());
+        tools.push(hs_loop::toolschema::world_tick_tool());
         tools.push(hs_loop::toolschema::agent_spawn_tool());
         l.set_tools(serde_json::Value::Array(tools));
         l.set_model_override(child.model.clone())?;

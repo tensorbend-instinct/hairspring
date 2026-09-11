@@ -59,7 +59,7 @@ impl From<hs_log::LogError> for WorldError {
 }
 
 /// Stable stream id for the world service's own stream (uuid v5, DNS ns).
-fn world_stream_id() -> uuid::Uuid {
+pub fn world_stream_id() -> uuid::Uuid {
     uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_DNS, b"hairspring.world")
 }
 
@@ -69,6 +69,10 @@ struct State {
     /// forks). Runtime session state - forks are short-lived and in-process,
     /// so this set is intentionally not part of the replayed artifact state.
     quarantined: std::collections::HashSet<uuid::Uuid>,
+    /// Reuse bookings: (artifact, version) -> number of attributed
+    /// observes that delivered it. Rebuilt from the world stream's reuse
+    /// Observation events - the diffusion count for the culture layer.
+    reuse: HashMap<(uuid::Uuid, u32), u32>,
 }
 
 /// The shared world: artifact registry + installed controllers, all state
@@ -150,7 +154,24 @@ impl World {
         }
         let reader = StreamReader::open(log_root, stream)?;
         let mut artifacts = HashMap::new();
+        let mut reuse = HashMap::new();
         for e in reader.events()? {
+            if e.kind == EventKind::Observation {
+                // reuse bookings: {"reuse": artifact_id, "version": n, ...}
+                if let Ok(bytes) = reader.resolve_payload(&e) {
+                    if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+                        if let (Some(id), Some(ver)) = (
+                            v["reuse"]
+                                .as_str()
+                                .and_then(|s| uuid::Uuid::parse_str(s).ok()),
+                            v["version"].as_u64(),
+                        ) {
+                            *reuse.entry((id, u32::try_from(ver).unwrap_or(1))).or_insert(0) += 1;
+                        }
+                    }
+                }
+                continue;
+            }
             if e.kind != EventKind::Consequence {
                 continue;
             }
@@ -165,6 +186,7 @@ impl World {
             state: Mutex::new(State {
                 artifacts,
                 quarantined: std::collections::HashSet::new(),
+                reuse,
             }),
         })
     }
@@ -247,6 +269,54 @@ impl World {
         artifact.status = ArtifactStatus::Validated;
         self.consequence(&artifact)?;
         Ok(artifact)
+    }
+
+    /// An attributed observe: delivers the artifacts AND books one reuse
+    /// event per delivered artifact onto the world stream, naming the
+    /// observing stream (SwarmWorld S2.5 recorded provenance: reuse is
+    /// what makes culture diffusion measurable from the log alone).
+    /// `observe` stays the administrative, unbooked read.
+    pub fn observe_as(
+        &self,
+        observer: uuid::Uuid,
+        world_path: &str,
+    ) -> Result<Vec<Artifact>, WorldError> {
+        let arts = self.observe(world_path)?;
+        if arts.is_empty() {
+            return Ok(arts);
+        }
+        let mut w = StreamWriter::resume(&self.log_root, self.world_stream)?.writer;
+        for a in &arts {
+            w.append(
+                EventBuilder::new(EventKind::Observation).payload(Payload::Inline(
+                    serde_json::to_vec(&serde_json::json!({
+                        "reuse": a.artifact_id, "version": a.version,
+                        "by": observer, "world_path": a.world_path,
+                    }))
+                    .expect("reuse events serialize"),
+                )),
+            )?;
+            *self
+                .state
+                .lock()
+                .expect("world state mutex poisoned")
+                .reuse
+                .entry((a.artifact_id, a.version))
+                .or_insert(0) += 1;
+        }
+        Ok(arts)
+    }
+
+    /// How often this artifact version has been delivered to an observing
+    /// stream through `observe_as` - the diffusion count.
+    pub fn reuse_count(&self, artifact_id: uuid::Uuid, version: u32) -> u32 {
+        self.state
+            .lock()
+            .expect("world state mutex poisoned")
+            .reuse
+            .get(&(artifact_id, version))
+            .copied()
+            .unwrap_or(0)
     }
 
     /// Apply a validated File artifact: the content-addressed bytes land

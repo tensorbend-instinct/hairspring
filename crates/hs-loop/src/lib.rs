@@ -920,7 +920,17 @@ impl InnerLoop {
                     content_hash: sha2::Sha256::digest(content.as_bytes()).into(),
                     world_path: path,
                     author_stream: self.stream_id,
-                    parent_version: None,
+                    parent_version: match args.get("parent_version") {
+                        None | Some(serde_json::Value::Null) => None,
+                        Some(v) => match v.as_str().and_then(|s| uuid::Uuid::parse_str(s).ok()) {
+                            some @ Some(_) => some,
+                            None => {
+                                return done(serde_json::json!({
+                                    "error": "world.propose: parent_version must be a uuid string"
+                                }));
+                            }
+                        },
+                    },
                     status: hs_world::ArtifactStatus::Proposed,
                 };
                 match world.propose(artifact, content.as_bytes()) {
@@ -936,7 +946,7 @@ impl InnerLoop {
             }
             "world.observe" => {
                 let path = args["world_path"].as_str().unwrap_or("");
-                match world.observe(path) {
+                match world.observe_as(self.stream_id, path) {
                     Ok(arts) => {
                         let rows: Vec<serde_json::Value> = arts
                             .iter()
@@ -946,6 +956,8 @@ impl InnerLoop {
                                     "kind": a.kind, "world_path": a.world_path,
                                     "author_stream": a.author_stream, "status": a.status,
                                     "content_hash": a.content_hash,
+                                    "parent_version": a.parent_version,
+                                    "reuse_count": world.reuse_count(a.artifact_id, a.version),
                                 })
                             })
                             .collect();
@@ -1209,6 +1221,48 @@ impl InnerLoop {
                 "operator",
                 self.distill_floor,
             );
+            // SwarmWorld fidelity (gap 2): the distiller's output also
+            // flows into the world as culture - procedural records as
+            // skills, everything else as notes. Proposals are validated
+            // by the world service and land VALIDATED; the loop NEVER
+            // installs - installation stays an explicit world.install
+            // decision (the assay gate; spec promotion machinery is
+            // future work).
+            let mut world_proposed = 0usize;
+            if let Some(world) = &self.world {
+                use sha2::Digest as _;
+                let slug: String = mission
+                    .chars()
+                    .map(|c| {
+                        if c.is_ascii_alphanumeric() || c == '-' {
+                            c
+                        } else {
+                            '-'
+                        }
+                    })
+                    .collect();
+                for r in &records {
+                    let (kind, prefix) = if r.kind == "procedural" {
+                        (hs_world::ArtifactKind::Skill, "/skills")
+                    } else {
+                        (hs_world::ArtifactKind::Note, "/knowledge")
+                    };
+                    let content = r.content.clone();
+                    let artifact = hs_world::Artifact {
+                        artifact_id: uuid::Uuid::new_v4(),
+                        version: 1,
+                        kind,
+                        content_hash: sha2::Sha256::digest(content.as_bytes()).into(),
+                        world_path: format!("{prefix}/{slug}"),
+                        author_stream: self.stream_id,
+                        parent_version: None,
+                        status: hs_world::ArtifactStatus::Proposed,
+                    };
+                    if world.propose(artifact, content.as_bytes()).is_ok() {
+                        world_proposed += 1;
+                    }
+                }
+            }
             let mut written = 0usize;
             if let Some(store) = &self.memory_store {
                 for r in records {
@@ -1222,6 +1276,7 @@ impl InnerLoop {
                     serde_json::to_vec(&serde_json::json!({
                         "memory_distilled": written, "mission": mission,
                         "outcome": outcome,
+                        "world_proposed": world_proposed,
                     }))
                     .expect("json! values serialize"),
                 )),

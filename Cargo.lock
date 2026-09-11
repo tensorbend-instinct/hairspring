@@ -1024,6 +1024,8 @@ dependencies = [
  "hs-kernel",
  "hs-log",
  "hs-loop",
+ "hs-memory",
+ "hs-world",
  "serde",
  "serde_json",
  "tempfile",

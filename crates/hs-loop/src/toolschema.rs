@@ -343,6 +343,7 @@ pub fn world_propose_tool() -> Value {
             "content":{"type":"string","description":"artifact content (controllers: the declarative program JSON, e.g. {\"op\":\"append_counter\",\"target\":\"/path\"})"},
             "kind":{"type":"string","enum":["file","program","controller","note","skill"]},
             "artifact_id":{"type":"string","description":"uuid, optional (generated when omitted)"},
+            "parent_version":{"type":"string","description":"uuid of the artifact version this proposal mutates, optional (recorded provenance: mutation parents)"},
             "version":{"type":"integer","description":"optional, default 1"}},"required":["world_path","content"]}),
     )
 }
@@ -354,7 +355,7 @@ pub fn world_propose_tool() -> Value {
 pub fn world_observe_tool() -> Value {
     f(
         "world.observe",
-        "Read the shared world (gate 6): the live (validated or installed) artifacts at a world path - what other missions have ALREADY delivered there. Zero-message coordination: consult the world BEFORE re-deriving anything another mission may have produced.",
+        "Read the shared world (gate 6): the live (validated or installed) artifacts at a world path - what other missions have ALREADY delivered there. Zero-message coordination: consult the world BEFORE re-deriving anything another mission may have produced. Every observe that delivers artifacts is booked as reuse by your stream, and each result row reports reuse_count - the culture's diffusion count.",
         json!({"type":"object","properties":{"world_path":{"type":"string"}},"required":["world_path"]}),
     )
 }
