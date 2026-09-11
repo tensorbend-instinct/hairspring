@@ -1271,12 +1271,85 @@ impl InnerLoop {
                     }
                 }
             }
+            // RMM retrospective mechanism: score every record
+            // memory.recall SERVED this mission - cited (its id appears
+            // verbatim in a later model completion) = +1, retrieved but
+            // never cited = -1. One delta per record per mission, booked
+            // here at close (retrospective by construction) and readable
+            // as a per-record usefulness score from K.
+            let mut ledger: Vec<(String, i64)> = Vec::new();
+            if let Ok(reader) = hs_log::StreamReader::open(&self.log_root, self.stream_id) {
+                if let Ok(events) = reader.events() {
+                    let cutoff = events
+                        .iter()
+                        .filter(|e| e.kind == EventKind::GoalUpdate)
+                        .map(|e| e.seq)
+                        .max()
+                        .unwrap_or(0);
+                    let mut served: Vec<(u64, String)> = Vec::new();
+                    let mut completions: Vec<(u64, String)> = Vec::new();
+                    for e in &events {
+                        let Ok(bytes) = reader.resolve_payload(e) else {
+                            continue;
+                        };
+                        let Ok(text) = String::from_utf8(bytes) else {
+                            continue;
+                        };
+                        match e.kind {
+                            EventKind::ToolCall => {
+                                if e.seq <= cutoff
+                                    || !text.contains("\"plugin\":\"memory.recall\"")
+                                {
+                                    continue;
+                                }
+                                let Ok(v) = serde_json::from_str::<serde_json::Value>(&text)
+                                else {
+                                    continue;
+                                };
+                                if let Some(recs) = v["result"]["records"].as_array() {
+                                    for r in recs {
+                                        if let Some(id) = r["id"].as_str() {
+                                            served.push((e.seq, id.to_string()));
+                                        }
+                                    }
+                                }
+                            }
+                            EventKind::ModelCall => {
+                                if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
+                                    if let Some(c) = v["completion"].as_str() {
+                                        completions.push((e.seq, c.to_string()));
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    served.sort();
+                    served.dedup_by(|a, b| a.1 == b.1);
+                    for (recall_seq, id) in served {
+                        let cited = completions
+                            .iter()
+                            .any(|(s, t)| *s > recall_seq && t.contains(&id));
+                        ledger.push((id, i64::from(if cited { 1 } else { -1 })));
+                    }
+                }
+            }
+            if let Some(store) = &self.memory_store {
+                for (id, delta) in &ledger {
+                    let _ = store.reward(id, Some(mission), *delta);
+                }
+            }
+            let ledger_json: Vec<serde_json::Value> = ledger
+                .iter()
+                .map(|(id, delta)| serde_json::json!({"id": id, "delta": delta}))
+                .collect();
             self.writer.append(
                 EventBuilder::new(EventKind::Observation).payload(Payload::Inline(
                     serde_json::to_vec(&serde_json::json!({
                         "memory_distilled": written, "mission": mission,
                         "outcome": outcome,
                         "world_proposed": world_proposed,
+                        "memory_ledger": ledger_json,
                     }))
                     .expect("json! values serialize"),
                 )),

@@ -32,6 +32,12 @@ impl SqliteMemoryStore {
             -- Reserved for the relation layer (the AGE-style graph half of
             -- the Postgres+pgvector+AGE replacement): no code reads or
             -- writes this table yet.
+            CREATE TABLE IF NOT EXISTS memory_ledger (
+              record_id  TEXT NOT NULL,
+              mission_id TEXT,
+              delta      INTEGER NOT NULL,
+              created_at INTEGER NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS memory_edges (
               from_id TEXT NOT NULL, to_id TEXT NOT NULL,
               rel TEXT NOT NULL,
@@ -51,6 +57,27 @@ fn now_ms() -> i64 {
 }
 
 impl MemoryStore for SqliteMemoryStore {
+    fn reward(&self, record_id: &str, mission_id: Option<&str>, delta: i64) -> Result<(), MemoryError> {
+        self.conn
+            .lock()
+            .expect("memory mutex poisoned")
+            .execute(
+                "INSERT INTO memory_ledger (record_id, mission_id, delta, created_at) VALUES (?1, ?2, ?3, ?4)",
+                rusqlite::params![record_id, mission_id, delta, now_ms()],
+            )
+            ?;
+        Ok(())
+    }
+
+    fn score(&self, record_id: &str) -> Result<i64, MemoryError> {
+        let conn = self.conn.lock().expect("memory mutex poisoned");
+        Ok(conn.query_row(
+            "SELECT COALESCE(SUM(delta), 0) FROM memory_ledger WHERE record_id = ?1",
+            rusqlite::params![record_id],
+            |row| row.get(0),
+        )?)
+    }
+
     fn put(&self, r: NewMemoryRecord) -> Result<String, MemoryError> {
         let id = uuid::Uuid::new_v4().to_string();
         let seqs = serde_json::to_string(&r.source_seqs).unwrap_or_else(|_| "[]".into());

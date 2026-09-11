@@ -66,4 +66,13 @@ pub trait MemoryStore: Send + Sync {
     /// Top-k by importance, then recency. Cross-mission by design (the
     /// point of the plane); mission scoping is the caller's filter.
     fn top_k(&self, agent_id: &str, k: usize) -> Result<Vec<MemoryRecord>, MemoryError>;
+
+    /// RMM retrospective ledger (arXiv 2503.08026): book the reward for a
+    /// record memory.recall served - +1 when the mission CITED it, -1 when
+    /// it was retrieved but never cited. Append-only; the log stays the
+    /// audit trail and this table the running books.
+    fn reward(&self, record_id: &str, mission_id: Option<&str>, delta: i64)
+        -> Result<(), MemoryError>;
+    /// Usefulness score for one record: the ledger sum.
+    fn score(&self, record_id: &str) -> Result<i64, MemoryError>;
 }

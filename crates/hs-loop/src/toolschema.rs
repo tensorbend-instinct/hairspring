@@ -323,7 +323,7 @@ pub fn verdict_tool() -> Value {
 pub fn memory_recall_tool() -> Value {
     f(
         "memory.recall",
-        "Query K, the cross-mission typed memory plane (design D3). Returns top-k records from EARLIER missions by importance then recency - what the team has already learned - each with source_seqs pointing into the event log so you can chase provenance. Nothing from prior missions reaches you automatically: call this BEFORE re-deriving anything a past mission may have established. k defaults to 5.",
+        "Query K, the cross-mission typed memory plane (design D3). Returns top-k records from EARLIER missions by importance then recency - what the team has already learned - each with source_seqs pointing into the event log so you can chase provenance. Nothing from prior missions reaches you automatically: call this BEFORE re-deriving anything a past mission may have established. When a served record actually informs your work, CITE its id verbatim in your visible output (notes, edits, submission): cited records gain reward, served-but-uncited records lose it - the ledger is how K learns what is worth keeping. k defaults to 5.",
         json!({"type":"object","properties":{"k":{"type":"integer","description":"records to return, 1..=50 (default 5)"}}}),
     )
 }
