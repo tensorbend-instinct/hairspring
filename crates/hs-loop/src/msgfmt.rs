@@ -136,3 +136,17 @@ pub fn prompt_view(params: &Value) -> String {
     }
     out
 }
+
+/// Environment orientation every mission sees in its first message
+/// (Eric 2026-09-10, iMessage: teach the tar userns quirk to agents).
+/// Truth after the ro-floor ruling fix (88dc0a4): system dirs are
+/// read-only, the workspace + /tmp + toolchain caches are writable,
+/// network is on, and toolchains install into the workspace.
+pub const MISSION_ENV_HINT: &str = "ENVIRONMENT: commands run confined (bubblewrap on Linux, Seatbelt on macOS). System dirs are read-only; your workspace, /tmp, and the standard toolchain caches are writable. Network is on: install any toolchain you need into the workspace (curl/wget a tarball or installer - uv, node, go, rustup all work this way) and run it from there. Extract archives with tar --no-same-owner: as sandbox-root, plain tar tries to chown every extracted file to an unmapped uid and floods one warning per file.";
+
+/// The mission's first message: the goal plus the environment
+/// orientation, one stable block so the cached prefix stays append-only.
+#[must_use]
+pub fn mission_first_message(prompt: &str) -> String {
+    format!("MISSION: {prompt}\n{MISSION_ENV_HINT}")
+}

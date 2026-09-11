@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 /// {`fail_to_pass`} {`repo_layout`} {`answer_path`} {nudge}. Unknown placeholders
 /// are left intact so policy authors can extend the arg set additively.
 pub const SWE_MISSION_TEMPLATE: &str = "You are fixing a real bug in the repository checked out at {ws} (base commit, failing tests already added). repo.exec sees the repo at /ws; every tool takes repo-relative paths.\n\
-MACHINE: you are on a real Linux box as root, not a toy sandbox. {network_line} System roots are writable - apt-get/pip/cargo/npm all work. Host-only paths stay hidden (/home, /mnt). Detected tooling: {orientation}\n\
+MACHINE: you are on a real Linux box as root, not a toy sandbox. {network_line} System roots are read-only - system-wide apt/pip installs do not persist. Install what you need into the workspace or /tmp instead (curl a tarball or installer; extract with tar --no-same-owner - tar as sandbox-root otherwise chown-floods one warning per file). Host-only paths stay hidden (/home, /mnt). Detected tooling: {orientation}\n\
 PROBLEM STATEMENT (from the issue tracker):\n{problem_statement}\n\n\
 The checker applies your patch, then runs the FAIL_TO_PASS tests. Run them yourself inside repo.exec with EXACTLY this command (the interpreter is on PATH): {fail_to_pass}\n\
 It also runs a set of PASS_TO_PASS regression tests; do not break existing behavior.\n\n\
@@ -31,7 +31,7 @@ The exact ANSWER_PATH value is given to you on the ANSWER_PATH line each attempt
 Do not include prose outside the JSON. If you get FEEDBACK, repair what it reports before resubmitting - resubmitting an answer the verifier already refuted earns another refutation, not acceptance.{nudge}";
 
 pub const SWE_MISSION_BLIND_TEMPLATE: &str = "You are fixing a real bug in the repository checked out at {ws} (base commit). repo.exec sees the repo at /ws; every tool takes repo-relative paths.\n\
-MACHINE: you are on a real Linux box as root, not a toy sandbox. {network_line} System roots are writable - apt-get/pip/cargo/npm all work. Host-only paths stay hidden (/home, /mnt). Detected tooling: {orientation}\n\
+MACHINE: you are on a real Linux box as root, not a toy sandbox. {network_line} System roots are read-only - system-wide apt/pip installs do not persist. Install what you need into the workspace or /tmp instead (curl a tarball or installer; extract with tar --no-same-owner - tar as sandbox-root otherwise chown-floods one warning per file). Host-only paths stay hidden (/home, /mnt). Detected tooling: {orientation}\n\
 PROBLEM STATEMENT (from the issue tracker):\n{problem_statement}\n\n\
 There is NO provided test suite: your own checks are the only gate. Write tests that would catch this bug, then declare the commands that run them - one per line - in .hs/checks at the repo root (harness machinery: the file never joins your submitted patch). The checker runs exactly those commands against your candidate and is green only when every one passes. Run them yourself with repo.exec before submitting; an audit of your recorded work follows every submission.\n\n\
 Repo files (partial listing):\n{repo_layout}\n\
@@ -63,7 +63,7 @@ pub struct TbPromptArgs {
     pub mcp_tools: String,
 }
 
-pub const TB_MISSION_TEMPLATE: &str = "You are solving a terminal task inside a live Linux container. You work DIRECTLY on the real machine at {workdir} (you are root, network on, state persists between commands - what you build here is exactly what gets graded). Every tool path is relative to {workdir}.\n\
+pub const TB_MISSION_TEMPLATE: &str = "You are solving a terminal task inside a live Linux container. You work DIRECTLY on the real machine at {workdir} (you are root, network on, state persists between commands - what you build here is exactly what gets graded). System dirs are read-only: install toolchains into {workdir} or /tmp, and extract archives with tar --no-same-owner (tar as sandbox-root otherwise chown-floods one warning per file). Every tool path is relative to {workdir}.\n\
 THE TASK:\n{instruction}\n\n\
 There is NO provided test suite and the official grading tests are HIDDEN: they run only after you finish, you never see them, and nothing about them is in your inputs. Your own verification is the ONLY completion signal. Write the checks that convince you the task is done - one command per line - into .hs/checks at the workdir root (harness machinery, created with term.exec; the grader never sees it), and run them with term.exec until every one passes. A submission is only as strong as the checks you declare.\n\n\
 WORK POLICY:\n\
@@ -88,7 +88,7 @@ pub fn build_tb_mission_prompt(args: &TbPromptArgs) -> String {
 /// this session - will try to REFUTE the submission after .hs/checks go
 /// green. The author learns the bar its checks must clear: instruction-
 /// anchored, re-derived by a different method, probed past happy paths.
-pub const TB_MISSION_CRITIC_TEMPLATE: &str = "You are solving a terminal task inside a live Linux container. You work DIRECTLY on the real machine at {workdir} (you are root, network on, state persists between commands - what you build here is exactly what gets graded). Every tool path is relative to {workdir}.\n\
+pub const TB_MISSION_CRITIC_TEMPLATE: &str = "You are solving a terminal task inside a live Linux container. You work DIRECTLY on the real machine at {workdir} (you are root, network on, state persists between commands - what you build here is exactly what gets graded). System dirs are read-only: install toolchains into {workdir} or /tmp, and extract archives with tar --no-same-owner (tar as sandbox-root otherwise chown-floods one warning per file). Every tool path is relative to {workdir}.\n\
 THE TASK:\n{instruction}\n\n\
 There is NO provided test suite and the official grading tests are HIDDEN: they run only after you finish, you never see them, and nothing about them is in your inputs. Verification has TWO gates. Gate 1: write the checks that convince you the task is done - one command per line - into .hs/checks at the workdir root (harness machinery, created with term.exec; the grader never sees it), and run them with term.exec until every one passes. Gate 2: an INDEPENDENT critic then reviews your submission - a fresh verifier that never saw this session, gets the original task text and your declared checks, has shell access to the live machine, and its only job is to REFUTE you: it extracts every hard requirement from the task text (files, formats, labels, units, numeric ranges) and tests each one, re-derives every computed value by a DIFFERENT method than your checks use, and probes the edges your checks ignore. The mission passes only when your checks are green AND the critic cannot refute the submission. Weak checks that pass wrong values will be caught - verify the way a skeptic would.\n\n\
 WORK POLICY:\n\

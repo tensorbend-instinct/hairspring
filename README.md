@@ -30,7 +30,7 @@ Missions confine every tool call by mechanism: bubblewrap on Linux
 `pacman -S bubblewrap`) and the kernel Seatbelt sandbox on macOS (via
 `sandbox-exec`, which ships with the OS - the mechanism Bazel, Homebrew,
 and Claude Code use). The startup preflight probes the platform sandbox
-and says what is missing; an unconfined run is never the fallback.
+and says what is missing; an unconfined run is never the fallback. Inside the sandbox, system dirs are read-only while the project root, /tmp, and the standard toolchain caches stay writable: missions install whatever toolchain they need into the workspace (uv/node/go/rustup style downloads work - network is on), and archives should be extracted with `tar --no-same-owner` (tar as sandbox-root otherwise floods one chown warning per file).
 
 ## Quickstart
 

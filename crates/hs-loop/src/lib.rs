@@ -1440,7 +1440,7 @@ impl InnerLoop {
                                                         // transcript, busting the cache for the whole history).
             let mut messages: Vec<serde_json::Value> = vec![serde_json::json!({
                 "role": "user",
-                "content": format!("MISSION: {prompt}"),
+                "content": crate::msgfmt::mission_first_message(&prompt),
             })];
             // Fix 4: budget visibility every step - "step N of MAX, T-minus
             // Xs, $Y of $Z spent" (ab2: the model could not pace itself
