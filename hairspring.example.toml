@@ -73,6 +73,14 @@ command = ["@PREFIX@/bin/hs-plugin-deepseek"]
 default = true
 subjects = ["*"]
 
+# Any OpenAI-compatible endpoint (OpenRouter, OpenAI direct, local) is a
+# providers.toml entry + one [[models]] block on the generic plugin - see
+# README "Providers (models)". Example (uncomment, then /models in the TUI):
+# [[models]]
+# name = "openrouter"
+# command = ["@PREFIX@/bin/hs-plugin-provmodel", "openrouter"]
+# subjects = ["*"]
+
 # Offline model for a zero-network trial: replays a fixed script, then
 # answers. To try the loop with no API key:
 #   1. export HS_SEQMODEL_SCRIPT=@PREFIX@/seqmodel-demo.jsonl

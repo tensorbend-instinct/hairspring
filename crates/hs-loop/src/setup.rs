@@ -27,7 +27,33 @@ pub fn key_path(provider: &str) -> PathBuf {
 }
 
 fn providers() -> Vec<Provider> {
-    vec![realmodel::deepseek(), realmodel::glm()]
+    let mut v = vec![realmodel::deepseek(), realmodel::glm()];
+    // TOML-declared providers (HS_PROVIDERS_TOML or the config-dir
+    // providers.toml) join the wizard and the readiness gate by name -
+    // a provider is configuration, so setup must see configuration.
+    if let Some(path) = realmodel::providers_toml_path()
+        && let Ok(cfgs) = realmodel::load_providers_toml(&path)
+    {
+        for c in &cfgs {
+            if v.iter().any(|p| p.name == c.name) {
+                continue; // the builtin definition wins
+            }
+            if let Ok(p) = realmodel::provider_from_config(c) {
+                v.push(p);
+            }
+        }
+    }
+    v
+}
+
+/// Known provider names, for error messages that used to hardcode
+/// "deepseek, glm" - TOML providers are known too.
+fn known_names() -> String {
+    providers()
+        .iter()
+        .map(|p| p.name.clone())
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 pub struct Readiness {
@@ -142,7 +168,8 @@ pub fn validate_live(provider: &str, key: &str) -> Validation {
 pub fn save_key(provider: &str, key: &str) -> Result<PathBuf, String> {
     if !providers().iter().any(|p| p.name == provider) {
         return Err(format!(
-            "unknown provider \"{provider}\" - known: deepseek, glm"
+            "unknown provider \"{provider}\" - known: {}",
+            known_names()
         ));
     }
     let key = key.trim();
@@ -340,7 +367,10 @@ fn wizard() -> Result<(), String> {
     let pick = prompt("provider to configure [deepseek]: ")?;
     let provider = if pick.is_empty() { "deepseek" } else { pick.as_str() };
     let Some(p) = providers().into_iter().find(|p| p.name == provider) else {
-        return Err(format!("unknown provider \"{provider}\" - known: deepseek, glm"));
+        return Err(format!(
+            "unknown provider \"{provider}\" - known: {}",
+            known_names()
+        ));
     };
     let key = match std::env::var(&p.key_env) {
         Ok(k) if !k.trim().is_empty() => {

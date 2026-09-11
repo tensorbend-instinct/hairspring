@@ -22,7 +22,11 @@ if ! command -v cargo >/dev/null 2>&1; then
 fi
 
 echo "Building HAIRSPRING (release, locked)..."
-(cd "$SRC" && cargo build --release --locked --workspace --bins)
+# Pin the target dir: the cp below reads $SRC/target/release, so the build
+# must land there even when the operator has CARGO_TARGET_DIR exported
+# (stranger burn 2026-09-11: an exported target dir stranded the binaries
+# and the install died on the cp).
+(cd "$SRC" && CARGO_TARGET_DIR="$SRC/target" cargo build --release --locked --workspace --bins)
 
 BINS="hs-repl hs-log-cli \
 hs-plugin-answer hs-plugin-answersubmit hs-plugin-selfcheck hs-plugin-critic \

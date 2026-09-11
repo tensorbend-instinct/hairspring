@@ -100,9 +100,14 @@ fn missing_key_is_fill_only_error() {
     unsafe { std::env::remove_var("HS_GLM_API_KEY") };
     // FIXME: Audit that the environment access only happens in single-threaded code.
     unsafe { std::env::remove_var("HS_GLM_API_KEY_FILE") };
+    // Isolate the config dir: the conventional keys/<name>.key fallback
+    // must not find a real operator key on a dev machine.
+    let home = tempfile::tempdir().unwrap();
+    unsafe { std::env::set_var("XDG_CONFIG_HOME", home.path()) };
     let e = provider_from_config(glm_cfg)
         .and_then(|p| load_key(&p))
         .unwrap_err();
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
     assert!(e.contains("HS_GLM_API_KEY"), "names the env var: {e}");
     assert!(!e.to_lowercase().contains("secret"), "no key material: {e}");
 }
