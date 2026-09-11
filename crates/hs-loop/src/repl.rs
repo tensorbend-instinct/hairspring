@@ -215,6 +215,93 @@ pub fn configured_critic_caps(config: &Path) -> (Option<u64>, Option<u64>, Optio
     (get("max_steps"), get("wall_secs"), get("budget_micros"))
 }
 
+/// Flip the active default across the config's [[models]] blocks
+/// (Eric 2026-09-10: a /models pick must survive restart - same gap
+/// class as /caps). The picked block gains `default = true`, every
+/// other block loses its ACTIVE default; commented-out defaults are
+/// text, not config, and stay untouched. Unknown name is an error
+/// naming the known set.
+pub fn set_default_model_text(text: &str, name: &str) -> Result<String, String> {
+    let lines: Vec<&str> = text.lines().collect();
+    // Block spans: each [[models]] header to the next [ section header.
+    let mut blocks: Vec<(usize, usize)> = Vec::new(); // [header, end)
+    let mut cur: Option<usize> = None;
+    for (i, l) in lines.iter().enumerate() {
+        let t = l.trim();
+        if t.starts_with('[') {
+            if let Some(h) = cur.take() {
+                blocks.push((h, i));
+            }
+            if t == "[[models]]" {
+                cur = Some(i);
+            }
+        }
+    }
+    if let Some(h) = cur {
+        blocks.push((h, lines.len()));
+    }
+    let name_line = |i: usize| -> Option<String> {
+        let t = lines[i].trim();
+        if t.starts_with("name") {
+            if let Some(eq) = t.find('=') {
+                return Some(
+                    t[eq + 1..]
+                        .trim()
+                        .trim_matches('"')
+                        .to_string(),
+                );
+            }
+        }
+        None
+    };
+    let mut known: Vec<String> = Vec::new();
+    let mut target: Option<(usize, usize)> = None;
+    for b in &blocks {
+        for i in b.0..b.1 {
+            if let Some(n) = name_line(i) {
+                if n == name {
+                    target = Some(*b);
+                }
+                known.push(n);
+                break;
+            }
+        }
+    }
+    let Some(tb) = target else {
+        return Err(format!(
+            "unknown model {name:?} (known: {})",
+            known.join(", ")
+        ));
+    };
+    let mut out: Vec<String> = Vec::with_capacity(lines.len() + 1);
+    let mut inserted = false;
+    for (i, l) in lines.iter().enumerate() {
+        let in_block = blocks.iter().any(|b| b.0 <= i && i < b.1);
+        if in_block && l.trim() == "default = true" {
+            continue; // every active default goes; the target re-adds its own
+        }
+        out.push((*l).to_string());
+        if !inserted && tb.0 <= i && i < tb.1 && name_line(i).as_deref() == Some(name) {
+            out.push("default = true".to_string());
+            inserted = true;
+        }
+    }
+    let mut joined = out.join("\n");
+    if text.ends_with('\n') && !joined.ends_with('\n') {
+        joined.push('\n');
+    }
+    Ok(joined)
+}
+
+/// Persist a /models pick: flip the default in the config file.
+/// Applied live by the caller only after this write lands.
+pub fn set_default_model(config: &Path, name: &str) -> Result<(), String> {
+    let text = std::fs::read_to_string(config)
+        .map_err(|e| format!("read {}: {e}", config.display()))?;
+    let out = set_default_model_text(&text, name)?;
+    std::fs::write(config, out).map_err(|e| format!("write {}: {e}", config.display()))
+}
+
 /// One key in one TOML section: created when missing, replaced in
 /// place when present, removed when `value` is None. Everything else
 /// in the file (comments, other keys, other sections) is preserved
@@ -470,6 +557,13 @@ pub fn load(
             .collect();
         let mut native_tools =
             crate::toolschema::schemas_for_registry(&registered, &mcp_native, "applypatch");
+        // Audit artifact, parity with hs-swe-run's tools.json: the exact
+        // native tool surface the mission model operates under.
+        std::fs::write(
+            log_root.join("tools.json"),
+            serde_json::to_string_pretty(&native_tools).expect("tools serialize"),
+        )
+        .expect("tools.json");
         // Eric's five #5: the interactive surface offers delegation.
         offer_unique(&mut native_tools, crate::toolschema::agent_spawn_tool());
         offer_unique(&mut native_tools, crate::toolschema::agent_spawn_poll_tool());
@@ -582,6 +676,13 @@ pub fn load(
             .collect();
         let mut native_tools =
             crate::toolschema::schemas_for_registry(&registered, &mcp_native, "applypatch");
+        // Audit artifact, parity with hs-swe-run's tools.json: the exact
+        // native tool surface the mission model operates under.
+        std::fs::write(
+            log_root.join("tools.json"),
+            serde_json::to_string_pretty(&native_tools).expect("tools serialize"),
+        )
+        .expect("tools.json");
         // Eric's five #5: the interactive surface offers delegation.
         offer_unique(&mut native_tools, crate::toolschema::agent_spawn_tool());
         offer_unique(&mut native_tools, crate::toolschema::agent_spawn_poll_tool());

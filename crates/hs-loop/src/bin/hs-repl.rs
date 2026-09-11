@@ -267,10 +267,16 @@ fn run_fullscreen(
                     let _ = tx.send(TuiMsg::CapsSet(s));
                 }
                 UiCmd::SetModel(name) => {
-                    let r = session
-                        .set_model_override(Some(name.clone()))
-                        .map(|()| name)
-                        .map_err(|e| e.to_string());
+                    // Persist FIRST (Eric 2026-09-10: the pick survives
+                    // restart), then go live - a failed write switches
+                    // nothing.
+                    let r = hs_loop::repl::set_default_model(&wcfg, &name)
+                        .and_then(|()| {
+                            session
+                                .set_model_override(Some(name.clone()))
+                                .map_err(|e| e.to_string())
+                        })
+                        .map(|()| format!("{name} \u{b7} saved as default"));
                     let _ = tx.send(TuiMsg::ModelSet(r));
                 }
                 UiCmd::Switch(id) => {

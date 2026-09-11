@@ -177,6 +177,48 @@ pub fn provider_from_config(c: &ProviderConfig) -> Result<Provider, String> {
     })
 }
 
+/// Where TOML-declared providers live: HS_PROVIDERS_TOML wins, else the
+/// conventional config-dir file. Missing file is fine - builtins still work.
+#[must_use]
+pub fn providers_toml_path() -> Option<std::path::PathBuf> {
+    if let Ok(p) = std::env::var("HS_PROVIDERS_TOML")
+        && !p.is_empty() {
+            return Some(std::path::PathBuf::from(p));
+        }
+    let cfg = std::env::var("XDG_CONFIG_HOME")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            std::env::var("HOME")
+                .ok()
+                .map(|h| std::path::PathBuf::from(h).join(".config"))
+        })?;
+    let p = cfg.join("hairspring").join("providers.toml");
+    p.exists().then_some(p)
+}
+
+/// One resolution path for every provider (Eric: providers are
+/// configuration). Builtins resolve exactly as before; any other name falls
+/// back to the providers TOML, so adding OpenAI/OpenRouter/... is a TOML
+/// entry, not new code.
+pub fn provider_by_name(name: &str) -> Result<Provider, String> {
+    match name {
+        "deepseek" => return Ok(deepseek()),
+        "glm" => return Ok(glm()),
+        _ => {}
+    }
+    if let Some(p) = providers_toml_path() {
+        let cfgs = load_providers_toml(&p)?;
+        if let Ok(c) = find_provider(&cfgs, name) {
+            return provider_from_config(c);
+        }
+    }
+    Err(format!(
+        "unknown provider {name:?} (builtins: deepseek, glm; or add a [[providers]] entry)"
+    ))
+}
+
 const SYSTEM: &str = "You are the model plugin of an autonomous coding agent.";
 
 /// Operator calls carry native tool schemas; the API enforces exactly one

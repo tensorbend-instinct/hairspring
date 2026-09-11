@@ -201,6 +201,28 @@ pub fn schema_for(name: &str, edit_path: &str) -> Option<Value> {
         .into_iter()
         .chain(tb_tools())
         .collect::<Vec<_>>();
+    if name == "answer.submit" {
+        // Mode-correct schema (live finding, GLM-5.3): the plugin requires
+        // {path, summary} in plain REPL mode (the summary IS the answer
+        // content) and {path} only under HS_SWE_WORKSPACE / HS_ANSWER_RAW,
+        // where the harness computes the deliverable itself. The builtin
+        // list holds the SWE variant and would always win the find below,
+        // so pick by mode here.
+        // The discriminator is HS_ANSWER_RAW, not HS_SWE_WORKSPACE: the
+        // REPL sets HS_SWE_WORKSPACE for EVERY session (plugin env
+        // anchoring); live-machine configs (term.exec) add HS_ANSWER_RAW=1,
+        // and THAT is what switches the plugin to summary-required.
+        let want_swe = std::env::var("HS_ANSWER_RAW").as_deref() != Ok("1");
+        return authored.into_iter().find(|t| {
+            if t["function"]["name"].as_str() != Some(name) {
+                return false;
+            }
+            let has_summary = t["function"]["parameters"]["properties"]
+                .as_object()
+                .is_some_and(|p| p.contains_key("summary"));
+            has_summary != want_swe
+        });
+    }
     authored
         .into_iter()
         .find(|t| t["function"]["name"].as_str() == Some(name))

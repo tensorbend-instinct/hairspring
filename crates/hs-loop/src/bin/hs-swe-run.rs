@@ -232,6 +232,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         serde_json::to_string_pretty(&native_tools).expect("json! values serialize"),
     )?;
 
+    // Provider plugin resolution: a dedicated hs-plugin-<model> wins;
+    // otherwise the generic OpenAI-compatible provider plugin resolves
+    // the provider by name ([[providers]] TOML / builtin), the provider
+    // name riding as argv[1].
+    let model_cmd = match bin(&format!("hs-plugin-{model}")) {
+        Ok(p) => format!("\"{p}\""),
+        Err(_) => format!("\"{}\", \"{model}\"", bin("hs-plugin-provmodel")?),
+    };
     let config = run_dir.join("hairspring.toml");
     std::fs::write(
         &config,
@@ -279,7 +287,7 @@ subjects = ["*"]
 
 [[models]]
 name = "{model}"
-command = ["{model_bin}"]
+command = [{model_cmd}]
 default = true
 {mcp_tools}
 "#,
@@ -305,7 +313,6 @@ default = true
             },
             notescratch = bin("hs-plugin-notescratch")?,
             model = model,
-            model_bin = bin(&format!("hs-plugin-{model}"))?,
             mcp_tools = mcp_tools,
         ),
     )?;

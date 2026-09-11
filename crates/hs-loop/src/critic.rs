@@ -365,7 +365,7 @@ pub fn provider_for(name: &str) -> Result<crate::realmodel::Provider, String> {
     match name {
         "deepseek" => Ok(crate::realmodel::deepseek()),
         "glm" => Ok(crate::realmodel::glm()),
-        other => Err(format!("unknown critic model {other:?} (known: deepseek, glm)")),
+        other => crate::realmodel::provider_by_name(other),
     }
 }
 
