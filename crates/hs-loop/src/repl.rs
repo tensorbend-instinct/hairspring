@@ -877,6 +877,11 @@ pub fn load(
         self.inner.model_names()
     }
 
+    /// Pick up rig changes (the /models add write) without a restart.
+    pub fn reload_config(&mut self) -> Result<bool, String> {
+        self.inner.reload_config()
+    }
+
     pub fn vitals(&self) -> SessionVitals {
         SessionVitals {
             model_label: self.model_label.clone(),
@@ -1701,4 +1706,324 @@ pub fn last_mission_outcome(log_root: &Path, stream_id: uuid::Uuid) -> Option<St
     let bytes = r.resolve_payload(e).ok()?;
     let v: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
     v.get("outcome")?.as_str().map(str::to_owned)
+}
+
+
+// ---------------------------------------------------------------------
+// /models add + zero-config stranger path (RED: tui_addprovider_red.rs,
+// Eric 2026-09-12). A provider is configuration, so the TUI writes
+// configuration: a [[providers]] entry (provmodel shape) plus a
+// [[models]] block on the generic plugin, and bare `hairspring`
+// auto-creates the rig and the session dir.
+// ---------------------------------------------------------------------
+
+fn valid_provider_name(name: &str) -> bool {
+    // The env convention HS_<NAME>_API_KEY must stay derivable.
+    !name.is_empty()
+        && name
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        && !name.starts_with('-')
+}
+
+fn valid_base_url(url: &str) -> bool {
+    let rest = url
+        .strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"));
+    match rest {
+        Some(r) => !r.is_empty() && !r.chars().any(char::is_whitespace) && !r.contains('"'),
+        None => false,
+    }
+}
+
+fn valid_model_id(model: &str) -> bool {
+    !model.is_empty() && !model.chars().any(|c| c == '\n' || c == '"')
+}
+
+/// Model names declared in a rig TOML (the [[models]] blocks only).
+fn rig_model_names(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut in_models = false;
+    for l in text.lines() {
+        let t = l.trim();
+        if t.starts_with('[') {
+            in_models = t == "[[models]]";
+        } else if in_models && t.starts_with("name") {
+            if let Some(eq) = t.find('=') {
+                out.push(t[eq + 1..].trim().trim_matches('"').to_string());
+            }
+            in_models = false; // one name per block
+        }
+    }
+    out
+}
+
+/// The directory the rig's plugin binaries live in, derived from the
+/// first [[models]] command path (installed and dev layouts both work).
+fn rig_plugin_dir(text: &str) -> Result<std::path::PathBuf, String> {
+    let mut in_models = false;
+    for l in text.lines() {
+        let t = l.trim();
+        if t.starts_with('[') {
+            in_models = t == "[[models]]";
+        } else if in_models && t.starts_with("command") {
+            let start = t.find('"').ok_or("[[models]] command has no quoted path")?;
+            let end = t[start + 1..]
+                .find('"')
+                .ok_or("[[models]] command path unterminated")?
+                + start
+                + 1;
+            let bin = std::path::PathBuf::from(&t[start + 1..end]);
+            return bin
+                .parent()
+                .map(std::path::Path::to_path_buf)
+                .ok_or_else(|| "[[models]] command path has no parent dir".to_string());
+        }
+    }
+    Err("no [[models]] command found in the rig".to_string())
+}
+
+/// The /models add writer: lands the [[providers]] entry (provmodel
+/// shape) and the rig's [[models]] block in one validated step - bad
+/// input writes nothing.
+pub fn add_provider(
+    rig: &Path,
+    providers_toml: &Path,
+    name: &str,
+    base_url: &str,
+    model: &str,
+) -> Result<(), String> {
+    let name = name.trim();
+    let base_url = base_url.trim();
+    let model = model.trim();
+    if !valid_provider_name(name) {
+        return Err(format!(
+            "bad provider name {name:?} - lowercase letters, digits, dashes (e.g. openrouter)"
+        ));
+    }
+    if !valid_base_url(base_url) {
+        return Err(format!(
+            "bad base URL {base_url:?} - the http(s) chat completions endpoint"
+        ));
+    }
+    if !valid_model_id(model) {
+        return Err(format!("bad model id {model:?}"));
+    }
+    if name == "deepseek" || name == "glm" {
+        return Err(format!("{name} is built in already"));
+    }
+    let rig_text = std::fs::read_to_string(rig)
+        .map_err(|e| format!("read {}: {e}", rig.display()))?;
+    if rig_model_names(&rig_text).iter().any(|n| n == name) {
+        return Err(format!("model {name:?} already exists in the rig"));
+    }
+    if providers_toml.is_file() {
+        let cfgs = crate::realmodel::load_providers_toml(providers_toml)?;
+        if cfgs.iter().any(|c| c.name == name) {
+            return Err(format!("provider {name:?} already declared"));
+        }
+    }
+    let plugin_dir = rig_plugin_dir(&rig_text)?;
+    let provmodel = plugin_dir.join("hs-plugin-provmodel");
+
+    // providers.toml: created with a header when missing, appended after.
+    let entry = format!(
+        "[[providers]]\nname = \"{name}\"\nbase_url = \"{base_url}\"\nmodel = \"{model}\"\n"
+    );
+    let new_prov = if providers_toml.is_file() {
+        let old = std::fs::read_to_string(providers_toml)
+            .map_err(|e| format!("read {}: {e}", providers_toml.display()))?;
+        let mut t = old;
+        if !t.ends_with('\n') {
+            t.push('\n');
+        }
+        t.push('\n');
+        t.push_str(&entry);
+        t
+    } else {
+        format!(
+            "# Declared from the TUI (/models add); the generic provmodel plugin serves them.\n{entry}"
+        )
+    };
+    toml::from_str::<toml::Value>(&new_prov)
+        .map_err(|e| format!("providers TOML would not parse: {e}"))?;
+
+    // The rig gains one [[models]] block on the generic plugin.
+    let mut new_rig = rig_text;
+    if !new_rig.ends_with('\n') {
+        new_rig.push('\n');
+    }
+    new_rig.push_str(&format!(
+        "\n[[models]]\nname = \"{name}\"\ncommand = [\"{}\", \"{name}\"]\nsubjects = [\"*\"]\n",
+        provmodel.display()
+    ));
+    toml::from_str::<toml::Value>(&new_rig)
+        .map_err(|e| format!("rig would not parse: {e}"))?;
+
+    if let Some(parent) = providers_toml.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("create {}: {e}", parent.display()))?;
+    }
+    std::fs::write(providers_toml, new_prov)
+        .map_err(|e| format!("write {}: {e}", providers_toml.display()))?;
+    std::fs::write(rig, new_rig).map_err(|e| format!("write {}: {e}", rig.display()))?;
+    Ok(())
+}
+
+/// What one wizard line produces.
+#[derive(Debug)]
+pub enum WizardFeed {
+    /// The next prompt to print.
+    Next(&'static str),
+    /// All four fields collected.
+    Ready {
+        name: String,
+        base_url: String,
+        model: String,
+        key: String,
+    },
+    Cancelled,
+}
+
+#[derive(Debug, PartialEq)]
+enum WStep {
+    Name,
+    BaseUrl,
+    Model,
+    Key,
+}
+
+/// The /models add conversation: name -> base URL -> model id -> key.
+/// Pure state; hs-repl drives it over the composer (key step is secret).
+#[derive(Debug)]
+pub struct AddProviderWizard {
+    step: WStep,
+    name: String,
+    base_url: String,
+    model: String,
+}
+
+impl Default for AddProviderWizard {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl AddProviderWizard {
+    #[must_use]
+    pub fn new() -> Self {
+        AddProviderWizard {
+            step: WStep::Name,
+            name: String::new(),
+            base_url: String::new(),
+            model: String::new(),
+        }
+    }
+
+    /// The prompt for the step the wizard is on.
+    #[must_use]
+    pub fn prompt(&self) -> &'static str {
+        match self.step {
+            WStep::Name => "provider name (lowercase, e.g. openrouter):",
+            WStep::BaseUrl => {
+                "base URL (the chat completions endpoint, e.g. https://openrouter.ai/api/v1/chat/completions):"
+            }
+            WStep::Model => "model id (e.g. openai/gpt-5.2):",
+            WStep::Key => "API key (input hidden, never written to history):",
+        }
+    }
+
+    /// The key step hides the composer input.
+    #[must_use]
+    pub fn is_secret(&self) -> bool {
+        self.step == WStep::Key
+    }
+
+    pub fn feed(&mut self, line: &str) -> Result<WizardFeed, String> {
+        let v = line.trim();
+        if v == "/cancel" {
+            return Ok(WizardFeed::Cancelled);
+        }
+        if v.is_empty() {
+            return Err("empty - type a value, or /cancel to stop".into());
+        }
+        match self.step {
+            WStep::Name => {
+                if !valid_provider_name(v) {
+                    return Err(format!(
+                        "bad name {v:?} - lowercase letters, digits, dashes"
+                    ));
+                }
+                self.name = v.to_string();
+                self.step = WStep::BaseUrl;
+                Ok(WizardFeed::Next(self.prompt()))
+            }
+            WStep::BaseUrl => {
+                if !valid_base_url(v) {
+                    return Err(format!(
+                        "bad base URL {v:?} - starts http:// or https://"
+                    ));
+                }
+                self.base_url = v.to_string();
+                self.step = WStep::Model;
+                Ok(WizardFeed::Next(self.prompt()))
+            }
+            WStep::Model => {
+                if !valid_model_id(v) {
+                    return Err(format!("bad model id {v:?}"));
+                }
+                self.model = v.to_string();
+                self.step = WStep::Key;
+                Ok(WizardFeed::Next(self.prompt()))
+            }
+            WStep::Key => {
+                if v.chars().any(char::is_whitespace) {
+                    return Err(
+                        "the key contains whitespace - paste it exactly as issued".into(),
+                    );
+                }
+                Ok(WizardFeed::Ready {
+                    name: self.name.clone(),
+                    base_url: self.base_url.clone(),
+                    model: self.model.clone(),
+                    key: v.to_string(),
+                })
+            }
+        }
+    }
+}
+
+/// Where a bare `hairspring` keeps its run state:
+/// `$XDG_DATA_HOME/hairspring/run`, else `~/.local/share/hairspring/run`.
+#[must_use]
+pub fn default_session_dir() -> std::path::PathBuf {
+    if let Ok(x) = std::env::var("XDG_DATA_HOME") {
+        if !x.is_empty() {
+            return std::path::PathBuf::from(x)
+                .join("hairspring")
+                .join("run");
+        }
+    }
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+    std::path::PathBuf::from(home)
+        .join(".local")
+        .join("share")
+        .join("hairspring")
+        .join("run")
+}
+
+/// `--dir` when given; the automatic session dir (created) otherwise.
+pub fn resolve_session_dir(given: Option<&str>) -> Result<std::path::PathBuf, String> {
+    let p = given.map_or_else(default_session_dir, std::path::PathBuf::from);
+    std::fs::create_dir_all(&p).map_err(|e| format!("create {}: {e}", p.display()))?;
+    Ok(p)
+}
+
+/// `--config` when given; the rig in the config dir otherwise, written
+/// from the shipped template on first run (`setup::ensure_config`).
+pub fn resolve_config_path(given: Option<&str>) -> Result<std::path::PathBuf, String> {
+    if let Some(g) = given {
+        return Ok(std::path::PathBuf::from(g));
+    }
+    crate::setup::ensure_config()
 }

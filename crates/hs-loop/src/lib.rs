@@ -651,6 +651,12 @@ impl InnerLoop {
         self.kernel.model_names()
     }
 
+    /// Pick up rig changes (the /models add write) without a restart -
+    /// a /models pick right after an add must not fail "unknown model".
+    pub fn reload_config(&mut self) -> Result<bool, String> {
+        self.kernel.reload_if_changed().map_err(|e| e.to_string())
+    }
+
     /// The native schemas currently delivered on operator model calls
     /// (None = free-form path; REPL parity gap #1 made Some the REPL norm).
     pub fn native_tools(&self) -> Option<&serde_json::Value> {

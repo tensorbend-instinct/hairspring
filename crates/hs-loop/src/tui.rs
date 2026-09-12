@@ -99,7 +99,7 @@ pub const TUI_HELP: &str = "hairspring - full-screen surface
   /last     the latest mission's answer artifact
   /resume   pick a prior session to continue
   /caps     view or change the live caps (steps, wall, budget, critic)
-  /models   pick the operator model (next mission onward)
+  /models   pick the operator model (next mission onward); /models add declares a new provider
   /theme    pick the surface theme
   /agents   toggle the delegation graph panel
   /lineage  toggle the selfmod lineage panel
@@ -183,7 +183,7 @@ pub const TUI_COMMANDS: &[CommandSpec] = &[
     CommandSpec { name: "last", summary: "the latest mission's answer artifact", args: None },
     CommandSpec { name: "resume", summary: "pick a prior session to continue", args: None },
     CommandSpec { name: "caps", summary: "view or change the live caps (steps, wall, budget, critic)", args: Some("[key value]") },
-    CommandSpec { name: "models", summary: "pick the operator model", args: None },
+    CommandSpec { name: "models", summary: "pick the operator model; add declares a provider", args: None },
     CommandSpec { name: "theme", summary: "pick the surface theme", args: None },
     CommandSpec { name: "agents", summary: "toggle the delegation graph panel", args: None },
     CommandSpec { name: "lineage", summary: "toggle the selfmod lineage panel", args: None },
@@ -387,6 +387,9 @@ pub struct EditorState {
     history: std::collections::VecDeque<String>,
     hist_idx: Option<usize>,
     stash: String,
+    /// Secret input mode (the /models add key step): masked display,
+    /// and submits never enter history.
+    secret: bool,
 }
 
 const HISTORY_CAP: usize = 100;
@@ -592,16 +595,43 @@ impl EditorState {
         }
     }
 
+    /// Secret input mode: the composer masks what it shows and keeps
+    /// submissions out of history (API keys never touch scrollback).
+    pub fn set_secret(&mut self, on: bool) {
+        self.secret = on;
+    }
+
+    #[must_use]
+    pub fn is_secret(&self) -> bool {
+        self.secret
+    }
+
+    /// What the composer row renders: bullets per character in secret
+    /// mode (one bullet per char, so cursor math still lines up),
+    /// the real text otherwise.
+    #[must_use]
+    pub fn display_text(&self) -> String {
+        let t = self.text();
+        if !self.secret {
+            return t;
+        }
+        t.chars()
+            .map(|c| if c == '\n' { '\n' } else { '\u{2022}' })
+            .collect()
+    }
+
     /// Submit the buffer: returns the text, clears the editor, pushes
-    /// history. An empty buffer submits nothing.
+    /// history (unless secret). An empty buffer submits nothing.
     pub fn submit(&mut self) -> Option<String> {
         let text = self.text();
         if text.trim().is_empty() {
             return None;
         }
-        self.history.push_back(text.clone());
-        while self.history.len() > HISTORY_CAP {
-            self.history.pop_front();
+        if !self.secret {
+            self.history.push_back(text.clone());
+            while self.history.len() > HISTORY_CAP {
+                self.history.pop_front();
+            }
         }
         self.set_text("");
         self.hist_idx = None;
@@ -2154,7 +2184,7 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
     // at the edge while being typed, cursor included. Box height is
     // the WRAPPED row count + borders.
     let inner_w = area.width.saturating_sub(2).max(1);
-    let raw = format!("hs> {}", state.editor.text());
+    let raw = format!("hs> {}", state.editor.display_text());
     let wrapped_rows: usize = raw
         .split('\n')
         .map(|l| wrap_line(&Line::from(l.to_string()), inner_w).len())
@@ -2311,7 +2341,7 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
             // content wrapped; the cursor lands on the last wrapped
             // row's tail, not on the old unwrapped (row, col) cell.
             let mut before = String::from("hs> ");
-            for (i, l) in state.editor.text().split('\n').enumerate() {
+            for (i, l) in state.editor.display_text().split('\n').enumerate() {
                 if i < row {
                     before.push_str(l);
                     before.push('\n');

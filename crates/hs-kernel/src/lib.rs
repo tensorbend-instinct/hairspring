@@ -306,8 +306,7 @@ impl PluginProc {
                     // inherits the noise (user-visible 2026-09-10).
                     detail: err
                         .as_str()
-                        .map(str::to_string)
-                        .unwrap_or_else(|| err.to_string()),
+                        .map_or_else(|| err.to_string(), str::to_string),
                 });
             }
             return Ok(v["result"].clone());

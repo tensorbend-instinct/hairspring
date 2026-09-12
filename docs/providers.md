@@ -2,7 +2,14 @@
 
 DeepSeek and GLM are built in. Any other OpenAI-compatible endpoint -
 OpenRouter, OpenAI direct, a local server - is configuration, not code.
-Three pieces, all under `~/.config/hairspring/`:
+
+From the TUI: `/models add` walks you through name, base URL, model id,
+and key (the key line masks input and stays out of history). It writes
+both files, saves the key owner-only to `keys/<name>.key`, and the new
+model is pickable in `/models` without a restart. `/cancel` bails out
+mid-wizard and writes nothing.
+
+By hand, three pieces, all under `~/.config/hairspring/`:
 
 1. `providers.toml` declares the endpoint (prices feed the conservative
    cost ledger; keys never appear here):
@@ -19,7 +26,8 @@ price_out_micros = 50.0
 ```
 
 2. A `[[models]]` block in `hairspring.toml` makes it pickable in the TUI
-   (`/models`; the pick persists across restarts). The command is the
+   (`/models`; the pick persists across restarts, and a `/models add`
+   entry works without one). The command is the
    generic provider plugin with the TOML name as its argument:
 
 ```toml

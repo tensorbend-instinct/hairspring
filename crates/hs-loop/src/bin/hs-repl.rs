@@ -33,8 +33,10 @@ struct Opts {
 
 fn parse_opts(args: &[String]) -> Result<Opts, Box<dyn std::error::Error>> {
     Ok(Opts {
-        config: PathBuf::from(arg(args, "--config").expect("--config required")),
-        dir: PathBuf::from(arg(args, "--dir").expect("--dir required")),
+        // Zero-config stranger path (Eric 2026-09-12): bare `hairspring`
+        // auto-creates the rig and the session dir; flags still win.
+        config: hs_loop::repl::resolve_config_path(arg(args, "--config").as_deref())?,
+        dir: hs_loop::repl::resolve_session_dir(arg(args, "--dir").as_deref())?,
         feedback: arg(args, "--feedback").as_deref() == Some("on"),
         max_steps: arg(args, "--max-steps")
             .unwrap_or_else(|| hs_loop::DEFAULT_MISSION_MAX_STEPS.to_string())
@@ -227,7 +229,11 @@ fn run_fullscreen(
     let mut session = session;
     // Eric's five #4: the :models picker entries, captured before the
     // session moves to the worker thread.
-    let model_entries: Vec<(String, bool)> = session.model_names();
+    let mut model_entries: Vec<(String, bool)> = session.model_names();
+    // /models add: the in-flight wizard (None when idle), and the rig
+    // path for the UI thread (the worker owns its own clone).
+    let mut add_wiz: Option<hs_loop::repl::AddProviderWizard> = None;
+    let ucfg = opts.config.clone();
     {
         let txu = tx.clone();
         session.set_ui_sink(Box::new(move |ev| {
@@ -278,6 +284,7 @@ fn run_fullscreen(
                     // restart), then go live - a failed write switches
                     // nothing.
                     let r = hs_loop::repl::set_default_model(&wcfg, &name)
+                        .and_then(|()| session.reload_config().map(|_| ()))
                         .and_then(|()| {
                             session
                                 .set_model_override(Some(name.clone()))
@@ -512,6 +519,58 @@ running = false;
                             }
                         }
                         tui::KeyAction::Submit(text) => {
+                            // /models add wizard: lines route to the
+                            // wizard, never to goals or the palette.
+                            if let Some(w) = add_wiz.as_mut() {
+                                match w.feed(&text) {
+                                    Ok(hs_loop::repl::WizardFeed::Next(p)) => {
+                                        st.push_transcript_line(p);
+                                        st.editor.set_secret(w.is_secret());
+                                    }
+                                    Ok(hs_loop::repl::WizardFeed::Ready {
+                                        name,
+                                        base_url,
+                                        model,
+                                        key,
+                                    }) => {
+                                        st.editor.set_secret(false);
+                                        let prov_path = hs_loop::realmodel::providers_toml_path()
+                                            .unwrap_or_else(|| {
+                                                hs_loop::setup::config_dir()
+                                                    .join("providers.toml")
+                                            });
+                                        let r = hs_loop::repl::add_provider(
+                                            &ucfg, &prov_path, &name, &base_url, &model,
+                                        )
+                                        .and_then(|()| hs_loop::setup::save_key(&name, &key))
+                                        .map(|_key_path| {
+                                            format!(
+                                                "added {name} - /models lists it now; key saved owner-only"
+                                            )
+                                        });
+                                        match r {
+                                            Ok(msg) => {
+                                                model_entries.push((name, false));
+                                                st.push_transcript_line(&msg);
+                                            }
+                                            Err(e) => st.push_transcript_line(&format!(
+                                                "add provider failed: {e}"
+                                            )),
+                                        }
+                                        add_wiz = None;
+                                    }
+                                    Ok(hs_loop::repl::WizardFeed::Cancelled) => {
+                                        st.editor.set_secret(false);
+                                        st.push_transcript_line("add provider cancelled");
+                                        add_wiz = None;
+                                    }
+                                    Err(e) => {
+                                        st.push_transcript_line(&format!("add provider: {e}"));
+                                        st.editor.set_secret(w.is_secret());
+                                    }
+                                }
+                                continue;
+                            }
                             // Sigil normalization: ":cmd" is a
                             // backward-compatible alias of "/cmd"
                             // (Eric 2026-09-10: canonical spelling is
@@ -554,6 +613,13 @@ running = false;
                                         st.push_transcript_line(&format!("  {e}"));
                                     }
                                 }
+                            } else if t == "/models add" {
+                                st.push_transcript_line(
+                                    "add a provider (answers go in the composer; /cancel to stop)",
+                                );
+                                let w = hs_loop::repl::AddProviderWizard::new();
+                                st.push_transcript_line(w.prompt());
+                                add_wiz = Some(w);
                             } else if t == "/models" {
                                 let entries: Vec<String> = model_entries
                                     .iter()

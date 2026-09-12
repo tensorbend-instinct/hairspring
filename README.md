@@ -103,16 +103,18 @@ chown warning per file).
 ## Quickstart
 
 ```sh
-export HS_DEEPSEEK_API_KEY=<your key>   # or: hairspring setup (guided)
+# Interactive fullscreen TUI - a first run with no flags writes the
+# config with sane defaults and puts run state under
+# ~/.local/share/hairspring/run ($XDG_DATA_HOME honored)
+hairspring
 
 # One-shot mission, in your project
-hairspring run --goal "fix the off-by-one in src/parser.rs" \
-    --config ~/.config/hairspring/hairspring.toml \
-    --dir ./hs-run --project-dir .
-
-# Interactive fullscreen TUI
-hairspring --config ~/.config/hairspring/hairspring.toml --dir ./hs-run
+hairspring run --goal "fix the off-by-one in src/parser.rs" --project-dir .
 ```
+
+`--config` and `--dir` still override the defaults. Add a provider
+without leaving the TUI: `/models add` walks name, base URL, model id,
+and key, and the new entry is pickable in `/models` right away.
 
 `--dir` holds the run state (streams, logs, memory); missions are
 confined to the project root: `--project-dir`, default `<dir>/work`. On

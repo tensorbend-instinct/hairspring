@@ -74,8 +74,9 @@ default = true
 subjects = ["*"]
 
 # Any OpenAI-compatible endpoint (OpenRouter, OpenAI direct, local) is a
-# providers.toml entry + one [[models]] block on the generic plugin - see
-# docs/providers.md. Example (uncomment, then /models in the TUI):
+# providers.toml entry + one [[models]] block on the generic plugin. The
+# TUI writes both for you (/models add); by hand, see docs/providers.md.
+# Example (uncomment, then /models in the TUI):
 # [[models]]
 # name = "openrouter"
 # command = ["@PREFIX@/bin/hs-plugin-provmodel", "openrouter"]
