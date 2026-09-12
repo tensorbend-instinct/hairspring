@@ -10,7 +10,7 @@
 # checker.run is the mission's stop authority, triggered by
 # answer.submit (the model never calls it directly). It has TWO phases:
 # phase 1 re-runs the agent's declared checks (.hs/checks in the
-# workdir - green only when all pass); phase 2 is an
+# workdir - green when the checks pass); phase 2 is an
 # INDEPENDENT critic - a fresh model context that never saw the
 # session, given the mission instruction (the REPL writes it to
 # .hs/instruction.txt at mission start) and read-only shell access,
@@ -89,7 +89,7 @@ subjects = ["*"]
 #      export HS_CRITIC_SCRIPT='tool:grep -q hello hello.txt|clean'
 #      (deterministic stand-in for the phase-2 critic: it probes
 #      the submission and reports clean only on pass - with no provider
-#      key the live critic fail-closes every submission)
+#      key the live critic fail-closes the submission)
 #      (the script is installed by install.sh and pairs with this exact run:
 #      hairspring run --goal "write hello.txt containing hello" \
 #          --config <this file> --dir /tmp/hs-demo)

@@ -6,23 +6,20 @@
   <img src="docs/assets/system.png" alt="The hairspring system: mission loop, event log, memory, world, swarm, and self-modification planes" width="960">
 </p>
 
-Hairspring runs coding missions inside a strict rig. Model calls, tool
-calls, and verdicts land in an append-only, hash-chained event log that
-verifies, rewinds, and replays. Tools and models run as isolated plugin
-processes speaking a small NDJSON protocol, so a misbehaving plugin
-cannot touch the books. Missions close under a graded contract: the
-agent declares its own checks, the checker re-runs them, and an
-independent critic - a fresh model context with read-only access and
-one directive, refute the submission - gets the last word before
-`verified`. Sub-agent delegation is async: children run concurrently
-and the parent joins them before it may pass.
+Hairspring is an agent harness for coding missions. The agent thinks,
+acts, and observes in a loop; the mission closes when its declared
+checks pass and an independent critic fails to refute the work.
 
-Memory scores itself. Notes written at mission close earn +1 when later
-missions cite them and -1 when served and ignored, and the running
-balance decides what the agent keeps. Skills move between agents
-through a shared world plane: reuse is credited, and the log says who
-used which skill where. Self-modification ships only when it scores
-better on held-out assays.
+Model calls, tool calls, and verdicts land in an append-only,
+hash-chained event log - rewind and replay included. Tools and models
+run as isolated plugin processes over a small NDJSON protocol.
+Sub-agents run concurrently, and the parent joins them before it may
+pass.
+
+Notes written at mission close earn +1 when later missions cite them
+and -1 when served and ignored. Skills move between agents through a
+shared shelf; the log counts who used which skill where.
+Self-modification ships when it scores better on held-out assays.
 
 | Number | Regenerate it |
 |--------|---------------|
@@ -52,7 +49,7 @@ The sandbox confines tool calls by mechanism: bubblewrap on Linux
 `pacman -S bubblewrap`) and the kernel Seatbelt sandbox on macOS (via
 `sandbox-exec`, which ships with the OS - the mechanism Bazel, Homebrew,
 and Claude Code use). The startup preflight probes the platform sandbox
-and says what is missing; an unconfined run is never the fallback.
+and says what is missing; an unconfined run is not the fallback.
 Inside the sandbox, system dirs are read-only while the project root,
 /tmp, and the standard toolchain caches stay writable: missions install
 whatever toolchain they need into the workspace (uv/node/go/rustup
@@ -77,7 +74,7 @@ hairspring --config ~/.config/hairspring/hairspring.toml --dir ./hs-run
 `--dir` holds the run state (streams, logs, memory); missions are
 confined to the project root: `--project-dir`, default `<dir>/work`. On
 a TTY, a run without `--project-dir` asks once with the default shown,
-and the resolved root prints at startup in every mode. Before any
+and the resolved root prints at startup. Before any
 mission machinery starts, a readiness gate checks that the configured
 default model has a credential: a terminal gets the guided setup
 offered inline, a non-interactive run gets an actionable error - never
@@ -124,7 +121,7 @@ for a plugin's dying words.
 
 The event log is the spine: plugins never write it, the loop is its
 only writer, and a crash at any point leaves consistent provenance on
-each stream.
+the streams.
 
 | Crate | What it owns |
 |-------|--------------|
@@ -143,7 +140,7 @@ each stream.
 ## Documentation
 
 - [`docs/providers.md`](docs/providers.md) - DeepSeek and GLM are built in; any other OpenAI-compatible endpoint (OpenRouter, OpenAI direct, a local server) is configuration, not code.
-- [`docs/deep-pass-ledger.md`](docs/deep-pass-ledger.md) - the line-by-line audit ledger: each crate, what it yielded, what was left and why.
+- [`docs/deep-pass-ledger.md`](docs/deep-pass-ledger.md) - the line-by-line audit ledger: crate by crate, what it yielded, what was left and why.
 - [`hairspring.example.toml`](hairspring.example.toml) - the annotated rig config: tools, models, the two-phase checker, delegation, budgets.
 
 ## Development

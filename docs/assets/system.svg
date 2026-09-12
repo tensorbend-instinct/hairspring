@@ -21,7 +21,7 @@
 <rect width="1800" height="1150" fill="#FAF9F5"/>
 
 <text x="70" y="72" class="h1">HAIRSPRING</text>
-<text x="70" y="100" class="sub">Records each run completely. Verifies passes against ground truth. Scores its own memory by use. Spreads skills without messages. Ships self-improvement only when it scores better. Follow the numbered chips.</text>
+<text x="70" y="100" class="sub">Sandboxed missions. Graded checks. A hash-chained log. Memory scored by use. Skills spread without messages. Self-improvement ships when it scores better. Follow the numbered chips.</text>
 
 <!-- legend -->
 <line x1="1200" y1="58" x2="1236" y2="58" stroke="#C9602F" stroke-width="2.2" marker-end="url(#clay)"/><text x="1246" y="62" class="leg">writes and scores</text>
@@ -114,7 +114,7 @@
 <!-- event log band -->
 <rect x="70" y="716" width="1660" height="64" rx="6" class="box"/>
 <text x="90" y="742" class="t">The event log - the system&#8217;s complete work record</text>
-<text x="90" y="762" class="s">the log holds each mission&#8217;s steps, in order, permanent and replayable (23 event kinds) - the rest of the system answers to it</text>
+<text x="90" y="762" class="s">the log holds the mission&#8217;s steps, in order, permanent and replayable (23 event kinds) - the rest of the system answers to it</text>
 <line x1="650" y1="322" x2="650" y2="710" stroke="#141413" stroke-width="1.1" stroke-dasharray="5 4" marker-end="url(#ink)"/>
 <line x1="940" y1="322" x2="940" y2="710" stroke="#141413" stroke-width="1.1" stroke-dasharray="5 4" marker-end="url(#ink)"/>
 <line x1="805" y1="660" x2="805" y2="710" stroke="#141413" stroke-width="1.1" stroke-dasharray="5 4" marker-end="url(#ink)"/>
@@ -158,7 +158,7 @@
 <text x="1230" y="906" class="b">A child runs the same think-act-observe loop and shares</text>
 <text x="1230" y="923" class="s">the same memory and the same shelf - and writes its own</text>
 <text x="1230" y="940" class="s">notes when it closes.</text>
-<text x="1230" y="970" class="b">Children reuse each other&#8217;s skills without ever talking:</text>
+<text x="1230" y="970" class="b">Children reuse each other&#8217;s skills without talking:</text>
 <text x="1230" y="987" class="s">one child found another&#8217;s skill on the shelf and</text>
 <text x="1230" y="1004" class="s">no messages between them.</text>
 
@@ -186,5 +186,5 @@
 <!-- numbers strip -->
 <line x1="70" y1="1100" x2="1730" y2="1100" stroke="#D8D3C8" stroke-width="1"/>
 <text x="70" y="1122" class="foot">From the live system, September 11, 2026: 14 code modules, 64,498 lines of Rust - test suite 918 passed / 0 failed / 0 warnings - installs cleanly from a fresh download.</text>
-<text x="70" y="1139" class="foot">The usefulness ledger, live: a mission was shown 6 notes and cited one - the ledger scored that note +1 and each ignored note -1.</text>
+<text x="70" y="1139" class="foot">The usefulness ledger, live: a mission was shown 6 notes and cited one - the ledger scored that note +1 and the ignored notes -1.</text>
 </svg>
