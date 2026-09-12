@@ -21,7 +21,7 @@
 <rect width="1800" height="1150" fill="#FAF9F5"/>
 
 <text x="70" y="72" class="h1">HAIRSPRING</text>
-<text x="70" y="100" class="sub">Records each run completely. Verifies passes against ground truth. Scores its own memory by use. Spreads skills without messages. Ships self-improvement only when it measures better. Follow the numbered chips.</text>
+<text x="70" y="100" class="sub">Records each run completely. Verifies passes against ground truth. Scores its own memory by use. Spreads skills without messages. Ships self-improvement only when it scores better. Follow the numbered chips.</text>
 
 <!-- legend -->
 <line x1="1200" y1="58" x2="1236" y2="58" stroke="#C9602F" stroke-width="2.2" marker-end="url(#clay)"/><text x="1246" y="62" class="leg">writes and scores</text>
@@ -51,7 +51,7 @@
 <!-- benchmark -->
 <rect x="70" y="500" width="280" height="76" rx="6" class="box"/>
 <text x="90" y="524" class="t">The benchmark harness</text>
-<text x="90" y="543" class="s">the loop is scored against real coding</text>
+<text x="90" y="543" class="s">the loop is scored against coding</text>
 <text x="90" y="559" class="s">benchmarks, end to end</text>
 <line x1="210" y1="576" x2="210" y2="710" stroke="#141413" stroke-width="1.1" stroke-dasharray="5 4" marker-end="url(#ink)"/>
 <!-- kernel -->
@@ -81,7 +81,7 @@
 
 <!-- toolbox -->
 <rect x="1180" y="268" width="400" height="76" rx="6" class="box"/>
-<text x="1200" y="292" class="t">The toolbox - real tools, real work</text>
+<text x="1200" y="292" class="t">The toolbox</text>
 <text x="1200" y="311" class="s">edit files (line-anchored patches), run commands, read and</text>
 <text x="1200" y="327" class="s">search the project, search memory, use the shelf, spawn, submit</text>
 <line x1="1050" y1="306" x2="1174" y2="306" stroke="#141413" stroke-width="1.6" marker-end="url(#ink)"/>
@@ -98,9 +98,9 @@
 
 <!-- self-improvement -->
 <rect x="1180" y="380" width="400" height="90" rx="6" class="box"/>
-<text x="1200" y="404" class="t">Self-improvement that proves itself</text>
+<text x="1200" y="404" class="t">Self-improvement</text>
 <text x="1200" y="423" class="s">the system rewrites its own code and wiring; a change is</text>
-<text x="1200" y="439" class="s">adopted only when it posts measured score gains</text>
+<text x="1200" y="439" class="s">adopted only when it posts score gains</text>
 
 <path d="M 1180 425 L 940 425 L 940 452 L 911 452" fill="none" stroke="#141413" stroke-width="1.2" marker-end="url(#ink)"/>
 <text x="1000" y="415" class="s">gated proposals</text>
@@ -108,7 +108,7 @@
 <circle cx="540" cy="636" r="10" fill="#141413"/><text x="540" y="640" text-anchor="middle" class="chip">4</text>
 <rect x="560" y="604" width="490" height="56" rx="6" class="box"/>
 <text x="580" y="628" class="t">Mission close</text>
-<text x="580" y="647" class="s">missions end as evidence - goal, outcome, write-up, filed</text>
+<text x="580" y="647" class="s">missions end on the record - goal, outcome, write-up, filed</text>
 <path d="M 795 484 L 795 540 L 700 540 L 700 598" fill="none" stroke="#141413" stroke-width="1.4" marker-end="url(#ink)"/>
 
 <!-- event log band -->
@@ -183,8 +183,8 @@
 <path d="M 1330 830 L 1330 800 L 1330 784" fill="none" stroke="#141413" stroke-width="1.1" stroke-dasharray="5 4" marker-end="url(#ink)"/>
 <text x="1342" y="810" class="s">children on their own streams</text>
 
-<!-- measured strip -->
+<!-- numbers strip -->
 <line x1="70" y1="1100" x2="1730" y2="1100" stroke="#D8D3C8" stroke-width="1"/>
-<text x="70" y="1122" class="foot">Measured from the live system, September 11, 2026: 14 code modules, 64,498 lines of Rust - test suite 918 passed / 0 failed / 0 warnings - installs cleanly from a fresh download.</text>
-<text x="70" y="1139" class="foot">Live proof of the usefulness ledger: a mission was shown 6 notes and cited one - the ledger scored that note +1 and each ignored note -1.</text>
+<text x="70" y="1122" class="foot">From the live system, September 11, 2026: 14 code modules, 64,498 lines of Rust - test suite 918 passed / 0 failed / 0 warnings - installs cleanly from a fresh download.</text>
+<text x="70" y="1139" class="foot">The usefulness ledger, live: a mission was shown 6 notes and cited one - the ledger scored that note +1 and each ignored note -1.</text>
 </svg>

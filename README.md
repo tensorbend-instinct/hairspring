@@ -21,10 +21,8 @@ Memory scores itself. Notes written at mission close earn +1 when later
 missions cite them and -1 when served and ignored, and the running
 balance decides what the agent keeps. Skills move between agents
 through a shared world plane: reuse is credited, and the log says who
-used which skill where. Self-modification ships only when the scorer
-measures it better on held-out assays.
-
-## Measured numbers
+used which skill where. Self-modification ships only when it scores
+better on held-out assays.
 
 | Number | Regenerate it |
 |--------|---------------|
@@ -141,10 +139,6 @@ each stream.
 | `hs-selfmod` | Guarded self-modification loop |
 | `hs-memory` / `hs-world` | Memory and world services |
 | `hs-cli` | Log inspection (`hs-log-cli`) and test fixtures |
-
-Doc comments cite the internal design spec by gate and section
-("gate 3", "spec section 10 row 7") and live incidents by date; the
-spec itself is not in this repo.
 
 ## Documentation
 

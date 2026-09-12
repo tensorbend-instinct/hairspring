@@ -9,7 +9,7 @@
 - hs-swarm (1 file, 215): DOC FIX run_to_completion's doc comment was attached to spawn_child (misattached ///). spawn() depth:0 hardcoded noted (proof path).
 - hs-log (1 file, 756): NO FIXES. Notes: fork lineage GoalUpdate payload is non-JSON string while other GoalUpdates are JSON (no consumer parses GoalUpdate payloads; left); testing module's super-imports style (left).
 ## IN FLIGHT
-- gates gate2 re-run needed (hs-world/hs-swarm changes landed mid-run)
+- gate2 re-run needed (hs-world/hs-swarm changes landed mid-run)
 ## TODO crates
 - hs-selfmod (1042), hs-kernel (1019+168?), hs-scorer (1456), hs-applypatch (1362), hs-hashline (4926), hs-loop (15851)
 
@@ -34,7 +34,7 @@ Notes (leave): scheme.rs doc references crate::util::hash (stale vendoring path,
 Notes: scheme.rs doc path crate::util::hash stale; mutate.rs panics-vs-clamps doc (bench harness); "0:"/"EOF" magic sentinels owned by tool layer.
 
 ## hs-loop (58 src files, 15,607 src lines) — IN PROGRESS (~3.5k lines read: all 34 small bins + termexec/selfcheck/goal/msgfmt-partial)
-1. FIXED bin/hs-plugin-policy.rs: TWO-layer dead-wire bug — (a) dispatch matched only literal "policy.propose_prompt", but kernel ToolCall always sends method "tool.call" → "$error: unknown method" on every live call; (b) handler read params["name"]/["text"] instead of params["args"][...]. Spec-gate-8 self-instruction proposal path was dead in live missions. RED tests/policy_wire_red.rs (spawns real binary, tool.call frame; RED: "$error: unknown method", then "empty proposal text"), GREEN.
+1. FIXED bin/hs-plugin-policy.rs: TWO-layer dead-wire bug — (a) dispatch matched only literal "policy.propose_prompt", but kernel ToolCall always sends method "tool.call" → "$error: unknown method" on every live call; (b) handler read params["name"]/["text"] instead of params["args"][...]. The self-instruction proposal path was dead in live missions. RED tests/policy_wire_red.rs (spawns real binary, tool.call frame; RED: "$error: unknown method", then "empty proposal text"), GREEN.
 2. FIXED byte-boundary panic class (7 sites, one helper pair): msgfmt.rs gained tail_bytes_safe/prefix_bytes_safe; replaced raw byte slicing in termexec.rs tail, selfcheck.rs:58, repexec.rs tail, critic.rs tail, bin/hs-swe-run.rs:495, bin/hs-plugin-swecheck.rs:77+86. RED tests/utf8_tail_red.rs 3 tests (é*k+'x' output → cut mid-char; RED panics at termexec.rs:14, selfcheck.rs:58, repexec.rs:18 "start byte index 1 is not a char boundary"), GREEN. Full hs-loop suite: all targets 0 failed.
 Process note: one patch script reused a stale `new` variable and mis-patched hs-swe-run.rs (nested fn); caught by compile error, repaired, re-verified.
 REMAINING READS: msgfmt rest, mcpbridge, mcp_web_seam_red, repotools, evolve, mission_time, tui_views, assembler, sweprompt, toolschema, ledger, critic rest, uipaint, repexec rest, editapply, publication, realmodel, repl, tui, lib.rs, hs-tb-run, hs-repl, scripted, mcpcall, recmodel bins (~12k lines).
@@ -119,7 +119,7 @@ STILL UNREAD: tui_views, uipaint, repexec rest, editapply, publication, realmode
   is the owner contract. Noted; not code-changed (mirrors existing MCP gate design).
 - tui.rs: all text surgery uses char_indices or char-cells (wrap_line/render line) — byte-safe.
 
-## hs-loop gate (closed 2026-09-09)
+## hs-loop (closed 2026-09-09)
 - 58 src files + all 34 bins read line-by-line = 15,607 lines.
 - fixes this sweep: f1 policy dead-wire, f2 11-site utf8 byte-boundary class (7 loop + 4 cli/global),
   f3 assembler 2 utf8 sites, f4 assembler header/tail contracts rewrite (already in earlier entries), and
