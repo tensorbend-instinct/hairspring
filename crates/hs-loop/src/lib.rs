@@ -2698,6 +2698,16 @@ pub fn swe_kernel(
     hs_kernel::Kernel::load_with_log(config, log_root)
 }
 
+/// The TUI-launch variant (zero-config stranger path, Eric 2026-09-12):
+/// the first-run TUI opens even when the default model fails preflight -
+/// /models add is the in-place fix. Run paths use `swe_kernel`.
+pub fn swe_kernel_lenient(
+    config: &std::path::Path,
+    log_root: &std::path::Path,
+) -> Result<hs_kernel::Kernel, hs_kernel::KernelError> {
+    hs_kernel::Kernel::load_lenient(config, log_root)
+}
+
 /// Startup gate for every production runner: refuse to run blind.
 /// 2026-09-07: hs-swe-run ran the 17302 audit with a log-root-less kernel
 /// and emitted zero dispatch records - the wedge-visibility fix was compiled

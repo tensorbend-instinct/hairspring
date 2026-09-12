@@ -6,7 +6,7 @@
 //! over it. Everything here reuses the production machinery: `swe_kernel` +
 //! `InnerLoop`, `require_visibility` gate included.
 
-use crate::{require_visibility, swe_kernel, InnerLoop, LoopError, MissionResult};
+use crate::{require_visibility, swe_kernel, swe_kernel_lenient, InnerLoop, LoopError, MissionResult};
 use std::path::{Path, PathBuf};
 
 /// One parsed input line of the interactive REPL.
@@ -510,6 +510,28 @@ pub fn load(
         feedback: bool,
         max_steps: u32,
     ) -> Result<Self, LoopError> {
+        Self::load_inner(config, log_root, feedback, max_steps, false)
+    }
+
+    /// Zero-config TUI stranger path (Eric 2026-09-12): the first-run TUI
+    /// opens even when the default model has no credential - `/models add`
+    /// fixes it in place. One-shot runs keep the hard preflight gate.
+    pub fn load_lenient(
+        config: &Path,
+        log_root: &Path,
+        feedback: bool,
+        max_steps: u32,
+    ) -> Result<Self, LoopError> {
+        Self::load_inner(config, log_root, feedback, max_steps, true)
+    }
+
+    fn load_inner(
+        config: &Path,
+        log_root: &Path,
+        feedback: bool,
+        max_steps: u32,
+        lenient: bool,
+    ) -> Result<Self, LoopError> {
         // MCP tool seam (Eric 2026-09-07 web-tooling order): HS_MCP_SERVERS
         // points at a [[mcp_servers]] TOML; discovered tools merge into the
         // session kernel (mcp.<server>.<tool>) and are advertised on every
@@ -548,7 +570,11 @@ pub fn load(
             config
         };
         Self::wire_tool_env(log_root, config)?;
-        let kernel = swe_kernel(config, log_root)?;
+        let kernel = if lenient {
+            swe_kernel_lenient(config, log_root)?
+        } else {
+            swe_kernel(config, log_root)?
+        };
         require_visibility(&kernel).map_err(LoopError::Visibility)?;
         let registered: Vec<String> = kernel
             .list_tools("operator")
@@ -1158,6 +1184,17 @@ pub fn load_session(
         (None, Some(parent)) => ReplSession::load_fork(config, log_root, feedback, max_steps, parent),
         (None, None) => ReplSession::load(config, log_root, feedback, max_steps),
     }
+}
+
+/// The TUI-launch variant (zero-config stranger path, Eric 2026-09-12):
+/// a fresh first-run session opens with an uncredentialed default model.
+pub fn load_session_lenient(
+    config: &Path,
+    log_root: &Path,
+    feedback: bool,
+    max_steps: u32,
+) -> Result<ReplSession, LoopError> {
+    ReplSession::load_lenient(config, log_root, feedback, max_steps)
 }
 
 /// One goal, one session, end to end: load the kernel, run the mission,

@@ -110,7 +110,7 @@ fn apply_streaming(session: &mut ReplSession) {
 /// UI gap #7: one constructor for every mode - --resume and --fork
 /// resolve through `hs_loop::repl::load_session`, so interactive and
 /// one-shot behave identically.
-fn build_session(opts: &Opts) -> Result<ReplSession, Box<dyn std::error::Error>> {
+fn build_session(opts: &Opts, lenient: bool) -> Result<ReplSession, Box<dyn std::error::Error>> {
     let parse = |v: &Option<String>, flag: &str| -> Result<Option<uuid::Uuid>, Box<dyn std::error::Error>> {
         v.as_ref()
             .map(|s| {
@@ -118,13 +118,23 @@ fn build_session(opts: &Opts) -> Result<ReplSession, Box<dyn std::error::Error>>
             })
             .transpose()
     };
+    let resume = parse(&opts.resume, "--resume")?;
+    let fork = parse(&opts.fork, "--fork")?;
+    if lenient && resume.is_none() && fork.is_none() {
+        return Ok(hs_loop::repl::load_session_lenient(
+            &opts.config,
+            &opts.dir,
+            opts.feedback,
+            opts.max_steps,
+        )?);
+    }
     Ok(hs_loop::repl::load_session(
         &opts.config,
         &opts.dir,
         opts.feedback,
         opts.max_steps,
-        parse(&opts.resume, "--resume")?,
-        parse(&opts.fork, "--fork")?,
+        resume,
+        fork,
     )?)
 }
 
@@ -868,7 +878,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(goal) = one_shot_goal {
         // Gap #4: --resume <stream-id> continues a prior session's
         // stream (history replays from the log); default opens fresh.
-        let mut session = build_session(&opts)?;
+        let mut session = build_session(&opts, false)?;
         apply_guards(&mut session, &opts);
         apply_streaming(&mut session);
         let r = session
@@ -895,7 +905,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         // UI gap #7: interactive honors --resume/--fork like one-shot
         // (the picker resolves to a uuid above; previously the
         // interactive arm ignored it and opened a fresh stream).
-        let mut session = build_session(&opts)?;
+        let mut session = build_session(&opts, true)?;
         apply_guards(&mut session, &opts);
         apply_streaming(&mut session);
         use std::io::IsTerminal;

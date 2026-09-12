@@ -405,6 +405,7 @@ pub struct Kernel {
     rails: RefCell<Vec<PluginSlot>>,
     log: RefCell<Option<StreamWriter>>,
     log_root: Option<PathBuf>,
+    lenient_preflight: bool,
     stream_id: RefCell<Option<uuid::Uuid>>,
     /// Gap #3: streaming-delta sink (see `DeltaSink`). When set, model.call
     /// params carry "`stream_deltas"`: true.
@@ -413,7 +414,7 @@ pub struct Kernel {
 
 impl Kernel {
     pub fn load(config: &Path) -> Result<Self, KernelError> {
-        Self::load_inner(config, None)
+        Self::load_inner(config, None, false)
     }
 
     /// True when this kernel was built with a log root (`load_with_log)`:
@@ -424,10 +425,23 @@ impl Kernel {
 
     /// Load and record every tool/model call to a fresh stream in `log_root`.
     pub fn load_with_log(config: &Path, log_root: &Path) -> Result<Self, KernelError> {
-        Self::load_inner(config, Some(log_root))
+        Self::load_inner(config, Some(log_root), false)
     }
 
-    fn load_inner(config: &Path, log_root: Option<&Path>) -> Result<Self, KernelError> {
+    /// Zero-config TUI stranger path (Eric 2026-09-12): a first run with
+    /// no credential must still OPEN - the TUI adds a provider in place
+    /// (`/models add`). A DEFAULT model that fails preflight warns and
+    /// stays loadable instead of aborting the session load; the strict
+    /// constructors keep the hard gate for every mission-run path.
+    pub fn load_lenient(config: &Path, log_root: &Path) -> Result<Self, KernelError> {
+        Self::load_inner(config, Some(log_root), true)
+    }
+
+    fn load_inner(
+        config: &Path,
+        log_root: Option<&Path>,
+        lenient_preflight: bool,
+    ) -> Result<Self, KernelError> {
         let (parsed, mtime) = read_config(config)?;
         let k = Kernel {
             config_path: config.to_path_buf(),
@@ -439,6 +453,7 @@ impl Kernel {
             log_root: log_root.map(std::path::Path::to_path_buf),
             stream_id: RefCell::new(None),
             delta_sink: RefCell::new(None),
+            lenient_preflight,
         };
         k.apply_config(parsed)?;
         Ok(k)
@@ -481,16 +496,30 @@ impl Kernel {
                         Err(KernelError::PluginApp { detail, .. })
                             if detail.contains("unknown method") => {}
                         Err(KernelError::PluginApp { detail, .. }) => {
-                            return Err(KernelError::Protocol(format!(
-                                "default model \"{}\" failed preflight: {detail}",
-                                entry.name
-                            )));
+                            if self.lenient_preflight {
+                                eprintln!(
+                                    "hairspring: kernel: default model \"{}\" failed preflight: {detail} - opening anyway; /models add sets up a working provider.",
+                                    entry.name
+                                );
+                            } else {
+                                return Err(KernelError::Protocol(format!(
+                                    "default model \"{}\" failed preflight: {detail}",
+                                    entry.name
+                                )));
+                            }
                         }
                         Err(e) => {
-                            return Err(KernelError::Protocol(format!(
-                                "default model \"{}\" failed preflight: {e}",
-                                entry.name
-                            )));
+                            if self.lenient_preflight {
+                                eprintln!(
+                                    "hairspring: kernel: default model \"{}\" failed preflight: {e} - opening anyway; /models add sets up a working provider.",
+                                    entry.name
+                                );
+                            } else {
+                                return Err(KernelError::Protocol(format!(
+                                    "default model \"{}\" failed preflight: {e}",
+                                    entry.name
+                                )));
+                            }
                         }
                     }
                 }

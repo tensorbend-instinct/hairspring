@@ -354,3 +354,31 @@ fn tui_launch_opens_without_a_credential() {
         .expect("the TUI launch opens: /models add fixes the credential there");
     assert!(hs_loop::setup::readiness_gate(&rig, false, false).is_err());
 }
+
+#[test]
+fn tui_session_loads_with_an_uncredentialed_default() {
+    // Zero-config stranger path (Eric 2026-09-12): the first-run TUI
+    // must OPEN even when the default model has no key - /models add is
+    // the in-place fix. The strict load keeps refusing (one-shot runs
+    // never burn a mission on a mid-mission 400).
+    let _l = ENV_LOCK.lock().unwrap();
+    let _k = EnvGuard::clear(&["HS_DEEPSEEK_API_KEY", "HS_DEEPSEEK_API_KEY_FILE"]);
+    let dir = tempfile::tempdir().unwrap();
+    let home: &'static str = Box::leak(dir.path().display().to_string().into_boxed_str());
+    let xdg: &'static str =
+        Box::leak(dir.path().join("xdg").display().to_string().into_boxed_str());
+    let _h = EnvGuard::set(&[("HOME", home), ("XDG_CONFIG_HOME", xdg)]);
+    let ds = env!("CARGO_BIN_EXE_hs-plugin-deepseek");
+    let rig = dir.path().join("rig.toml");
+    std::fs::write(
+        &rig,
+        format!(
+            "[[models]]\nname = \"deepseek\"\ncommand = [\"{ds}\"]\ndefault = true\nsubjects = [\"*\"]\n"
+        ),
+    )
+    .unwrap();
+    assert!(hs_kernel::Kernel::load_with_log(&rig, dir.path()).is_err());
+    let k = hs_kernel::Kernel::load_lenient(&rig, dir.path())
+        .expect("the TUI session loads: /models add fixes the credential in place");
+    assert!(k.has_model("deepseek"));
+}
