@@ -10,14 +10,14 @@
 # checker.run is the mission's stop authority, triggered by
 # answer.submit (the model never calls it directly). It has TWO phases:
 # phase 1 re-runs the agent's declared checks (.hs/checks in the
-# workdir - green only when every one passes); phase 2 is an
+# workdir - green only when all pass); phase 2 is an
 # INDEPENDENT critic - a fresh model context that never saw the
 # session, given the mission instruction (the REPL writes it to
 # .hs/instruction.txt at mission start) and read-only shell access,
 # with one directive: REFUTE the submission. The critic model is
 # HS_CRITIC_MODEL (default "deepseek"); its caps are
 # HS_CRITIC_MAX_STEPS / HS_CRITIC_WALL_SECS / HS_CRITIC_BUDGET_MICROS
-# (defaults 12 / 600 / $1.00, every abnormal exit fails closed).
+# (defaults 12 / 600 / $1.00, an abnormal exit fails closed).
 # To run the old blind rig (declared checks only), point checker.run
 # at @PREFIX@/bin/hs-plugin-selfcheck instead.
 #
@@ -87,7 +87,7 @@ subjects = ["*"]
 #      export HS_SCRIPTED_PROMPT_AWARE=1   (answers the verifier audit
 #      honestly - without it the demo closes verifier_malfunction)
 #      export HS_CRITIC_SCRIPT='tool:grep -q hello hello.txt|clean'
-#      (deterministic stand-in for the phase-2 critic: it really probes
+#      (deterministic stand-in for the phase-2 critic: it probes
 #      the submission and reports clean only on pass - with no provider
 #      key the live critic fail-closes every submission)
 #      (the script is installed by install.sh and pairs with this exact run:

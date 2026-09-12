@@ -5,9 +5,9 @@
 - hs-cli (8 files, 455): FIX dump inert+lying truncate(2_000_000)->real 3000 cap, boundary-safe via truncate_chars; trace truncate(300) boundary panic fixed too (RED log_dump_truncate_red 3 tests, GREEN). gate2-driver/demo/plugins clean.
 - hs-goal (5 files, 496): FIX ToolCall events recorded cost 0 in canonical field (hs-loop convention breach; RED tool_cost_red + fixtures costtool/costmodel bins, GREEN). Notes: gateway read-then-truncate race window (demo-scope, left), spec-as-dirname (mission convention, left), Independent-mode `let _ = declared_done` style (left).
 - hs-bench (1 file, 514): NO FIXES. Notes: expected-word heuristic silently mis-parses statements without "word " (fixture data controlled, left); run_set Err -> Unresolved drops error text (SWE-bench shape, left).
-- hs-world (1 file, 639): FIX parse_hex32 panic on odd/non-ASCII ids (RED restore_hardening_red, GREEN). FIX lexical starts_with path-escape guard defeated by ".." - forged manifest wrote outside dest before failing (RED proven, GREEN via dest_join component check).
+- hs-world (1 file, 639): FIX parse_hex32 panic on odd/non-ASCII ids (RED restore_hardening_red, GREEN). FIX lexical starts_with path-escape guard defeated by ".." - forged manifest wrote outside dest before failing (RED, GREEN via dest_join component check).
 - hs-swarm (1 file, 215): DOC FIX run_to_completion's doc comment was attached to spawn_child (misattached ///). spawn() depth:0 hardcoded noted (proof path).
-- hs-log (1 file, 756): NO FIXES - solid. Notes: fork lineage GoalUpdate payload is non-JSON string while other GoalUpdates are JSON (no consumer parses GoalUpdate payloads; left); testing module's super-imports style (left).
+- hs-log (1 file, 756): NO FIXES. Notes: fork lineage GoalUpdate payload is non-JSON string while other GoalUpdates are JSON (no consumer parses GoalUpdate payloads; left); testing module's super-imports style (left).
 ## IN FLIGHT
 - gates gate2 re-run needed (hs-world/hs-swarm changes landed mid-run)
 ## TODO crates
@@ -20,10 +20,10 @@
 
 ## hs-applypatch (5 files, 1362 lines) — CLOSED 5:29 PM
 Vendored codex apply-patch (Apache-2.0, provenance headers + THIRD_PARTY_NOTICES). Pure/IO-free apply, 27 inline tests incl. error paths, heredoc leniency, EOF edges, unicode matching. NO FIXES.
-Notes (leave): byte-index [1..] slicing safe (matched prefix chars are ASCII 1-byte); parser lenient vs stated Lark grammar (accepts bare "+", blank lines between chunks) — matches codex upstream, documented; no integration tests/ dir but inline coverage genuinely strong.
+Notes (leave): byte-index [1..] slicing safe (matched prefix chars are ASCII 1-byte); parser lenient vs stated Lark grammar (accepts bare "+", blank lines between chunks) — matches codex upstream, documented; no integration tests/ dir but inline coverage.
 
 ## hs-hashline (11 files, 4926 lines) — CLOSED 5:31 PM
-Vendored hashline anchor engine (Apache-2.0, provenance headers). Anchor schemes (content/chunk/checkpoint), validate-then-apply atomicity, overlap detection, bounded shifted recovery — all sound; 157 pre-existing tests strong.
+Vendored hashline anchor engine (Apache-2.0, provenance headers). Anchor schemes (content/chunk/checkpoint), validate-then-apply atomicity, overlap detection, bounded shifted recovery — all sound; 157 pre-existing tests.
 1. FIXED edit/apply.rs InsertAfter "EOF" on EMPTY file: guard `len > 1` skipped split_lines' synthetic [""] line, producing a leading blank line ("\nx" for content "x"). Fix: drop the len>1 guard (insert before synthetic trailing-empty line in all cases). RED crates/hs-hashline/tests/eof_insert_empty_file_red.rs (RED: assertion failed), GREEN: 158 tests 0 failed.
 Notes (leave): scheme.rs doc references crate::util::hash (stale vendoring path, actual crate::hash); mutate.rs panics documented but DeleteLines/RangeRewrite clamp (benchmark-harness only); InsertAfter sentinels "0:"/"EOF" are magic strings defined by the tool layer (not vendored wrapper).
 

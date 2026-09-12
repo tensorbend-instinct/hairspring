@@ -1,12 +1,10 @@
 # HAIRSPRING
 
-**A self-improving agent harness, judged by its own history.**
+**A self-improving agent harness.**
 
 <p align="center">
   <img src="docs/assets/system.png" alt="The hairspring system: mission loop, event log, memory, world, swarm, and self-modification planes" width="960">
 </p>
-
-## The claim
 
 Hairspring runs coding missions inside a strict rig. Model calls, tool
 calls, and verdicts land in an append-only, hash-chained event log that
@@ -26,7 +24,7 @@ through a shared world plane: reuse is credited, and the log says who
 used which skill where. Self-modification ships only when the scorer
 measures it better on held-out assays.
 
-## The evidence
+## Measured numbers
 
 | Number | Regenerate it |
 |--------|---------------|
@@ -34,9 +32,8 @@ measures it better on held-out assays.
 | 918 tests, 0 failed | `cargo test --workspace --locked --no-fail-fast` |
 | 0 clippy warnings, pedantic workspace-wide | `cargo clippy --workspace --all-targets` |
 | 23 event kinds in the hash-chained log | `EventKind` in `crates/hs-core/src/lib.rs` |
-| Offline demo mission closes `verified` | the offline trial below; `install-gate` CI runs it verbatim on Linux and macOS, Rust 1.88 and latest stable |
+| Offline demo mission closes `verified` | the offline trial below, on a fresh install |
 
-Each command runs against a fresh clone and reproduces its number.
 
 ## Install
 
@@ -102,7 +99,7 @@ export HS_SCRIPTED_PROMPT_AWARE=1   # scripted model answers the verifier
                                     # audit honestly, not just replay lines
 export HS_CRITIC_SCRIPT='tool:grep -q hello hello.txt|clean'
                                     # a deterministic stand-in for the
-                                    # checker's phase-2 critic: it really
+                                    # checker's phase-2 critic: it
                                     # probes the submission and reports
                                     # clean only when the probe passes
 # in ~/.config/hairspring/hairspring.toml: comment `default = true` on the
@@ -117,7 +114,7 @@ check, submits, and closes `verified` (checker green + verifier audit) -
 a full graded mission with no provider. The critic stand-in is for this
 demo only: live missions leave `HS_CRITIC_SCRIPT` unset so the critic
 resolves from `HS_CRITIC_MODEL` (deepseek or glm) with a real provider
-key, and each abnormal critic exit fails closed. Without
+key, and an abnormal critic exit fails closed. Without
 `HS_SEQMODEL_SCRIPT` the scripted model stays inert: missions that call
 it get an error naming the variable, and live models are unaffected. A
 missing live key is caught at startup by the readiness gate, which
@@ -145,17 +142,15 @@ each stream.
 | `hs-memory` / `hs-world` | Memory and world services |
 | `hs-cli` | Log inspection (`hs-log-cli`) and test fixtures |
 
-Doc comments cite the project's internal design spec by gate and
-section ("gate 3", "spec section 10 row 7") and live incidents by
-date. The spec itself is not in this repo; the anchors stay so each
-fix traces back to the incident and design section that motivated it.
+Doc comments cite the internal design spec by gate and section
+("gate 3", "spec section 10 row 7") and live incidents by date; the
+spec itself is not in this repo.
 
 ## Documentation
 
 - [`docs/providers.md`](docs/providers.md) - DeepSeek and GLM are built in; any other OpenAI-compatible endpoint (OpenRouter, OpenAI direct, a local server) is configuration, not code.
 - [`docs/deep-pass-ledger.md`](docs/deep-pass-ledger.md) - the line-by-line audit ledger: each crate, what it yielded, what was left and why.
 - [`hairspring.example.toml`](hairspring.example.toml) - the annotated rig config: tools, models, the two-phase checker, delegation, budgets.
-- [`.github/workflows/install-gate.yml`](.github/workflows/install-gate.yml) - the public install path and the offline trial, gated on Linux and macOS across the oldest-supported and latest stable toolchains.
 
 ## Development
 
@@ -173,7 +168,7 @@ captures are runtime artifacts and are never committed.
 
 ```bibtex
 @software{hairspring,
-  title  = {Hairspring: a self-improving agent harness, judged by its own history},
+  title  = {Hairspring: a self-improving agent harness},
   author = {{Tensorbend Instinct}},
   year   = {2026},
   url    = {https://github.com/tensorbend-instinct/hairspring}
