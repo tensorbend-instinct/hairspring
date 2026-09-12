@@ -1,27 +1,31 @@
 # HAIRSPRING
 
-**A self-improving agent harness.**
+**A self-improving agent harness where the model never grades its own work.**
 
-Hairspring runs coding missions in a sandboxed agent loop. The run -
-model calls, tool calls, verdicts - lands in an append-only,
-hash-chained event log.
+Agent harnesses run the same loop: think, act, observe, repeat. In most
+of them the model decides when it is done, and the transcript is a diary
+for whoever reads it later. Hairspring keeps the loop and moves the
+authority out of the model:
 
-- the mission closes `verified` when its declared checks pass and an
-  independent critic fails to refute the work
-- memory scores itself: notes cited by later missions earn +1, notes
-  served and ignored earn -1
-- skills move between agents through a shared shelf; the log counts
-  who used which skill where
-- sub-agents run concurrently; the parent joins them before it may
-  pass
-- self-modification ships when it scores better on held-out assays
-- DeepSeek and GLM built in; any OpenAI-compatible endpoint by
-  configuration
+- the checker closes the mission - the model's say-so is not a verdict
+- the critic refutes: an independent model in a fresh context, with a
+  read-only shell, and one directive - prove the work wrong. The
+  mission passes when it can't
+- the log is the state - append-only and hash-chained, written by the
+  loop alone, so any mission replays from the record
+- the world validates - agents propose; the world service records what
+  happened
+- the scorer promotes - a self-modification ships when it beats a
+  pinned scorer on held-out assays
+- memory scores itself - a note cited by a later mission earns +1, a
+  note served and ignored earns -1
+
+Nothing counts - no pass, no improvement, no memory - unless the
+substrate verifies it.
 
 <p align="center">
-  <img src="docs/assets/system.png" alt="The hairspring system: mission loop, event log, memory, world, swarm, and self-modification planes" width="960">
+  <img src="docs/assets/system.png" alt="Hairspring: the model works in the loop; the substrate holds the authority - the checker closes, the critic refutes, the log is the state, the world validates, the scorer promotes" width="960">
 </p>
-
 
 ```console
 $ hairspring run --goal "write hello.txt containing hello" --dir ./hs-demo
@@ -34,6 +38,24 @@ critic: {"blocking":"none","findings":[],"refuted":false}
 A scripted model replays this demo with zero network and no API key -
 the [offline trial](#offline-trial-no-api-key) runs it on a fresh
 install.
+
+## Run a mission in one minute
+
+```sh
+git clone https://github.com/tensorbend-instinct/hairspring.git
+cd hairspring && ./install.sh
+export HS_DEEPSEEK_API_KEY=<your key>
+hairspring run --goal "fix the off-by-one in src/parser.rs" \
+    --config ~/.config/hairspring/hairspring.toml \
+    --dir ./hs-run --project-dir .
+```
+
+The mission runs sandboxed, declares its checks, submits, and closes
+`verified` when the checks pass and the critic fails to refute the
+work. Details and the fullscreen TUI: [Install](#install),
+[Quickstart](#quickstart). No API key: the
+[offline trial](#offline-trial-no-api-key) replays a graded mission
+with zero network.
 
 ## Why the log
 
@@ -157,7 +179,6 @@ for a plugin's dying words.
 ## Documentation
 
 - [`docs/providers.md`](docs/providers.md) - DeepSeek and GLM are built in; any other OpenAI-compatible endpoint (OpenRouter, OpenAI direct, a local server) is configuration, not code.
-- [`docs/deep-pass-ledger.md`](docs/deep-pass-ledger.md) - the line-by-line audit ledger: crate by crate, what it yielded, what was left and why.
 - [`hairspring.example.toml`](hairspring.example.toml) - the annotated rig config: tools, models, the two-phase checker, delegation, budgets.
 
 ## Development
