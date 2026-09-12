@@ -27,6 +27,18 @@ static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 struct EnvGuard(Vec<(&'static str, Option<String>)>);
 impl EnvGuard {
+    fn clear(keys: &[&'static str]) -> Self {
+        let saved: Vec<(&'static str, Option<String>)> = keys
+            .iter()
+            .map(|k| {
+                let old = std::env::var(k).ok();
+                unsafe { std::env::remove_var(k) };
+                (*k, old)
+            })
+            .collect();
+        EnvGuard(saved)
+    }
+
     fn set(pairs: &[(&'static str, &str)]) -> Self {
         let saved: Vec<(&'static str, Option<String>)> = pairs
             .iter()
@@ -315,4 +327,30 @@ fn kernel_reload_after_add_sees_the_model() {
     std::thread::sleep(std::time::Duration::from_millis(25)); // mtime tick
     assert!(k.reload_if_changed().unwrap(), "reload not detected");
     assert!(k.has_model("openrouter"), "the added model serves");
+}
+
+#[test]
+fn tui_launch_opens_without_a_credential() {
+    // Zero-config stranger path (Eric 2026-09-12): a first-run TUI with
+    // no key must OPEN - /models add is the fix and it lives in the TUI.
+    // A one-shot mission keeps the hard gate (never a mid-mission 400).
+    let _l = ENV_LOCK.lock().unwrap();
+    let _k = EnvGuard::clear(&["HS_DEEPSEEK_API_KEY", "HS_DEEPSEEK_API_KEY_FILE"]);
+    let dir = tempfile::tempdir().unwrap();
+    let home: &'static str = Box::leak(dir.path().display().to_string().into_boxed_str());
+    let xdg: &'static str =
+        Box::leak(dir.path().join("xdg").display().to_string().into_boxed_str());
+    let _h = EnvGuard::set(&[("HOME", home), ("XDG_CONFIG_HOME", xdg)]);
+    let ds = env!("CARGO_BIN_EXE_hs-plugin-deepseek");
+    let rig = dir.path().join("rig.toml");
+    std::fs::write(
+        &rig,
+        format!(
+            "[[models]]\nname = \"deepseek\"\ncommand = [\"{ds}\"]\ndefault = true\nsubjects = [\"*\"]\n"
+        ),
+    )
+    .unwrap();
+    hs_loop::setup::readiness_gate(&rig, true, true)
+        .expect("the TUI launch opens: /models add fixes the credential there");
+    assert!(hs_loop::setup::readiness_gate(&rig, false, false).is_err());
 }

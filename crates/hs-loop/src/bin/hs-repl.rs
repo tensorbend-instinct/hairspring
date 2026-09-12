@@ -810,7 +810,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     // offline (scripted) or credentialed BEFORE any mission machinery
     // starts - a TTY gets the guided wizard inline, non-TTY an
     // actionable error (Eric 2026-09-10: never a mid-mission 400).
-    hs_loop::setup::readiness_gate(&opts.config, interactive)?;
+    hs_loop::setup::readiness_gate(&opts.config, interactive, one_shot_goal.is_none())?;
 
     // Eric's five #5: the agent.spawn tool plugin learns the session's
     // log root + kernel config from the environment (plugin processes

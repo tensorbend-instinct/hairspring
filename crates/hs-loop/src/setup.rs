@@ -80,7 +80,11 @@ pub fn check_readiness() -> Vec<Readiness> {
 /// (env, key file, or the guided-setup config-dir file). A TTY with no
 /// credential is offered the wizard inline; non-TTY (CI, scripts) gets
 /// an actionable error naming the remedy.
-pub fn readiness_gate(config: &std::path::Path, interactive: bool) -> Result<(), String> {
+pub fn readiness_gate(
+    config: &std::path::Path,
+    interactive: bool,
+    tui_launch: bool,
+) -> Result<(), String> {
     let Some(name) = crate::repl::ReplSession::configured_model_label(config) else {
         return Ok(()); // unparseable rig: the session loader errors with its own message
     };
@@ -88,6 +92,17 @@ pub fn readiness_gate(config: &std::path::Path, interactive: bool) -> Result<(),
         return Ok(()); // scripted / offline default needs no credential
     };
     if realmodel::load_key(&provider).is_ok() {
+        return Ok(());
+    }
+    if interactive && tui_launch {
+        // Zero-config stranger path (Eric 2026-09-12): the TUI fixes this
+        // in place - /models add writes the provider and its key - so a
+        // first run opens instead of dead-ending in guided setup, which
+        // only knows the builtins. One-shot missions keep the hard gate.
+        eprintln!(
+            "hairspring: no credential for the default model \"{}\" - opening the TUI; /models add sets up a provider and key in place.",
+            provider.name
+        );
         return Ok(());
     }
     let remedy = format!(
