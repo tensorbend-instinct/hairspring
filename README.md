@@ -140,7 +140,6 @@ the streams.
 ## Documentation
 
 - [`docs/providers.md`](docs/providers.md) - DeepSeek and GLM are built in; any other OpenAI-compatible endpoint (OpenRouter, OpenAI direct, a local server) is configuration, not code.
-- [`docs/deep-pass-ledger.md`](docs/deep-pass-ledger.md) - the line-by-line audit ledger: crate by crate, what it yielded, what was left and why.
 - [`hairspring.example.toml`](hairspring.example.toml) - the annotated rig config: tools, models, the two-phase checker, delegation, budgets.
 
 ## Development
