@@ -2,24 +2,45 @@
 
 **A self-improving agent harness.**
 
+Hairspring runs coding missions in a sandboxed agent loop. The run -
+model calls, tool calls, verdicts - lands in an append-only,
+hash-chained event log.
+
+- the mission closes `verified` when its declared checks pass and an
+  independent critic fails to refute the work
+- memory scores itself: notes cited by later missions earn +1, notes
+  served and ignored earn -1
+- skills move between agents through a shared shelf; the log counts
+  who used which skill where
+- sub-agents run concurrently; the parent joins them before it may
+  pass
+- self-modification ships when it scores better on held-out assays
+- DeepSeek and GLM built in; any OpenAI-compatible endpoint by
+  configuration
+
 <p align="center">
   <img src="docs/assets/system.png" alt="The hairspring system: mission loop, event log, memory, world, swarm, and self-modification planes" width="960">
 </p>
 
-Hairspring is an agent harness for coding missions. The agent thinks,
-acts, and observes in a loop; the mission closes when its declared
-checks pass and an independent critic fails to refute the work.
 
-Model calls, tool calls, and verdicts land in an append-only,
-hash-chained event log - rewind and replay included. Tools and models
-run as isolated plugin processes over a small NDJSON protocol.
-Sub-agents run concurrently, and the parent joins them before it may
-pass.
+```console
+$ hairspring run --goal "write hello.txt containing hello" --dir ./hs-demo
+> term.exec      cat > work/.hs/checks ...          ok
+> answer.submit  answer.txt                        ok
+critic: {"blocking":"none","findings":[],"refuted":false}
+{"outcome":"verified","passed":true,"steps":7,"model_calls":8}
+```
 
-Notes written at mission close earn +1 when later missions cite them
-and -1 when served and ignored. Skills move between agents through a
-shared shelf; the log counts who used which skill where.
-Self-modification ships when it scores better on held-out assays.
+A scripted model replays this demo with zero network and no API key -
+the [offline trial](#offline-trial-no-api-key) runs it on a fresh
+install.
+
+## Why the log
+
+The record, not the prompt, is the source of truth. Plugins never
+write the log; the loop is its only writer. A crash at any point
+leaves consistent provenance on the streams, and any mission rewinds
+and replays from the record.
 
 | Number | Regenerate it |
 |--------|---------------|
@@ -119,10 +140,6 @@ for a plugin's dying words.
 
 ## Architecture
 
-The event log is the spine: plugins never write it, the loop is its
-only writer, and a crash at any point leaves consistent provenance on
-the streams.
-
 | Crate | What it owns |
 |-------|--------------|
 | `hs-core` | Event schema, canonical encoding, hash chaining |
@@ -140,6 +157,7 @@ the streams.
 ## Documentation
 
 - [`docs/providers.md`](docs/providers.md) - DeepSeek and GLM are built in; any other OpenAI-compatible endpoint (OpenRouter, OpenAI direct, a local server) is configuration, not code.
+- [`docs/deep-pass-ledger.md`](docs/deep-pass-ledger.md) - the line-by-line audit ledger: crate by crate, what it yielded, what was left and why.
 - [`hairspring.example.toml`](hairspring.example.toml) - the annotated rig config: tools, models, the two-phase checker, delegation, budgets.
 
 ## Development
