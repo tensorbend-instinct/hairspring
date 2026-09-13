@@ -109,6 +109,23 @@ fn p7_unknown_command_feedback_not_mission() {
     assert_eq!(st.editor.text(), "", "consumed input clears");
 }
 
+// P10: "/cancel" is no palette command, but it is the add-provider
+// wizard's escape hatch - it must SUBMIT so the bin-level wizard feed can
+// consume it (slash regression 2026-09-12: the key layer rejected it as
+// unknown, the wizard stayed open, and it ate the next lines - including
+// the mission goal - as provider-name answers).
+#[test]
+fn p10_cancel_submits_for_the_wizard() {
+    let mut st = TuiState::default();
+    type_str(&mut st, "/cancel");
+    let r = tui::handle_key(&mut st, enter());
+    assert_eq!(
+        r,
+        KeyAction::Submit("/cancel".to_string()),
+        "cancel reaches the wizard, not the unknown-command bin: {r:?}"
+    );
+}
+
 // P8: the colon alias drives the same registry.
 #[test]
 fn p8_colon_alias_parity() {

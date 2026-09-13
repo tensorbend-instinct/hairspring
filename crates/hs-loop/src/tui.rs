@@ -839,6 +839,15 @@ pub fn handle_key(state: &mut TuiState, key: ratatui::crossterm::event::KeyEvent
                         Some(rest) => {
                             let word = rest.split_whitespace().next().unwrap_or("");
                             match command_lookup(word) {
+                                None if word == "cancel" => {
+                                    // No palette command, but the
+                                    // add-provider wizard's escape hatch:
+                                    // it must reach the bin's Submit path
+                                    // (slash regression 2026-09-12: rejecting
+                                    // it here left the wizard eating the
+                                    // next lines, mission goal included).
+                                    KeyAction::Submit(text)
+                                }
                                 None => {
                                     state.push_transcript_line(&format!(
                                         "unknown command {t} (/help lists commands)"
