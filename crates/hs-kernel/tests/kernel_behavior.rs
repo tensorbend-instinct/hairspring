@@ -109,6 +109,49 @@ fn visibility_gating_filters_by_subject() {
 }
 
 #[test]
+fn tool_call_stamps_mission_run_dir() {
+    let _guard = TEST_LOCK.lock().unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let config = write_config(
+        dir.path(),
+        &format!(
+            r#"
+[[tools]]
+name = "params-echo"
+command = ["{FIXTURE}", "params-echo-tool", "params-echo"]
+subjects = ["*"]
+
+[[models]]
+name = "fake-v1"
+command = ["{FIXTURE}", "fake-model"]
+default = true
+"#
+        ),
+    );
+    let kernel = Kernel::load(&config).unwrap();
+    // Outside a mission no run_dir rides the call.
+    let out = kernel
+        .call_tool("operator", "params-echo", serde_json::json!({"x": 1}))
+        .unwrap();
+    assert!(
+        out.output["params"]["run_dir"].is_null(),
+        "no run_dir until the loop stamps a mission: {:?}",
+        out.output
+    );
+    // What the loop does at mission start: the mission's own dir rides
+    // every tool.call alongside args (gate-8 self-instruction).
+    kernel.set_tool_run_dir(Some(std::path::PathBuf::from("/tmp/mission-1")));
+    let out = kernel
+        .call_tool("operator", "params-echo", serde_json::json!({"x": 1}))
+        .unwrap();
+    assert_eq!(
+        out.output["params"]["run_dir"],
+        serde_json::json!("/tmp/mission-1")
+    );
+    assert_eq!(out.output["params"]["args"]["x"], serde_json::json!(1));
+}
+
+#[test]
 fn tool_call_executes_and_returns_output() {
     let _guard = TEST_LOCK.lock().unwrap();
     let dir = tempfile::tempdir().unwrap();

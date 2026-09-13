@@ -139,6 +139,9 @@ pub struct ReplSession {
     used_ids: std::collections::HashSet<String>,
     last_answer_path: Option<PathBuf>,
     mcp_catalog: String,
+    /// The promoted policy overlay this session runs under (checklist 6.9):
+    /// None = builtin behavior (the goal IS the prompt, dance #95).
+    policy: Option<crate::sweprompt::PolicyOverlay>,
     model_label: String,
     started: std::time::Instant,
     missions_run: u64,
@@ -147,6 +150,22 @@ pub struct ReplSession {
     ui_flush: Option<Box<dyn FnMut() + Send>>,
     work_dir: PathBuf,
     config_path: PathBuf,
+}
+
+/// The promoted policy overlay the live session runs under (checklist 6.9:
+/// promotion -> config -> live session). HS_POLICY_TOML wins, else the
+/// canonical config-dir overlay when it exists; absent = builtin behavior.
+/// Malformed is a hard error, never a silent fallback (sweprompt law).
+#[must_use]
+pub fn load_tui_policy() -> Option<crate::sweprompt::PolicyOverlay> {
+    let path = crate::sweprompt::resolve_policy_overlay_path()?;
+    match crate::sweprompt::load_policy_overlay(&path) {
+        Ok(p) => Some(p),
+        Err(e) => {
+            eprintln!("hairspring: {e}");
+            std::process::exit(2);
+        }
+    }
 }
 
 /// Offered-surface dedupe (live 400, 2026-09-10): the config may itself
@@ -651,6 +670,7 @@ pub fn load(
             used_ids: std::collections::HashSet::new(),
             last_answer_path: None,
             mcp_catalog,
+            policy: load_tui_policy(),
             model_label,
             started: std::time::Instant::now(),
             missions_run,
@@ -825,6 +845,7 @@ pub fn load(
             used_ids: std::collections::HashSet::new(),
             last_answer_path: None,
             mcp_catalog,
+            policy: load_tui_policy(),
             model_label,
             started: std::time::Instant::now(),
             missions_run,
@@ -860,11 +881,13 @@ pub fn load(
         // (baseline arm), never to an operator's TUI mission.
         self.inner.arm_mission_memory();
         let id = self.mission_id_for(goal);
-        let prompt = if self.mcp_catalog.is_empty() {
-            goal.to_string()
-        } else {
-            format!("{goal}\n\nAVAILABLE MCP TOOLS (call them like any other tool):\n{}", self.mcp_catalog)
-        };
+        // The mission prompt is POLICY (checklist 6.9): default is the
+        // goal verbatim; a promoted [prompts] tui-mission overlay wraps it.
+        let prompt = crate::sweprompt::build_tui_mission_prompt(
+            self.policy.as_ref(),
+            goal,
+            &self.mcp_catalog,
+        );
         // Burn-down (critic on the default path): the independent critic
         // gate refutes against the mission's INSTRUCTION. The tb rig
         // hands it over via HS_TB_INSTRUCTION_FILE; a TUI session is
@@ -940,7 +963,10 @@ pub fn load(
 
     /// Pick up rig changes (the /models add write) without a restart.
     pub fn reload_config(&mut self) -> Result<bool, String> {
-        self.inner.reload_config()
+        let r = self.inner.reload_config();
+        // A fresh promotion must reach the live session too (6.9).
+        self.policy = load_tui_policy();
+        r
     }
 
     pub fn vitals(&self) -> SessionVitals {

@@ -35,6 +35,8 @@ pub struct Evaluation {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct JournalRecord {
+    #[serde(default = "default_prompt_name")]
+    name: String,
     version: u64,
     decision: String, // promoted | rejected | rewound
     reason: String,
@@ -44,6 +46,10 @@ struct JournalRecord {
     candidate_text: Option<String>,
     trace_streams: Vec<String>,
     ts_ms: i64,
+}
+
+fn default_prompt_name() -> String {
+    "swe-mission".to_string()
 }
 
 fn now_ms() -> i64 {
@@ -83,15 +89,42 @@ fn fitness(outcomes: &[BenchOutcome]) -> (u32, u64) {
     )
 }
 
-fn write_overlay(path: &Path, template: &str) {
-    std::fs::write(
-        path,
-        format!(
-            "[prompts]\nswe-mission = {}\n",
-            toml::Value::String(template.to_string())
-        ),
-    )
-    .expect("overlay write");
+fn write_overlay(path: &Path, name: &str, template: &str) {
+    let mut prompts = if path.exists() {
+        crate::sweprompt::load_policy_overlay(path)
+            .map(|p| p.prompts)
+            .unwrap_or_default()
+    } else {
+        Default::default()
+    };
+    prompts.insert(name.to_string(), template.to_string());
+    write_overlay_prompts(path, &prompts);
+}
+
+fn write_overlay_prompts(path: &Path, prompts: &std::collections::BTreeMap<String, String>) {
+    let mut text = String::from("[prompts]\n");
+    for (k, v) in prompts {
+        text.push_str(&format!("{k} = {}\n", toml::Value::String(v.clone())));
+    }
+    std::fs::write(path, text).expect("overlay write");
+}
+
+fn remove_overlay_prompt(path: &Path, name: &str) {
+    let mut prompts = if path.exists() {
+        crate::sweprompt::load_policy_overlay(path)
+            .map(|p| p.prompts)
+            .unwrap_or_default()
+    } else {
+        Default::default()
+    };
+    prompts.remove(name);
+    if prompts.is_empty() {
+        if path.exists() {
+            std::fs::remove_file(path).expect("overlay remove");
+        }
+    } else {
+        write_overlay_prompts(path, &prompts);
+    }
 }
 
 /// Run parent and candidate through the bench subset, decide on held-out.
@@ -106,6 +139,31 @@ pub fn evaluate_candidate(
     held_out: &[String],
     overlay_path: &Path,
     journal_path: &Path,
+) -> Evaluation {
+    evaluate_candidate_named(
+        runner,
+        parent_text,
+        candidate_text,
+        bench,
+        held_out,
+        overlay_path,
+        journal_path,
+        "swe-mission",
+    )
+}
+
+/// Same driver, prompt-name explicit: the promotion touches only the
+/// `prompt_name` entry of the overlay (swe-mission for SWE runs,
+/// tui-mission for the interactive surface).
+pub fn evaluate_candidate_named(
+    runner: &dyn Fn(Option<&str>, &str) -> BenchOutcome,
+    parent_text: Option<String>,
+    candidate_text: String,
+    bench: &[String],
+    held_out: &[String],
+    overlay_path: &Path,
+    journal_path: &Path,
+    prompt_name: &str,
 ) -> Evaluation {
     let parent_hash = parent_text
         .as_deref().map_or_else(|| "builtin".to_string(), crate::sweprompt::content_hash);
@@ -136,7 +194,7 @@ pub fn evaluate_candidate(
 
     let version = read_journal(journal_path).len() as u64 + 1;
     let (decision, reason) = if beats {
-        write_overlay(overlay_path, &candidate_text);
+        write_overlay(overlay_path, prompt_name, &candidate_text);
         (
             Decision::Promoted,
             format!("candidate beats parent on held-out: passes {cp} vs {pp}, steps {cs} vs {ps}"),
@@ -148,6 +206,7 @@ pub fn evaluate_candidate(
     append_journal(
         journal_path,
         &JournalRecord {
+            name: prompt_name.to_string(),
             version,
             decision: if beats {
                 "promoted".into()
@@ -180,23 +239,31 @@ pub fn evaluate_candidate(
 /// Roll back the last promotion: restore its parent template (or remove the
 /// overlay when the parent was the builtin). Recorded in the journal.
 pub fn rewind(journal_path: &Path, overlay_path: &Path) -> Result<(), String> {
+    rewind_named(journal_path, overlay_path, "swe-mission")
+}
+
+/// Roll back the last promotion of `prompt_name`: restore its parent
+/// template (or drop the entry when the parent was the builtin). Other
+/// prompt entries are untouched; the file goes away only when empty.
+pub fn rewind_named(
+    journal_path: &Path,
+    overlay_path: &Path,
+    prompt_name: &str,
+) -> Result<(), String> {
     let journal = read_journal(journal_path);
     let last_promotion = journal
         .iter()
         .rev()
-        .find(|r| r.decision == "promoted")
-        .ok_or("no promotion to rewind")?;
+        .find(|r| r.decision == "promoted" && r.name == prompt_name)
+        .ok_or(format!("no promotion of {prompt_name} to rewind"))?;
     match &last_promotion.parent_text {
-        Some(t) => write_overlay(overlay_path, t),
-        None => {
-            if overlay_path.exists() {
-                std::fs::remove_file(overlay_path).map_err(|e| e.to_string())?;
-            }
-        }
+        Some(t) => write_overlay(overlay_path, prompt_name, t),
+        None => remove_overlay_prompt(overlay_path, prompt_name),
     }
     append_journal(
         journal_path,
         &JournalRecord {
+            name: prompt_name.to_string(),
             version: journal.len() as u64 + 1,
             decision: "rewound".into(),
             reason: format!(

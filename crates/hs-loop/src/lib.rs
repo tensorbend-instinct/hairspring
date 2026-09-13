@@ -10,6 +10,7 @@ pub mod assembler;
 pub mod critic;
 pub mod editapply;
 pub mod evolve;
+pub mod promote;
 pub mod goal;
 pub mod ledger;
 pub mod mcpbridge;
@@ -1575,6 +1576,12 @@ impl InnerLoop {
                 "mission id must be a single safe path component, got {mission:?}"
             )));
         }
+        // Gate-8 self-instruction live wiring (Eric 2026-09-13): every
+        // tool.call in this mission carries the mission's run dir, so
+        // policy.propose_prompt records into <log>/work/<mission>/ with no
+        // env var on the live path.
+        self.kernel
+            .set_tool_run_dir(Some(self.log_root.join("work").join(mission)));
         self.mission_started = Some(std::time::Instant::now());
         self.idi_interventions = 0;
         self.idi_detections = 0;

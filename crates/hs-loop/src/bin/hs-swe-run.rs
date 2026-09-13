@@ -125,15 +125,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         layout.push('\n');
     }
 
-    let policy = match std::env::var("HS_POLICY_TOML") {
-        Ok(p) => Some(
-            hs_loop::sweprompt::load_policy_overlay(std::path::Path::new(&p)).unwrap_or_else(|e| {
-                eprintln!("hs-swe-run: {e}");
-                std::process::exit(2);
-            }),
-        ),
-        Err(_) => None,
-    };
+    // HS_POLICY_TOML wins; else the canonical promoted-policy overlay
+    // (checklist 6.9: promotion -> config -> live run); else builtin.
+    // Malformed overlay is fatal, never a silent fallback to builtin.
+    let policy = hs_loop::sweprompt::resolve_policy_overlay_path().map(|p| {
+        hs_loop::sweprompt::load_policy_overlay(&p).unwrap_or_else(|e| {
+            eprintln!("hs-swe-run: {e}");
+            std::process::exit(2);
+        })
+    });
     // MCP tool surface (the MCP adapter gate design): discover each server's
     // tools through the bridge and register them namespaced. Discovery
     // failure is a hard error - a half-registered surface is worse than none.

@@ -287,3 +287,60 @@ fn edit_policy() -> String {
         "Make ALL edits with edit.patch (Codex apply_patch grammar: *** Begin Patch, *** Update File/Add File/Delete File, *** End Patch; context lines copied verbatim from repo.read) - never git apply, never hand-written .diff/.patch files; repo.exec is build/test only. Rejected bypass attempts are counted per class and escalate - never retry a rejected class.".to_string()
     }
 }
+
+/// The operator's config directory (XDG): the promoted policy overlay and
+/// its journal live here, next to hairspring.toml.
+#[must_use]
+pub fn config_dir() -> PathBuf {
+    if let Ok(x) = std::env::var("XDG_CONFIG_HOME") {
+        if !x.is_empty() {
+            return PathBuf::from(x).join("hairspring");
+        }
+    }
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    PathBuf::from(home).join(".config").join("hairspring")
+}
+
+/// The canonical promoted-policy home every live surface loads
+/// (checklist 6.9): hs-promote writes here, hs-swe-run and the REPL/TUI
+/// read here.
+#[must_use]
+pub fn default_policy_overlay_path() -> PathBuf {
+    config_dir().join("policy.toml")
+}
+
+/// Which overlay a live surface loads: HS_POLICY_TOML wins (explicit beats
+/// promoted), else the canonical promoted overlay when it exists, else
+/// None (builtin templates).
+#[must_use]
+pub fn resolve_policy_overlay_path() -> Option<PathBuf> {
+    if let Ok(p) = std::env::var("HS_POLICY_TOML") {
+        if !p.is_empty() {
+            return Some(PathBuf::from(p));
+        }
+    }
+    let p = default_policy_overlay_path();
+    p.exists().then_some(p)
+}
+
+/// The TUI/REPL mission prompt as policy (checklist 6.9). The default is
+/// the goal verbatim (dance #95 behavior); a promoted [prompts]
+/// tui-mission overlay wraps it. Placeholders: {goal} {mcp_tools}.
+pub const TUI_MISSION_DEFAULT_TEMPLATE: &str = "{goal}";
+
+#[must_use]
+pub fn build_tui_mission_prompt(policy: Option<&PolicyOverlay>, goal: &str, mcp_catalog: &str) -> String {
+    let template = policy
+        .and_then(|p| p.prompts.get("tui-mission"))
+        .map_or(TUI_MISSION_DEFAULT_TEMPLATE, String::as_str);
+    // The MCP block rides the goal so the passthrough default is byte-equal
+    // to the pre-policy behavior.
+    let goal_block = if mcp_catalog.is_empty() {
+        goal.to_string()
+    } else {
+        format!("{goal}\n\nAVAILABLE MCP TOOLS (call them like any other tool):\n{mcp_catalog}")
+    };
+    template
+        .replace("{goal}", &goal_block)
+        .replace("{mcp_tools}", mcp_catalog)
+}

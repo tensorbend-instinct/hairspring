@@ -410,6 +410,11 @@ pub struct Kernel {
     /// Gap #3: streaming-delta sink (see `DeltaSink`). When set, model.call
     /// params carry "`stream_deltas"`: true.
     delta_sink: RefCell<Option<DeltaSink>>,
+    /// The current mission's run dir, stamped on every tool.call as
+    /// "run_dir" (gate-8 self-instruction: policy.propose_prompt records
+    /// into the mission's own directory). Additive on the wire - plugins
+    /// that read only "args" are unaffected. None outside a mission.
+    tool_run_dir: RefCell<Option<PathBuf>>,
 }
 
 impl Kernel {
@@ -453,6 +458,7 @@ impl Kernel {
             log_root: log_root.map(std::path::Path::to_path_buf),
             stream_id: RefCell::new(None),
             delta_sink: RefCell::new(None),
+            tool_run_dir: RefCell::new(None),
             lenient_preflight,
         };
         k.apply_config(parsed)?;
@@ -672,12 +678,16 @@ impl Kernel {
             0,
         )?;
         let t0 = Instant::now();
+        let params = match &*self.tool_run_dir.borrow() {
+            Some(d) => serde_json::json!({"args": args.clone(), "run_dir": d.display().to_string()}),
+            None => serde_json::json!({"args": args.clone()}),
+        };
         let result = {
             let mut tools = self.tools.borrow_mut();
             tools
                 .get_mut(name)
                 .expect("existence checked above via ok_or_else")
-                .call("tool.call", serde_json::json!({"args": args.clone()}), &mut None)
+                .call("tool.call", params, &mut None)
         };
         let latency_ms = t0.elapsed().as_millis() as u32;
         match result {
@@ -757,6 +767,14 @@ impl Kernel {
     /// frame is forwarded to the sink as it arrives.
     pub fn set_delta_sink(&self, sink: DeltaSink) {
         *self.delta_sink.borrow_mut() = Some(sink);
+    }
+
+    /// The loop stamps the mission's run dir at mission start (gate-8
+    /// self-instruction live wiring, Eric 2026-09-13): from then on every
+    /// tool.call carries "run_dir" alongside "args". The policy plugin
+    /// records proposals there; every other plugin ignores the field.
+    pub fn set_tool_run_dir(&self, dir: Option<PathBuf>) {
+        *self.tool_run_dir.borrow_mut() = dir;
     }
 
     /// `call_model` + native tool schemas: tools is passed to the model

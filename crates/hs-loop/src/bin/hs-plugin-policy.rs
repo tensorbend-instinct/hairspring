@@ -15,9 +15,19 @@ fn main() {
             // matching only the literal name left this tool dead over the
             // wire (RED policy_wire_red, 2026-09-09).
             "policy.propose_prompt" | "tool.call" => {
-                let dir = match std::env::var("HS_RUN_DIR") {
-                    Ok(d) => d,
-                    Err(_) => return serde_json::json!({"$error": "HS_RUN_DIR not set"}),
+                // The kernel stamps the mission run dir on every tool.call
+                // (the live path); HS_RUN_DIR stays as the batch-script env.
+                let dir = match params["run_dir"]
+                    .as_str()
+                    .map(str::to_owned)
+                    .or_else(|| std::env::var("HS_RUN_DIR").ok())
+                {
+                    Some(d) => d,
+                    None => {
+                        return serde_json::json!({
+                            "$error": "run_dir not set: the kernel stamps it on every tool.call at mission start (HS_RUN_DIR env accepted as fallback)"
+                        })
+                    }
                 };
                 let name = params["args"]["name"].as_str().unwrap_or("swe-mission");
                 let text = params["args"]["text"].as_str().unwrap_or("");

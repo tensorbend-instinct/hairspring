@@ -55,6 +55,15 @@ name = "checker.run"
 command = ["@PREFIX@/bin/hs-plugin-critic"]
 subjects = ["*"]
 
+# Self-instruction (spec gate 8): the model may PROPOSE a better operating
+# prompt for FUTURE missions. Proposals are recorded, versioned and
+# hash-chained in the mission's run dir; promotion happens out-of-mission
+# through hs-promote, never to the running mission.
+[[tools]]
+name = "policy.propose_prompt"
+command = ["@PREFIX@/bin/hs-plugin-policy"]
+subjects = ["*"]
+
 # Async sub-agent delegation: agent.spawn returns immediately, children
 # run concurrently, agent.spawn_poll reports their outcomes.
 [[tools]]

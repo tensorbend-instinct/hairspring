@@ -71,7 +71,7 @@ fn main() {
         let method = v["method"].as_str().unwrap();
         let resp = match (mode.as_str(), method) {
             (_, "describe") => match mode.as_str() {
-                "echo-tool" | "shout-tool" | "costed-tool" | "heartbeat-tool" => {
+                "echo-tool" | "shout-tool" | "costed-tool" | "heartbeat-tool" | "params-echo-tool" => {
                     serde_json::json!({"id": id, "result": {"name": name_override.clone().unwrap_or("echo".into()), "kind": "tool", "version": "0.1.0"}})
                 }
                 "flaky-tool" => {
@@ -112,6 +112,9 @@ fn main() {
                     .unwrap_or("")
                     .to_string();
                 serde_json::json!({"id": id, "result": {"output": text}})
+            }
+            ("params-echo-tool", "tool.call") => {
+                serde_json::json!({"id": id, "result": {"params": v["params"].clone()}})
             }
             ("shout-tool", "tool.call") => {
                 let text = v["params"]["args"]["text"]
