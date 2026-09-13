@@ -129,6 +129,13 @@ struct SweCfg {
     /// instead of starting another mission.
     cycle_cap_micros: u64,
     spent: std::cell::Cell<u64>,
+    /// The parent template the evaluation compares against (None = builtin).
+    /// The arm dir must key on THIS, not on template.is_some(): with a
+    /// non-builtin parent the parent arm is Some(parent_text), and keying on
+    /// is_some maps it onto the candidate's run dir, silently reusing the
+    /// candidate's result.json (cycle 2, 2026-09-13: "41 vs 41 steps"
+    /// phantom rejection - the parent arm never ran).
+    parent_text: Option<String>,
 }
 
 /// SWE runner (PAID): one real hs-swe-run mission per (template, task)
@@ -139,7 +146,7 @@ struct SweCfg {
 /// overlay verbatim (or an empty overlay when the parent is builtin).
 fn swe_runner(cfg: SweCfg) -> impl Fn(Option<&str>, &str) -> BenchOutcome {
     move |template, task| {
-        let arm = if template.is_some() { "candidate" } else { "parent" };
+        let arm = if template == cfg.parent_text.as_deref() { "parent" } else { "candidate" };
         let dir = cfg.runs_root.join(format!("{arm}-{task}"));
         let result_path = dir.join("runs").join(task).join("result.json");
         if !result_path.exists() {
@@ -333,6 +340,7 @@ fn main() {
                             serde_json::from_str(&text)
                                 .unwrap_or_else(|e| fail(&format!("manifest {mp} parses: {e}")))
                         },
+                        parent_text: parent.clone(),
                         cycle_cap_micros: arg(&args, "--cycle-cap-micros")
                             .map(|v| v.parse().unwrap_or_else(|_| fail("--cycle-cap-micros must be a number")))
                             .unwrap_or(30_000_000),
