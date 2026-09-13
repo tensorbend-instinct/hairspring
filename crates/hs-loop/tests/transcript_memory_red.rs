@@ -96,8 +96,7 @@ fn d8_repl_mission_carries_its_own_transcript() {
     let mut s = load_session(
         &dir.join("hairspring.toml"),
         &dir.join("run"),
-        false,
-        4,
+        false, Some(4),
         None,
         None,
     )
@@ -127,8 +126,7 @@ fn d9_repl_mission_doom_loop_nudge_reaches_the_model() {
     let mut s = load_session(
         &dir.join("hairspring.toml"),
         &dir.join("run"),
-        false,
-        8,
+        false, Some(8),
         None,
         None,
     )

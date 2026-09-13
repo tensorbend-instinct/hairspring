@@ -55,7 +55,7 @@ fn repl_delivers_native_schemas_builtin_and_mcp() {
         std::env::remove_var("HS_MCP_SERVERS");
         std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
     }
-    let session = ReplSession::load(&test_config(dir.path()), log.path(), false, 4)
+    let session = ReplSession::load(&test_config(dir.path()), log.path(), false, Some(4))
         .expect("session load");
     let names = session.native_tool_names();
     // D1 (dance #94): the session advertises exactly what THIS config
@@ -92,7 +92,7 @@ fn repl_delivers_native_schemas_builtin_and_mcp() {
         std::env::set_var("HS_MCP_SERVERS", &servers);
         std::env::set_var("HS_MCP_BRIDGE_BIN", MCPCALL);
     }
-    let session2 = ReplSession::load(&test_config(dir2.path()), log2.path(), false, 4)
+    let session2 = ReplSession::load(&test_config(dir2.path()), log2.path(), false, Some(4))
         .expect("session load");
     unsafe {
         std::env::remove_var("HS_MCP_SERVERS");

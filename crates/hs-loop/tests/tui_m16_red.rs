@@ -64,9 +64,9 @@ fn m16_picker_excludes_active_session() {
     )
     .unwrap();
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
-    let r1 = run_one_shot(&config, log.path(), "alpha goal", false, 2).unwrap();
+    let r1 = run_one_shot(&config, log.path(), "alpha goal", false, Some(2)).unwrap();
     std::thread::sleep(std::time::Duration::from_millis(1100));
-    let r2 = run_one_shot(&config, log.path(), "beta goal", false, 2).unwrap();
+    let r2 = run_one_shot(&config, log.path(), "beta goal", false, Some(2)).unwrap();
 
     let all = list_sessions(log.path());
     assert_eq!(all.len(), 2, "fixture sanity: both sessions exist: {all:?}");

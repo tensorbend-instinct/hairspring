@@ -51,7 +51,7 @@ fn session_anchors_repo_tools_at_work_area_not_run_root() {
     let _g = ENV_LOCK.lock().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
-    let _session = ReplSession::load(&config(dir.path()), log.path(), false, 4).unwrap();
+    let _session = ReplSession::load(&config(dir.path()), log.path(), false, Some(4)).unwrap();
     let ws = std::env::var("HS_SWE_WORKSPACE").unwrap();
     let expected = log.path().join("work");
     assert_eq!(
@@ -68,7 +68,7 @@ fn repo_read_cannot_reach_harness_state_under_run_root() {
     let _g = ENV_LOCK.lock().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
-    let _session = ReplSession::load(&config(dir.path()), log.path(), false, 4).unwrap();
+    let _session = ReplSession::load(&config(dir.path()), log.path(), false, Some(4)).unwrap();
     // harness state under the run root, the way a live run lays it out
     let streams = log.path().join("streams");
     std::fs::create_dir_all(&streams).unwrap();

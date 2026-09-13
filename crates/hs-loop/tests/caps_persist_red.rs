@@ -59,7 +59,7 @@ fn config_cap_readers() {
 
 fn persisted_session(
     dir: &std::path::Path,
-    max_steps_arg: u32,
+    max_steps_arg: Option<u32>,
 ) -> hs_loop::repl::ReplSession {
     let _ = std::fs::remove_dir_all(dir);
     std::fs::create_dir_all(dir).unwrap();
@@ -103,9 +103,9 @@ static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 fn persisted_caps_arm_on_load() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = std::env::temp_dir().join("caps-persist-load");
-    let s = persisted_session(&dir, hs_loop::DEFAULT_MISSION_MAX_STEPS);
+    let s = persisted_session(&dir, None);
     let snap = s.caps_snapshot();
-    assert_eq!(snap.steps, 70, "[run] max_steps armed: {snap:?}");
+    assert_eq!(snap.steps, Some(70), "[run] max_steps armed: {snap:?}");
     assert_eq!(snap.wall_secs, Some(900), "[run] wall_secs armed: {snap:?}");
     assert_eq!(snap.budget_micros, Some(2_500_000), "[run] budget: {snap:?}");
     assert_eq!(snap.critic_steps, 24, "[critic] max_steps as env: {snap:?}");
@@ -125,8 +125,8 @@ fn persisted_caps_arm_on_load() {
 fn explicit_cli_max_steps_beats_config() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = std::env::temp_dir().join("caps-persist-cli-wins");
-    let s = persisted_session(&dir, 5);
-    assert_eq!(s.caps_snapshot().steps, 5, "explicit flag wins");
+    let s = persisted_session(&dir, Some(5));
+    assert_eq!(s.caps_snapshot().steps, Some(5), "explicit flag wins");
     unsafe {
         std::env::remove_var("HS_CRITIC_MAX_STEPS");
         std::env::remove_var("HS_CRITIC_WALL_SECS");
@@ -140,7 +140,7 @@ fn explicit_cli_max_steps_beats_config() {
 fn set_cap_persists_and_survives_reload() {
     let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = std::env::temp_dir().join("caps-persist-setcap");
-    let mut s = persisted_session(&dir, hs_loop::DEFAULT_MISSION_MAX_STEPS);
+    let mut s = persisted_session(&dir, None);
     s.set_cap("steps", "77").expect("set steps");
     s.set_cap("budget", "3.25").expect("set budget");
     s.set_cap("critic-steps", "30").expect("set critic-steps");
@@ -155,13 +155,13 @@ fn set_cap_persists_and_survives_reload() {
         &dir.join("hairspring.toml"),
         &dir.join("run2"),
         false,
-        hs_loop::DEFAULT_MISSION_MAX_STEPS,
+        None,
         None,
         None,
     )
     .unwrap();
     let snap = s2.caps_snapshot();
-    assert_eq!(snap.steps, 77, "steps survived reload: {snap:?}");
+    assert_eq!(snap.steps, Some(77), "steps survived reload: {snap:?}");
     assert_eq!(snap.budget_micros, Some(3_250_000), "budget survived: {snap:?}");
     assert_eq!(snap.wall_secs, None, "wall stayed off: {snap:?}");
     assert_eq!(snap.critic_steps, 30, "critic steps survived: {snap:?}");

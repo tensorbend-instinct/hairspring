@@ -121,7 +121,7 @@ fn r1_children_run_concurrently_and_join_at_close() {
 
     let events: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
     let cap = events.clone();
-    let mut s = load_session(&dir.join("hairspring.toml"), &dir.join("run"), false, 12, None, None)
+    let mut s = load_session(&dir.join("hairspring.toml"), &dir.join("run"), false, Some(12), None, None)
         .unwrap();
     s.set_ui_sink(Box::new(move |ev: UiEvent| {
         cap.lock().unwrap().push(format!("{ev:?}"));
@@ -278,7 +278,7 @@ subjects = ["*"]
 
     let events: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
     let cap = events.clone();
-    let mut s = load_session(&dir.join("hairspring.toml"), &dir.join("run"), false, 12, None, None)
+    let mut s = load_session(&dir.join("hairspring.toml"), &dir.join("run"), false, Some(12), None, None)
         .unwrap();
     s.set_wall_secs(3);
     s.set_ui_sink(Box::new(move |ev: UiEvent| {
@@ -382,7 +382,7 @@ subjects = ["*"]
 
     let events: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
     let cap = events.clone();
-    let mut s = load_session(&dir.join("hairspring.toml"), &dir.join("run"), false, 12, None, None)
+    let mut s = load_session(&dir.join("hairspring.toml"), &dir.join("run"), false, Some(12), None, None)
         .unwrap();
     s.set_wall_secs(8);
     s.set_ui_sink(Box::new(move |ev: UiEvent| {

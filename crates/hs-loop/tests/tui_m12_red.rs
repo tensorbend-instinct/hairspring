@@ -46,7 +46,7 @@ default = true
     unsafe {
         std::env::set_var("HS_SEQMODEL_SCRIPT", dir.join("script.jsonl"));
     }
-    hs_loop::repl::load_session(&dir.join("hairspring.toml"), &dir.join("run"), false, 2, None, None)
+    hs_loop::repl::load_session(&dir.join("hairspring.toml"), &dir.join("run"), false, Some(2), None, None)
         .unwrap()
 }
 

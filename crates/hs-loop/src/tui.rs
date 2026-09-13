@@ -152,7 +152,7 @@ pub fn parse_caps_command(input: &str) -> Option<CapsCmd> {
 /// Every cap the config holds, snapshotted for display.
 #[derive(Debug, Clone)]
 pub struct CapsSnapshot {
-    pub steps: u32,
+    pub steps: Option<u32>,
     pub wall_secs: Option<u64>,
     pub budget_micros: Option<u64>,
     pub critic_steps: u32,
@@ -167,9 +167,9 @@ pub fn format_caps_listing(s: &CapsSnapshot) -> String {
     let budget = s
         .budget_micros
         .map_or("off".to_string(), crate::uipaint::format_usd_micros);
+    let steps = s.steps.map_or("off".to_string(), |v| v.to_string());
     format!(
-        "caps (live this session):\n  steps {}  - /caps steps N\n  wall {wall}  - /caps wall SECS (off to disable)\n  budget {budget}  - /caps budget USD\n  critic steps {}  - /caps critic-steps N\n  critic wall {}s  - /caps critic-wall SECS\n  critic budget {}  - /caps critic-budget USD",
-        s.steps,
+        "caps (live this session):\n  steps {steps}  - /caps steps N (off to disable)\n  wall {wall}  - /caps wall SECS (off to disable)\n  budget {budget}  - /caps budget USD (off to disable)\n  critic steps {}  - /caps critic-steps N\n  critic wall {}s  - /caps critic-wall SECS\n  critic budget {}  - /caps critic-budget USD",
         s.critic_steps,
         s.critic_wall_secs,
         crate::uipaint::format_usd_micros(s.critic_budget_micros),
@@ -1481,7 +1481,7 @@ pub struct TuiState {
     pub ticker: VecDeque<EventKind>,
     /// Activity rail state: the step the loop is on (0 = idle).
     pub cur_step: u32,
-    pub cur_max_steps: u32,
+    pub cur_max_steps: Option<u32>,
     /// What is happening right now ("thinking \u{b7} deepseek").
     pub cur_action: String,
     /// Eric's five #1: goals submitted while a mission runs queue here
@@ -1524,7 +1524,7 @@ impl Default for TuiState {
             time_view: None,
             ticker: VecDeque::new(),
             cur_step: 0,
-            cur_max_steps: 0,
+            cur_max_steps: None,
             cur_action: String::new(),
             queued_goals: VecDeque::new(),
             theme: crate::uipaint::Theme::dark(),
@@ -2104,10 +2104,10 @@ impl TuiState {
         } else {
             self.cur_action.clone()
         };
-        format!(
-            "step {}/{} \u{b7} {}",
-            self.cur_step, self.cur_max_steps, action
-        )
+        match self.cur_max_steps {
+            Some(m) => format!("step {}/{m} \u{b7} {}", self.cur_step, action),
+            None => format!("step {} \u{b7} {}", self.cur_step, action),
+        }
     }
 
     /// Test surface: the tail transcript line as (text, style-tags)

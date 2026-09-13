@@ -101,7 +101,7 @@ fn r1_delegation_runs_a_real_child_and_books_it() {
 
     let events: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
     let cap = events.clone();
-    let mut s = load_session(&dir.join("hairspring.toml"), &dir.join("run"), false, 8, None, None)
+    let mut s = load_session(&dir.join("hairspring.toml"), &dir.join("run"), false, Some(8), None, None)
         .unwrap();
     s.set_ui_sink(Box::new(move |ev: UiEvent| {
         cap.lock().unwrap().push(format!("{ev:?}"));

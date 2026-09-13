@@ -95,14 +95,6 @@ pub const REPL_HELP: &str = "hairspring REPL - run the harness on a goal, end to
   :help     this text
   :quit     exit";
 
-/// UI gap #1: a typed snapshot of where the session stands - the data
-/// an ambient status bar paints. No string-scraping of logs: the session
-/// accumulates every mission's counters as they land.
-/// D4: the budget every session arms when the config declares none -
-/// $10, matching the standing external exec guard. Explicit
-/// `--budget-micros` or the config stanza overrides it.
-pub const DEFAULT_SESSION_BUDGET_MICROS: u64 = 10_000_000;
-
 #[derive(Debug, Clone)]
 pub struct SessionVitals {
     /// Name of the configured default model.
@@ -365,6 +357,22 @@ pub fn toml_upsert(
 }
 
 
+/// Canonical TOML literal for a dollar figure: ALWAYS a float, so the
+/// reader above never sees the integer form a bare `format!("{dollars}")`
+/// produced for whole dollars (the $100 -> $10 bug).
+#[must_use]
+pub fn usd_literal(micros: u64) -> String {
+    let dollars = micros as f64 / 1e6;
+    let t = format!("{dollars:.6}");
+    let t = t.trim_end_matches('0');
+    let t = t.strip_suffix('.').map_or(t, |x| x);
+    if t.contains('.') {
+        t.to_string()
+    } else {
+        format!("{t}.0")
+    }
+}
+
 impl ReplSession {
 
 /// Gap #6: the REPL's compaction budget comes from the configured
@@ -390,16 +398,22 @@ pub fn configured_model_label(config: &Path) -> Option<String> {
     default_model.get("name")?.as_str().map(str::to_string)
 }
 
-/// D4: the run's USD budget from the config, when declared
+/// The run's USD budget from the config, when declared
 /// (`[run] budget_usd = <dollars>` or `budget_micros = <micros>`;
-/// dollars win when both appear). Missing means the caller arms the
-/// default session cap - "uncapped" is never the silent default
-/// (live burn 2026-09-09: 0 missions, 58 calls, $8.81, no cap armed).
-fn configured_budget_micros(config: &Path) -> Option<u64> {
+/// dollars win when both appear). Missing means NO budget cap is armed
+/// (Eric 2026-09-12: caps are opt-in). `budget_usd` accepts a float OR
+/// an integer literal: /caps once wrote whole dollars as a TOML integer
+/// and the float-only reader silently dropped them - Eric's $100 came
+/// back as the hidden $10 default (2026-09-12).
+#[must_use]
+pub fn configured_budget_micros(config: &Path) -> Option<u64> {
     let text = std::fs::read_to_string(config).ok()?;
     let v: toml::Value = toml::from_str(&text).ok()?;
     let run = v.get("run")?.as_table()?;
-    if let Some(usd) = run.get("budget_usd").and_then(toml::Value::as_float) {
+    let usd = run.get("budget_usd").and_then(|v| {
+        v.as_float().or_else(|| v.as_integer().map(|i| i as f64))
+    });
+    if let Some(usd) = usd {
         return Some((usd.max(0.0) * 1e6).round() as u64);
     }
     run.get("budget_micros")
@@ -508,7 +522,7 @@ pub fn load(
         config: &Path,
         log_root: &Path,
         feedback: bool,
-        max_steps: u32,
+        max_steps: Option<u32>,
     ) -> Result<Self, LoopError> {
         Self::load_inner(config, log_root, feedback, max_steps, false)
     }
@@ -520,7 +534,7 @@ pub fn load(
         config: &Path,
         log_root: &Path,
         feedback: bool,
-        max_steps: u32,
+        max_steps: Option<u32>,
     ) -> Result<Self, LoopError> {
         Self::load_inner(config, log_root, feedback, max_steps, true)
     }
@@ -529,7 +543,7 @@ pub fn load(
         config: &Path,
         log_root: &Path,
         feedback: bool,
-        max_steps: u32,
+        max_steps: Option<u32>,
         lenient: bool,
     ) -> Result<Self, LoopError> {
         // MCP tool seam (Eric 2026-09-07 web-tooling order): HS_MCP_SERVERS
@@ -593,14 +607,17 @@ pub fn load(
         // Eric's five #5: the interactive surface offers delegation.
         offer_unique(&mut native_tools, crate::toolschema::agent_spawn_tool());
         offer_unique(&mut native_tools, crate::toolschema::agent_spawn_poll_tool());
-        let mut inner = InnerLoop::new(kernel, log_root, feedback, max_steps)?;
+        let mut inner =
+            InnerLoop::new(kernel, log_root, feedback, max_steps.unwrap_or(crate::DEFAULT_MISSION_MAX_STEPS))?;
         Self::apply_config_caps(&mut inner, config, max_steps);
         if let Some(tokens) = Self::configured_context_tokens(config) {
             inner.set_context_budget_tokens(tokens * 3 / 4);
         }
-        inner.set_budget_micros(
-            Self::configured_budget_micros(config).unwrap_or(DEFAULT_SESSION_BUDGET_MICROS),
-        );
+        // Eric 2026-09-12: no budget cap unless declared (config or
+        // --budget-micros) - the hidden $10 default is gone.
+        if let Some(b) = Self::configured_budget_micros(config) {
+            inner.set_budget_micros(b);
+        }
         // B1 (v5 D3): every REPL session owns the shared K plane at
         // <dir>/memory.db; the model consults it via the memory.recall
         // tool (cut #10: consulted, never pre-passed) and every mission
@@ -647,7 +664,7 @@ pub fn load(
         config: &Path,
         log_root: &Path,
         feedback: bool,
-        max_steps: u32,
+        max_steps: Option<u32>,
         parent: uuid::Uuid,
     ) -> Result<Self, LoopError> {
         let (child, child_writer) = hs_log::StreamWriter::fork(log_root, parent)?;
@@ -664,7 +681,7 @@ pub fn load(
         config: &Path,
         log_root: &Path,
         feedback: bool,
-        max_steps: u32,
+        max_steps: Option<u32>,
         stream_id: uuid::Uuid,
     ) -> Result<Self, LoopError> {
         let mut mcp_catalog = String::new();
@@ -712,14 +729,22 @@ pub fn load(
         // Eric's five #5: the interactive surface offers delegation.
         offer_unique(&mut native_tools, crate::toolschema::agent_spawn_tool());
         offer_unique(&mut native_tools, crate::toolschema::agent_spawn_poll_tool());
-        let mut inner = InnerLoop::with_stream(kernel, log_root, stream_id, feedback, max_steps)?;
+        let mut inner = InnerLoop::with_stream(
+            kernel,
+            log_root,
+            stream_id,
+            feedback,
+            max_steps.unwrap_or(crate::DEFAULT_MISSION_MAX_STEPS),
+        )?;
         Self::apply_config_caps(&mut inner, config, max_steps);
         if let Some(tokens) = Self::configured_context_tokens(config) {
             inner.set_context_budget_tokens(tokens * 3 / 4);
         }
-        inner.set_budget_micros(
-            Self::configured_budget_micros(config).unwrap_or(DEFAULT_SESSION_BUDGET_MICROS),
-        );
+        // Eric 2026-09-12: no budget cap unless declared (config or
+        // --budget-micros) - the hidden $10 default is gone.
+        if let Some(b) = Self::configured_budget_micros(config) {
+            inner.set_budget_micros(b);
+        }
         // B1 (v5 D3): every REPL session owns the shared K plane at
         // <dir>/memory.db; the model consults it via the memory.recall
         // tool (cut #10: consulted, never pre-passed) and every mission
@@ -930,11 +955,12 @@ pub fn load(
     /// CLI --max-steps: it applies only when the caller passed the
     /// CLI default. `[critic]` caps arm as env - the critic plugin is a
     /// spawned process whose RefuteConfig::from_env stays the reader.
-    fn apply_config_caps(inner: &mut InnerLoop, config: &Path, max_steps: u32) {
-        if max_steps == crate::DEFAULT_MISSION_MAX_STEPS
-            && let Some(n) = configured_max_steps(config)
-        {
-            inner.set_max_steps(n);
+    /// Eric 2026-09-12: caps are opt-in. An explicit --max-steps wins;
+    /// else a persisted `[run] max_steps`; else NO step cap is armed.
+    fn apply_config_caps(inner: &mut InnerLoop, config: &Path, max_steps: Option<u32>) {
+        match max_steps.or_else(|| configured_max_steps(config)) {
+            Some(n) => inner.set_max_steps(n),
+            None => inner.clear_max_steps(),
         }
         if let Some(w) = configured_wall_secs(config) {
             inner.set_wall_secs(w);
@@ -994,9 +1020,14 @@ pub fn load(
         };
         match key {
             "steps" => {
-                let n = n_of("steps")?;
-                self.inner.set_max_steps(n as u32);
-                Ok(format!("steps \u{203a} {n} (next mission onward)"))
+                if value == "off" {
+                    self.inner.clear_max_steps();
+                    Ok("steps \u{203a} off (no step cap)".to_string())
+                } else {
+                    let n = n_of("steps")?;
+                    self.inner.set_max_steps(n as u32);
+                    Ok(format!("steps \u{203a} {n} (next mission onward)"))
+                }
             }
             "wall" => {
                 if value == "off" {
@@ -1009,12 +1040,17 @@ pub fn load(
                 }
             }
             "budget" => {
-                let m = usd_of("budget")?;
-                self.inner.set_budget_micros(m);
-                Ok(format!(
-                    "budget \u{203a} {}",
-                    crate::uipaint::format_usd_micros(m)
-                ))
+                if value == "off" {
+                    self.inner.clear_budget_micros();
+                    Ok("budget \u{203a} off (no spend cap)".to_string())
+                } else {
+                    let m = usd_of("budget")?;
+                    self.inner.set_budget_micros(m);
+                    Ok(format!(
+                        "budget \u{203a} {}",
+                        crate::uipaint::format_usd_micros(m)
+                    ))
+                }
             }
             "critic-steps" => {
                 let n = n_of("critic-steps")?;
@@ -1055,10 +1091,14 @@ pub fn load(
         };
         let out = match key {
             "steps" => {
-                let n: u64 = value
-                    .parse()
-                    .map_err(|_| format!("steps needs a number, got '{value}'"))?;
-                ups(&text, "run", "max_steps", Some(n.to_string()))?
+                if value == "off" {
+                    ups(&text, "run", "max_steps", None)?
+                } else {
+                    let n: u64 = value
+                        .parse()
+                        .map_err(|_| format!("steps needs a number (or off), got '{value}'"))?;
+                    ups(&text, "run", "max_steps", Some(n.to_string()))?
+                }
             }
             "wall" => {
                 if value == "off" {
@@ -1071,14 +1111,20 @@ pub fn load(
                 }
             }
             "budget" => {
-                let micros: u64 = value
-                    .trim_start_matches('$')
-                    .parse::<f64>()
-                    .map(|d| (d * 1_000_000.0) as u64)
-                    .map_err(|_| format!("budget needs dollars, got '{value}'"))?;
-                let dollars = micros as f64 / 1e6;
-                let t = ups(&text, "run", "budget_usd", Some(format!("{dollars}")))?;
-                ups(&t, "run", "budget_micros", None)?
+                if value == "off" {
+                    let t = ups(&text, "run", "budget_usd", None)?;
+                    ups(&t, "run", "budget_micros", None)?
+                } else {
+                    let micros: u64 = value
+                        .trim_start_matches('$')
+                        .parse::<f64>()
+                        .map(|d| (d * 1_000_000.0) as u64)
+                        .map_err(|_| format!("budget needs dollars (or off), got '{value}'"))?;
+                    // always a float literal - a whole-dollar integer
+                    // literal is the $100 -> $10 bug (2026-09-12)
+                    let t = ups(&text, "run", "budget_usd", Some(usd_literal(micros)))?;
+                    ups(&t, "run", "budget_micros", None)?
+                }
             }
             "critic-steps" => {
                 let n: u64 = value
@@ -1106,9 +1152,8 @@ pub fn load(
             .map_err(|e| format!("write {}: {e}", self.config_path.display()))
     }
 
-    /// The armed session budget (micro-USD) - always `Some` after
-    /// construction (D4): config `[run] budget_usd`/`budget_micros` when
-    /// declared, else `DEFAULT_SESSION_BUDGET_MICROS`.
+    /// The armed session budget (micro-USD): `Some` when the config or
+    /// a flag declared one, `None` = uncapped (Eric 2026-09-12).
     #[must_use]
     pub fn budget_micros(&self) -> Option<u64> {
         self.inner.budget_micros()
@@ -1172,7 +1217,7 @@ pub fn load_session(
     config: &Path,
     log_root: &Path,
     feedback: bool,
-    max_steps: u32,
+    max_steps: Option<u32>,
     resume: Option<uuid::Uuid>,
     fork: Option<uuid::Uuid>,
 ) -> Result<ReplSession, LoopError> {
@@ -1192,7 +1237,7 @@ pub fn load_session_lenient(
     config: &Path,
     log_root: &Path,
     feedback: bool,
-    max_steps: u32,
+    max_steps: Option<u32>,
 ) -> Result<ReplSession, LoopError> {
     ReplSession::load_lenient(config, log_root, feedback, max_steps)
 }
@@ -1204,7 +1249,7 @@ pub fn run_one_shot(
     log_root: &Path,
     goal: &str,
     feedback: bool,
-    max_steps: u32,
+    max_steps: Option<u32>,
 ) -> Result<MissionResult, LoopError> {
     ReplSession::load(config, log_root, feedback, max_steps)?.run_goal(goal)
 }

@@ -157,7 +157,7 @@ default = true
         // a sibling of the test exe, so point at it explicitly.
         std::env::set_var("HS_MCP_BRIDGE_BIN", MCPCALL);
     }
-    let r = run_one_shot(&config, log.path(), "echo test", false, 4).expect("one-shot run");
+    let r = run_one_shot(&config, log.path(), "echo test", false, Some(4)).expect("one-shot run");
     unsafe {
         std::env::remove_var("HS_MCP_SERVERS");
         std::env::remove_var("HS_SEQMODEL_SCRIPT");

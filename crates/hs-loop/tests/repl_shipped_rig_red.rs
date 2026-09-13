@@ -59,7 +59,7 @@ subjects = ["*"]
     // FIXME: Audit that the environment access only happens in single-threaded code.
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", dir.join("script.jsonl")) };
 
-    let mut s = load_session(&dir.join("hairspring.toml"), &dir.join("run"), false, 12, None, None)
+    let mut s = load_session(&dir.join("hairspring.toml"), &dir.join("run"), false, Some(12), None, None)
         .unwrap();
     let r = s.run_goal("shipped rig proof").unwrap();
     assert!(

@@ -87,7 +87,7 @@ default = true
         std::env::remove_var("HS_TB_INSTRUCTION_FILE");
     }
 
-    let mut session = ReplSession::load(&config, log.path(), false, 6).expect("session load");
+    let mut session = ReplSession::load(&config, log.path(), false, Some(6)).expect("session load");
     let r = session.run_goal(goal).expect("mission runs");
     assert!(r.passed, "critic-gated TUI mission passes: {r:?}");
 
@@ -178,7 +178,7 @@ default = true
         std::env::set_var("HS_CRITIC_SCRIPT", "tool:cat .hs/instruction.txt|clean");
     }
 
-    let mut session = ReplSession::load(&config, log.path(), false, 8).expect("session load");
+    let mut session = ReplSession::load(&config, log.path(), false, Some(8)).expect("session load");
     let r = session.run_goal(goal).expect("mission runs");
     assert!(r.passed, "repaired mission closes verified: {r:?}");
 

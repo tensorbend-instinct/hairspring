@@ -60,7 +60,7 @@ fn loop_emits_typed_ui_events_for_a_mission() {
 
     let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     let sink_events = events.clone();
-    let mut session = ReplSession::load(&config, log.path(), true, 2).unwrap();
+    let mut session = ReplSession::load(&config, log.path(), true, Some(2)).unwrap();
     session.set_ui_sink(Box::new(move |ev: UiEvent| {
         sink_events.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(ev);
     }));

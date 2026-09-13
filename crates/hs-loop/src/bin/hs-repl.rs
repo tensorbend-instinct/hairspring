@@ -20,7 +20,7 @@ struct Opts {
     config: PathBuf,
     dir: PathBuf,
     feedback: bool,
-    max_steps: u32,
+    max_steps: Option<u32>,
     budget_micros: Option<u64>,
     wall_secs: Option<u64>,
     steering_inbox: Option<PathBuf>,
@@ -38,9 +38,11 @@ fn parse_opts(args: &[String]) -> Result<Opts, Box<dyn std::error::Error>> {
         config: hs_loop::repl::resolve_config_path(arg(args, "--config").as_deref())?,
         dir: hs_loop::repl::resolve_session_dir(arg(args, "--dir").as_deref())?,
         feedback: arg(args, "--feedback").as_deref() == Some("on"),
+        // Eric 2026-09-12: no step cap unless declared - the flag (or
+        // [run] max_steps in the rig) is opt-in, never a hidden default.
         max_steps: arg(args, "--max-steps")
-            .unwrap_or_else(|| hs_loop::DEFAULT_MISSION_MAX_STEPS.to_string())
-            .parse()
+            .map(|v| v.parse())
+            .transpose()
             .map_err(|_| "--max-steps must be an integer")?,
         budget_micros: arg(args, "--budget-micros")
             .map(|v| v.parse())
@@ -733,10 +735,10 @@ FLAGS:
   --dir <path>           run directory (streams/, work/, stderr/ plugin logs)
   --goal <text>          one-shot mission (run mode); omit for the REPL
   --feedback on          mission memory feedback (default off)
-  --max-steps <n>        step cap per mission (default 50)
+  --max-steps <n>        step cap per mission (default: none)
   --project-dir <path>   project directory missions are confined to (default: <dir>/work)
-  --budget-micros <n>    per-mission spend cap in USD micros
-  --wall-secs <n>        wall-clock cap per mission
+  --budget-micros <n>    spend cap in USD micros (default: none)
+  --wall-secs <n>        wall-clock cap per mission (default: none)
   --resume [stream-id]   resume a prior session (bare: pick from a list)
   --fork <stream-id>     fork a prior session
   -h, --help             print this text
@@ -836,7 +838,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         std::env::set_var("HS_SWARM_LOG_ROOT", &opts.dir);
         std::env::set_var("HS_SWARM_CONFIG", &opts.config);
         std::env::set_var("HS_SWARM_FEEDBACK", if opts.feedback { "1" } else { "0" });
-        std::env::set_var("HS_SWARM_MAX_STEPS", opts.max_steps.to_string());
+        if let Some(m) = opts.max_steps {
+            std::env::set_var("HS_SWARM_MAX_STEPS", m.to_string());
+        } else {
+            std::env::remove_var("HS_SWARM_MAX_STEPS");
+        }
     }
 
     // UI gap #7: `--resume` with no id lists prior sessions and lets the

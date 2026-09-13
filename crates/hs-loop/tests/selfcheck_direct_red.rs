@@ -78,8 +78,7 @@ subjects = ["*"]
     let mut s = load_session(
         &dir.join("hairspring.toml"),
         &dir.join("run"),
-        false,
-        12,
+        false, Some(12),
         None,
         None,
     )

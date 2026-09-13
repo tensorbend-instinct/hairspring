@@ -165,7 +165,7 @@ pub enum UiEvent {
     /// A model call started (per mission step).
     ModelCallStart { model: String },
     /// A loop step began: the activity rail shows step/max live.
-    Step { step: u32, max_steps: u32 },
+    Step { step: u32, max_steps: Option<u32> },
     /// The provider's own reasoning for a call (v4-pro
     /// reasoning_content). Emitted only when real text arrived.
     ModelReasoning { text: String },

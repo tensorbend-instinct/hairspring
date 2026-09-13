@@ -9,7 +9,7 @@
 //!   flash's green chain never saw.
 //! - v4-pro verdict wall: 338s event latency (up to ~15 min by ts delta);
 //!   a 600s wall default can cut a slow v4-pro verdict mid-flight.
-//! - the mission model (25-step default) hit steps_exhausted in P48 right
+//! - the mission model (25-step default) hit `steps_exhausted` in P48 right
 //!   as its corrected final submit landed: the mission cap, not the
 //!   critic cap, was the binding constraint.
 
@@ -37,10 +37,15 @@ fn deepseek_default_model_is_v4_pro() {
     );
 }
 
+/// Eric 2026-09-12 superseded the 50-step user-facing default: a fresh
+/// rig arms NO step cap ("the caps should start with no caps... settable
+/// during setup or within the TUI"). The constant survives only as the
+/// bench binaries' explicit default; the no-cap default itself is proven
+/// end to end in `caps_default_red.rs`.
 #[test]
-fn mission_default_steps_survive_refute_history() {
+fn mission_step_cap_is_opt_in_not_default() {
     assert_eq!(
         hs_loop::DEFAULT_MISSION_MAX_STEPS, 50,
-        "25 exhausted in P48 before the corrected submit could verdict"
+        "bench binaries keep an explicit cap; the REPL default is now uncapped (caps_default_red)"
     );
 }

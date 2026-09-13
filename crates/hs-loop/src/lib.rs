@@ -143,7 +143,9 @@ pub struct InnerLoop {
     stream_id: uuid::Uuid,
     log_root: PathBuf,
     feedback_injection: bool,
-    max_steps: u32,
+    /// Live step cap; None = uncapped (Eric 2026-09-12: a fresh rig
+    /// arms NO caps - caps are opt-in via setup or /caps).
+    max_steps: Option<u32>,
     cost_total_micros: u64,
     /// D5: cumulative CONSERVATIVE list-rate cost (no cache credit).
     /// The budget guard binds this counter; the provider-reported
@@ -274,7 +276,7 @@ impl InnerLoop {
             stream_id,
             log_root: log_root.to_path_buf(),
             feedback_injection,
-            max_steps,
+            max_steps: Some(max_steps),
             cost_total_micros: 0,
             conservative_cost_total_micros: 0,
             mission_cost_start: 0,
@@ -372,7 +374,7 @@ impl InnerLoop {
             stream_id,
             log_root: log_root.to_path_buf(),
             feedback_injection,
-            max_steps,
+            max_steps: Some(max_steps),
             cost_total_micros: restored_cost,
             conservative_cost_total_micros: restored_conservative,
             mission_cost_start: restored_cost,
@@ -451,16 +453,27 @@ impl InnerLoop {
 
     /// Fix 4 (ab2): the mission's wall budget in seconds. The runner enforces
     /// it externally; this makes it VISIBLE to the model every step.
-    /// Live step cap (Eric 2026-09-10: /caps changes it mid-session).
+    /// Live step cap (Eric 2026-09-10: /caps changes it mid-session);
+    /// None = uncapped (Eric 2026-09-12: no caps unless declared).
     #[must_use]
-    pub fn max_steps(&self) -> u32 {
+    pub fn max_steps(&self) -> Option<u32> {
         self.max_steps
     }
 
     /// Change the step cap mid-session; the next mission's loop range
     /// uses it (a running loop keeps the range it started with).
     pub fn set_max_steps(&mut self, steps: u32) {
-        self.max_steps = steps.max(1);
+        self.max_steps = Some(steps.max(1));
+    }
+
+    /// Disarm the step cap mid-session (/caps steps off).
+    pub fn clear_max_steps(&mut self) {
+        self.max_steps = None;
+    }
+
+    /// Disarm the spend cap mid-session (/caps budget off).
+    pub fn clear_budget_micros(&mut self) {
+        self.budget_micros = None;
     }
 
     /// The armed wall-clock cap in seconds, if any.
@@ -1543,7 +1556,12 @@ impl InnerLoop {
         let mut steps = 0u32;
         let mut model_calls = 0u32;
 
-        for step in 1..=self.max_steps {
+        // Uncapped missions (no declared step cap) iterate until the
+        // model submits, the wall or budget kills, or the operator
+        // interrupts - u32::MAX is "no cap" for the range alone; every
+        // display and pacing decision below still sees the Option.
+        let step_range_cap = self.max_steps.unwrap_or(u32::MAX);
+        for step in 1..=step_range_cap {
             if let Some(sink) = self.ui_sink.as_mut() {
                 sink(uipaint::UiEvent::Step {
                     step,
@@ -1608,7 +1626,10 @@ impl InnerLoop {
             // Fix 4: budget visibility every step - "step N of MAX, T-minus
             // Xs, $Y of $Z spent" (ab2: the model could not pace itself
             // because it never saw a budget).
-            let mut volatile = format!("ATTEMPT: step {step} of {}", self.max_steps);
+            let mut volatile = match self.max_steps {
+                Some(m) => format!("ATTEMPT: step {step} of {m}"),
+                None => format!("ATTEMPT: step {step} (no step cap)"),
+            };
             if let (Some(w), Some(t0)) = (self.wall_secs, self.mission_started) {
                 let rem = w.saturating_sub(t0.elapsed().as_secs());
                 volatile.push_str(&format!(", T-minus {rem}s"));
@@ -1654,19 +1675,22 @@ impl InnerLoop {
             // ran 19-25 steps with zero model-initiated verification). At
             // 50% and 75% of the step budget, when the model has never run
             // a test itself, the header says so in plain terms.
-            let half = self.max_steps.div_ceil(2);
-            let three_q = (self.max_steps * 3).div_ceil(4);
-            let convergence_note = if self.feedback_injection
-                && (step == half || step == three_q)
-                && !self.ledger.model_verified()
-            {
-                let note = format!(
-                    "CONVERGENCE: step {step} of {} and you have not run a test or check yourself. Verify your current hypothesis NOW: run a test, a build, or the checker before your next edit.",
-                    self.max_steps
-                );
-                volatile.push_str(&note);
-                volatile.push('\n');
-                Some(note)
+            let convergence_note = if let Some(m) = self.max_steps {
+                let half = m.div_ceil(2);
+                let three_q = (m * 3).div_ceil(4);
+                if self.feedback_injection
+                    && (step == half || step == three_q)
+                    && !self.ledger.model_verified()
+                {
+                    let note = format!(
+                        "CONVERGENCE: step {step} of {m} and you have not run a test or check yourself. Verify your current hypothesis NOW: run a test, a build, or the checker before your next edit."
+                    );
+                    volatile.push_str(&note);
+                    volatile.push('\n');
+                    Some(note)
+                } else {
+                    None
+                }
             } else {
                 None
             };
@@ -1952,15 +1976,18 @@ impl InnerLoop {
                 // an unverified answer beats no answer.
                 Some((tool, args)) if (tool == "answer.submit" || tool == "answer.write")
                     && !self.ledger.model_verified()
-                    && step < self.max_steps
+                    && self.max_steps.is_none_or(|m| step < m)
                     // the rejection must name an action the model can
                     // actually take: no verification tool in this mission's
                     // config, no gate (checker-only rigs, probe missions)
                     && self.kernel.list_tools("operator").iter().any(|t| t.name == "repo.exec") =>
                 {
+                    let remaining = match self.max_steps {
+                        Some(m) => format!(" Steps remaining: {}", m - step),
+                        None => String::new(),
+                    };
                     let msg = format!(
-                        "answer.submit REJECTED: no verification run yet. Run the mission's own checks first (repo.exec against your candidate diff, or the mission's stated test command) - a submission with zero test evidence is not a submission. Steps remaining: {}",
-                        self.max_steps - step
+                        "answer.submit REJECTED: no verification run yet. Run the mission's own checks first (repo.exec against your candidate diff, or the mission's stated test command) - a submission with zero test evidence is not a submission.{remaining}"
                     );
                     self.writer.append(
                         EventBuilder::new(EventKind::ToolCall).payload(Payload::Inline(
@@ -2746,4 +2773,8 @@ pub fn artifact_section(answer_path: &std::path::Path, artifact: &str) -> String
 /// Default per-mission step cap for the live REPL loop (`hs-repl
 /// --max-steps`). Measured 2026-09-10 (cap matrix, P48): 25 exhausts a
 /// refute-history mission before the corrected submit can verdict.
+/// Bench-side explicit mission cap. The user path arms NO step cap
+/// unless one is declared (Eric 2026-09-12: caps are opt-in); this
+/// constant remains for the bench binaries and as the loop-internal
+/// placeholder before config application.
 pub const DEFAULT_MISSION_MAX_STEPS: u32 = 50;

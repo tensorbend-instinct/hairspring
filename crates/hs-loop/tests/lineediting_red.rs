@@ -67,7 +67,7 @@ fn interactive_history_persists_and_preloads_across_restarts() {
         &[serde_json::json!({"tool":"answer.write","args":{"path":log.path().join("work/t1/answer.txt").display().to_string(),"content":"x"}})],
     );
     {
-        let mut session = ReplSession::load(&config, log.path(), true, 1).unwrap();
+        let mut session = ReplSession::load(&config, log.path(), true, Some(1)).unwrap();
         let mut editor = StdinEditor::new(log.path(), "first goal line\n:quit\n".as_bytes());
         hs_loop::repl::run_interactive(&mut session, &mut editor).unwrap();
     }

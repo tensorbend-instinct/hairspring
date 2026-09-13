@@ -140,7 +140,7 @@ default = true
 "#).unwrap();
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", dir.join("script.jsonl")); }
     let mut s = hs_loop::repl::load_session(
-        &dir.join("hairspring.toml"), &dir.join("run"), false, 2, None, None,
+        &dir.join("hairspring.toml"), &dir.join("run"), false, Some(2), None, None,
     ).unwrap();
     let r = s.run_goal("probe").unwrap();
     drop(s);

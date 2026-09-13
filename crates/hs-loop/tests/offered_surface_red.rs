@@ -57,7 +57,7 @@ subjects = ["*"]
     let dump = dir.path().join("calls.txt");
     // FIXME: Audit that the environment access only happens in single-threaded code.
     unsafe { std::env::set_var("REC_DUMP", &dump) };
-    let mut s = ReplSession::load(&config, log.path(), false, 1).expect("session load");
+    let mut s = ReplSession::load(&config, log.path(), false, Some(1)).expect("session load");
     // one step is enough: the first model.call carries the offered surface
     let _ = s.run_goal("offered surface probe");
     let text = std::fs::read_to_string(&dump).expect("recmodel dumped its call");

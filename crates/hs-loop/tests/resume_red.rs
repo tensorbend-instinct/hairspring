@@ -98,7 +98,7 @@ fn resumed_session_continues_stream_and_history() {
     );
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script1) };
     let stream_id = {
-        let mut s1 = ReplSession::load(&config, log.path(), true, 1).unwrap();
+        let mut s1 = ReplSession::load(&config, log.path(), true, Some(1)).unwrap();
         let r = s1.run_goal("task-0").unwrap();
         assert_eq!(r.steps, 1);
         s1.stream_id()
@@ -111,7 +111,7 @@ fn resumed_session_continues_stream_and_history() {
         &[serde_json::json!({"tool":"answer.write","args":{"path":answer1.display().to_string(),"content":"second-session"}})],
     );
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script2) };
-    let mut s2 = ReplSession::load_resume(&config, log.path(), true, 1, stream_id).unwrap();
+    let mut s2 = ReplSession::load_resume(&config, log.path(), true, Some(1), stream_id).unwrap();
     assert_eq!(
         s2.stream_id(),
         stream_id,
@@ -158,7 +158,7 @@ fn forked_session_branches_history_and_leaves_parent_intact() {
     );
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script1) };
     let parent_id = {
-        let mut s1 = ReplSession::load(&config, log.path(), true, 1).unwrap();
+        let mut s1 = ReplSession::load(&config, log.path(), true, Some(1)).unwrap();
         s1.run_goal("task-0").unwrap();
         s1.stream_id()
     };
@@ -175,7 +175,7 @@ fn forked_session_branches_history_and_leaves_parent_intact() {
         &[serde_json::json!({"tool":"answer.write","args":{"path":answer1.display().to_string(),"content":"forked-branch"}})],
     );
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script2) };
-    let mut s2 = ReplSession::load_fork(&config, log.path(), true, 1, parent_id).unwrap();
+    let mut s2 = ReplSession::load_fork(&config, log.path(), true, Some(1), parent_id).unwrap();
     let fork_id = s2.stream_id();
     assert_ne!(fork_id, parent_id, "a fork is a new stream");
     s2.run_goal("task-0").unwrap();

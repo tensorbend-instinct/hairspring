@@ -103,3 +103,12 @@ name = "scripted"
 command = ["@PREFIX@/bin/hs-plugin-scripted"]
 # default = true
 subjects = ["*"]
+
+# Mission caps: NONE unless declared (Eric 2026-09-12 - a fresh rig runs
+# uncapped; set them in `hairspring setup` or live with /caps in the TUI).
+# Uncomment to arm:
+# [run]
+# max_steps = 200        # step cap per mission
+# wall_secs = 7200       # wall-clock cap per mission
+# budget_usd = 100.0     # spend cap in dollars (always a float literal -
+#                        # an integer here is the 2026-09-12 $100->$10 bug)

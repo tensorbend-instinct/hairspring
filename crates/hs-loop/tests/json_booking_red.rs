@@ -82,7 +82,7 @@ fn j1_gateway_goal_with_control_char_books_valid_json() {
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", dir.join("script.jsonl")) };
     let run = dir.join("run");
     std::fs::create_dir_all(&run).unwrap();
-    let mut s = load_session(&dir.join("hairspring.toml"), &run, false, 1, None, None).unwrap();
+    let mut s = load_session(&dir.join("hairspring.toml"), &run, false, Some(1), None, None).unwrap();
     // A goal injected mid-run whose bytes include DEL (0x7F): the buggy
     // booking wrote it as literally-backslash-u-brace garbage.
     std::fs::write(run.join("task-inbox.txt"), "fix-the\u{7f}-thing\n").unwrap();
@@ -128,7 +128,7 @@ fn j2_capability_change_books_valid_json() {
     // FIXME: Audit that the environment access only happens in single-threaded code.
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", dir.join("script.jsonl")) };
     let run = dir.join("run");
-    let mut s = load_session(&dir.join("hairspring.toml"), &run, false, 1, None, None).unwrap();
+    let mut s = load_session(&dir.join("hairspring.toml"), &run, false, Some(1), None, None).unwrap();
     s.set_model_override(Some("weird\\gen".to_string())).unwrap();
     let mut s2 = s;
     s2.set_model_override(None).unwrap();

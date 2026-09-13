@@ -62,7 +62,7 @@ fn r1_vitals_snapshot_of_fresh_session() {
     )
     .unwrap();
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
-    let session = ReplSession::load(&config, log.path(), false, 3).expect("session load");
+    let session = ReplSession::load(&config, log.path(), false, Some(3)).expect("session load");
     let v = session.vitals();
     assert_eq!(v.model_label, "scripted", "vitals name the configured model");
     assert_eq!(v.missions_run, 0);
@@ -93,7 +93,7 @@ fn r2_vitals_accumulate_across_missions() {
     )
     .unwrap();
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
-    let mut session = ReplSession::load(&config, log.path(), false, 3).expect("session load");
+    let mut session = ReplSession::load(&config, log.path(), false, Some(3)).expect("session load");
     let r = session.run_goal("write the token").expect("goal runs");
     let v = session.vitals();
     assert_eq!(v.missions_run, 1, "one mission ran");

@@ -94,7 +94,7 @@ fn t1_live_surface_mission_completes() {
         std::env::remove_var("HS_MCP_SERVERS");
         std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
     }
-    let mut session = ReplSession::load(&live_config(dir.path()), log.path(), false, 8)
+    let mut session = ReplSession::load(&live_config(dir.path()), log.path(), false, Some(8))
         .expect("session load over the shipped terminal surface");
     unsafe {
         std::env::remove_var("HS_SEQMODEL_SCRIPT");
@@ -214,7 +214,7 @@ fn t4_offline_demo_closes_verified_in_prompt_aware_mode() {
         std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
         std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1");
     }
-    let mut session = ReplSession::load(&live_config(dir.path()), log.path(), false, 8)
+    let mut session = ReplSession::load(&live_config(dir.path()), log.path(), false, Some(8))
         .expect("session load over the shipped terminal surface");
     unsafe {
         std::env::remove_var("HS_SEQMODEL_SCRIPT");
@@ -403,6 +403,8 @@ fn t7_failed_mission_exits_nonzero() {
             live_config(dir.path()).to_str().unwrap(),
             "--dir",
             "run",
+            "--max-steps",
+            "5",
         ])
         .current_dir(dir.path())
         .env("HS_SEQMODEL_SCRIPT", &script)

@@ -71,7 +71,7 @@ fn c1_model_picker_books_capability_change() {
     // FIXME: Audit that the environment access only happens in single-threaded code.
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", dir.join("script.jsonl")) };
     let run = dir.join("run");
-    let mut s = load_session(&dir.join("hairspring.toml"), &run, false, 8, None, None).unwrap();
+    let mut s = load_session(&dir.join("hairspring.toml"), &run, false, Some(8), None, None).unwrap();
     let sid = s.vitals().stream_id;
     // The TUI Models picker path: UiCmd::SetModel -> set_model_override.
     s.set_model_override(Some("scripted-b".to_string())).unwrap();
@@ -98,11 +98,11 @@ fn c2_one_live_writer_per_stream() {
     // FIXME: Audit that the environment access only happens in single-threaded code.
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", dir.join("script.jsonl")) };
     let run = dir.join("run");
-    let a = load_session(&dir.join("hairspring.toml"), &run, false, 8, None, None).unwrap();
+    let a = load_session(&dir.join("hairspring.toml"), &run, false, Some(8), None, None).unwrap();
     let sid = a.vitals().stream_id;
     // A second REPL resuming the stream A still holds must be fenced off
     // (spec 2.6 single-authority fencing). A dropped writer frees it.
-    let second = ReplSession::load_resume(&dir.join("hairspring.toml"), &run, false, 8, sid);
+    let second = ReplSession::load_resume(&dir.join("hairspring.toml"), &run, false, Some(8), sid);
     assert!(
         second.is_err(),
         "resuming a stream with a live writer is rejected (spec 2.6 fencing)"
@@ -113,7 +113,7 @@ fn c2_one_live_writer_per_stream() {
         "the rejection says why: {err}"
     );
     drop(a);
-    let third = ReplSession::load_resume(&dir.join("hairspring.toml"), &run, false, 8, sid);
+    let third = ReplSession::load_resume(&dir.join("hairspring.toml"), &run, false, Some(8), sid);
     assert!(
         third.is_ok(),
         "after the holder drops, the stream can be resumed: {:?}",

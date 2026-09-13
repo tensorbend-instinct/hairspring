@@ -67,7 +67,7 @@ fn resume_restores_session_accounting() {
     .unwrap();
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script1) };
     let (stream_id, before) = {
-        let mut s1 = ReplSession::load(&config, log.path(), true, 1).unwrap();
+        let mut s1 = ReplSession::load(&config, log.path(), true, Some(1)).unwrap();
         s1.run_goal("task-0").unwrap();
         let v = s1.vitals();
         assert_eq!(v.missions_run, 1, "one mission ran: {v:?}");
@@ -111,7 +111,7 @@ fn resume_restores_session_accounting() {
     }
 
     // session 2 (the restart): resume - accounting must survive
-    let s2 = ReplSession::load_resume(&config, log.path(), true, 1, stream_id).unwrap();
+    let s2 = ReplSession::load_resume(&config, log.path(), true, Some(1), stream_id).unwrap();
     let after = s2.vitals();
     assert_eq!(
         after.missions_run, before.missions_run,

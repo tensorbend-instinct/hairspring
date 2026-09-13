@@ -64,7 +64,7 @@ default = true
     .unwrap();
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
 
-    let mut session = ReplSession::load(&config, log.path(), true, 1).unwrap();
+    let mut session = ReplSession::load(&config, log.path(), true, Some(1)).unwrap();
     session.run_goal("where do my shell commands run").unwrap();
 
     // The term.exec result must be the session dir, not a spawn error.

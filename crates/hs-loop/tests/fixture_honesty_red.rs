@@ -43,7 +43,7 @@ default = true
 "#,
     )
     .unwrap();
-    hs_loop::repl::load_session(&dir.join("hairspring.toml"), &dir.join("run"), false, 5, None, None)
+    hs_loop::repl::load_session(&dir.join("hairspring.toml"), &dir.join("run"), false, Some(5), None, None)
         .unwrap()
 }
 

@@ -112,7 +112,7 @@ fn repl_advertises_exactly_the_registered_tools_plus_internals() {
         std::env::remove_var("HS_MCP_SERVERS");
         std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
     }
-    let session = ReplSession::load(&swe_config(dir.path(), SCRIPTED), log.path(), false, 4)
+    let session = ReplSession::load(&swe_config(dir.path(), SCRIPTED), log.path(), false, Some(4))
         .expect("session load over a SWE-shaped config");
     unsafe {
         std::env::remove_var("HS_SEQMODEL_SCRIPT");

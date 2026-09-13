@@ -73,9 +73,9 @@ fn r1_lists_sessions_newest_first() {
     )
     .unwrap();
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
-    let r1 = run_one_shot(&config, log.path(), "alpha goal", false, 2).unwrap();
+    let r1 = run_one_shot(&config, log.path(), "alpha goal", false, Some(2)).unwrap();
     std::thread::sleep(std::time::Duration::from_millis(1100));
-    let r2 = run_one_shot(&config, log.path(), "beta goal", false, 2).unwrap();
+    let r2 = run_one_shot(&config, log.path(), "beta goal", false, Some(2)).unwrap();
 
     let sessions = list_sessions(log.path());
     assert_eq!(sessions.len(), 2, "both streams listed: {sessions:?}");
@@ -135,11 +135,11 @@ fn r4_load_session_resume_adopts_stream() {
     )
     .unwrap();
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
-    let first = hs_loop::repl::load_session(&config, log.path(), false, 2, None, None)
+    let first = hs_loop::repl::load_session(&config, log.path(), false, Some(2), None, None)
         .expect("fresh session");
     let r = { let mut s = first; s.run_goal("first run").unwrap() };
 
-    let resumed = hs_loop::repl::load_session(&config, log.path(), false, 2, Some(r.stream_id), None)
+    let resumed = hs_loop::repl::load_session(&config, log.path(), false, Some(2), Some(r.stream_id), None)
         .expect("resumed session");
     assert_eq!(
         resumed.stream_id(),
@@ -148,5 +148,5 @@ fn r4_load_session_resume_adopts_stream() {
     );
 
     // resume and fork are exclusive
-    assert!(hs_loop::repl::load_session(&config, log.path(), false, 2, Some(r.stream_id), Some(r.stream_id)).is_err());
+    assert!(hs_loop::repl::load_session(&config, log.path(), false, Some(2), Some(r.stream_id), Some(r.stream_id)).is_err());
 }

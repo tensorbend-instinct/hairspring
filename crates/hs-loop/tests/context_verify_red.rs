@@ -83,7 +83,7 @@ fn v1_pressure_compaction_is_booked_with_why_and_source_range() {
     // FIXME: Audit that the environment access only happens in single-threaded code.
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", dir.join("script.jsonl")) };
     let run = dir.join("run");
-    let mut s = load_session(&dir.join("hairspring.toml"), &run, true, 10, None, None).unwrap();
+    let mut s = load_session(&dir.join("hairspring.toml"), &run, true, Some(10), None, None).unwrap();
     let r = s.run_goal("task-1").unwrap();
     assert!(r.passed, "mission passes under pressure: {r:?}");
 

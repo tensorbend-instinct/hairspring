@@ -67,7 +67,7 @@ fn run() -> (hs_loop::MissionResult, String) {
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", dir.join("script.jsonl")) };
     unsafe { std::env::set_var("HS_SWARM_LOG_ROOT", dir.join("run")) };
     unsafe { std::env::set_var("HS_SWARM_CONFIG", dir.join("hairspring.toml")) };
-    let mut s = load_session(&dir.join("hairspring.toml"), &dir.join("run"), false, 12, None, None)
+    let mut s = load_session(&dir.join("hairspring.toml"), &dir.join("run"), false, Some(12), None, None)
         .unwrap();
     let r = s.run_goal("c2-gated-poll-probe").unwrap();
     let mut all = String::new();

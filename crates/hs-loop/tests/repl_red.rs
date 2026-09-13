@@ -105,7 +105,7 @@ fn r2_one_shot_goal_end_to_end() {
     .unwrap();
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
 
-    let r = run_one_shot(&config, log.path(), "write the token", false, 3).expect("one-shot run");
+    let r = run_one_shot(&config, log.path(), "write the token", false, Some(3)).expect("one-shot run");
     assert!(r.steps >= 1, "at least one step ran: {r:?}");
     let answer = std::fs::read_to_string(&r.answer_path).unwrap();
     assert!(
@@ -146,7 +146,7 @@ fn r3_session_reuse() {
     )
     .unwrap();
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
-    let mut session = ReplSession::load(&config, log.path(), false, 3).expect("session load");
+    let mut session = ReplSession::load(&config, log.path(), false, Some(3)).expect("session load");
     assert_eq!(
         session.mission_id_for("goal one"),
         hs_loop::repl::goal_slug("goal one"),

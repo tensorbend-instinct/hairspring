@@ -86,7 +86,7 @@ context_tokens = 1024
     .unwrap();
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &s1) };
 
-    let mut session = ReplSession::load(&config, log.path(), true, 1).unwrap();
+    let mut session = ReplSession::load(&config, log.path(), true, Some(1)).unwrap();
     session.run_goal("task-0").unwrap();
 
     // Mission 2: its first prompt must show the compactor fired - the

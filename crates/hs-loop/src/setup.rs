@@ -322,6 +322,77 @@ fn finish_save(provider: &str, key: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// The wizard's caps step (Eric 2026-09-12: "the caps should start with
+/// no caps but during set up or within the TUI it should be settable").
+/// Pure over the rig text so the behavior is test-covered: blank answers
+/// write nothing (no caps is the default); answers land in [run] with
+/// the same literal discipline as /caps (whole dollars stay floats).
+/// Returns the new text plus one human note per cap written.
+pub fn apply_caps_answers(
+    rig_text: &str,
+    steps_answer: &str,
+    budget_answer: &str,
+) -> Result<(String, Vec<String>), String> {
+    let mut text = rig_text.to_string();
+    let mut notes = Vec::new();
+    let steps = steps_answer.trim();
+    if !steps.is_empty() {
+        let n: u64 = steps
+            .parse()
+            .map_err(|_| format!("step cap needs a number, got '{steps}'"))?;
+        if n == 0 {
+            return Err("step cap must be at least 1 (blank = no cap)".into());
+        }
+        text = crate::repl::toml_upsert(&text, "run", "max_steps", Some(&n.to_string()))?;
+        notes.push(format!("step cap {n} per mission"));
+    }
+    let budget = budget_answer.trim().trim_start_matches('$');
+    if !budget.is_empty() {
+        let d: f64 = budget
+            .parse()
+            .map_err(|_| format!("spend cap needs dollars, got '{budget}'"))?;
+        if d <= 0.0 {
+            return Err("spend cap must be positive (blank = no cap)".into());
+        }
+        let micros = (d * 1_000_000.0) as u64;
+        text = crate::repl::toml_upsert(&text, "run", "budget_usd", Some(&crate::repl::usd_literal(micros)))?;
+        notes.push(format!("spend cap ${d}"));
+    }
+    Ok((text, notes))
+}
+
+/// The interactive half of the caps step: ask, apply, persist. Never
+/// fatal to setup - a bad answer is a re-prompt, not a lost credential.
+fn caps_wizard(cfg: &std::path::Path) -> Result<(), String> {
+    println!();
+    println!("caps: none by default - a mission runs until it finishes or you stop it.");
+    println!("(set or change them any time with /caps in the TUI)");
+    loop {
+        let steps = prompt("step cap per mission [enter for none]: ")?;
+        let budget = prompt("spend cap in USD [enter for none]: ")?;
+        let text = std::fs::read_to_string(cfg)
+            .map_err(|e| format!("read {}: {e}", cfg.display()))?;
+        match apply_caps_answers(&text, &steps, &budget) {
+            Ok((out, notes)) => {
+                if !notes.is_empty() {
+                    std::fs::write(cfg, out)
+                        .map_err(|e| format!("write {}: {e}", cfg.display()))?;
+                }
+                for n in &notes {
+                    println!("  armed: {n}");
+                }
+                if notes.is_empty() {
+                    println!("  no caps set");
+                }
+                return Ok(());
+            }
+            Err(e) => {
+                println!("  {e} - try again");
+            }
+        }
+    }
+}
+
 fn prompt(label: &str) -> Result<String, String> {
     use std::io::Write as _;
     eprint!("{label}");
@@ -401,5 +472,9 @@ fn wizard() -> Result<(), String> {
         }
         _ => read_secret(&format!("paste your {provider} API key (input hidden): "))?,
     };
-    finish_save(provider, &key)
+    finish_save(provider, &key)?;
+    // Eric 2026-09-12: caps are offered here (default: none), never
+    // silently armed.
+    let cfg = config_dir().join("hairspring.toml");
+    caps_wizard(&cfg)
 }

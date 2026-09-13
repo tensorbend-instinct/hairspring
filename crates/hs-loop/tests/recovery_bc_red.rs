@@ -68,7 +68,7 @@ fn v1_snapshot_restore_books_recovery_on_the_mission_stream() {
     // FIXME: Audit that the environment access only happens in single-threaded code.
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", dir.join("script.jsonl")) };
     let run = dir.join("run");
-    let mut s = load_session(&dir.join("hairspring.toml"), &run, true, 10, None, None).unwrap();
+    let mut s = load_session(&dir.join("hairspring.toml"), &run, true, Some(10), None, None).unwrap();
     let r = s.run_goal("task-1").unwrap();
     assert!(r.passed, "mission passes first: {r:?}");
     // state file we own: the recovery property pins the workdir tree,
@@ -127,7 +127,7 @@ fn v2_cold_recreate_from_the_substrate_alone() {
     // FIXME: Audit that the environment access only happens in single-threaded code.
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", dir.join("script.jsonl")) };
     let run = dir.join("run");
-    let mut s = load_session(&dir.join("hairspring.toml"), &run, true, 10, None, None).unwrap();
+    let mut s = load_session(&dir.join("hairspring.toml"), &run, true, Some(10), None, None).unwrap();
     let r = s.run_goal("task-1").unwrap();
     assert!(r.passed, "mission passes first: {r:?}");
     let answer = run.join("work/task-1/state.txt");
@@ -156,7 +156,7 @@ fn v2_cold_recreate_from_the_substrate_alone() {
 
     // and the session itself resumes on the recreated stream
     let resumed =
-        ReplSession::load_resume(&dir.join("hairspring.toml"), &run, true, 10, rec.stream)
+        ReplSession::load_resume(&dir.join("hairspring.toml"), &run, true, Some(10), rec.stream)
             .unwrap();
     assert_eq!(resumed.vitals().stream_id, rec.stream);
     drop(resumed);

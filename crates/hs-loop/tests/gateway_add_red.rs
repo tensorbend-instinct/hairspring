@@ -62,7 +62,7 @@ fn g1_task_added_mid_run_is_booked_queued_and_run() {
     // FIXME: Audit that the environment access only happens in single-threaded code.
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", dir.join("script.jsonl")) };
     let run = dir.join("run");
-    let mut s = load_session(&dir.join("hairspring.toml"), &run, false, 8, None, None).unwrap();
+    let mut s = load_session(&dir.join("hairspring.toml"), &run, false, Some(8), None, None).unwrap();
     let task_inbox = run.join("task-inbox.txt");
     s.set_task_inbox(&task_inbox);
     // Gateway add DURING mission A: the model sleeps 300ms per call; the

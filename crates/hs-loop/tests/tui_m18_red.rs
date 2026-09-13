@@ -71,8 +71,7 @@ default = true
     let mut s = hs_loop::repl::load_session(
         &dir.join("hairspring.toml"),
         &dir.join("run"),
-        false,
-        3,
+        false, Some(3),
         None,
         None,
     )

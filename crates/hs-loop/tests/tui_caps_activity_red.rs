@@ -38,7 +38,7 @@ fn activity_line_names_step_and_action() {
     let mut st = TuiState::default();
     st.on_ui_event(&UiEvent::Step {
         step: 3,
-        max_steps: 50,
+        max_steps: Some(50),
     });
     st.on_ui_event(&UiEvent::ModelCallStart {
         model: "deepseek".to_string(),
@@ -91,7 +91,7 @@ fn caps_command_parses() {
 #[test]
 fn caps_listing_names_every_cap() {
     let snap = tui::CapsSnapshot {
-        steps: 50,
+        steps: Some(50),
         wall_secs: None,
         budget_micros: Some(10_000_000),
         critic_steps: 12,
@@ -155,8 +155,7 @@ default = true
     let mut s = hs_loop::repl::load_session(
         &dir.join("hairspring.toml"),
         &dir.join("run"),
-        false,
-        2,
+        false, Some(2),
         None,
         None,
     )
@@ -171,7 +170,7 @@ default = true
         .iter()
         .filter_map(|e| match e {
             UiEvent::Step { step, max_steps } => {
-                assert_eq!(*max_steps, 2, "the session cap rides the event");
+                assert_eq!(*max_steps, Some(2), "the session cap rides the event");
                 Some(*step)
             }
             _ => None,

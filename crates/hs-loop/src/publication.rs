@@ -336,7 +336,7 @@ fn run_attempt(
 ) -> Result<(bool, Decomposition), LoopError> {
     let config = write_attempt_fixture(attempt_dir, ws, script_lines)?;
     let run = attempt_dir.join("run");
-    let mut s = load_session(&config, &run, feedback, max_steps, None, None)?;
+    let mut s = load_session(&config, &run, feedback, Some(max_steps), None, None)?;
     let r = s.run_goal(goal)?;
     let sid = s.vitals().stream_id;
     let reader = hs_log::StreamReader::open(&run, sid)?;
