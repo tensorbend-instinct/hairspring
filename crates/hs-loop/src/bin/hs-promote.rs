@@ -13,6 +13,7 @@
 //!       mode proves the driver machinery, not model quality)
 //!       swe runner (PAID, real model):
 //!       --instances-dir <dir> --runs-root <dir> --swe-driver <run_subset_par.py>
+//!       --manifest <bench manifest.json>  (repo/base_commit/test_patch per instance)
 //!       [--model deepseek] [--max-steps N] [--wall-secs N]
 //!
 //!   hs-promote rewind [--name swe-mission] [--overlay <path>] [--journal <path>]
@@ -119,6 +120,9 @@ struct SweCfg {
     swe_run_bin: PathBuf,
     current_overlay: Option<PolicyOverlay>,
     prompt_name: String,
+    /// Full SWE-bench metadata (repo, base_commit, test_patch) per instance,
+    /// from the bench manifest - the per-instance json is prompt-only.
+    manifest: Vec<serde_json::Value>,
     /// Eric's approved cycle spend, cumulative across EVERY paid mission of
     /// the cycle (proposal mission included via --spent-micros-so-far).
     /// Checked before each new mission starts; hitting it aborts the cycle
@@ -155,7 +159,16 @@ fn swe_runner(cfg: SweCfg) -> impl Fn(Option<&str>, &str) -> BenchOutcome {
                 .unwrap_or_else(|e| fail(&format!("instance {}: {e}", src.display())));
             std::fs::write(dir.join("instances").join(format!("{task}.json")), &inst)
                 .expect("instance copy");
-            std::fs::write(dir.join("manifest.json"), format!("[{inst}]")).expect("manifest");
+            let entry = cfg
+                .manifest
+                .iter()
+                .find(|e| e["instance_id"].as_str() == Some(task))
+                .unwrap_or_else(|| fail(&format!("{task}: not in the bench manifest")));
+            std::fs::write(
+                dir.join("manifest.json"),
+                serde_json::to_string(&vec![entry]).expect("manifest entry"),
+            )
+            .expect("manifest");
             let overlay_text = match template {
                 Some(t) => promote::render_overlay(cfg.current_overlay.as_ref(), &cfg.prompt_name, t),
                 // Builtin parent: an explicit empty overlay so the run is
@@ -301,6 +314,14 @@ fn main() {
                         swe_run_bin,
                         current_overlay,
                         prompt_name: name.clone(),
+                        manifest: {
+                            let mp = arg(&args, "--manifest")
+                                .unwrap_or_else(|| fail("--manifest <bench manifest.json> required for --runner swe"));
+                            let text = std::fs::read_to_string(&mp)
+                                .unwrap_or_else(|e| fail(&format!("manifest {mp}: {e}")));
+                            serde_json::from_str(&text)
+                                .unwrap_or_else(|e| fail(&format!("manifest {mp} parses: {e}")))
+                        },
                         cycle_cap_micros: arg(&args, "--cycle-cap-micros")
                             .map(|v| v.parse().unwrap_or_else(|_| fail("--cycle-cap-micros must be a number")))
                             .unwrap_or(30_000_000),
