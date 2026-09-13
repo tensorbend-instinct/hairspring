@@ -400,6 +400,18 @@ impl EditorState {
     pub fn history_entries(&self) -> Vec<String> {
         self.history.iter().cloned().collect()
     }
+
+    /// "/history" lists GOALS: slash/colon commands stay recallable with
+    /// Up but are not goals (slash regression 2026-09-12: the command
+    /// itself arrived as its own first "goal", hiding the empty state).
+    #[must_use]
+    pub fn goal_entries(&self) -> Vec<String> {
+        self.history
+            .iter()
+            .filter(|e| !e.starts_with('/') && !e.starts_with(':'))
+            .cloned()
+            .collect()
+    }
 }
 
 impl EditorState {

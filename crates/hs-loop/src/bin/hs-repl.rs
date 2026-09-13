@@ -620,7 +620,7 @@ running = false;
                             } else if t == "/status" {
                                 st.push_transcript_line(&st.status_line());
                             } else if t == "/history" {
-                                let h = st.editor.history_entries();
+                                let h = st.editor.goal_entries();
                                 if h.is_empty() {
                                     st.push_transcript_line("(no goals submitted yet)");
                                 } else {

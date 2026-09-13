@@ -100,3 +100,25 @@ fn r5_history_entries_exposed() {
         "history exposes both submissions: {h:?}"
     );
 }
+
+// R6: /history lists goals, not slash commands (slash regression
+// 2026-09-12: a first-input "/history" listed itself and the documented
+// empty state never showed).
+#[test]
+fn r6_goal_entries_skip_commands() {
+    let mut st = TuiState::default();
+    for c in "/caps".chars() {
+        st.editor.input_char(c);
+    }
+    st.editor.submit();
+    for c in "real goal".chars() {
+        st.editor.input_char(c);
+    }
+    st.editor.submit();
+    assert_eq!(
+        st.editor.goal_entries(),
+        vec!["real goal".to_string()],
+        "goals only"
+    );
+    assert_eq!(st.editor.history_entries().len(), 2, "Up-recall keeps commands");
+}
