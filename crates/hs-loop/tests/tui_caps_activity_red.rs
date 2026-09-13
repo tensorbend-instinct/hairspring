@@ -99,7 +99,7 @@ fn caps_listing_names_every_cap() {
         critic_budget_micros: 1_000_000,
     };
     let l = tui::format_caps_listing(&snap);
-    for needle in ["steps 50", "wall", "budget $10.00", "critic steps 12", "critic wall 600", "critic budget $1.00"] {
+    for needle in ["steps 50", "wall", "budget $10.0000 (billed spend)", "critic steps 12", "critic wall 600", "critic budget $1.00"] {
         assert!(l.contains(needle), "missing {needle}: {l}");
     }
 }

@@ -10,6 +10,12 @@
 //! binds the CONSERVATIVE counter. A plugin that reports no conservative
 //! figure books the provider figure as both (fixtures, legacy plugins).
 //!
+//! 2026-09-12 amendment (Eric, live mission c91e8de3): conservative is
+//! the DEFAULT for direct InnerLoop users (the benchmark binaries).
+//! User-facing sessions (hs-repl one-shot + TUI) arm
+//! BudgetGuardMode::ProviderReported - a user's dollar cap binds the
+//! billed figure (see budget_guard_mode_red.rs).
+//!
 //! Fixture reality: benchmodel reports `cost_usd_micros`=900 (provider)
 //! and `conservative_cost_usd_micros`=1200 per call.
 

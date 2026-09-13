@@ -169,7 +169,7 @@ pub fn format_caps_listing(s: &CapsSnapshot) -> String {
         .map_or("off".to_string(), crate::uipaint::format_usd_micros);
     let steps = s.steps.map_or("off".to_string(), |v| v.to_string());
     format!(
-        "caps (live this session):\n  steps {steps}  - /caps steps N (off to disable)\n  wall {wall}  - /caps wall SECS (off to disable)\n  budget {budget}  - /caps budget USD (off to disable)\n  critic steps {}  - /caps critic-steps N\n  critic wall {}s  - /caps critic-wall SECS\n  critic budget {}  - /caps critic-budget USD",
+        "caps (live this session):\n  steps {steps}  - /caps steps N (off to disable)\n  wall {wall}  - /caps wall SECS (off to disable)\n  budget {budget} (billed spend)  - /caps budget USD (off to disable)\n  critic steps {}  - /caps critic-steps N\n  critic wall {}s  - /caps critic-wall SECS\n  critic budget {}  - /caps critic-budget USD",
         s.critic_steps,
         s.critic_wall_secs,
         crate::uipaint::format_usd_micros(s.critic_budget_micros),

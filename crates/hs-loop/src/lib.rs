@@ -137,6 +137,29 @@ struct PrefetchCache {
 const PREFETCH_MIN_SAMPLES: u32 = 4;
 const PREFETCH_COST_CROSSOVER: f64 = 0.5;
 
+/// Which cost counter the budget guard binds (Eric 2026-09-12, live
+/// mission c91e8de3: his $40 session cap killed at $3.44 of real spend
+/// because the guard read the list-rate counter). User-facing surfaces
+/// bind PROVIDER-REPORTED dollars; benchmark binaries keep the D5
+/// conservative list-rate counter for cross-arm ledger comparability.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BudgetGuardMode {
+    /// D5 benchmark law: list-rate, no cache credit.
+    Conservative,
+    /// User money: the provider-reported figure, as billed today.
+    ProviderReported,
+}
+
+impl BudgetGuardMode {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Conservative => "conservative",
+            Self::ProviderReported => "provider_reported",
+        }
+    }
+}
+
 pub struct InnerLoop {
     kernel: Kernel,
     writer: StreamWriter,
@@ -148,9 +171,13 @@ pub struct InnerLoop {
     max_steps: Option<u32>,
     cost_total_micros: u64,
     /// D5: cumulative CONSERVATIVE list-rate cost (no cache credit).
-    /// The budget guard binds this counter; the provider-reported
-    /// counter above is kept alongside for honest reporting.
+    /// Benchmark binaries bind the budget guard to this counter;
+    /// user-facing sessions bind the provider-reported counter above
+    /// (BudgetGuardMode, Eric 2026-09-12).
     conservative_cost_total_micros: u64,
+    /// Which counter the budget guard binds (default Conservative -
+    /// the benchmark law; user-facing sessions arm ProviderReported).
+    budget_guard_mode: BudgetGuardMode,
     /// M21: cumulative cost at the current mission's start.
     mission_cost_start: u64,
     /// D5: conservative counterpart of `mission_cost_start`.
@@ -282,6 +309,7 @@ impl InnerLoop {
             mission_cost_start: 0,
             mission_conservative_start: 0,
             budget_micros: None,
+            budget_guard_mode: BudgetGuardMode::Conservative,
             tools: None,
             model_override: None,
             pending_children: Vec::new(),
@@ -380,6 +408,7 @@ impl InnerLoop {
             mission_cost_start: restored_cost,
             mission_conservative_start: restored_conservative,
             budget_micros: None,
+            budget_guard_mode: BudgetGuardMode::Conservative,
             tools: None,
             model_override: None,
             pending_children: Vec::new(),
@@ -441,6 +470,19 @@ impl InnerLoop {
     /// cost would exceed the cap, the mission is killed and scored as failed.
     pub fn set_budget_micros(&mut self, micros: u64) {
         self.budget_micros = Some(micros);
+    }
+
+    /// Arm the counter the budget guard binds. Default
+    /// `Conservative` (benchmark law); user-facing sessions set
+    /// `ProviderReported` so a dollar cap means dollars billed.
+    pub fn set_budget_guard_mode(&mut self, mode: BudgetGuardMode) {
+        self.budget_guard_mode = mode;
+    }
+
+    /// The counter the budget guard binds.
+    #[must_use]
+    pub fn budget_guard_mode(&self) -> BudgetGuardMode {
+        self.budget_guard_mode
     }
 
     /// The armed USD budget (micro-USD), `None` when nothing bound one
@@ -1860,12 +1902,17 @@ impl InnerLoop {
             // a mission that did real work (ab2 17092/17102/17117 lost
             // 19-25 steps each to answer-only checkpointing).
             self.checkpoint(steps, model_calls);
-            if let Some(cap) = self.budget_micros
-                && self.conservative_cost_total_micros > cap {
+            if let Some(cap) = self.budget_micros {
+                let counter = match self.budget_guard_mode {
+                    BudgetGuardMode::Conservative => self.conservative_cost_total_micros,
+                    BudgetGuardMode::ProviderReported => self.cost_total_micros,
+                };
+                if counter > cap {
                     self.writer.append(
                         EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
                             serde_json::to_vec(&serde_json::json!({
                                 "budget_killed": true, "cap_micros": cap,
+                                "guard": self.budget_guard_mode.as_str(),
                                 "cost_micros": self.cost_total_micros,
                                 "conservative_cost_micros": self.conservative_cost_total_micros,
                             }))
@@ -1889,6 +1936,7 @@ impl InnerLoop {
                         outcome: "budget_killed".to_string(),
                     });
                 }
+            }
             // Wall guard fires INSIDE the loop, at the same step boundary
             // as the budget guard. Live burn 2026-09-07 (glm-critic TB
             // trial): enforcement had been delegated to the harness's

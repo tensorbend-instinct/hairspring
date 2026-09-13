@@ -610,6 +610,11 @@ pub fn load(
         let mut inner =
             InnerLoop::new(kernel, log_root, feedback, max_steps.unwrap_or(crate::DEFAULT_MISSION_MAX_STEPS))?;
         Self::apply_config_caps(&mut inner, config, max_steps);
+        // Eric 2026-09-12 (live mission c91e8de3): user-facing budgets
+        // bind REAL provider-reported dollars - his $40 cap killed at
+        // $3.44 billed because the guard read the list-rate counter.
+        // Benchmark binaries keep Conservative for ledger comparability.
+        inner.set_budget_guard_mode(crate::BudgetGuardMode::ProviderReported);
         if let Some(tokens) = Self::configured_context_tokens(config) {
             inner.set_context_budget_tokens(tokens * 3 / 4);
         }
@@ -737,6 +742,11 @@ pub fn load(
             max_steps.unwrap_or(crate::DEFAULT_MISSION_MAX_STEPS),
         )?;
         Self::apply_config_caps(&mut inner, config, max_steps);
+        // Eric 2026-09-12 (live mission c91e8de3): user-facing budgets
+        // bind REAL provider-reported dollars - his $40 cap killed at
+        // $3.44 billed because the guard read the list-rate counter.
+        // Benchmark binaries keep Conservative for ledger comparability.
+        inner.set_budget_guard_mode(crate::BudgetGuardMode::ProviderReported);
         if let Some(tokens) = Self::configured_context_tokens(config) {
             inner.set_context_budget_tokens(tokens * 3 / 4);
         }
@@ -1157,6 +1167,13 @@ pub fn load(
     #[must_use]
     pub fn budget_micros(&self) -> Option<u64> {
         self.inner.budget_micros()
+    }
+
+    /// The counter the session's budget guard binds (ProviderReported
+    /// on this user-facing surface).
+    #[must_use]
+    pub fn budget_guard_mode(&self) -> crate::BudgetGuardMode {
+        self.inner.budget_guard_mode()
     }
 
     pub fn set_wall_secs(&mut self, secs: u64) {
