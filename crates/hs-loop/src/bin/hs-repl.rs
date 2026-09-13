@@ -300,7 +300,7 @@ fn run_fullscreen(
                                 .set_model_override(Some(name.clone()))
                                 .map_err(|e| e.to_string())
                         })
-                        .map(|()| format!("{name} \u{b7} saved as default"));
+                        .map(|()| name.clone());
                     let _ = tx.send(TuiMsg::ModelSet(r));
                 }
                 UiCmd::Switch(id) => {
@@ -456,8 +456,11 @@ running = false;
                     Ok(name) => {
                         st.model_label = name.clone();
                         st.push_transcript_line(&format!(
-                            "model › {name} (next mission onward)"
+                            "model › {name} · saved as default (next mission onward)"
                         ));
+                        for e in &mut model_entries {
+                            e.1 = e.0 == name;
+                        }
                     }
                     Err(e) => st.push_transcript_line(&format!("model switch failed: {e}")),
                 },
