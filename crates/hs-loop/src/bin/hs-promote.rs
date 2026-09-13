@@ -119,6 +119,12 @@ struct SweCfg {
     swe_run_bin: PathBuf,
     current_overlay: Option<PolicyOverlay>,
     prompt_name: String,
+    /// Eric's approved cycle spend, cumulative across EVERY paid mission of
+    /// the cycle (proposal mission included via --spent-micros-so-far).
+    /// Checked before each new mission starts; hitting it aborts the cycle
+    /// instead of starting another mission.
+    cycle_cap_micros: u64,
+    spent: std::cell::Cell<u64>,
 }
 
 /// SWE runner (PAID): one real hs-swe-run mission per (template, task)
@@ -133,6 +139,15 @@ fn swe_runner(cfg: SweCfg) -> impl Fn(Option<&str>, &str) -> BenchOutcome {
         let dir = cfg.runs_root.join(format!("{arm}-{task}"));
         let result_path = dir.join("runs").join(task).join("result.json");
         if !result_path.exists() {
+            // The cumulative kill switch: Eric's number, never crossed.
+            let spent = cfg.spent.get();
+            if spent >= cfg.cycle_cap_micros {
+                fail(&format!(
+                    "cycle spend cap reached: ${:.2} of ${:.2} spent - aborting before mission {task}",
+                    spent as f64 / 1e6,
+                    cfg.cycle_cap_micros as f64 / 1e6
+                ));
+            }
             let _ = std::fs::remove_dir_all(&dir);
             std::fs::create_dir_all(dir.join("instances")).expect("arm dir");
             let src = cfg.instances_dir.join(format!("{task}.json"));
@@ -177,6 +192,15 @@ fn swe_runner(cfg: SweCfg) -> impl Fn(Option<&str>, &str) -> BenchOutcome {
         let text = std::fs::read_to_string(&result_path)
             .unwrap_or_else(|e| fail(&format!("{}: no result.json ({e}); see {}", task, dir.join("driver.out").display())));
         let v: serde_json::Value = serde_json::from_str(&text).expect("result.json parses");
+        let cost = v["cost_micros"].as_u64().unwrap_or(0);
+        let now = cfg.spent.get() + cost;
+        cfg.spent.set(now);
+        eprintln!(
+            "hs-promote: ${:.2} of ${:.2} spent (mission {task}: ${:.2})",
+            now as f64 / 1e6,
+            cfg.cycle_cap_micros as f64 / 1e6,
+            cost as f64 / 1e6
+        );
         // The mission stream id for lineage traces, when the run dir keeps one.
         let stream_id = std::fs::read_dir(dir.join("runs").join(task).join("log").join("streams"))
             .ok()
@@ -277,6 +301,14 @@ fn main() {
                         swe_run_bin,
                         current_overlay,
                         prompt_name: name.clone(),
+                        cycle_cap_micros: arg(&args, "--cycle-cap-micros")
+                            .map(|v| v.parse().unwrap_or_else(|_| fail("--cycle-cap-micros must be a number")))
+                            .unwrap_or(30_000_000),
+                        spent: std::cell::Cell::new(
+                            arg(&args, "--spent-micros-so-far")
+                                .map(|v| v.parse().unwrap_or_else(|_| fail("--spent-micros-so-far must be a number")))
+                                .unwrap_or(0),
+                        ),
                     };
                     let runner = swe_runner(cfg);
                     evolve::evaluate_candidate_named(
