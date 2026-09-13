@@ -374,7 +374,11 @@ fn main() {
                     "overlay": overlay.display().to_string(),
                     "journal": journal.display().to_string(),
                     "cost_usd": cost as f64 / 1e6,
-                    "note": format!("fixture marker law: candidates pass only with {MARKER}"),
+                    "note": if runner_kind == "fixture" {
+                        format!("fixture marker law: candidates pass only with {MARKER}")
+                    } else {
+                        format!("runner {runner_kind}: real-model evaluation; per-arm outcomes in the journal")
+                    },
                 })
             );
         }
