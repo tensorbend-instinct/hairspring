@@ -17,7 +17,8 @@
 
 use hs_loop::realmodel::load_providers_toml;
 use hs_loop::repl::{
-    AddProviderWizard, WizardFeed, add_provider, default_session_dir, resolve_config_path,
+    AddProviderWizard, MODELS_PICKER_ADD_ENTRY, WizardFeed, add_provider, default_session_dir,
+    is_models_add_command, models_picker_entries, parse_models_add, resolve_config_path,
     resolve_session_dir,
 };
 use hs_loop::tui::EditorState;
@@ -381,4 +382,127 @@ fn tui_session_loads_with_an_uncredentialed_default() {
     let k = hs_kernel::Kernel::load_lenient(&rig, dir.path())
         .expect("the TUI session loads: /models add fixes the credential in place");
     assert!(k.has_model("deepseek"));
+}
+
+// --- Eric 2026-09-13: discoverability + inline args ----------------
+// He installed latest main, ran install.sh, and found no way to add a
+// provider in /models (the wizard was typed-command only), then his
+// "/models add openrouter" was consumed as the wizard's name answer.
+
+#[test]
+fn picker_rows_end_with_add_provider_entry() {
+    let rows = models_picker_entries(
+        &[
+            ("deepseek".to_string(), true),
+            ("openrouter".to_string(), false),
+        ],
+        "deepseek",
+    );
+    assert_eq!(
+        rows,
+        vec![
+            "deepseek (current)".to_string(),
+            "openrouter".to_string(),
+            MODELS_PICKER_ADD_ENTRY.to_string()
+        ],
+        "the picker itself offers the add path"
+    );
+}
+
+#[test]
+fn models_add_command_detection_never_matches_lookalikes() {
+    assert!(is_models_add_command("/models add"));
+    assert!(is_models_add_command("/models add openrouter"));
+    assert!(is_models_add_command("  /models add   openrouter  "));
+    assert!(is_models_add_command(":models add openrouter"));
+    assert!(!is_models_add_command("/models"));
+    assert!(!is_models_add_command("/models addfoo"));
+    assert!(!is_models_add_command("/status"));
+    assert!(!is_models_add_command("openrouter"));
+}
+
+#[test]
+fn inline_name_prefills_the_name_step() {
+    let w = parse_models_add("/models add openrouter").expect("inline name parses");
+    // Same spot as a typed name answer: the base-URL prompt is next.
+    let mut typed = AddProviderWizard::new();
+    typed.feed("openrouter").unwrap();
+    assert_eq!(w.prompt(), typed.prompt());
+    assert!(!w.is_secret());
+}
+
+#[test]
+fn inline_args_walk_the_steps_but_the_key_stays_off_the_command_line() {
+    let w = parse_models_add(
+        "/models add openrouter https://openrouter.ai/api/v1/chat/completions openai/gpt-5.2",
+    )
+    .expect("three inline steps parse");
+    assert!(w.is_secret(), "next step is the masked key prompt");
+    // A key on the command line is refused: it would land in history.
+    assert!(
+        parse_models_add(
+            "/models add openrouter https://openrouter.ai/api/v1/chat/completions openai/gpt-5.2 sk-secret"
+        )
+        .is_none(),
+        "the key is never taken from the command line"
+    );
+}
+
+#[test]
+fn inline_args_validate_like_typed_answers() {
+    assert!(
+        parse_models_add("/models add OpenRouter").is_none(),
+        "bad name rejected"
+    );
+    assert!(
+        parse_models_add("/models add ok-name not-a-url").is_none(),
+        "bad base URL rejected"
+    );
+    assert!(parse_models_add("/models").is_none());
+    assert!(parse_models_add("/status").is_none());
+}
+
+#[test]
+fn command_line_never_reaches_the_wizards_answers() {
+    // Eric's exact report: the wizard was open and "/models add
+    // openrouter" arrived as the name answer. The bin intercepts the
+    // command before feeding; this pins the wizard half: as an answer
+    // the line is junk (the old bug), so detection must be the bin's.
+    let mut w = AddProviderWizard::new();
+    let line = "/models add openrouter";
+    assert!(is_models_add_command(line), "the bin intercepts it...");
+    assert!(
+        w.feed(line).is_err(),
+        "...because as an answer it is junk (the old bug)"
+    );
+}
+
+#[test]
+fn palette_lists_models_add() {
+    let names: Vec<&str> = hs_loop::tui::TUI_COMMANDS.iter().map(|c| c.name).collect();
+    assert!(
+        names.contains(&"models add"),
+        "the palette surfaces the add path: {names:?}"
+    );
+    let m = hs_loop::tui::command_matches("models");
+    let mnames: Vec<&str> = m.iter().map(|c| c.name).collect();
+    assert_eq!(
+        mnames,
+        vec!["models", "models add"],
+        "typing /models shows both rows"
+    );
+}
+
+#[test]
+fn install_warns_when_another_hairspring_shadows_the_install() {
+    let install =
+        std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../install.sh")).unwrap();
+    assert!(
+        install.contains("command -v hairspring"),
+        "install.sh must detect a shadowing hairspring earlier in PATH"
+    );
+    assert!(
+        install.contains("WARNING"),
+        "install.sh must warn loudly when it detects the shadow"
+    );
 }

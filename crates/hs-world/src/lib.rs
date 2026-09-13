@@ -273,7 +273,7 @@ impl World {
 
     /// An attributed observe: delivers the artifacts AND books one reuse
     /// event per delivered artifact onto the world stream, naming the
-    /// observing stream (SwarmWorld S2.5 recorded provenance: reuse is
+    /// observing stream (`SwarmWorld` S2.5 recorded provenance: reuse is
     /// what makes culture diffusion measurable from the log alone).
     /// `observe` stays the administrative, unbooked read.
     pub fn observe_as(
@@ -320,7 +320,7 @@ impl World {
     }
 
     /// Apply a validated File artifact: the content-addressed bytes land
-    /// at its world_path. The EFFECT happens here, in the world service -
+    /// at its `world_path`. The EFFECT happens here, in the world service -
     /// the proposing agent only ever booked a proposal event (spec 4.4).
     pub fn materialize(&self, artifact: &Artifact) -> Result<std::path::PathBuf, WorldError> {
         let known = self

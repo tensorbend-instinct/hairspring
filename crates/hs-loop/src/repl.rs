@@ -2164,6 +2164,72 @@ impl AddProviderWizard {
     }
 }
 
+/// The /models picker's last row: opens the add-provider wizard.
+/// (Eric 2026-09-13: the wizard shipped as a typed command only; a
+/// picker that never shows it fails his "undiscoverable = not done"
+/// bar - he ran install.sh on latest main and found no add anywhere.)
+pub const MODELS_PICKER_ADD_ENTRY: &str = "+ Add provider...";
+
+/// The /models picker rows: each configured model with its
+/// (current)/(default) tag, then the add-provider escape hatch last.
+#[must_use]
+pub fn models_picker_entries(models: &[(String, bool)], current: &str) -> Vec<String> {
+    let mut out: Vec<String> = models
+        .iter()
+        .map(|(n, d)| {
+            let tag = if n == current {
+                " (current)"
+            } else if *d {
+                " (default)"
+            } else {
+                ""
+            };
+            format!("{n}{tag}")
+        })
+        .collect();
+    out.push(MODELS_PICKER_ADD_ENTRY.to_string());
+    out
+}
+
+/// True for "/models add" and "/models add <args>" (the ":" alias
+/// included): the line is the add command, never a wizard answer.
+/// (Eric 2026-09-13: typed mid-wizard, the command line was consumed
+/// as the provider-name answer and rejected as a bad name.)
+#[must_use]
+pub fn is_models_add_command(input: &str) -> bool {
+    let t = input.trim();
+    ["/models add", ":models add"].iter().any(|p| {
+        t.strip_prefix(p)
+            .is_some_and(|rest| rest.is_empty() || rest.starts_with(char::is_whitespace))
+    })
+}
+
+/// Parse "/models add [name [base-url [model-id]]]" into a pre-filled
+/// wizard. Inline args answer the leading steps through the SAME
+/// validation as typed answers; the key is never accepted here - a
+/// command line lands in history, the key must not. None when the line
+/// is not the add command or an inline arg fails validation.
+#[must_use]
+pub fn parse_models_add(input: &str) -> Option<AddProviderWizard> {
+    if !is_models_add_command(input) {
+        return None;
+    }
+    let t = input.trim();
+    let rest = t
+        .strip_prefix("/models add")
+        .or_else(|| t.strip_prefix(":models add"))?;
+    let mut w = AddProviderWizard::new();
+    for arg in rest.split_whitespace() {
+        match w.feed(arg) {
+            Ok(WizardFeed::Next(_)) => {}
+            // Ready means an arg reached the key step: refuse - the key
+            // goes into the masked composer, never onto a command line.
+            _ => return None,
+        }
+    }
+    Some(w)
+}
+
 /// Where a bare `hairspring` keeps its run state:
 /// `$XDG_DATA_HOME/hairspring/run`, else `~/.local/share/hairspring/run`.
 #[must_use]

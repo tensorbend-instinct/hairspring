@@ -3,11 +3,14 @@
 DeepSeek and GLM are built in. Any other OpenAI-compatible endpoint -
 OpenRouter, OpenAI direct, a local server - is configuration, not code.
 
-From the TUI: `/models add` walks you through name, base URL, model id,
-and key (the key line masks input and stays out of history). It writes
-both files, saves the key owner-only to `keys/<name>.key`, and the new
-model is pickable in `/models` without a restart. `/cancel` bails out
-mid-wizard and writes nothing.
+From the TUI: the `/models` picker ends with `+ Add provider...`,
+which opens the add wizard. The typed form is `/models add` - inline
+args (`/models add openrouter [base-url [model-id]]`) prefill the
+leading steps - then it walks name, base URL, model id, and key (the
+key line masks input, stays out of history, and is never taken from
+the command line). It writes both files, saves the key owner-only to
+`keys/<name>.key`, and the new model is pickable in `/models` without
+a restart. `/cancel` bails out mid-wizard and writes nothing.
 
 By hand, three pieces, all under `~/.config/hairspring/`:
 

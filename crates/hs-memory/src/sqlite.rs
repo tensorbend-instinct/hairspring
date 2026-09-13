@@ -1,4 +1,4 @@
-//! SQLite WAL implementation of the memory plane.
+//! `SQLite` WAL implementation of the memory plane.
 
 use crate::{MemoryError, MemoryRecord, MemoryStore, NewMemoryRecord};
 use rusqlite::{params, Connection};

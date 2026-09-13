@@ -41,6 +41,18 @@ done
 cp "$SRC/examples/seqmodel-demo.jsonl" "$PREFIX/seqmodel-demo.jsonl"
 ln -sf "$PREFIX/bin/hs-repl" "$BINLINK_DIR/hairspring"
 
+# A hairspring earlier in PATH shadows this install (Eric 2026-09-13:
+# install.sh can run clean while an older build keeps answering).
+resolved="$(command -v hairspring 2>/dev/null || true)"
+if [ -n "$resolved" ] && [ "$resolved" != "$BINLINK_DIR/hairspring" ]; then
+    cat <<WARN
+
+WARNING: 'hairspring' resolves to $resolved - that build shadows the
+one just installed at $BINLINK_DIR/hairspring. Remove it, or put
+$BINLINK_DIR earlier in PATH.
+WARN
+fi
+
 if [ ! -f "$CONFIG_DIR/hairspring.toml" ]; then
     sed "s|@PREFIX@|$PREFIX|g" "$SRC/hairspring.example.toml" > "$CONFIG_DIR/hairspring.toml"
     echo "Wrote $CONFIG_DIR/hairspring.toml"

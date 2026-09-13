@@ -99,7 +99,7 @@ pub const TUI_HELP: &str = "hairspring - full-screen surface
   /last     the latest mission's answer artifact
   /resume   pick a prior session to continue
   /caps     view or change the live caps (steps, wall, budget, critic)
-  /models   pick the operator model (next mission onward); /models add declares a new provider
+  /models   pick the operator model (next mission onward); the picker's '+ Add provider...' (or /models add [name]) declares a new provider
   /theme    pick the surface theme
   /agents   toggle the delegation graph panel
   /lineage  toggle the selfmod lineage panel
@@ -183,7 +183,8 @@ pub const TUI_COMMANDS: &[CommandSpec] = &[
     CommandSpec { name: "last", summary: "the latest mission's answer artifact", args: None },
     CommandSpec { name: "resume", summary: "pick a prior session to continue", args: None },
     CommandSpec { name: "caps", summary: "view or change the live caps (steps, wall, budget, critic)", args: Some("[key value]") },
-    CommandSpec { name: "models", summary: "pick the operator model; add declares a provider", args: None },
+    CommandSpec { name: "models", summary: "pick the operator model", args: None },
+    CommandSpec { name: "models add", summary: "declare a new provider (answers in the composer)", args: Some("[name [base-url [model-id]]]") },
     CommandSpec { name: "theme", summary: "pick the surface theme", args: None },
     CommandSpec { name: "agents", summary: "toggle the delegation graph panel", args: None },
     CommandSpec { name: "lineage", summary: "toggle the selfmod lineage panel", args: None },

@@ -517,9 +517,20 @@ running = false;
                         }
                         tui::KeyAction::Quit => break,
                         tui::KeyAction::Picked(tui::PickerKind::Models, choice) => {
-                            let name = choice.split(' ').next().unwrap_or("").to_string();
-                            if !name.is_empty() {
-                                let _ = goal_tx.send(UiCmd::SetModel(name));
+                            if choice == hs_loop::repl::MODELS_PICKER_ADD_ENTRY {
+                                // The picker's escape hatch opens the
+                                // same wizard as /models add.
+                                let w = hs_loop::repl::AddProviderWizard::new();
+                                st.push_transcript_line(
+                                    "add a provider (answers go in the composer; /cancel to stop)",
+                                );
+                                st.push_transcript_line(w.prompt());
+                                add_wiz = Some(w);
+                            } else {
+                                let name = choice.split(' ').next().unwrap_or("").to_string();
+                                if !name.is_empty() {
+                                    let _ = goal_tx.send(UiCmd::SetModel(name));
+                                }
                             }
                         }
                         tui::KeyAction::Picked(tui::PickerKind::Themes, choice) => {
@@ -547,6 +558,28 @@ running = false;
                             // /models add wizard: lines route to the
                             // wizard, never to goals or the palette.
                             if let Some(w) = add_wiz.as_mut() {
+                                if hs_loop::repl::is_models_add_command(&text) {
+                                    // The command re-issued mid-wizard:
+                                    // restart with any inline args
+                                    // applied. The command line is
+                                    // never an answer (Eric 2026-09-13:
+                                    // "/models add openrouter" was
+                                    // rejected as a bad provider name).
+                                    if let Some(w2) = hs_loop::repl::parse_models_add(&text) {
+                                        st.editor.set_secret(false);
+                                        st.push_transcript_line(
+                                            "add a provider (answers go in the composer; /cancel to stop)",
+                                        );
+                                        st.push_transcript_line(w2.prompt());
+                                        st.editor.set_secret(w2.is_secret());
+                                        add_wiz = Some(w2);
+                                    } else {
+                                        st.push_transcript_line(
+                                            "usage: /models add [name [base-url [model-id]]] - the API key goes in the masked composer, never on the command line",
+                                        );
+                                    }
+                                    continue;
+                                }
                                 match w.feed(&text) {
                                     Ok(hs_loop::repl::WizardFeed::Next(p)) => {
                                         st.push_transcript_line(p);
@@ -638,27 +671,27 @@ running = false;
                                         st.push_transcript_line(&format!("  {e}"));
                                     }
                                 }
-                            } else if t == "/models add" {
-                                st.push_transcript_line(
-                                    "add a provider (answers go in the composer; /cancel to stop)",
-                                );
-                                let w = hs_loop::repl::AddProviderWizard::new();
-                                st.push_transcript_line(w.prompt());
-                                add_wiz = Some(w);
+                            } else if hs_loop::repl::is_models_add_command(&t) {
+                                // Inline args prefill the wizard:
+                                // /models add openrouter skips the
+                                // name step (Eric 2026-09-13).
+                                match hs_loop::repl::parse_models_add(&t) {
+                                    Some(w) => {
+                                        st.push_transcript_line(
+                                            "add a provider (answers go in the composer; /cancel to stop)",
+                                        );
+                                        st.push_transcript_line(w.prompt());
+                                        add_wiz = Some(w);
+                                    }
+                                    None => st.push_transcript_line(
+                                        "usage: /models add [name [base-url [model-id]]] - the API key goes in the masked composer, never on the command line",
+                                    ),
+                                }
                             } else if t == "/models" {
-                                let entries: Vec<String> = model_entries
-                                    .iter()
-                                    .map(|(n, d)| {
-                                        let tag = if *n == st.model_label {
-                                            " (current)"
-                                        } else if *d {
-                                            " (default)"
-                                        } else {
-                                            ""
-                                        };
-                                        format!("{n}{tag}")
-                                    })
-                                    .collect();
+                                let entries = hs_loop::repl::models_picker_entries(
+                                    &model_entries,
+                                    &st.model_label,
+                                );
                                 st.open_picker_kind(tui::PickerKind::Models, entries);
                             } else if t == "/theme" {
                                 let entries: Vec<String> =

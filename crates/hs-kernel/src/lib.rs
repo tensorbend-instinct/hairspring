@@ -411,7 +411,7 @@ pub struct Kernel {
     /// params carry "`stream_deltas"`: true.
     delta_sink: RefCell<Option<DeltaSink>>,
     /// The current mission's run dir, stamped on every tool.call as
-    /// "run_dir" (gate-8 self-instruction: policy.propose_prompt records
+    /// `run_dir` (gate-8 self-instruction: `policy.propose_prompt` records
     /// into the mission's own directory). Additive on the wire - plugins
     /// that read only "args" are unaffected. None outside a mission.
     tool_run_dir: RefCell<Option<PathBuf>>,
@@ -771,7 +771,7 @@ impl Kernel {
 
     /// The loop stamps the mission's run dir at mission start (gate-8
     /// self-instruction live wiring, Eric 2026-09-13): from then on every
-    /// tool.call carries "run_dir" alongside "args". The policy plugin
+    /// tool.call carries `run_dir` alongside "args". The policy plugin
     /// records proposals there; every other plugin ignores the field.
     pub fn set_tool_run_dir(&self, dir: Option<PathBuf>) {
         *self.tool_run_dir.borrow_mut() = dir;

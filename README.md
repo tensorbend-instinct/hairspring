@@ -113,8 +113,10 @@ hairspring run --goal "fix the off-by-one in src/parser.rs" --project-dir .
 ```
 
 `--config` and `--dir` still override the defaults. Add a provider
-without leaving the TUI: `/models add` walks name, base URL, model id,
-and key, and the new entry is pickable in `/models` right away.
+without leaving the TUI: the `/models` picker ends with
+`+ Add provider...`, and `/models add` (inline args like
+`/models add openrouter` prefill the wizard) walks name, base URL,
+model id, and key. The new entry is pickable in `/models` right away.
 
 `--dir` holds the run state (streams, logs, memory); missions are
 confined to the project root: `--project-dir`, default `<dir>/work`. On
