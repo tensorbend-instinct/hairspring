@@ -154,6 +154,17 @@ fn swe_runner(cfg: SweCfg) -> impl Fn(Option<&str>, &str) -> BenchOutcome {
             }
             let _ = std::fs::remove_dir_all(&dir);
             std::fs::create_dir_all(dir.join("instances")).expect("arm dir");
+            // Venvs are worker-private (PAR=1 here) and arms run
+            // sequentially, so one shared venv cache per runs-root is safe
+            // and saves a multi-minute pip build per arm.
+            #[cfg(unix)]
+            {
+                let shared = cfg.runs_root.join("shared-venvs");
+                std::fs::create_dir_all(&shared).expect("shared venvs");
+                let _ = std::fs::remove_file(dir.join("venvs"));
+                std::os::unix::fs::symlink(&shared, dir.join("venvs"))
+                    .expect("venvs symlink");
+            }
             let src = cfg.instances_dir.join(format!("{task}.json"));
             let inst = std::fs::read_to_string(&src)
                 .unwrap_or_else(|e| fail(&format!("instance {}: {e}", src.display())));
