@@ -1229,6 +1229,21 @@ pub fn backfill_transcript(
                 if terminal && mission_open {
                     let outcome =
                         v.get("outcome").and_then(|o| o.as_str()).unwrap_or("done");
+                    // A continued mission's close carries the cumulative
+                    // counters - the replayed done line shows the
+                    // mission's whole life, not the last leg.
+                    let steps_shown = v
+                        .get("steps")
+                        .and_then(serde_json::Value::as_u64)
+                        .unwrap_or(steps);
+                    let calls_shown = v
+                        .get("model_calls")
+                        .and_then(serde_json::Value::as_u64)
+                        .unwrap_or(calls);
+                    let cost_shown = v
+                        .get("cost_micros")
+                        .and_then(serde_json::Value::as_u64)
+                        .unwrap_or(cost);
                     let verdict = if outcome == "verified" {
                         st.theme.ok.clone()
                     } else {
@@ -1236,8 +1251,8 @@ pub fn backfill_transcript(
                     };
                     st.push_transcript_styled(
                         &format!(
-                            "\u{2500}\u{2500} done: {steps} steps, {calls} calls, {} ({outcome})",
-                            crate::uipaint::format_usd_micros(cost)
+                            "\u{2500}\u{2500} done: {steps_shown} steps, {calls_shown} calls, {} ({outcome})",
+                            crate::uipaint::format_usd_micros(cost_shown)
                         ),
                         sgr_style(&verdict).add_modifier(Modifier::BOLD),
                     );

@@ -412,6 +412,16 @@ running = false;
                                 cost_total,
                                 &m.outcome,
                             );
+                            // Mission continuation: a non-pass close is
+                            // never the end of the work - say how the
+                            // mission picks back up.
+                            if !m.passed {
+                                st.push_transcript_line(&format!(
+                                    "  \u{b7} not passed ({}) - re-run the same goal to continue this mission at step {}",
+                                    m.outcome,
+                                    m.steps + 1
+                                ));
+                            }
                         }
                         Err(e) => st.push_transcript_line(&format!("mission failed: {e}")),
                     }

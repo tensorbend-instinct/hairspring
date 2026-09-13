@@ -282,6 +282,178 @@ pub struct InnerLoop {
 pub const DEFAULT_CONTEXT_BUDGET_TOKENS: usize = 983_040;
 
 #[must_use]
+/// Mission continuation (Eric 2026-09-13: "everything starts a new
+/// mission even if it ended prematurely - a mission should never end
+/// prematurely especially if budgets are not violated"). A mission whose
+/// last close on a stream was NOT a pass is unfinished work: re-running
+/// its goal must CONTINUE it, not mint a sibling. This read model makes
+/// the continuation possible - the whole span state is reconstructed
+/// from the stream, the same source of truth the transcript assembler
+/// and `with_stream`'s cost fold already trust.
+#[derive(Debug)]
+pub struct MissionSpan {
+    /// Loop iterations the prior runs completed (one booked operator
+    /// ModelCall each; distills and verifier rounds book no step).
+    pub steps: u32,
+    /// Every booked model call in the span (operator + distill + verifier).
+    pub model_calls: u32,
+    /// Provider-reported spend inside the span.
+    pub cost_micros: u64,
+    /// List-rate counterpart of `cost_micros`.
+    pub conservative_cost_micros: u64,
+    /// The non-pass outcome the mission last closed with.
+    pub outcome: String,
+    /// The exact first message the mission ran with - a resume is only
+    /// lawful when the new goal reproduces it byte-for-byte.
+    pub first_prompt: Option<String>,
+    /// Successful tool calls (seq, plugin, args, result), for ledger replay.
+    pub tool_calls: Vec<(u64, String, serde_json::Value, serde_json::Value)>,
+    /// Findings of the last refuted verifier round inside the span.
+    pub prior_gaps: Vec<String>,
+}
+
+/// Reconstruct one unfinished mission's span from the stream: the events
+/// after the previous close up to this mission's own close. None when the
+/// mission never ran here or its last close was a pass (a passed mission
+/// is finished work - a re-run is NEW work, never a resume).
+#[must_use]
+pub fn mission_span(
+    log_root: &Path,
+    stream_id: uuid::Uuid,
+    mission: &str,
+) -> Option<MissionSpan> {
+    let r = hs_log::StreamReader::open(log_root, stream_id).ok()?;
+    let events = r.events().ok()?;
+    let mut close: Option<(usize, String)> = None;
+    for (i, e) in events.iter().enumerate().rev() {
+        if e.kind != hs_core::EventKind::GoalUpdate {
+            continue;
+        }
+        // An unresolvable payload must not sink the scan - skip it.
+        let Ok(b) = r.resolve_payload(e) else {
+            continue;
+        };
+        let Ok(v) = serde_json::from_slice::<serde_json::Value>(&b) else {
+            continue;
+        };
+        if v.get("mission").and_then(|m| m.as_str()) == Some(mission) {
+            if v.get("done").and_then(|d| d.as_bool()) == Some(true) {
+                return None;
+            }
+            let outcome = v
+                .get("outcome")
+                .and_then(|o| o.as_str())
+                .unwrap_or("")
+                .to_string();
+            close = Some((i, outcome));
+            break;
+        }
+    }
+    let (close_i, outcome) = close?;
+    // The span opens after the previous close of a DIFFERENT mission -
+    // closes of THIS mission are earlier legs of the same resumed
+    // mission and stay inside the span, so counters accumulate across
+    // every resume, not just the first. Stream seqs start at 0 - an
+    // absent floor is NO floor, not a floor at seq 0.
+    let mut floor: Option<u64> = None;
+    for e in events[..close_i].iter().rev() {
+        if e.kind != hs_core::EventKind::GoalUpdate {
+            continue;
+        }
+        let same_mission = r
+            .resolve_payload(e)
+            .ok()
+            .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
+            .and_then(|v| v.get("mission").and_then(|m| m.as_str()).map(str::to_string))
+            .as_deref()
+            == Some(mission);
+        if !same_mission {
+            floor = Some(e.seq);
+            break;
+        }
+    }
+    let mut span = MissionSpan {
+        steps: 0,
+        model_calls: 0,
+        cost_micros: 0,
+        conservative_cost_micros: 0,
+        outcome,
+        first_prompt: None,
+        tool_calls: Vec::new(),
+        prior_gaps: Vec::new(),
+    };
+    for e in &events[..=close_i] {
+        if floor.is_some_and(|f| e.seq <= f) {
+            continue;
+        }
+        let Ok(b) = r.resolve_payload(e) else {
+            continue;
+        };
+        let Ok(v) = serde_json::from_slice::<serde_json::Value>(&b) else {
+            continue;
+        };
+        match e.kind {
+            hs_core::EventKind::ModelCall => {
+                span.model_calls += 1;
+                let micros = |k: &str| {
+                    v.get(k)
+                        .and_then(serde_json::Value::as_i64)
+                        .unwrap_or(0)
+                        .max(0) as u64
+                };
+                span.cost_micros = span.cost_micros.saturating_add(micros("cost_usd_micros"));
+                span.conservative_cost_micros = span
+                    .conservative_cost_micros
+                    .saturating_add(micros("conservative_cost_usd_micros"));
+                // Mirror load_resume's counting: distills and verifier
+                // rounds book a call (and spend) but no loop step.
+                let no_step = v.get("why").and_then(|w| w.as_str()) == Some("distill")
+                    || v.get("role").and_then(|w| w.as_str()) == Some("verifier");
+                if !no_step {
+                    span.steps += 1;
+                }
+                if span.first_prompt.is_none() {
+                    span.first_prompt = v
+                        .get("messages")
+                        .and_then(|m| m.as_array())
+                        .and_then(|a| a.first())
+                        .and_then(|m| m.get("content"))
+                        .and_then(|c| c.as_str())
+                        .map(str::to_owned);
+                }
+            }
+            hs_core::EventKind::ToolCall => {
+                // Only successful dispatches feed the ledger live
+                // (rejections and errors never reached apply_tool_call).
+                if let (Some(p), Some(a), Some(res)) =
+                    (v.get("plugin"), v.get("args"), v.get("result"))
+                    && let Some(p) = p.as_str()
+                {
+                    span.tool_calls
+                        .push((e.seq, p.to_string(), a.clone(), res.clone()));
+                }
+            }
+            hs_core::EventKind::Feedback => {
+                if v.get("why").and_then(|w| w.as_str()) == Some("verifier")
+                    && v.get("verdict").and_then(|x| x.as_str()) == Some("refuted")
+                {
+                    span.prior_gaps = v
+                        .get("findings")
+                        .and_then(|f| f.as_array())
+                        .map(|a| {
+                            a.iter()
+                                .filter_map(|f| f.as_str().map(str::to_owned))
+                                .collect()
+                        })
+                        .unwrap_or_default();
+                }
+            }
+            _ => {}
+        }
+    }
+    Some(span)
+}
+
 pub fn default_budget_for_model(model: &str) -> usize {
     match model {
         "kimi-k3" => 1_048_576 - 65_536,
@@ -782,7 +954,7 @@ impl InnerLoop {
                     )),
                 )?;
                 self.checkpoint(steps, model_calls);
-                self.close_goal(mission, false, "wall_killed")?;
+                self.close_goal(mission, false, "wall_killed", steps, model_calls)?;
                 return Ok(Some(MissionResult {
                     passed: false,
                     steps,
@@ -1250,7 +1422,14 @@ impl InnerLoop {
         }
     }
 
-    fn close_goal(&mut self, mission: &str, done: bool, outcome: &str) -> Result<(), LoopError> {
+    fn close_goal(
+        &mut self,
+        mission: &str,
+        done: bool,
+        outcome: &str,
+        steps: u32,
+        model_calls: u32,
+    ) -> Result<(), LoopError> {
         // B1: close-side K bookkeeping runs BEFORE the terminal
         // GoalUpdate, which must stay the mission's last event (M12:
         // the resume picker and the delegation graph read the LAST
@@ -1421,6 +1600,11 @@ impl InnerLoop {
             EventBuilder::new(EventKind::GoalUpdate).payload(Payload::Inline(
                 serde_json::to_vec(&serde_json::json!({
                     "mission": mission, "done": done, "outcome": outcome,
+                    "steps": steps, "model_calls": model_calls,
+                    "cost_micros": self.cost_total_micros.saturating_sub(self.mission_cost_start),
+                    "conservative_cost_micros": self
+                        .conservative_cost_total_micros
+                        .saturating_sub(self.mission_conservative_start),
                     "completion_mode": self.completion_mode.unwrap_or("none"),
                     "interventions": self.idi_interventions,
                     "detections": self.idi_detections,
@@ -1455,7 +1639,7 @@ impl InnerLoop {
                 .expect("json! values serialize"),
             )),
         )?;
-        self.close_goal(mission, false, "harness_error")?;
+        self.close_goal(mission, false, "harness_error", steps, model_calls)?;
         Ok(MissionResult {
             passed: false,
             steps,
@@ -1559,6 +1743,31 @@ impl InnerLoop {
         mission_id: &str,
         prompt: &str,
     ) -> Result<MissionResult, LoopError> {
+        self.run_mission_inner(mission_id, prompt, false)
+    }
+
+    /// Mission continuation (Eric 2026-09-13): the user-facing entry
+    /// point (TUI + hs-repl). A mission whose last close on this stream
+    /// was NOT a pass CONTINUES - same id, same work dir, step/call/cost
+    /// counters restored from the stream, the verification ledger
+    /// replayed - never a fresh sibling. The resume is lawful only when
+    /// the prompt reproduces the mission's recorded first message
+    /// byte-for-byte; anything else is new work on a fresh counter.
+    /// Benchmark binaries keep `run_mission_full`'s fresh-start law.
+    pub fn run_mission_resuming(
+        &mut self,
+        mission_id: &str,
+        prompt: &str,
+    ) -> Result<MissionResult, LoopError> {
+        self.run_mission_inner(mission_id, prompt, true)
+    }
+
+    fn run_mission_inner(
+        &mut self,
+        mission_id: &str,
+        prompt: &str,
+        resume: bool,
+    ) -> Result<MissionResult, LoopError> {
         let mission = mission_id;
         // Deep-pass hostile review (2026-09-09): the mission id names the
         // work dir, and on the swarm child path the id IS the model's
@@ -1604,13 +1813,51 @@ impl InnerLoop {
         let mut pending_feedback: Vec<String> = vec![];
         let mut steps = 0u32;
         let mut model_calls = 0u32;
+        // Mission continuation: an unfinished mission resumes where the
+        // stream says it stopped. The step/call counters, the per-mission
+        // spend baseline, the verification ledger and the verifier's last
+        // findings all fold back, so the resumed leg is the SAME mission
+        // in every book that matters - and the model is told so.
+        if resume
+            && let Some(span) = mission_span(&self.log_root, self.stream_id, mission)
+            && span.first_prompt.as_deref()
+                == Some(crate::msgfmt::mission_first_message(prompt).as_str())
+        {
+            steps = span.steps;
+            model_calls = span.model_calls;
+            self.mission_cost_start = self.cost_total_micros.saturating_sub(span.cost_micros);
+            self.mission_conservative_start = self
+                .conservative_cost_total_micros
+                .saturating_sub(span.conservative_cost_micros);
+            for (seq, plugin, args, result) in &span.tool_calls {
+                self.ledger.apply_tool_call(*seq, plugin, args, result);
+            }
+            self.prior_gaps = span.prior_gaps;
+            self.writer.append(
+                EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
+                    serde_json::to_vec(&serde_json::json!({
+                        "mission_resumed": mission,
+                        "prior_outcome": span.outcome,
+                        "steps": span.steps,
+                        "model_calls": span.model_calls,
+                        "cost_micros": span.cost_micros,
+                    }))
+                    .expect("json! values serialize"),
+                )),
+            )?;
+            pending_feedback.push(format!(
+                "RESUMED: this mission continues at step {} (it last closed: {}). Your prior work is in the transcript and the ledger - continue from it, never restart.",
+                steps + 1,
+                span.outcome
+            ));
+        }
 
         // Uncapped missions (no declared step cap) iterate until the
         // model submits, the wall or budget kills, or the operator
         // interrupts - u32::MAX is "no cap" for the range alone; every
         // display and pacing decision below still sees the Option.
         let step_range_cap = self.max_steps.unwrap_or(u32::MAX);
-        for step in 1..=step_range_cap {
+        for step in (steps + 1)..=step_range_cap {
             if let Some(sink) = self.ui_sink.as_mut() {
                 sink(uipaint::UiEvent::Step {
                     step,
@@ -1631,7 +1878,7 @@ impl InnerLoop {
                     )),
                 );
                 self.checkpoint(done, model_calls);
-                let _ = self.close_goal(mission, false, "interrupted");
+                let _ = self.close_goal(mission, false, "interrupted", done, model_calls);
                 return Ok(MissionResult {
                     passed: false,
                     steps: done,
@@ -1927,7 +2174,7 @@ impl InnerLoop {
                         )),
                     )?;
                     self.checkpoint(steps, model_calls);
-                    self.close_goal(mission, false, "budget_killed")?;
+                    self.close_goal(mission, false, "budget_killed", steps, model_calls)?;
                     return Ok(MissionResult {
                         passed: false,
                         steps,
@@ -2660,7 +2907,7 @@ impl InnerLoop {
                     self.idi_repairs += 1;
                 }
                 self.completion_mode = Some("hybrid");
-                self.close_goal(mission, true, outcome)?;
+                self.close_goal(mission, true, outcome, steps, model_calls)?;
                 self.checkpoint(steps, model_calls);
                 return Ok(MissionResult {
                     passed: true,
@@ -2688,7 +2935,7 @@ impl InnerLoop {
         }
         // Fold whatever children already finished (non-blocking).
         let _ = self.poll_children();
-        self.close_goal(mission, false, "steps_exhausted")?;
+        self.close_goal(mission, false, "steps_exhausted", steps, model_calls)?;
         Ok(MissionResult {
             passed: false,
             steps,

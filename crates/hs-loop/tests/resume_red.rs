@@ -111,14 +111,17 @@ fn resumed_session_continues_stream_and_history() {
         &[serde_json::json!({"tool":"answer.write","args":{"path":answer1.display().to_string(),"content":"second-session"}})],
     );
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script2) };
-    let mut s2 = ReplSession::load_resume(&config, log.path(), true, Some(1), stream_id).unwrap();
+    // Mission continuation (Eric 2026-09-13): session 1's mission died
+    // at its cap, so the same goal CONTINUES it on the resumed stream -
+    // the cap must rise for a new step to run (2, not 1).
+    let mut s2 = ReplSession::load_resume(&config, log.path(), true, Some(2), stream_id).unwrap();
     assert_eq!(
         s2.stream_id(),
         stream_id,
         "resumed session adopts the prior stream, not a fresh one"
     );
     let r2 = s2.run_goal("task-0").unwrap();
-    assert_eq!(r2.steps, 1);
+    assert_eq!(r2.steps, 2, "the continued mission picks up at step 2");
 
     // (a) same stream, sequence continues, hash chain verifies
     let reader = hs_log::StreamReader::open(log.path(), stream_id).unwrap();
@@ -175,7 +178,9 @@ fn forked_session_branches_history_and_leaves_parent_intact() {
         &[serde_json::json!({"tool":"answer.write","args":{"path":answer1.display().to_string(),"content":"forked-branch"}})],
     );
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script2) };
-    let mut s2 = ReplSession::load_fork(&config, log.path(), true, Some(1), parent_id).unwrap();
+    // Mission continuation: the parent's mission died unfinished, so
+    // the fork CONTINUES it (cap raised to let a step run).
+    let mut s2 = ReplSession::load_fork(&config, log.path(), true, Some(2), parent_id).unwrap();
     let fork_id = s2.stream_id();
     assert_ne!(fork_id, parent_id, "a fork is a new stream");
     s2.run_goal("task-0").unwrap();

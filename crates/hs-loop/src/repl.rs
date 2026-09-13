@@ -148,6 +148,7 @@ pub struct ReplSession {
     total_steps: u64,
     total_model_calls: u64,
     ui_flush: Option<Box<dyn FnMut() + Send>>,
+    log_root: PathBuf,
     work_dir: PathBuf,
     config_path: PathBuf,
 }
@@ -677,6 +678,7 @@ pub fn load(
             total_steps,
             total_model_calls,
             ui_flush: None,
+            log_root: log_root.to_path_buf(),
             work_dir: resolve_work_dir(&log_root),
             config_path: config.to_path_buf(),
         })
@@ -852,16 +854,48 @@ pub fn load(
             total_steps,
             total_model_calls,
             ui_flush: None,
+            log_root: log_root.to_path_buf(),
             work_dir: resolve_work_dir(&log_root),
             config_path: config.to_path_buf(),
         })
     }
 
-    /// The mission id the NEXT run of this goal would use: the slug, with
-    /// a -2/-3/... suffix when the slug already ran in this session.
+    /// The prompt a run of this goal would use (the goal plus the MCP
+    /// catalog suffix) - one builder, so the continuation comparison
+    /// below tests the exact bytes the mission recorded.
+    /// Mission continuation (Eric 2026-09-13): a mission whose last
+    /// close on this stream was NOT a pass is unfinished - the same goal
+    /// CONTINUES it under the same id. Two guards keep the log honest:
+    /// the close must be a non-pass, and the goal must reproduce the
+    /// recorded mission prompt byte-for-byte (a different goal that
+    /// slugs the same is new work and takes the suffix path).
+    fn mission_continuable(&self, slug: &str, prompt: &str) -> bool {
+        let Some(span) = crate::mission_span(&self.log_root, self.inner.stream_id(), slug) else {
+            return false;
+        };
+        span.first_prompt.as_deref()
+            == Some(crate::msgfmt::mission_first_message(prompt).as_str())
+    }
+
+    /// The mission id the NEXT run of this goal would use: the bare slug
+    /// when the goal continues an unfinished mission (or never ran);
+    /// the -2/-3/... suffix when the slug already ran - or died - under
+    /// a DIFFERENT goal.
     pub fn mission_id_for(&self, goal: &str) -> String {
         let base = goal_slug(goal);
-        if !self.used_ids.contains(&base) {
+        let prompt = crate::sweprompt::build_tui_mission_prompt(
+            self.policy.as_ref(),
+            goal,
+            &self.mcp_catalog,
+        );
+        if self.mission_continuable(&base, &prompt) {
+            return base;
+        }
+        // An unfinished mission under this slug but a DIFFERENT prompt
+        // must not be clobbered: the new goal gets a fresh suffixed id.
+        let dead_here =
+            crate::mission_span(&self.log_root, self.inner.stream_id(), &base).is_some();
+        if !self.used_ids.contains(&base) && !dead_here {
             return base;
         }
         for n in 2.. {
@@ -896,7 +930,7 @@ pub fn load(
         let hs_dir = self.work_dir.join(".hs");
         std::fs::create_dir_all(&hs_dir)?;
         std::fs::write(hs_dir.join("instruction.txt"), &prompt)?;
-        let r = self.inner.run_mission_full(&id, &prompt)?;
+        let r = self.inner.run_mission_resuming(&id, &prompt)?;
         self.missions_run += 1;
         self.total_steps += u64::from(r.steps);
         self.total_model_calls += u64::from(r.model_calls);
@@ -1677,6 +1711,18 @@ pub fn print_result(r: &crate::MissionResult) {
         }))
         .expect("json! values serialize")
     );
+    // Mission continuation: a non-pass close is never the end of the
+    // work - the same goal picks the mission up where it stopped.
+    if !r.passed {
+        println!(
+            "{}",
+            serde_json::to_string(&serde_json::json!({
+                "continuable": true,
+                "hint": format!("re-run the same goal to continue this mission at step {}", r.steps + 1),
+            }))
+            .expect("json! values serialize")
+        );
+    }
 }
 
 /// UI gap #1: paint the ambient status bar to stderr (colored on a
