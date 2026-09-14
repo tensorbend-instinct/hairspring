@@ -6,7 +6,7 @@
 
 use hs_loop::tui::{self, TuiState};
 use hs_loop::uipaint::Theme;
-use ratatui::{backend::TestBackend, style::Modifier, Terminal};
+use ratatui::{Terminal, backend::TestBackend, style::Modifier};
 
 // R1: the markdown adapter converts a stream line into styled ratatui
 // Lines: headers bold+underlined, inline code accented, bullets dotted,
@@ -18,10 +18,12 @@ fn r1_markdown_to_styled_lines() {
     assert_eq!(lines.len(), 4);
     let header: String = lines[0].spans.iter().map(|s| s.content.clone()).collect();
     assert_eq!(header, "Result", "header marker stripped");
-    assert!(lines[0]
-        .spans
-        .iter()
-        .all(|s| s.style.add_modifier.contains(Modifier::BOLD)));
+    assert!(
+        lines[0]
+            .spans
+            .iter()
+            .all(|s| s.style.add_modifier.contains(Modifier::BOLD))
+    );
     let code_span = lines[1]
         .spans
         .iter()
@@ -54,12 +56,15 @@ fn r3_viewport_follows_tail() {
     term.draw(|f| tui::render_skeleton(f, &st)).unwrap();
     let buf = term.backend().buffer();
     let top: String = (0..40).map(|x| buf[(x, 0)].symbol()).collect();
-    let bottom: String = (0..40).map(|x| buf[(x, 18)].symbol()).collect();
+    let bottom: String = (0..40).map(|x| buf[(x, 19)].symbol()).collect();
     assert!(
         bottom.contains("line 29"),
         "newest line at the viewport bottom: {bottom:?}"
     );
-    assert!(top.contains("line 11"), "viewport shows the tail window: {top:?}");
+    assert!(
+        top.contains("HAIRSPRING: Session"),
+        "slim session header stays above the tail: {top:?}"
+    );
     assert!(!top.contains("line 00"), "oldest lines scrolled off");
 }
 
@@ -75,17 +80,32 @@ fn r4_scrollback_pins_and_refollows() {
     let backend = TestBackend::new(40, 24);
     let mut term = Terminal::new(backend).unwrap();
     term.draw(|f| tui::render_skeleton(f, &st)).unwrap();
-    let bottom: String = (0..40).map(|x| term.backend().buffer()[(x, 18)].symbol()).collect();
-    assert!(bottom.contains("line 24"), "scrolled 5 up from the tail: {bottom:?}");
+    let bottom: String = (0..40)
+        .map(|x| term.backend().buffer()[(x, 18)].symbol())
+        .collect();
+    assert!(
+        bottom.contains("line 23"),
+        "scrolled 5 up from the tail: {bottom:?}"
+    );
     // New activity does not yank a scrolled-back view.
     st.push_transcript_line("line 30");
     term.draw(|f| tui::render_skeleton(f, &st)).unwrap();
-    let bottom2: String = (0..40).map(|x| term.backend().buffer()[(x, 18)].symbol()).collect();
-    assert!(bottom2.contains("line 24"), "pinned while scrolled: {bottom2:?}");
+    let bottom2: String = (0..40)
+        .map(|x| term.backend().buffer()[(x, 18)].symbol())
+        .collect();
+    assert!(
+        bottom2.contains("line 23"),
+        "pinned while scrolled: {bottom2:?}"
+    );
     st.transcript_scroll_to_bottom();
     term.draw(|f| tui::render_skeleton(f, &st)).unwrap();
-    let bottom3: String = (0..40).map(|x| term.backend().buffer()[(x, 18)].symbol()).collect();
-    assert!(bottom3.contains("line 30"), "follow re-engaged: {bottom3:?}");
+    let bottom3: String = (0..40)
+        .map(|x| term.backend().buffer()[(x, 18)].symbol())
+        .collect();
+    assert!(
+        bottom3.contains("line 29"),
+        "follow re-engaged: {bottom3:?}"
+    );
 }
 
 // R5: markdown conversion feeds the viewport: a mission answer's
@@ -98,8 +118,8 @@ fn r5_markdown_into_viewport() {
     st.push_transcript_markdown("## Answer\nDone with `zero` defects.", &Theme::dark());
     term.draw(|f| tui::render_skeleton(f, &st)).unwrap();
     let buf = term.backend().buffer();
-    let row0: String = (0..60).map(|x| buf[(x, 0)].symbol()).collect();
-    let row1: String = (0..60).map(|x| buf[(x, 1)].symbol()).collect();
+    let row0: String = (0..60).map(|x| buf[(x, 1)].symbol()).collect();
+    let row1: String = (0..60).map(|x| buf[(x, 2)].symbol()).collect();
     assert!(row0.contains("Answer"), "header rendered: {row0:?}");
     assert!(row1.contains("zero"), "inline code rendered: {row1:?}");
 }
