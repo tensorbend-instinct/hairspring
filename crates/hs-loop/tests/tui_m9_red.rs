@@ -56,28 +56,14 @@ fn r2_light_theme_drives_markdown_flush() {
     );
 }
 
-// R3: the rail's active-phase accent follows the state theme.
+// R3: the active task header accent follows the state theme; the phase rail is no longer normal chrome.
 #[test]
-fn r3_rail_accent_follows_theme() {
-    for (theme, want) in [
-        (Theme::dark(), ratatui::style::Color::Cyan),
-        (Theme::light(), ratatui::style::Color::Blue),
-    ] {
-        let state = TuiState {
-            phase: LoopPhase::Act,
-            theme,
-            ..Default::default()
-        };
-        let backend = TestBackend::new(80, 24);
-        let mut term = Terminal::new(backend).unwrap();
-        term.draw(|f| tui::render_skeleton(f, &state)).unwrap();
-        let buf = term.backend().buffer();
-        let rail: String = (0..80).map(|x| buf[(x, 19)].symbol()).collect();
-        let act_pos = rail.find("ACT").unwrap() as u16;
-        assert_eq!(
-            buf[(act_pos, 19)].style().fg,
-            Some(want),
-            "active phase uses the state theme accent"
-        );
+fn r3_task_header_accent_follows_theme() {
+    for (theme,want) in [(Theme::dark(),ratatui::style::Color::Cyan),(Theme::light(),ratatui::style::Color::Blue)] {
+        let state=TuiState{phase:LoopPhase::Act,session_title:"Work".into(),theme,..Default::default()};
+        let mut term=Terminal::new(TestBackend::new(80,24)).unwrap(); term.draw(|f|tui::render_skeleton(f,&state)).unwrap(); let buf=term.backend().buffer();
+        let row:String=(0..80).map(|x|buf[(x,0)].symbol()).collect(); let pos=row.find("HAIRSPRING: Work").unwrap() as u16;
+        assert_eq!(buf[(pos,0)].style().fg,Some(want),"task header uses state theme accent");
+        assert!(!row.contains("ACT"),"internal phase is not normal chrome");
     }
 }
