@@ -77,23 +77,44 @@ fn r1_model_override_decides_the_call() {
     // FIXME: Audit that the environment access only happens in single-threaded code.
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", dir.join("script.jsonl")) };
 
-    let mut s = load_session(&dir.join("hairspring.toml"), &dir.join("run-a"), false, Some(5), None, None)
-        .unwrap();
+    let mut s = load_session(
+        &dir.join("hairspring.toml"),
+        &dir.join("run-a"),
+        false,
+        Some(5),
+        None,
+        None,
+    )
+    .unwrap();
     let d = s.run_goal("fix the lexer").unwrap();
     assert!(d.passed, "default run passes: {d:?}");
     let led_a = ledger_text(&dir.join("run-a"));
-    assert!(led_a.contains("\"plugin\": \"m-alpha\"") || led_a.contains("\"plugin\":\"m-alpha\""),
-        "default run served by m-alpha");
-    assert!(!led_a.contains("m-beta"), "default run never touches m-beta");
+    assert!(
+        led_a.contains("\"plugin\": \"m-alpha\"") || led_a.contains("\"plugin\":\"m-alpha\""),
+        "default run served by m-alpha"
+    );
+    assert!(
+        !led_a.contains("m-beta"),
+        "default run never touches m-beta"
+    );
 
-    let mut s = load_session(&dir.join("hairspring.toml"), &dir.join("run-b"), false, Some(5), None, None)
-        .unwrap();
+    let mut s = load_session(
+        &dir.join("hairspring.toml"),
+        &dir.join("run-b"),
+        false,
+        Some(5),
+        None,
+        None,
+    )
+    .unwrap();
     s.set_model_override(Some("m-beta".to_string())).unwrap();
     let good = s.run_goal("fix the lexer").unwrap();
     assert!(good.passed, "override run passes: {good:?}");
     let led_b = ledger_text(&dir.join("run-b"));
-    assert!(led_b.contains("\"plugin\": \"m-beta\"") || led_b.contains("\"plugin\":\"m-beta\""),
-        "override run served by m-beta");
+    assert!(
+        led_b.contains("\"plugin\": \"m-beta\"") || led_b.contains("\"plugin\":\"m-beta\""),
+        "override run served by m-beta"
+    );
     // No model.call dispatch ever names m-alpha. (The stream DOES name
     // it once - in the spec-2.7 capability_change event booking the
     // m-alpha -> m-beta swap; that booking is required, pinned in
@@ -126,8 +147,15 @@ fn r2_unknown_model_rejected_and_names_listed() {
     let script = dir.join("unused.jsonl");
     std::fs::write(&script, "\"never read\"\n").unwrap();
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
-    let mut s = load_session(&dir.join("hairspring.toml"), &dir.join("run"), false, Some(5), None, None)
-        .unwrap();
+    let mut s = load_session(
+        &dir.join("hairspring.toml"),
+        &dir.join("run"),
+        false,
+        Some(5),
+        None,
+        None,
+    )
+    .unwrap();
     let err = s
         .set_model_override(Some("nope".to_string()))
         .expect_err("unknown model must be rejected");
@@ -167,7 +195,7 @@ fn r3_theme_catalog_and_live_switch() {
 #[test]
 fn r4_picker_title_names_the_kind() {
     use hs_loop::tui::{self, PickerKind, TuiState};
-    use ratatui::{backend::TestBackend, Terminal};
+    use ratatui::{Terminal, backend::TestBackend};
     let render = |st: &TuiState| -> String {
         let backend = TestBackend::new(60, 16);
         let mut term = Terminal::new(backend).unwrap();
@@ -183,10 +211,22 @@ fn r4_picker_title_names_the_kind() {
             .join("\n")
     };
     let mut st = TuiState::default();
-    st.open_picker_kind(PickerKind::Models, vec!["m-alpha (current)".into(), "m-beta".into()]);
+    st.open_picker_kind(
+        PickerKind::Models,
+        vec!["m-alpha (current)".into(), "m-beta".into()],
+    );
     let screen = render(&st);
-    assert!(screen.contains("╭ models"), "models picker titled: {screen:?}");
-    assert!(!screen.contains("╭ resume"), "not the resume title: {screen:?}");
+    assert!(
+        screen.contains("╭ Select model"),
+        "models picker titled: {screen:?}"
+    );
+    assert!(
+        !screen.contains("╭ Select session"),
+        "not the resume title: {screen:?}"
+    );
     st.open_picker_kind(PickerKind::Themes, vec!["dark".into(), "light".into()]);
-    assert!(render(&st).contains("╭ theme"), "theme picker titled");
+    assert!(
+        render(&st).contains("╭ Select theme"),
+        "theme picker titled"
+    );
 }

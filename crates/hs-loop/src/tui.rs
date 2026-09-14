@@ -2398,6 +2398,7 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
         && viewport.width > 0
         && state.transcript.is_empty()
         && state.answer_inflight.is_empty()
+        && viewport.width >= 80
     {
         let hero = "HAIRSPRING";
         let hero_y = viewport.y + viewport.height.saturating_sub(3) / 2;
@@ -2661,33 +2662,45 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
     // selected entry highlighted with the theme accent.
     if let Some(p) = &state.picker {
         let box_w = (area.width * 3 / 4).max(20).min(area.width);
-        let box_h = (p.entries.len() as u16 + 2).min(viewport.height.max(3));
+        let box_h = (p.entries.len() as u16 + 5).min(viewport.height.max(5));
         let bx = (area.width - box_w) / 2;
         let by = viewport.y + (viewport.height.saturating_sub(box_h)) / 2;
         let rect = Rect::new(bx, by, box_w, box_h);
         f.render_widget(ratatui::widgets::Clear, rect);
         let accent = sgr_style(&state.theme.accent);
-        let lines: Vec<Line> = p
-            .entries
-            .iter()
-            .enumerate()
-            .map(|(i, e)| {
-                if i == p.selected {
-                    Line::from(Span::styled(format!("\u{25b6} {e}"), accent))
-                } else {
-                    Line::from(format!("  {e}"))
-                }
-            })
-            .collect();
+        let mut lines: Vec<Line> = vec![
+            Line::from(Span::styled(
+                "Search...",
+                Style::default().add_modifier(Modifier::DIM),
+            )),
+            Line::from(""),
+        ];
+        lines.extend(
+            p.entries
+                .iter()
+                .enumerate()
+                .map(|(i, e)| {
+                    if i == p.selected {
+                        Line::from(Span::styled(format!("\u{25b6} {e}"), accent))
+                    } else {
+                        Line::from(format!("  {e}"))
+                    }
+                })
+                .collect::<Vec<_>>(),
+        );
+        lines.push(Line::from(Span::styled(
+            "enter select  esc close",
+            Style::default().add_modifier(Modifier::DIM),
+        )));
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(sgr_style(&state.theme.dim))
             .title(Span::styled(
                 match p.kind {
-                    PickerKind::Resume => " resume ",
-                    PickerKind::Models => " models ",
-                    PickerKind::Themes => " theme ",
+                    PickerKind::Resume => " Select session ",
+                    PickerKind::Models => " Select model ",
+                    PickerKind::Themes => " Select theme ",
                 },
                 sgr_style(&state.theme.accent),
             ));
