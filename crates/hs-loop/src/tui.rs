@@ -806,6 +806,14 @@ pub enum KeyAction {
 pub fn handle_key(state: &mut TuiState, key: ratatui::crossterm::event::KeyEvent) -> KeyAction {
     use ratatui::crossterm::event::{KeyCode, KeyModifiers};
 
+    // Help is a modal: Escape closes it and keys cannot leak through.
+    if state.help_overlay {
+        if key.code == KeyCode::Esc {
+            state.help_overlay = false;
+        }
+        return KeyAction::Continue;
+    }
+
     // Picker mode eats navigation before the editor sees it.
     if state.picker.is_some() {
         match key.code {
@@ -945,6 +953,10 @@ pub fn handle_key(state: &mut TuiState, key: ratatui::crossterm::event::KeyEvent
                                     KeyAction::Continue
                                 }
                                 Some(spec) => match spec.name {
+                                    "help" => {
+                                        state.help_overlay = true;
+                                        KeyAction::Continue
+                                    }
                                     "quit" => KeyAction::Quit,
                                     "agents" => {
                                         state.toggle_agents_panel();
@@ -1050,6 +1062,7 @@ pub fn handle_key(state: &mut TuiState, key: ratatui::crossterm::event::KeyEvent
             state.palette_complete();
             KeyAction::Continue
         }
+        (KeyCode::Esc, _) if state.phase != LoopPhase::Idle => KeyAction::Interrupt,
         (KeyCode::Esc, _) => {
             // Esc closes the palette (the picker handled its own Esc
             // above). A leftover sigil in the composer silently
@@ -1567,6 +1580,8 @@ pub struct TuiState {
     pub rows_cache: std::cell::RefCell<RowsCache>,
     /// Active picker overlay, if any (M4).
     pub picker: Option<PickerState>,
+    /// Searchable command-discovery overlay opened by /help.
+    pub help_overlay: bool,
     /// Live command palette, open while the buffer starts with a sigil.
     pub palette: Option<PaletteState>,
     /// In-flight streaming answer text; committed per line (M5).
@@ -1630,6 +1645,7 @@ impl Default for TuiState {
             last_vp_width: std::cell::Cell::new(80),
             rows_cache: std::cell::RefCell::new(RowsCache::default()),
             picker: None,
+            help_overlay: false,
             palette: None,
             answer_inflight: String::new(),
             agents: DelegationGraph::new(),
@@ -2586,6 +2602,46 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
                 .title(Span::styled(" commands ", sgr_style(&state.theme.accent)));
             f.render_widget(Paragraph::new(lines).block(block), rect);
         }
+    }
+
+    // Live-reference /help: command discovery is a modal, not transcript text.
+    if state.help_overlay {
+        let box_w = (area.width * 3 / 4).max(28).min(area.width);
+        let box_h = (TUI_COMMANDS.len() as u16 + 4).min(viewport.height.max(4));
+        let rect = Rect::new(
+            (area.width - box_w) / 2,
+            viewport.y + viewport.height.saturating_sub(box_h) / 2,
+            box_w,
+            box_h,
+        );
+        f.render_widget(ratatui::widgets::Clear, rect);
+        let mut lines = vec![
+            Line::from(Span::styled(
+                "Search...",
+                Style::default().add_modifier(Modifier::DIM),
+            )),
+            Line::from(""),
+        ];
+        lines.extend(
+            TUI_COMMANDS
+                .iter()
+                .take(box_h.saturating_sub(4) as usize)
+                .map(|c| {
+                    Line::from(vec![
+                        Span::styled(format!("/{:<14}", c.name), sgr_style(&state.theme.accent)),
+                        Span::styled(c.summary, Style::default().add_modifier(Modifier::DIM)),
+                    ])
+                }),
+        );
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(sgr_style(&state.theme.dim))
+            .title(Span::styled(
+                " Commands                                      esc ",
+                sgr_style(&state.theme.accent),
+            ));
+        f.render_widget(Paragraph::new(lines).block(block), rect);
     }
 
     // M4: the picker overlay - centered box over the transcript,
