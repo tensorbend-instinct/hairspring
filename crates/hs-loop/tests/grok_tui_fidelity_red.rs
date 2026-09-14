@@ -90,3 +90,28 @@ fn tool_activity_stays_inline_and_never_opens_a_permanent_machine_dashboard() {
         "advanced machinery remains on-demand: {s}"
     );
 }
+
+#[test]
+fn normal_surface_does_not_render_the_internal_loop_rail_or_session_counters() {
+    let mut st = TuiState::default();
+    st.session_title = "Work".into();
+    st.cwd_label = "~/hairspring".into();
+    st.cur_step = 2;
+    st.cur_action = "searching repository".into();
+    st.missions_run = 9;
+    st.total_steps = 200;
+    st.push_goal_echo("fix it");
+    let s = screen(&st, 90, 25);
+    assert!(
+        !s.contains("PLAN › ACT › OBSERVE › REFLECT"),
+        "internal phase rail hidden: {s}"
+    );
+    assert!(
+        !s.contains("9 missions") && !s.contains("200 steps"),
+        "counters do not compete with the task: {s}"
+    );
+    assert!(
+        s.contains("step 2 · searching repository"),
+        "current activity stays visible: {s}"
+    );
+}
