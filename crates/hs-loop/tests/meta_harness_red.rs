@@ -168,3 +168,82 @@ fn corrupt_or_missing_trial_evidence_fails_closed_and_resume_never_erases_histor
             .exists()
     );
 }
+
+#[test]
+fn candidate_and_task_paths_cannot_escape_history_root() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path().join("history");
+    let cfg = SearchConfig {
+        iterations: 1,
+        trials_per_task: 1,
+        search_tasks: vec!["../escape".into()],
+        baseline_name: "baseline".into(),
+    };
+    let result = MetaHarness::new(&root, cfg).run(
+        |_, _| CandidateProposal {
+            name: "../../candidate".into(),
+            parent: "baseline".into(),
+            hypothesis: "x".into(),
+            reflection: "x".into(),
+            files: [("../../outside".into(), "bad".into())].into(),
+        },
+        |_c, task, trial| TrialOutcome {
+            task: task.into(),
+            trial,
+            passed: true,
+            score: 1.0,
+            trace: "x".into(),
+            error: None,
+        },
+    );
+    assert!(result.is_err());
+    assert!(!tmp.path().join("outside").exists());
+}
+
+#[test]
+fn resume_rejects_a_different_search_protocol() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path().join("history");
+    let cfg = SearchConfig {
+        iterations: 1,
+        trials_per_task: 1,
+        search_tasks: vec!["task-a".into()],
+        baseline_name: "baseline".into(),
+    };
+    let proposer = |iteration, _history: &std::path::Path| CandidateProposal {
+        name: format!("cand-{iteration}"),
+        parent: "baseline".into(),
+        hypothesis: "x".into(),
+        reflection: "x".into(),
+        files: [("harness".into(), "x".into())].into(),
+    };
+    MetaHarness::new(&root, cfg)
+        .run(proposer, |_c, task, trial| TrialOutcome {
+            task: task.into(),
+            trial,
+            passed: true,
+            score: 1.0,
+            trace: "x".into(),
+            error: None,
+        })
+        .unwrap();
+    let changed = SearchConfig {
+        iterations: 1,
+        trials_per_task: 2,
+        search_tasks: vec!["task-b".into()],
+        baseline_name: "other".into(),
+    };
+    let result = MetaHarness::new(&root, changed).run(proposer, |_c, task, trial| TrialOutcome {
+        task: task.into(),
+        trial,
+        passed: true,
+        score: 1.0,
+        trace: "x".into(),
+        error: None,
+    });
+    assert!(
+        result.is_err(),
+        "a resumed search cannot silently change its baseline, tasks, or trial count"
+    );
+    assert!(!root.join("iterations/0002").exists());
+}
