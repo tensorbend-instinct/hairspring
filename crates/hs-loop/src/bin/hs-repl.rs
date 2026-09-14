@@ -56,16 +56,13 @@ fn parse_opts(args: &[String]) -> Result<Opts, Box<dyn std::error::Error>> {
         steering_inbox: arg(args, "--steering-inbox").map(PathBuf::from),
         task_inbox: arg(args, "--task-inbox").map(PathBuf::from),
         interrupt_file: arg(args, "--interrupt-file").map(PathBuf::from),
-        resume: args
-            .iter()
-            .position(|a| a == "--resume")
-            .map(|i| {
-                // UI gap #7: bare "--resume" (no uuid) opens the picker.
-                args.get(i + 1)
-                    .filter(|v| !v.starts_with("--"))
-                    .cloned()
-                    .unwrap_or_default()
-            }),
+        resume: args.iter().position(|a| a == "--resume").map(|i| {
+            // UI gap #7: bare "--resume" (no uuid) opens the picker.
+            args.get(i + 1)
+                .filter(|v| !v.starts_with("--"))
+                .cloned()
+                .unwrap_or_default()
+        }),
         fork: arg(args, "--fork"),
     })
 }
@@ -84,11 +81,14 @@ fn apply_streaming(session: &mut ReplSession) {
     let md_push = md.clone();
     session.set_delta_sink(Box::new(move |d: &str| {
         let mut err = std::io::stderr();
-        match md_push.lock() { Ok(mut s) => {
-            s.push(d, &mut err);
-        } _ => {
-            eprint!("{d}");
-        }}
+        match md_push.lock() {
+            Ok(mut s) => {
+                s.push(d, &mut err);
+            }
+            _ => {
+                eprint!("{d}");
+            }
+        }
         let _ = std::io::Write::flush(&mut std::io::stderr());
     }));
     let md_flush = md.clone();
@@ -113,10 +113,13 @@ fn apply_streaming(session: &mut ReplSession) {
 /// resolve through `hs_loop::repl::load_session`, so interactive and
 /// one-shot behave identically.
 fn build_session(opts: &Opts, lenient: bool) -> Result<ReplSession, Box<dyn std::error::Error>> {
-    let parse = |v: &Option<String>, flag: &str| -> Result<Option<uuid::Uuid>, Box<dyn std::error::Error>> {
+    let parse = |v: &Option<String>,
+                 flag: &str|
+     -> Result<Option<uuid::Uuid>, Box<dyn std::error::Error>> {
         v.as_ref()
             .map(|s| {
-                uuid::Uuid::parse_str(s).map_err(|e| format!("{flag} needs a stream uuid: {e}").into())
+                uuid::Uuid::parse_str(s)
+                    .map_err(|e| format!("{flag} needs a stream uuid: {e}").into())
             })
             .transpose()
     };
@@ -170,25 +173,23 @@ fn apply_guards(session: &mut ReplSession, opts: &Opts) {
     session.set_task_inbox(&tasks);
 }
 
-
 /// UI gap #10: the full-screen surface. TTY stdin gets the ratatui
 /// surface by default (`HS_TUI=off` falls back to line mode); piped stdin
 /// always stays byte-plain line mode. The mission runner lives on a
 /// worker thread that owns the session; the UI thread owns the
 /// terminal and the `TuiState`.
-fn run_fullscreen(
-    session: ReplSession,
-    opts: &Opts,
-) -> Result<(), Box<dyn std::error::Error>> {
-    use crossterm::event::{self, DisableBracketedPaste, EnableBracketedPaste, Event, MouseEventKind};
+fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::error::Error>> {
+    use crossterm::event::{
+        self, DisableBracketedPaste, EnableBracketedPaste, Event, MouseEventKind,
+    };
     use crossterm::execute;
     use crossterm::terminal::{
-        disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+        EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
     };
     use hs_loop::tui::{self, TuiState};
     use hs_loop::uipaint::{Theme, UiEvent};
-    use ratatui::backend::CrosstermBackend;
     use ratatui::Terminal;
+    use ratatui::backend::CrosstermBackend;
     use std::io::stdout;
     use std::sync::mpsc;
     use std::time::Duration;
@@ -199,7 +200,16 @@ fn run_fullscreen(
         Done(Result<(hs_loop::MissionResult, u64), String>),
         #[allow(clippy::type_complexity)]
         Switched(
-            Result<(String, String, uuid::Uuid, (u64, u64, u64, u64), Option<String>), String>,
+            Result<
+                (
+                    String,
+                    String,
+                    uuid::Uuid,
+                    (u64, u64, u64, u64),
+                    Option<String>,
+                ),
+                String,
+            >,
         ),
         ModelSet(Result<String, String>),
         CapsInfo(String),
@@ -229,6 +239,9 @@ fn run_fullscreen(
     let theme = Theme::from_env();
     let mut st = TuiState {
         theme: theme.clone(),
+        cwd_label: std::env::current_dir()
+            .map(|p| p.display().to_string())
+            .unwrap_or_default(),
         model_label: v0.model_label.clone(),
         missions_run: v0.missions_run,
         total_steps: v0.total_steps,
@@ -306,14 +319,12 @@ fn run_fullscreen(
                     let _ = tx.send(TuiMsg::ModelSet(r));
                 }
                 UiCmd::Switch(id) => {
-                    match hs_loop::repl::ReplSession::load_resume(
-                        &wcfg, &wdir, wfeedback, wmax, id,
-                    ) {
+                    match hs_loop::repl::ReplSession::load_resume(&wcfg, &wdir, wfeedback, wmax, id)
+                    {
                         Ok(new_session) => {
                             let v = new_session.vitals();
                             let label = v.model_label.clone();
-                            let short: String =
-                                v.stream_id.to_string().chars().take(8).collect();
+                            let short: String = v.stream_id.to_string().chars().take(8).collect();
                             // Restored accounting mirrors into the HUD
                             // (pre-resume totals, not zeros).
                             let stats = (
@@ -338,7 +349,8 @@ fn run_fullscreen(
                             session.set_ui_sink(Box::new(move |ev| {
                                 let _ = txs.send(TuiMsg::Ui(ev));
                             }));
-                            let _ = tx.send(TuiMsg::Switched(Ok((label, short, id, stats, notice))));
+                            let _ =
+                                tx.send(TuiMsg::Switched(Ok((label, short, id, stats, notice))));
                         }
                         Err(e) => {
                             let _ = tx.send(TuiMsg::Switched(Err(e.to_string())));
@@ -369,20 +381,21 @@ fn run_fullscreen(
     // M16: the live stream, so the picker can exclude it.
     let mut current_stream = v0.stream_id;
     let mut resume_sessions: Vec<hs_loop::repl::SessionInfo> = Vec::new();
-    let open_resume_picker = |st: &mut TuiState, current: uuid::Uuid| -> Vec<hs_loop::repl::SessionInfo> {
-        let infos = hs_loop::repl::list_sessions_excluding(&opts.dir, current);
-        if infos.is_empty() {
-            st.push_transcript_line("no prior sessions in this dir to resume");
-        } else {
-            let entries: Vec<String> = infos
-                .iter()
-                .enumerate()
-                .map(|(k, info)| hs_loop::repl::session_line(k + 1, info))
-                .collect();
-            st.open_picker(entries);
-        }
-        infos
-    };
+    let open_resume_picker =
+        |st: &mut TuiState, current: uuid::Uuid| -> Vec<hs_loop::repl::SessionInfo> {
+            let infos = hs_loop::repl::list_sessions_excluding(&opts.dir, current);
+            if infos.is_empty() {
+                st.push_transcript_line("no prior sessions in this dir to resume");
+            } else {
+                let entries: Vec<String> = infos
+                    .iter()
+                    .enumerate()
+                    .map(|(k, info)| hs_loop::repl::session_line(k + 1, info))
+                    .collect();
+                st.open_picker(entries);
+            }
+            infos
+        };
     if opts.resume.as_deref() == Some("") {
         resume_sessions = open_resume_picker(&mut st, current_stream);
     }
@@ -396,7 +409,7 @@ fn run_fullscreen(
                 TuiMsg::Done(r) => {
                     st.cur_step = 0;
                     st.cur_action.clear();
-running = false;
+                    running = false;
                     match r {
                         Ok((m, cost_total)) => {
                             last_answer = Some(m.answer_path.clone());
@@ -429,6 +442,7 @@ running = false;
                     // head of the queued goals next, if any.
                     if let Some(next) = st.next_queued_goal() {
                         running = true;
+                        st.session_title = next.chars().take(48).collect();
                         st.push_goal_echo(&next);
                         let _ = goal_tx.send(UiCmd::Goal(next));
                     }
@@ -449,7 +463,9 @@ running = false;
                         // history BEFORE the marker, so the screen
                         // reads like the session you picked.
                         tui::backfill_transcript(&mut st, &opts.dir, id);
-                        st.push_transcript_line(&format!("\u{2500}\u{2500} resumed stream {short}"));
+                        st.push_transcript_line(&format!(
+                            "\u{2500}\u{2500} resumed stream {short}"
+                        ));
                         if let Some(n) = notice {
                             st.push_transcript_line(&n);
                         }
@@ -542,8 +558,7 @@ running = false;
                             }
                         }
                         tui::KeyAction::Picked(tui::PickerKind::Resume, choice) => {
-                            if let Some(id) =
-                                resolve_resume_choice(&st, &resume_sessions, &choice)
+                            if let Some(id) = resolve_resume_choice(&st, &resume_sessions, &choice)
                             {
                                 if running {
                                     st.push_transcript_line(
@@ -594,8 +609,7 @@ running = false;
                                         st.editor.set_secret(false);
                                         let prov_path = hs_loop::realmodel::providers_toml_path()
                                             .unwrap_or_else(|| {
-                                                hs_loop::setup::config_dir()
-                                                    .join("providers.toml")
+                                                hs_loop::setup::config_dir().join("providers.toml")
                                             });
                                         let r = hs_loop::repl::add_provider(
                                             &ucfg, &prov_path, &name, &base_url, &model,
@@ -694,11 +708,10 @@ running = false;
                                 );
                                 st.open_picker_kind(tui::PickerKind::Models, entries);
                             } else if t == "/theme" {
-                                let entries: Vec<String> =
-                                    hs_loop::uipaint::available_themes()
-                                        .iter()
-                                        .map(|(n, _)| n.to_string())
-                                        .collect();
+                                let entries: Vec<String> = hs_loop::uipaint::available_themes()
+                                    .iter()
+                                    .map(|(n, _)| n.to_string())
+                                    .collect();
                                 st.open_picker_kind(tui::PickerKind::Themes, entries);
                             } else if t == "/last" {
                                 match &last_answer {
@@ -717,8 +730,9 @@ running = false;
                                             )),
                                         }
                                     }
-                                    None => st
-                                        .push_transcript_line("(no mission has finished yet)"),
+                                    None => {
+                                        st.push_transcript_line("(no mission has finished yet)")
+                                    }
                                 }
                             } else if let Some(goal) = t.strip_prefix('/') {
                                 st.push_transcript_line(&format!(
@@ -726,6 +740,7 @@ running = false;
                                 ));
                             } else if !running {
                                 running = true;
+                                st.session_title = t.chars().take(48).collect();
                                 st.push_goal_echo(&t);
                                 let _ = goal_tx.send(UiCmd::Goal(t));
                             } else {
@@ -762,7 +777,6 @@ running = false;
     }
     Ok(())
 }
-
 
 const USAGE: &str = "hairspring - the HAIRSPRING loop: one-shot missions and the interactive REPL
 
@@ -895,26 +909,27 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         std::io::stdin().is_terminal() && std::env::var("HS_TUI").as_deref() != Ok("off")
     };
     if let Some(r) = &opts.resume
-        && r.is_empty() && !tui_active {
-            use std::io::IsTerminal;
-            if !std::io::stdin().is_terminal() {
-                return Err("--resume without an id opens the picker, which needs a TTY; piped mode wants --resume <uuid>".into());
-            }
-            let sessions = hs_loop::repl::list_sessions(&opts.dir);
-            if sessions.is_empty() {
-                return Err("no prior sessions in this dir to resume".into());
-            }
-            eprintln!("prior sessions (newest first):");
-            for (i, s) in sessions.iter().enumerate() {
-                eprintln!("  {}", hs_loop::repl::session_line(i + 1, s));
-            }
-            eprint!("resume which? [1-{}] ", sessions.len());
-            let mut line = String::new();
-            std::io::stdin().read_line(&mut line)?;
-            let id = hs_loop::repl::pick_session(&sessions, &line)
-                .ok_or("invalid selection")?;
-            opts.resume = Some(id.to_string());
+        && r.is_empty()
+        && !tui_active
+    {
+        use std::io::IsTerminal;
+        if !std::io::stdin().is_terminal() {
+            return Err("--resume without an id opens the picker, which needs a TTY; piped mode wants --resume <uuid>".into());
         }
+        let sessions = hs_loop::repl::list_sessions(&opts.dir);
+        if sessions.is_empty() {
+            return Err("no prior sessions in this dir to resume".into());
+        }
+        eprintln!("prior sessions (newest first):");
+        for (i, s) in sessions.iter().enumerate() {
+            eprintln!("  {}", hs_loop::repl::session_line(i + 1, s));
+        }
+        eprint!("resume which? [1-{}] ", sessions.len());
+        let mut line = String::new();
+        std::io::stdin().read_line(&mut line)?;
+        let id = hs_loop::repl::pick_session(&sessions, &line).ok_or("invalid selection")?;
+        opts.resume = Some(id.to_string());
+    }
 
     // Sandbox preflight: every mission exec is confined by mechanism
     // (bwrap userns). A missing or blocked sandbox must be a STARTUP
@@ -975,7 +990,6 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
     Ok(())
 }
-
 
 /// Map a picked resume entry back to its stream id: the entry's leading
 /// "N)" number indexes the session list shown when the picker opened.

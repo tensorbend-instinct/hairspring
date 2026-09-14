@@ -9,11 +9,11 @@
 use std::collections::VecDeque;
 
 use ratatui::{
+    Frame,
     layout::Rect,
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, Paragraph},
-    Frame,
 };
 
 use hs_core::EventKind;
@@ -61,29 +61,29 @@ impl LoopPhase {
 #[must_use]
 pub fn kind_glyph(k: EventKind) -> char {
     match k {
-        EventKind::ModelCall => '\u{25c6}',       // ◆
-        EventKind::ToolCall => '\u{2699}',        // ⚙
-        EventKind::Observation => '\u{25c8}',     // ◈
-        EventKind::Decision => '\u{2726}',        // ✦
-        EventKind::ContextInject => '\u{21b3}',   // ↳
-        EventKind::Feedback => '\u{2713}',        // ✓
-        EventKind::SnapshotRef => '\u{2398}',     // ⎘
-        EventKind::Proposal => '\u{2731}',        // ✱
-        EventKind::Consequence => '\u{21af}',     // ↯
-        EventKind::GoalUpdate => '\u{25ce}',      // ◎
+        EventKind::ModelCall => '\u{25c6}',     // ◆
+        EventKind::ToolCall => '\u{2699}',      // ⚙
+        EventKind::Observation => '\u{25c8}',   // ◈
+        EventKind::Decision => '\u{2726}',      // ✦
+        EventKind::ContextInject => '\u{21b3}', // ↳
+        EventKind::Feedback => '\u{2713}',      // ✓
+        EventKind::SnapshotRef => '\u{2398}',   // ⎘
+        EventKind::Proposal => '\u{2731}',      // ✱
+        EventKind::Consequence => '\u{21af}',   // ↯
+        EventKind::GoalUpdate => '\u{25ce}',    // ◎
         EventKind::BudgetUpdate => '$',
-        EventKind::Spawn => '\u{2b21}',           // ⬡
-        EventKind::Message => '\u{2709}',         // ✉
-        EventKind::Mutation => '\u{270e}',        // ✎
-        EventKind::Score => '\u{2605}',           // ★
-        EventKind::ScorerPin => '\u{1f4cc}',      // 📌
-        EventKind::CanaryResult => '\u{1f41e}',   // 🐞
+        EventKind::Spawn => '\u{2b21}',            // ⬡
+        EventKind::Message => '\u{2709}',          // ✉
+        EventKind::Mutation => '\u{270e}',         // ✎
+        EventKind::Score => '\u{2605}',            // ★
+        EventKind::ScorerPin => '\u{1f4cc}',       // 📌
+        EventKind::CanaryResult => '\u{1f41e}',    // 🐞
         EventKind::AnchorResult => '\u{2693}',     // ⚓
-        EventKind::Prefetch => '\u{21bb}',        // ↻
-        EventKind::CapabilityDelta => '\u{0394}', // Δ
-        EventKind::FitnessDelta => '\u{2206}',    // ∆
-        EventKind::Regression => '\u{26a0}',      // ⚠
-        EventKind::CapabilityChange => '\u{21c4}',// ⇄
+        EventKind::Prefetch => '\u{21bb}',         // ↻
+        EventKind::CapabilityDelta => '\u{0394}',  // Δ
+        EventKind::FitnessDelta => '\u{2206}',     // ∆
+        EventKind::Regression => '\u{26a0}',       // ⚠
+        EventKind::CapabilityChange => '\u{21c4}', // ⇄
     }
 }
 
@@ -139,7 +139,9 @@ pub fn parse_caps_command(input: &str) -> Option<CapsCmd> {
     if t == "/caps" || t == ":caps" {
         return Some(CapsCmd::Query);
     }
-    let rest = t.strip_prefix("/caps ").or_else(|| t.strip_prefix(":caps "))?;
+    let rest = t
+        .strip_prefix("/caps ")
+        .or_else(|| t.strip_prefix(":caps "))?;
     let mut parts = rest.split_whitespace();
     let key = parts.next()?.to_string();
     let value = parts.next()?.to_string();
@@ -177,21 +179,81 @@ pub fn format_caps_listing(s: &CapsSnapshot) -> String {
 }
 
 pub const TUI_COMMANDS: &[CommandSpec] = &[
-    CommandSpec { name: "help", summary: "list commands", args: None },
-    CommandSpec { name: "status", summary: "model, missions, steps, calls, cost, stream", args: None },
-    CommandSpec { name: "history", summary: "goals submitted this session", args: None },
-    CommandSpec { name: "last", summary: "the latest mission's answer artifact", args: None },
-    CommandSpec { name: "resume", summary: "pick a prior session to continue", args: None },
-    CommandSpec { name: "caps", summary: "view or change the live caps (steps, wall, budget, critic)", args: Some("[key value]") },
-    CommandSpec { name: "models", summary: "pick the operator model", args: None },
-    CommandSpec { name: "models add", summary: "declare a new provider (answers in the composer)", args: Some("[name [base-url [model-id]]]") },
-    CommandSpec { name: "theme", summary: "pick the surface theme", args: None },
-    CommandSpec { name: "agents", summary: "toggle the delegation graph panel", args: None },
-    CommandSpec { name: "lineage", summary: "toggle the selfmod lineage panel", args: None },
-    CommandSpec { name: "scorer", summary: "toggle the scorer stream panel", args: None },
-    CommandSpec { name: "evidence", summary: "toggle the evidence claims panel", args: None },
-    CommandSpec { name: "time", summary: "toggle the T_mission decomposition panel", args: None },
-    CommandSpec { name: "quit", summary: "exit (Ctrl+C works too)", args: None },
+    CommandSpec {
+        name: "help",
+        summary: "list commands",
+        args: None,
+    },
+    CommandSpec {
+        name: "status",
+        summary: "model, missions, steps, calls, cost, stream",
+        args: None,
+    },
+    CommandSpec {
+        name: "history",
+        summary: "goals submitted this session",
+        args: None,
+    },
+    CommandSpec {
+        name: "last",
+        summary: "the latest mission's answer artifact",
+        args: None,
+    },
+    CommandSpec {
+        name: "resume",
+        summary: "pick a prior session to continue",
+        args: None,
+    },
+    CommandSpec {
+        name: "caps",
+        summary: "view or change the live caps (steps, wall, budget, critic)",
+        args: Some("[key value]"),
+    },
+    CommandSpec {
+        name: "models",
+        summary: "pick the operator model",
+        args: None,
+    },
+    CommandSpec {
+        name: "models add",
+        summary: "declare a new provider (answers in the composer)",
+        args: Some("[name [base-url [model-id]]]"),
+    },
+    CommandSpec {
+        name: "theme",
+        summary: "pick the surface theme",
+        args: None,
+    },
+    CommandSpec {
+        name: "agents",
+        summary: "toggle the delegation graph panel",
+        args: None,
+    },
+    CommandSpec {
+        name: "lineage",
+        summary: "toggle the selfmod lineage panel",
+        args: None,
+    },
+    CommandSpec {
+        name: "scorer",
+        summary: "toggle the scorer stream panel",
+        args: None,
+    },
+    CommandSpec {
+        name: "evidence",
+        summary: "toggle the evidence claims panel",
+        args: None,
+    },
+    CommandSpec {
+        name: "time",
+        summary: "toggle the T_mission decomposition panel",
+        args: None,
+    },
+    CommandSpec {
+        name: "quit",
+        summary: "exit (Ctrl+C works too)",
+        args: None,
+    },
 ];
 
 /// Exact command resolution (the "q" shorthand rides along).
@@ -350,20 +412,22 @@ fn inline_spans(text: &str, base: Style, theme: &crate::uipaint::Theme) -> Vec<S
         let after = &rest[i..];
         if let Some(body) = after.strip_prefix('`') {
             if let Some(close) = body.find('`')
-                && close > 0 {
-                    spans.push(Span::styled(body[..close].to_string(), code_style));
-                    rest = &body[close + 1..];
-                    continue;
-                }
+                && close > 0
+            {
+                spans.push(Span::styled(body[..close].to_string(), code_style));
+                rest = &body[close + 1..];
+                continue;
+            }
             spans.push(Span::styled("`".to_string(), base));
             rest = body;
         } else if let Some(body) = after.strip_prefix("**") {
             if let Some(close) = body.find("**")
-                && close > 0 {
-                    spans.push(Span::styled(body[..close].to_string(), bold));
-                    rest = &body[close + 2..];
-                    continue;
-                }
+                && close > 0
+            {
+                spans.push(Span::styled(body[..close].to_string(), bold));
+                rest = &body[close + 2..];
+                continue;
+            }
             spans.push(Span::styled("**".to_string(), base));
             rest = body;
         } else {
@@ -447,7 +511,10 @@ impl EditorState {
             self.lines.push(String::new());
         }
         let line = &mut self.lines[self.row];
-        let byte = line.char_indices().nth(self.col).map_or(line.len(), |(b, _)| b);
+        let byte = line
+            .char_indices()
+            .nth(self.col)
+            .map_or(line.len(), |(b, _)| b);
         line.insert(byte, c);
         self.col += 1;
     }
@@ -474,7 +541,10 @@ impl EditorState {
             self.lines.push(String::new());
         }
         let line = &mut self.lines[self.row];
-        let byte = line.char_indices().nth(self.col).map_or(line.len(), |(b, _)| b);
+        let byte = line
+            .char_indices()
+            .nth(self.col)
+            .map_or(line.len(), |(b, _)| b);
         let tail = line[byte..].to_string();
         line.truncate(byte);
         self.lines.insert(self.row + 1, tail);
@@ -534,7 +604,10 @@ impl EditorState {
     pub fn delete_forward(&mut self) {
         if self.col < self.line_len(self.row) {
             let line = &mut self.lines[self.row];
-            let byte = line.char_indices().nth(self.col).map_or(line.len(), |(b, _)| b);
+            let byte = line
+                .char_indices()
+                .nth(self.col)
+                .map_or(line.len(), |(b, _)| b);
             line.remove(byte);
         } else if self.row + 1 < self.lines.len() {
             let next = self.lines.remove(self.row + 1);
@@ -546,7 +619,10 @@ impl EditorState {
     pub fn kill_to_start(&mut self) {
         if self.col > 0 {
             let line = &mut self.lines[self.row];
-            let byte = line.char_indices().nth(self.col).map_or(line.len(), |(b, _)| b);
+            let byte = line
+                .char_indices()
+                .nth(self.col)
+                .map_or(line.len(), |(b, _)| b);
             line.replace_range(..byte, "");
             self.col = 0;
         }
@@ -558,7 +634,10 @@ impl EditorState {
         let len = self.line_len(self.row);
         if self.col < len {
             let line = &mut self.lines[self.row];
-            let byte = line.char_indices().nth(self.col).map_or(line.len(), |(b, _)| b);
+            let byte = line
+                .char_indices()
+                .nth(self.col)
+                .map_or(line.len(), |(b, _)| b);
             line.truncate(byte);
         } else if self.row + 1 < self.lines.len() {
             let next = self.lines.remove(self.row + 1);
@@ -569,7 +648,11 @@ impl EditorState {
     /// Column a word-left move would land on: skip whitespace left,
     /// then skip the word left. Line-local (no row hops).
     fn word_left_col(&self) -> usize {
-        let line: Vec<char> = self.lines.get(self.row).map(|l| l.chars().collect()).unwrap_or_default();
+        let line: Vec<char> = self
+            .lines
+            .get(self.row)
+            .map(|l| l.chars().collect())
+            .unwrap_or_default();
         let mut c = self.col.min(line.len());
         while c > 0 && line[c - 1].is_whitespace() {
             c -= 1;
@@ -588,7 +671,11 @@ impl EditorState {
     /// Word forward (Alt+Right / Alt+F / Ctrl+Right): skip the word,
     /// then the whitespace after it. Line-local.
     pub fn move_word_right(&mut self) {
-        let line: Vec<char> = self.lines.get(self.row).map(|l| l.chars().collect()).unwrap_or_default();
+        let line: Vec<char> = self
+            .lines
+            .get(self.row)
+            .map(|l| l.chars().collect())
+            .unwrap_or_default();
         let len = line.len();
         let mut c = self.col.min(len);
         while c < len && !line[c].is_whitespace() {
@@ -1094,17 +1181,18 @@ impl DelegationGraph {
     /// Record a child completion; newest knowledge wins.
     pub fn note_done(&mut self, child: uuid::Uuid, ok: bool) {
         if let Some(n) = self.nodes.iter_mut().find(|n| n.stream_id == child) {
-            n.status = if ok { AgentStatus::Done } else { AgentStatus::Failed };
+            n.status = if ok {
+                AgentStatus::Done
+            } else {
+                AgentStatus::Failed
+            };
         }
     }
 
     /// Derive the graph from the durable log: Spawn events on the
     /// operator stream name children; each child's completion comes
     /// from its own stream's latest `GoalUpdate`.
-    pub fn scan_stream(
-        log_root: &std::path::Path,
-        stream: uuid::Uuid,
-    ) -> Result<Self, String> {
+    pub fn scan_stream(log_root: &std::path::Path, stream: uuid::Uuid) -> Result<Self, String> {
         let reader = hs_log::StreamReader::open(log_root, stream)
             .map_err(|e| format!("open stream {stream}: {e}"))?;
         let events = reader.events().map_err(|e| format!("read stream: {e}"))?;
@@ -1140,25 +1228,27 @@ impl DelegationGraph {
             g.note_spawn(child, Some(stream), &mission, &model);
             // Completion: the child stream's latest GoalUpdate done flag.
             if let Ok(cr) = hs_log::StreamReader::open(log_root, child)
-                && let Ok(cevents) = cr.events() {
-                    for cev in cevents.iter().rev() {
-                        if cev.kind != EventKind::GoalUpdate {
-                            continue;
-                        }
-                        if let hs_core::Payload::Inline(cb) = &cev.payload
-                            && let Ok(cv) = serde_json::from_slice::<serde_json::Value>(cb) {
-                                // M12: terminal = done:true, or any close
-                                // carrying an outcome. hs-swarm's spawn-time
-                                // GoalUpdate {done:false} has no outcome -
-                                // an OPEN goal, still Running.
-                                let done = cv.get("done").and_then(serde_json::Value::as_bool);
-                                if done == Some(true) || cv.get("outcome").is_some() {
-                                    g.note_done(child, done.unwrap_or(false));
-                                }
-                            }
-                        break; // latest GoalUpdate decides
+                && let Ok(cevents) = cr.events()
+            {
+                for cev in cevents.iter().rev() {
+                    if cev.kind != EventKind::GoalUpdate {
+                        continue;
                     }
+                    if let hs_core::Payload::Inline(cb) = &cev.payload
+                        && let Ok(cv) = serde_json::from_slice::<serde_json::Value>(cb)
+                    {
+                        // M12: terminal = done:true, or any close
+                        // carrying an outcome. hs-swarm's spawn-time
+                        // GoalUpdate {done:false} has no outcome -
+                        // an OPEN goal, still Running.
+                        let done = cv.get("done").and_then(serde_json::Value::as_bool);
+                        if done == Some(true) || cv.get("outcome").is_some() {
+                            g.note_done(child, done.unwrap_or(false));
+                        }
+                    }
+                    break; // latest GoalUpdate decides
                 }
+            }
         }
         Ok(g)
     }
@@ -1171,11 +1261,7 @@ impl DelegationGraph {
 /// Internal distill calls never render. Pre-M14 a resume switched
 /// the stream but left the screen showing only "resumed stream X"
 /// (v2 cap6); pi/omp restore history on resume.
-pub fn backfill_transcript(
-    st: &mut TuiState,
-    log_root: &std::path::Path,
-    stream_id: uuid::Uuid,
-) {
+pub fn backfill_transcript(st: &mut TuiState, log_root: &std::path::Path, stream_id: uuid::Uuid) {
     let Ok(reader) = hs_log::StreamReader::open(log_root, stream_id) else {
         return;
     };
@@ -1188,12 +1274,13 @@ pub fn backfill_transcript(
     for ev in &events {
         match ev.kind {
             hs_core::EventKind::ModelCall => {
-                let Ok(bytes) = reader.resolve_payload(ev) else { continue };
+                let Ok(bytes) = reader.resolve_payload(ev) else {
+                    continue;
+                };
                 let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
                     continue;
                 };
-                let distill =
-                    v.get("why").and_then(|w| w.as_str()) == Some("distill");
+                let distill = v.get("why").and_then(|w| w.as_str()) == Some("distill");
                 calls += 1;
                 // The recorded per-call cost (Event.cost_usd_micros),
                 // never a token-rate estimate: a resumed session's
@@ -1211,14 +1298,15 @@ pub fn backfill_transcript(
                         st.push_goal_echo(&goal);
                     }
                 }
-                let completion =
-                    v.get("completion").and_then(|c| c.as_str()).unwrap_or("");
+                let completion = v.get("completion").and_then(|c| c.as_str()).unwrap_or("");
                 if !completion.trim().is_empty() {
                     st.push_transcript_markdown(completion, &theme);
                 }
             }
             hs_core::EventKind::GoalUpdate => {
-                let Ok(bytes) = reader.resolve_payload(ev) else { continue };
+                let Ok(bytes) = reader.resolve_payload(ev) else {
+                    continue;
+                };
                 let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
                     continue;
                 };
@@ -1228,8 +1316,7 @@ pub fn backfill_transcript(
                 let terminal = v.get("done").and_then(serde_json::Value::as_bool) == Some(true)
                     || v.get("outcome").is_some();
                 if terminal && mission_open {
-                    let outcome =
-                        v.get("outcome").and_then(|o| o.as_str()).unwrap_or("done");
+                    let outcome = v.get("outcome").and_then(|o| o.as_str()).unwrap_or("done");
                     // A continued mission's close carries the cumulative
                     // counters - the replayed done line shows the
                     // mission's whole life, not the last leg.
@@ -1268,7 +1355,6 @@ pub fn backfill_transcript(
     }
 }
 
-
 /// M14: the goal text of a mission, from its first operator call's
 /// messages. Prompts carry "MISSION: <goal>"; the goal runs to the
 /// first blank line (the MCP catalog suffix), preserving multi-line
@@ -1277,14 +1363,15 @@ fn extract_mission_text(v: &serde_json::Value) -> Option<String> {
     let msgs = v.get("messages")?.as_array()?;
     for m in msgs {
         if let Some(c) = m.get("content").and_then(|c| c.as_str())
-            && let Some(i) = c.find("MISSION: ") {
-                let rest = &c[i + 9..];
-                let end = rest.find("\n\n").unwrap_or(rest.len());
-                let goal = rest[..end].trim();
-                if !goal.is_empty() {
-                    return Some(goal.to_string());
-                }
+            && let Some(i) = c.find("MISSION: ")
+        {
+            let rest = &c[i + 9..];
+            let end = rest.find("\n\n").unwrap_or(rest.len());
+            let goal = rest[..end].trim();
+            if !goal.is_empty() {
+                return Some(goal.to_string());
             }
+        }
     }
     None
 }
@@ -1528,6 +1615,12 @@ pub struct TuiState {
     /// Surface theme (M9): every style on the surface derives from it;
     /// the bin fills it from `HS_THEME`.
     pub theme: crate::uipaint::Theme,
+    /// Grok-style session header title. Empty on the centered home screen.
+    pub session_title: String,
+    /// Quiet working-directory label in the footer.
+    pub cwd_label: String,
+    /// Provider context remaining, shown beside the model when known.
+    pub context_remaining_pct: Option<u8>,
     /// HUD vitals.
     pub model_label: String,
     pub missions_run: u64,
@@ -1565,6 +1658,9 @@ impl Default for TuiState {
             cur_action: String::new(),
             queued_goals: VecDeque::new(),
             theme: crate::uipaint::Theme::dark(),
+            session_title: String::new(),
+            cwd_label: String::new(),
+            context_remaining_pct: None,
             model_label: "hs".to_string(),
             missions_run: 0,
             total_steps: 0,
@@ -1720,7 +1816,7 @@ impl TuiState {
                 let tool = sgr_style(&self.theme.tool);
                 let dim = sgr_style(&self.theme.dim);
                 let mut spans = vec![
-                    Span::styled("\u{25b6} ", accent),
+                    Span::styled("\u{25a3} \u{25b6} ", accent),
                     Span::styled(plugin.clone(), tool),
                 ];
                 if !args_summary.is_empty() {
@@ -1937,9 +2033,10 @@ impl TuiState {
             return;
         }
         let matches = command_matches(rest);
-        let selected = self.palette.as_ref().map_or(0, |p| {
-            p.selected.min(matches.len().saturating_sub(1))
-        });
+        let selected = self
+            .palette
+            .as_ref()
+            .map_or(0, |p| p.selected.min(matches.len().saturating_sub(1)));
         self.palette = Some(PaletteState { matches, selected });
     }
 
@@ -1972,7 +2069,9 @@ impl TuiState {
     /// canonical spelling (arg-taking commands gain a trailing space).
     fn palette_complete(&mut self) {
         let Some(p) = &self.palette else { return };
-        let Some(cmd) = p.matches.get(p.selected) else { return };
+        let Some(cmd) = p.matches.get(p.selected) else {
+            return;
+        };
         let text = if cmd.args.is_some() {
             format!("/{} ", cmd.name)
         } else {
@@ -2221,7 +2320,24 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
     // at the edge while being typed, cursor included. Box height is
     // the WRAPPED row count + borders.
     let inner_w = area.width.saturating_sub(2).max(1);
-    let raw = format!("hs> {}", state.editor.display_text());
+    let active = !state.transcript.is_empty()
+        || !state.answer_inflight.is_empty()
+        || state.cur_step > 0
+        || !state.ticker.is_empty()
+        || !matches!(state.phase, LoopPhase::Idle);
+    let placeholder = if active && state.cur_step > 0 {
+        "Queue a follow-up... (esc to interrupt)"
+    } else if !active {
+        "What are we building?"
+    } else {
+        "Message HAIRSPRING..."
+    };
+    let shown_input = if state.editor.display_text().is_empty() {
+        placeholder.to_string()
+    } else {
+        state.editor.display_text()
+    };
+    let raw = format!("hs> {shown_input}");
     let wrapped_rows: usize = raw
         .split('\n')
         .map(|l| wrap_line(&Line::from(l.to_string()), inner_w).len())
@@ -2229,8 +2345,41 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
     let max_h = area.height.saturating_sub(4).max(3);
     let want_h = (wrapped_rows as u16 + 2).clamp(3, max_h);
     let composer = Rect::new(0, l.hud.y.saturating_sub(want_h), area.width, want_h);
-    let rail = Rect::new(0, composer.y.saturating_sub(1), area.width, composer.y.min(1));
-    let viewport = Rect::new(0, 0, area.width, rail.y);
+    let rail = Rect::new(
+        0,
+        composer.y.saturating_sub(1),
+        area.width,
+        composer.y.min(1),
+    );
+    let mut viewport = Rect::new(0, 0, area.width, rail.y);
+
+    // Grok CLI hierarchy: one slim session header above one message canvas.
+    if active && viewport.height > 1 {
+        let title = if state.session_title.is_empty() {
+            "Session"
+        } else {
+            &state.session_title
+        };
+        let left = format!("HAIRSPRING: {title}");
+        let mut spans = vec![Span::styled(left, sgr_style(&state.theme.accent))];
+        if !state.stream_short.is_empty() {
+            let used = spans[0].width() as u16;
+            let gap = viewport
+                .width
+                .saturating_sub(used + state.stream_short.len() as u16);
+            spans.push(Span::raw(" ".repeat(gap as usize)));
+            spans.push(Span::styled(
+                state.stream_short.clone(),
+                sgr_style(&state.theme.dim),
+            ));
+        }
+        f.render_widget(
+            Paragraph::new(Line::from(spans)),
+            Rect::new(0, 0, viewport.width, 1),
+        );
+        viewport.y += 1;
+        viewport.height -= 1;
+    }
 
     // M26: a fresh session is not a void - an empty transcript shows
     // a dim hint naming true next actions (pi/omp boot hints); it
@@ -2240,6 +2389,13 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
         && state.transcript.is_empty()
         && state.answer_inflight.is_empty()
     {
+        let hero = "HAIRSPRING";
+        let hero_y = viewport.y + viewport.height.saturating_sub(3) / 2;
+        let hero_x = viewport.x + viewport.width.saturating_sub(hero.len() as u16) / 2;
+        f.render_widget(
+            Paragraph::new(hero).style(sgr_style(&state.theme.accent).add_modifier(Modifier::BOLD)),
+            Rect::new(hero_x, hero_y, hero.len() as u16, 1),
+        );
         let hint = "type a goal and press Enter \u{00b7} /help for commands \u{00b7} /resume to pick a session";
         let hy = viewport.y + viewport.height / 2;
         let hw = hint.chars().count() as u16;
@@ -2298,7 +2454,7 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
 
     // Loop rail: phases on the left (active accented), ticker on the
     // right (oldest to newest).
-    if rail.height > 0 && rail.width > 0 {
+    if active && rail.height > 0 && rail.width > 0 {
         let accent = sgr_style(&state.theme.accent);
         let dim = Style::default().add_modifier(Modifier::DIM);
         let mut spans: Vec<Span> = Vec::new();
@@ -2347,20 +2503,25 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
     // on the editor's cell. The box grows with the buffer (viewport
     // yields), capped so the chrome always fits.
     if composer.height > 0 && composer.width > 0 {
-        let title = Line::from(vec![
-            Span::styled(
-                format!(" {} ", state.model_label),
-                sgr_style(&state.theme.accent),
+        let mut title_spans = vec![Span::styled(
+            format!(" {} ", state.model_label),
+            sgr_style(&state.theme.accent),
+        )];
+        if let Some(pct) = state.context_remaining_pct {
+            title_spans.push(Span::styled(
+                format!("\u{00b7} {pct}% context "),
+                sgr_style(&state.theme.dim),
+            ));
+        }
+        title_spans.push(Span::styled("\u{00b7} ", sgr_style(&state.theme.dim)));
+        title_spans.push(Span::styled(
+            format!(
+                "{} ",
+                crate::uipaint::format_usd_micros(state.total_cost_micros)
             ),
-            Span::styled("\u{00b7} ", sgr_style(&state.theme.dim)),
-            Span::styled(
-                format!(
-                    "{} ",
-                    crate::uipaint::format_usd_micros(state.total_cost_micros)
-                ),
-                sgr_style(&state.theme.cost),
-            ),
-        ]);
+            sgr_style(&state.theme.cost),
+        ));
+        let title = Line::from(title_spans);
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
@@ -2401,8 +2562,21 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
 
     // HUD: session vitals on the last row.
     if l.hud.height > 0 && l.hud.width > 0 {
-        let hud = Paragraph::new(state.hud_spans());
-        f.render_widget(hud, l.hud);
+        let mut footer = Vec::new();
+        if !state.cwd_label.is_empty() {
+            footer.push(Span::styled(
+                state.cwd_label.clone(),
+                sgr_style(&state.theme.dim),
+            ));
+            footer.push(Span::raw("  "));
+        }
+        footer.extend(state.hud_spans().spans);
+        if active && state.cur_step > 0 {
+            footer.push(Span::raw("  enter queue  esc interrupt"));
+        } else if active {
+            footer.push(Span::raw("  shift+enter new line  tab modes"));
+        }
+        f.render_widget(Paragraph::new(Line::from(footer)), l.hud);
     }
 
     // M32: the live command palette - anchored above the composer,
