@@ -87,11 +87,10 @@ fn full_history_filesystem_drives_later_proposals_and_external_scores_choose_fro
     );
     assert_eq!(result.frontier.name, "cand-2");
     assert_eq!(result.frontier.mean_score, 1.0);
-    assert_eq!(
+    assert!(
         std::fs::read_to_string(root.join("frontier.json"))
             .unwrap()
-            .contains("cand-2"),
-        true
+            .contains("cand-2")
     );
     assert_eq!(
         std::fs::read_to_string(root.join("evolution_summary.jsonl"))

@@ -23,22 +23,22 @@ fn cli_runs_normal_proposer_evaluator_path_and_resumes() {
     std::fs::write(&tasks, "task-a\n").unwrap();
     executable(
         &proposer,
-        r#"#!/usr/bin/env python3
+        r"#!/usr/bin/env python3
 import json,sys,pathlib
 it=int(sys.argv[1]); root=pathlib.Path(sys.argv[2]); out=sys.argv[3]
 if it == 2:
   assert 'failure-marker' in (root/'iterations/0001/candidates/cand-1/trials/task-a/0001/trace.log').read_text()
 json.dump({'name':f'cand-{it}','parent':'baseline' if it==1 else 'cand-1','hypothesis':'read full history','reflection':'diagnosed raw trace','files':{'harness.txt':f'candidate {it}'}},open(out,'w'))
-"#,
+",
     );
     executable(
         &evaluator,
-        r#"#!/usr/bin/env python3
+        r"#!/usr/bin/env python3
 import json,sys,pathlib
 candidate=pathlib.Path(sys.argv[1]).parent.name; task=sys.argv[2]; trial=int(sys.argv[3]); out=sys.argv[4]
 passed=candidate=='cand-2'
 json.dump({'task':task,'trial':trial,'passed':passed,'score':1.0 if passed else 0.0,'trace':'success-marker' if passed else 'failure-marker','error':None},open(out,'w'))
-"#,
+",
     );
     let bin = env!("CARGO_BIN_EXE_hs-meta-harness");
     let output = Command::new(bin)

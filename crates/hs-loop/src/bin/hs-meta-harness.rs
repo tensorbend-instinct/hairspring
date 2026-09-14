@@ -1,7 +1,7 @@
 //! Filesystem-native Meta-Harness CLI.
 //!
-//! Proposer arguments: ITERATION HISTORY_ROOT OUTPUT_JSON.
-//! Evaluator arguments: CANDIDATE_SOURCE_ROOT TASK TRIAL OUTPUT_JSON.
+//! Proposer arguments: `ITERATION HISTORY_ROOT OUTPUT_JSON`.
+//! Evaluator arguments: `CANDIDATE_SOURCE_ROOT TASK TRIAL OUTPUT_JSON`.
 use hs_loop::meta_harness::{CandidateProposal, MetaHarness, SearchConfig, TrialOutcome};
 use std::path::{Path, PathBuf};
 fn arg(a: &[String], f: &str) -> Option<String> {
