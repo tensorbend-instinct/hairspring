@@ -182,7 +182,7 @@ for a plugin's dying words.
 
 ## Documentation
 
-- [`docs/providers.md`](docs/providers.md) - DeepSeek and GLM are built in; any other OpenAI-compatible endpoint (OpenRouter, OpenAI direct, a local server) is configuration, not code.
+- [`docs/providers.md`](docs/providers.md) - DeepSeek and GLM are built in; any other OpenAI-compatible endpoint (OpenRouter, OpenAI direct, a local server) is configuration, not code.\n- [`docs/meta-harness.md`](docs/meta-harness.md) - filesystem-native outer-loop harness optimization with full source, traces, scores, and reflections.
 - [`hairspring.example.toml`](hairspring.example.toml) - the annotated rig config: tools, models, the two-phase checker, delegation, budgets.
 
 ## Development

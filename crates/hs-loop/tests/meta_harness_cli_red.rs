@@ -35,7 +35,7 @@ json.dump({'name':f'cand-{it}','parent':'baseline' if it==1 else 'cand-1','hypot
         &evaluator,
         r#"#!/usr/bin/env python3
 import json,sys,pathlib
-candidate=pathlib.Path(sys.argv[1]).name; task=sys.argv[2]; trial=int(sys.argv[3]); out=sys.argv[4]
+candidate=pathlib.Path(sys.argv[1]).parent.name; task=sys.argv[2]; trial=int(sys.argv[3]); out=sys.argv[4]
 passed=candidate=='cand-2'
 json.dump({'task':task,'trial':trial,'passed':passed,'score':1.0 if passed else 0.0,'trace':'success-marker' if passed else 'failure-marker','error':None},open(out,'w'))
 "#,

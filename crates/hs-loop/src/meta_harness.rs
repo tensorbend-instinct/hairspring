@@ -26,7 +26,7 @@ pub struct CandidateProposal {
     pub files: BTreeMap<String, String>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TrialOutcome {
     pub task: String,
     pub trial: u32,

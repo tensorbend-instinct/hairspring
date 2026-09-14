@@ -10,24 +10,24 @@ pub mod assembler;
 pub mod critic;
 pub mod editapply;
 pub mod evolve;
+pub mod promote;
 pub mod goal;
 pub mod ledger;
 pub mod mcpbridge;
 pub mod meta_harness;
 pub mod mission_time;
-pub mod msgfmt;
-pub mod projectroot;
-pub mod promote;
 pub mod publication;
+pub mod projectroot;
+pub mod msgfmt;
 pub mod realmodel;
 pub mod repexec;
 pub mod repl;
 pub mod repotools;
 pub mod selfcheck;
-pub mod setup;
-pub mod sweprompt;
 pub mod termexec;
+pub mod sweprompt;
 pub mod toolschema;
+pub mod setup;
 pub mod tui;
 pub mod tui_views;
 pub mod uipaint;
@@ -324,7 +324,11 @@ pub struct MissionSpan {
 /// mission never ran here or its last close was a pass (a passed mission
 /// is finished work - a re-run is NEW work, never a resume).
 #[must_use]
-pub fn mission_span(log_root: &Path, stream_id: uuid::Uuid, mission: &str) -> Option<MissionSpan> {
+pub fn mission_span(
+    log_root: &Path,
+    stream_id: uuid::Uuid,
+    mission: &str,
+) -> Option<MissionSpan> {
     let r = hs_log::StreamReader::open(log_root, stream_id).ok()?;
     let events = r.events().ok()?;
     let mut close: Option<(usize, String)> = None;
@@ -367,11 +371,7 @@ pub fn mission_span(log_root: &Path, stream_id: uuid::Uuid, mission: &str) -> Op
             .resolve_payload(e)
             .ok()
             .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
-            .and_then(|v| {
-                v.get("mission")
-                    .and_then(|m| m.as_str())
-                    .map(str::to_string)
-            })
+            .and_then(|v| v.get("mission").and_then(|m| m.as_str()).map(str::to_string))
             .as_deref()
             == Some(mission);
         if !same_mission {
@@ -561,9 +561,7 @@ impl InnerLoop {
                     if e.kind != hs_core::EventKind::ModelCall {
                         continue;
                     }
-                    let Ok(b) = r.resolve_payload(e) else {
-                        continue;
-                    };
+                    let Ok(b) = r.resolve_payload(e) else { continue };
                     let Ok(v) = serde_json::from_slice::<serde_json::Value>(&b) else {
                         continue;
                     };
@@ -574,8 +572,8 @@ impl InnerLoop {
                             .max(0) as u64
                     };
                     restored_cost = restored_cost.saturating_add(micros("cost_usd_micros"));
-                    restored_conservative = restored_conservative
-                        .saturating_add(micros("conservative_cost_usd_micros"));
+                    restored_conservative =
+                        restored_conservative.saturating_add(micros("conservative_cost_usd_micros"));
                 }
             }
         }
@@ -813,7 +811,9 @@ impl InnerLoop {
     }
 
     fn interrupt_requested(&self) -> bool {
-        self.interrupt_file.as_ref().is_some_and(|p| p.exists())
+        self.interrupt_file
+            .as_ref()
+            .is_some_and(|p| p.exists())
     }
 
     /// Native tool schemas for the operator model call (builtin +
@@ -841,10 +841,9 @@ impl InnerLoop {
 
     pub fn set_model_override(&mut self, model: Option<String>) -> Result<(), LoopError> {
         if let Some(m) = &model
-            && !self.kernel.has_model(m)
-        {
-            return Err(LoopError::Visibility(format!("unknown model: {m}")));
-        }
+            && !self.kernel.has_model(m) {
+                return Err(LoopError::Visibility(format!("unknown model: {m}")));
+            }
         // Spec 2.7/9.11: capability swaps are log transactions, not
         // silent edits. Book the binding change on the session stream
         // before it takes effect: old effective model -> new effective
@@ -1073,10 +1072,7 @@ impl InnerLoop {
     /// the mission workdir ("process and filesystem state back"), with the
     /// recovery BOOKED on the mission stream and measured - B6b's
     /// `T_mission` R term reads this, it is never assumed.
-    pub fn restore_workdir(
-        &mut self,
-        snapshot_id: &str,
-    ) -> Result<hs_world::SnapshotReport, LoopError> {
+    pub fn restore_workdir(&mut self, snapshot_id: &str) -> Result<hs_world::SnapshotReport, LoopError> {
         if self.world.is_none() {
             self.attach_world();
         }
@@ -1131,10 +1127,7 @@ impl InnerLoop {
     /// the model as ordinary tool output - never fatal to the mission.
     /// Returns None for non-world tools.
     fn world_dispatch(&mut self, tool: &str, args: &serde_json::Value) -> Option<ToolCallOutcome> {
-        if !matches!(
-            tool,
-            "world.propose" | "world.observe" | "world.install" | "world.tick"
-        ) {
+        if !matches!(tool, "world.propose" | "world.observe" | "world.install" | "world.tick") {
             return None;
         }
         let started = std::time::Instant::now();
@@ -1146,9 +1139,7 @@ impl InnerLoop {
             })
         };
         let Some(world) = &self.world else {
-            return done(
-                serde_json::json!({"error": format!("{tool}: no world attached to this session")}),
-            );
+            return done(serde_json::json!({"error": format!("{tool}: no world attached to this session")}));
         };
         match tool {
             "world.propose" => {
@@ -1213,9 +1204,7 @@ impl InnerLoop {
                                 })
                             })
                             .collect();
-                        done(
-                            serde_json::json!({"world_path": path, "count": rows.len(), "artifacts": rows}),
-                        )
+                        done(serde_json::json!({"world_path": path, "count": rows.len(), "artifacts": rows}))
                     }
                     Err(e) => done(serde_json::json!({"error": format!("world.observe: {e:?}")})),
                 }
@@ -1225,9 +1214,7 @@ impl InnerLoop {
                     .as_str()
                     .and_then(|s| uuid::Uuid::parse_str(s).ok())
                 else {
-                    return done(
-                        serde_json::json!({"error": "world.install: artifact_id must be a uuid"}),
-                    );
+                    return done(serde_json::json!({"error": "world.install: artifact_id must be a uuid"}));
                 };
                 match world.install(id) {
                     Ok(()) => done(serde_json::json!({"installed": id.to_string()})),
@@ -1257,11 +1244,7 @@ impl InnerLoop {
     /// itself, not an artifact effect - spec section 4: "for software
     /// work, the world is the execution environment" - so it is not
     /// routed here; artifact effects are.
-    fn world_artifact_write(
-        &mut self,
-        tool: &str,
-        args: &serde_json::Value,
-    ) -> Option<ToolCallOutcome> {
+    fn world_artifact_write(&mut self, tool: &str, args: &serde_json::Value) -> Option<ToolCallOutcome> {
         if tool != "answer.write" && tool != "answer.submit" {
             return None;
         }
@@ -1320,9 +1303,7 @@ impl InnerLoop {
                         serde_json::json!({"path": p.display().to_string(), "written": true})
                     }
                 }
-                Err(e) => {
-                    serde_json::json!({"error": format!("world materialization failed: {e:?}")})
-                }
+                Err(e) => serde_json::json!({"error": format!("world materialization failed: {e:?}")}),
             },
         };
         Some(ToolCallOutcome {
@@ -1409,9 +1390,8 @@ impl InnerLoop {
         }
         let output = cached.unwrap_or_else(|| self.fetch_memory(k));
         if self.prefetch_enabled && output.get("error").is_none() {
-            let tokens_est = u32::try_from(output.to_string().len().div_ceil(4))
-                .unwrap_or(u32::MAX)
-                .max(1);
+            let tokens_est =
+                u32::try_from(output.to_string().len().div_ceil(4)).unwrap_or(u32::MAX).max(1);
             self.prefetch = Some(PrefetchCache {
                 args: want,
                 result: output.clone(),
@@ -1567,11 +1547,13 @@ impl InnerLoop {
                         };
                         match e.kind {
                             EventKind::ToolCall => {
-                                if e.seq <= cutoff || !text.contains("\"plugin\":\"memory.recall\"")
+                                if e.seq <= cutoff
+                                    || !text.contains("\"plugin\":\"memory.recall\"")
                                 {
                                     continue;
                                 }
-                                let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else {
+                                let Ok(v) = serde_json::from_str::<serde_json::Value>(&text)
+                                else {
                                     continue;
                                 };
                                 if let Some(recs) = v["result"]["records"].as_array() {
@@ -1674,9 +1656,7 @@ impl InnerLoop {
             stream_id: self.stream_id,
             answer_path: answer_path.to_path_buf(),
             budget_killed: false,
-            cost_micros: self
-                .cost_total_micros
-                .saturating_sub(self.mission_cost_start),
+            cost_micros: self.cost_total_micros.saturating_sub(self.mission_cost_start),
             conservative_cost_micros: self
                 .conservative_cost_total_micros
                 .saturating_sub(self.mission_conservative_start),
@@ -1705,10 +1685,10 @@ impl InnerLoop {
                     let pc = self.pending_children.remove(i);
                     let ok = v["passed"].as_bool().unwrap_or(false);
                     if let Some(c) = v["cost_usd_micros"].as_i64()
-                        && c > 0
-                    {
-                        self.cost_total_micros = self.cost_total_micros.saturating_add(c as u64);
-                    }
+                        && c > 0 {
+                            self.cost_total_micros =
+                                self.cost_total_micros.saturating_add(c as u64);
+                        }
                     if let Some(sink) = self.ui_sink.as_mut() {
                         sink(uipaint::UiEvent::SubAgentFinished { child, ok });
                     }
@@ -1923,12 +1903,10 @@ impl InnerLoop {
                     stream_id: self.stream_id,
                     answer_path,
                     budget_killed: false,
-                    cost_micros: self
-                        .cost_total_micros
-                        .saturating_sub(self.mission_cost_start),
-                    conservative_cost_micros: self
-                        .conservative_cost_total_micros
-                        .saturating_sub(self.mission_conservative_start),
+            cost_micros: self.cost_total_micros.saturating_sub(self.mission_cost_start),
+            conservative_cost_micros: self
+                .conservative_cost_total_micros
+                .saturating_sub(self.mission_conservative_start),
                     harness_error: None,
                     outcome: "interrupted".to_string(),
                 });
@@ -1945,15 +1923,15 @@ impl InnerLoop {
             // grows monotonically; volatile lines (ATTEMPT/ARTIFACT/FEEDBACK)
             // go last, after the transcript tail.
             let t_assembly = std::time::Instant::now(); // time audit (Eric 2026-09-05)
-            // Structured messages (user directive 2026-09-05: EVERYTHING
-            // native, transcript included - efficiency first). The array is
-            // append-only: [mission][compaction?][history pairs...][state
-            // tail]. Every mutable block (ATTEMPT budget, ANSWER_PATH,
-            // ARTIFACT, FEEDBACK, LEDGER, MEMORY) rides ONLY in the final
-            // tail message, so the provider's cached prefix grows
-            // monotonically and no prior message is ever rewritten between
-            // steps (pre-migration the mutating LEDGER sat BEFORE the
-            // transcript, busting the cache for the whole history).
+                                                        // Structured messages (user directive 2026-09-05: EVERYTHING
+                                                        // native, transcript included - efficiency first). The array is
+                                                        // append-only: [mission][compaction?][history pairs...][state
+                                                        // tail]. Every mutable block (ATTEMPT budget, ANSWER_PATH,
+                                                        // ARTIFACT, FEEDBACK, LEDGER, MEMORY) rides ONLY in the final
+                                                        // tail message, so the provider's cached prefix grows
+                                                        // monotonically and no prior message is ever rewritten between
+                                                        // steps (pre-migration the mutating LEDGER sat BEFORE the
+                                                        // transcript, busting the cache for the whole history).
             let mut messages: Vec<serde_json::Value> = vec![serde_json::json!({
                 "role": "user",
                 "content": crate::msgfmt::mission_first_message(&prompt),
@@ -1987,10 +1965,8 @@ impl InnerLoop {
             // Delegation updates are mission events, never gated by
             // feedback mode: the model delegated and owns the outcome.
             if !delegation_updates.is_empty() {
-                volatile.push_str(
-                    "DELEGATION UPDATES (children you spawned):
-",
-                );
+                volatile.push_str("DELEGATION UPDATES (children you spawned):
+");
                 for u in &delegation_updates {
                     volatile.push_str(&format!("- {u}\n"));
                 }
@@ -2038,54 +2014,53 @@ impl InnerLoop {
             // restarts/freeze recovery.
             if self.feedback_injection
                 && let Ok(reader) = hs_log::StreamReader::open(&self.log_root, self.stream_id)
-                && let Ok(events) = reader.events()
-            {
-                volatile.push_str("LEDGER (your work so far, always current):\n");
-                volatile.push_str(&self.ledger.summary());
-                let mut asm =
-                    assembler::assemble_messages(&reader, &events, self.context_budget_chars);
-                if let Some(c) = &asm.compressed {
-                    // D1: distill the oldest events into the Codex
-                    // four-element handoff contract via the model;
-                    // the call is booked with its cost. On any
-                    // failure the ledger pointer already in place
-                    // stays - compression never destroys content.
-                    let distill_prompt = format!(
-                        "DISTILL: You are compacting an agent's earlier tool-call history for a fresh context. Summarize the calls below into EXACTLY four labeled sections: PROGRESS AND DECISIONS / CONSTRAINTS AND PREFERENCES / NEXT STEPS / CRITICAL DATA. Be terse; preserve file paths, line numbers, test names, and verdicts.\n\n{}",
-                        c.lines.join("\n")
-                    );
-                    let mut distilled: Option<String> = None;
-                    // M18: same bracket for the distill call -
-                    // it is booked (model_calls, cost) and must
-                    // show on the HUD like any other call.
-                    if let Some(sink) = self.ui_sink.as_mut() {
-                        sink(uipaint::UiEvent::ModelCallStart {
-                            model: self.last_model.clone().unwrap_or_default(),
-                        });
-                    }
-                    if let Ok(out) = self.kernel.call_model(
-                        "operator",
-                        self.model_override.as_deref(),
-                        &distill_prompt,
-                    ) {
-                        model_calls += 1;
-                        self.cost_total_micros += out.cost_usd_micros.max(0) as u64;
-                        self.conservative_cost_total_micros +=
-                            out.conservative_cost_usd_micros.max(0) as u64;
-                        if let Some(sink) = self.ui_sink.as_mut() {
-                            sink(uipaint::UiEvent::ModelCallEnd {
-                                model: out.model.clone(),
-                                input_tokens: out.input_tokens,
-                                output_tokens: out.output_tokens,
-                                cost_usd_micros: out.cost_usd_micros,
-                            });
-                        }
-                        if let Some(ev) = uipaint::reasoning_event(&out.reasoning_content) {
+                    && let Ok(events) = reader.events() {
+                        volatile.push_str("LEDGER (your work so far, always current):\n");
+                        volatile.push_str(&self.ledger.summary());
+                        let mut asm = assembler::assemble_messages(
+                            &reader,
+                            &events,
+                            self.context_budget_chars,
+                        );
+                        if let Some(c) = &asm.compressed {
+                            // D1: distill the oldest events into the Codex
+                            // four-element handoff contract via the model;
+                            // the call is booked with its cost. On any
+                            // failure the ledger pointer already in place
+                            // stays - compression never destroys content.
+                            let distill_prompt = format!(
+                                "DISTILL: You are compacting an agent's earlier tool-call history for a fresh context. Summarize the calls below into EXACTLY four labeled sections: PROGRESS AND DECISIONS / CONSTRAINTS AND PREFERENCES / NEXT STEPS / CRITICAL DATA. Be terse; preserve file paths, line numbers, test names, and verdicts.\n\n{}",
+                                c.lines.join("\n")
+                            );
+                            let mut distilled: Option<String> = None;
+                            // M18: same bracket for the distill call -
+                            // it is booked (model_calls, cost) and must
+                            // show on the HUD like any other call.
                             if let Some(sink) = self.ui_sink.as_mut() {
-                                sink(ev);
+                                sink(uipaint::UiEvent::ModelCallStart {
+                                    model: self.last_model.clone().unwrap_or_default(),
+                                });
                             }
-                        }
-                        let _ = self.writer.append(
+                            if let Ok(out) =
+                                self.kernel.call_model("operator", self.model_override.as_deref(), &distill_prompt)
+                            {
+                                model_calls += 1;
+                                self.cost_total_micros += out.cost_usd_micros.max(0) as u64;
+            self.conservative_cost_total_micros += out.conservative_cost_usd_micros.max(0) as u64;
+                                if let Some(sink) = self.ui_sink.as_mut() {
+                                    sink(uipaint::UiEvent::ModelCallEnd {
+                                        model: out.model.clone(),
+                                        input_tokens: out.input_tokens,
+                                        output_tokens: out.output_tokens,
+                                        cost_usd_micros: out.cost_usd_micros,
+                                    });
+                                }
+                                    if let Some(ev) = uipaint::reasoning_event(&out.reasoning_content) {
+                                        if let Some(sink) = self.ui_sink.as_mut() {
+                                            sink(ev);
+                                        }
+                                    }
+                                let _ = self.writer.append(
                                         EventBuilder::new(EventKind::ModelCall)
                                             .payload(Payload::Inline(
                                                 serde_json::to_vec(&serde_json::json!({
@@ -2104,22 +2079,22 @@ impl InnerLoop {
                                             .latency_ms(out.latency_ms)
                                             .cost_usd_micros(out.cost_usd_micros),
                                     );
-                        distilled = Some(out.completion);
-                    }
-                    let did_distill = distilled.is_some();
-                    if let Some(summary) = distilled {
-                        // Item 2 (Codex handoff framing): a colleague
-                        // handed this work off - build on it, don't
-                        // re-verify it from scratch.
-                        asm.messages[0] = serde_json::json!({
-                            "role": "user",
-                            "content": format!(
-                                "COMPACTED {} earlier tool calls (events seq {}..{}, refs {}..{}). Another run started this mission and did that work before handing off to you. Its handoff summary follows - build on it, do not redo it:\n{}",
-                                c.count, c.lo_seq, c.hi_seq, c.lo_id, c.hi_id, summary
-                            ),
-                        });
-                    }
-                    let _ = self.writer.append(
+                                distilled = Some(out.completion);
+                            }
+                            let did_distill = distilled.is_some();
+                            if let Some(summary) = distilled {
+                                // Item 2 (Codex handoff framing): a colleague
+                                // handed this work off - build on it, don't
+                                // re-verify it from scratch.
+                                asm.messages[0] = serde_json::json!({
+                                    "role": "user",
+                                    "content": format!(
+                                        "COMPACTED {} earlier tool calls (events seq {}..{}, refs {}..{}). Another run started this mission and did that work before handing off to you. Its handoff summary follows - build on it, do not redo it:\n{}",
+                                        c.count, c.lo_seq, c.hi_seq, c.lo_id, c.hi_id, summary
+                                    ),
+                                });
+                            }
+                            let _ = self.writer.append(
                                 EventBuilder::new(EventKind::ContextInject)
                                     .payload(Payload::Inline(
                                         format!(
@@ -2129,9 +2104,9 @@ impl InnerLoop {
                                         .into_bytes(),
                                     )),
                             );
-                }
-                messages.extend(asm.messages);
-            }
+                        }
+                        messages.extend(asm.messages);
+                    }
 
             messages.push(serde_json::json!({"role": "user", "content": volatile}));
             let assembly_ms = t_assembly.elapsed().as_millis() as u64; // capture BEFORE the model call (was after: read as ~latency)
@@ -2186,14 +2161,13 @@ impl InnerLoop {
             {
                 let rc = out.reasoning_content.trim();
                 if !rc.is_empty() {
-                    self.reasoning_tail.push_str(
-                        "
+                    self.reasoning_tail.push_str("
 ---
-",
-                    );
+");
                     self.reasoning_tail.push_str(rc);
                     if self.reasoning_tail.len() > REASONING_EVIDENCE_MAX_CHARS {
-                        let mut cut = self.reasoning_tail.len() - REASONING_EVIDENCE_MAX_CHARS;
+                        let mut cut =
+                            self.reasoning_tail.len() - REASONING_EVIDENCE_MAX_CHARS;
                         while !self.reasoning_tail.is_char_boundary(cut) {
                             cut += 1;
                         }
@@ -2209,11 +2183,11 @@ impl InnerLoop {
                     cost_usd_micros: out.cost_usd_micros,
                 });
             }
-            if let Some(ev) = uipaint::reasoning_event(&out.reasoning_content) {
-                if let Some(sink) = self.ui_sink.as_mut() {
-                    sink(ev);
+                if let Some(ev) = uipaint::reasoning_event(&out.reasoning_content) {
+                    if let Some(sink) = self.ui_sink.as_mut() {
+                        sink(ev);
+                    }
                 }
-            }
             // T5c: checkpoint EVERY step after the model-call accounting,
             // answer or not - a wall kill must never book a 0-step row for
             // a mission that did real work (ab2 17092/17102/17117 lost
@@ -2245,12 +2219,10 @@ impl InnerLoop {
                         stream_id: self.stream_id,
                         answer_path,
                         budget_killed: true,
-                        cost_micros: self
-                            .cost_total_micros
-                            .saturating_sub(self.mission_cost_start),
-                        conservative_cost_micros: self
-                            .conservative_cost_total_micros
-                            .saturating_sub(self.mission_conservative_start),
+            cost_micros: self.cost_total_micros.saturating_sub(self.mission_cost_start),
+            conservative_cost_micros: self
+                .conservative_cost_total_micros
+                .saturating_sub(self.mission_conservative_start),
                         harness_error: None,
                         outcome: "budget_killed".to_string(),
                     });
@@ -2810,8 +2782,7 @@ impl InnerLoop {
                         Ok(vout) => {
                             model_calls += 1;
                             self.cost_total_micros += vout.cost_usd_micros.max(0) as u64;
-                            self.conservative_cost_total_micros +=
-                                vout.conservative_cost_usd_micros.max(0) as u64;
+                            self.conservative_cost_total_micros += vout.conservative_cost_usd_micros.max(0) as u64;
                             if let Some(sink) = self.ui_sink.as_mut() {
                                 sink(uipaint::UiEvent::ModelCallEnd {
                                     model: vout.model.clone(),
@@ -2820,11 +2791,11 @@ impl InnerLoop {
                                     cost_usd_micros: vout.cost_usd_micros,
                                 });
                             }
-                            if let Some(ev) = uipaint::reasoning_event(&vout.reasoning_content) {
-                                if let Some(sink) = self.ui_sink.as_mut() {
-                                    sink(ev);
+                                if let Some(ev) = uipaint::reasoning_event(&vout.reasoning_content) {
+                                    if let Some(sink) = self.ui_sink.as_mut() {
+                                        sink(ev);
+                                    }
                                 }
-                            }
                             self.writer.append(
                                 EventBuilder::new(EventKind::ModelCall).payload(Payload::Inline(
                                     serde_json::to_vec(&serde_json::json!({
@@ -2856,11 +2827,10 @@ impl InnerLoop {
                                     .ok()
                                     .filter(|env| env["tool"].as_str() == Some("verdict.submit"))
                                     .map(|env| env["args"].clone());
-                            if let Some(v) = verdict_args {
-                                match v["refuted"].as_bool() {
-                                    Some(false) => {
-                                        self.prior_gaps.clear();
-                                        self.writer.append(
+                            if let Some(v) = verdict_args { match v["refuted"].as_bool() {
+                                Some(false) => {
+                                    self.prior_gaps.clear();
+                                    self.writer.append(
                                         EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
                                             serde_json::to_vec(&serde_json::json!({
                                                 "why": "verifier", "round": round, "verdict": "not_refuted",
@@ -2868,22 +2838,22 @@ impl InnerLoop {
                                             .expect("json! values serialize"),
                                         )),
                                     )?;
-                                    }
-                                    Some(true) => {
-                                        let findings: Vec<String> = v["findings"]
-                                            .as_array()
-                                            .map(|a| {
-                                                a.iter()
-                                                    .filter_map(|f| {
-                                                        f["detail"].as_str().map(String::from)
-                                                    })
-                                                    .collect()
-                                            })
-                                            .unwrap_or_default();
-                                        let blocking =
-                                            v["blocking"].as_str().unwrap_or("none").to_string();
-                                        self.prior_gaps = findings.clone();
-                                        self.writer.append(
+                                }
+                                Some(true) => {
+                                    let findings: Vec<String> = v["findings"]
+                                        .as_array()
+                                        .map(|a| {
+                                            a.iter()
+                                                .filter_map(|f| {
+                                                    f["detail"].as_str().map(String::from)
+                                                })
+                                                .collect()
+                                        })
+                                        .unwrap_or_default();
+                                    let blocking =
+                                        v["blocking"].as_str().unwrap_or("none").to_string();
+                                    self.prior_gaps = findings.clone();
+                                    self.writer.append(
                                         EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
                                             serde_json::to_vec(&serde_json::json!({
                                                 "why": "verifier", "round": round, "verdict": "refuted",
@@ -2892,20 +2862,20 @@ impl InnerLoop {
                                             .expect("json! values serialize"),
                                         )),
                                     )?;
-                                        // DISC accounting: a verifier refutation is a judgment
-                                        // intervention WITH findings - detection by construction.
-                                        self.idi_interventions += 1;
-                                        self.idi_detections += 1;
-                                        pending_feedback.push(format!(
-                                            "VERIFIER REFUTED (blocking={blocking}): {}",
-                                            findings.join("; ")
-                                        ));
-                                        self.checkpoint(steps, model_calls);
-                                        continue;
-                                    }
-                                    None => {
-                                        outcome = "verifier_malfunction";
-                                        self.writer.append(
+                                    // DISC accounting: a verifier refutation is a judgment
+                                    // intervention WITH findings - detection by construction.
+                                    self.idi_interventions += 1;
+                                    self.idi_detections += 1;
+                                    pending_feedback.push(format!(
+                                        "VERIFIER REFUTED (blocking={blocking}): {}",
+                                        findings.join("; ")
+                                    ));
+                                    self.checkpoint(steps, model_calls);
+                                    continue;
+                                }
+                                None => {
+                                    outcome = "verifier_malfunction";
+                                    self.writer.append(
                                         EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
                                             serde_json::to_vec(&serde_json::json!({
                                                 "why": "verifier_error", "round": round,
@@ -2914,9 +2884,8 @@ impl InnerLoop {
                                             .expect("json! values serialize"),
                                         )),
                                     )?;
-                                    }
                                 }
-                            } else {
+                            } } else {
                                 outcome = "verifier_malfunction";
                                 self.writer.append(
                                     EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
@@ -2969,12 +2938,10 @@ impl InnerLoop {
                         stream_id: self.stream_id,
                         answer_path,
                         budget_killed: false,
-                        cost_micros: self
-                            .cost_total_micros
-                            .saturating_sub(self.mission_cost_start),
-                        conservative_cost_micros: self
-                            .conservative_cost_total_micros
-                            .saturating_sub(self.mission_conservative_start),
+            cost_micros: self.cost_total_micros.saturating_sub(self.mission_cost_start),
+            conservative_cost_micros: self
+                .conservative_cost_total_micros
+                .saturating_sub(self.mission_conservative_start),
                         harness_error: None,
                         outcome: "ratchet_capped".to_string(),
                     });
@@ -3010,12 +2977,10 @@ impl InnerLoop {
                     stream_id: self.stream_id,
                     answer_path,
                     budget_killed: false,
-                    cost_micros: self
-                        .cost_total_micros
-                        .saturating_sub(self.mission_cost_start),
-                    conservative_cost_micros: self
-                        .conservative_cost_total_micros
-                        .saturating_sub(self.mission_conservative_start),
+            cost_micros: self.cost_total_micros.saturating_sub(self.mission_cost_start),
+            conservative_cost_micros: self
+                .conservative_cost_total_micros
+                .saturating_sub(self.mission_conservative_start),
                     harness_error: None,
                     outcome: outcome.to_string(),
                 });
@@ -3039,9 +3004,7 @@ impl InnerLoop {
             stream_id: self.stream_id,
             answer_path,
             budget_killed: false,
-            cost_micros: self
-                .cost_total_micros
-                .saturating_sub(self.mission_cost_start),
+            cost_micros: self.cost_total_micros.saturating_sub(self.mission_cost_start),
             conservative_cost_micros: self
                 .conservative_cost_total_micros
                 .saturating_sub(self.mission_conservative_start),
