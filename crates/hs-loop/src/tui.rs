@@ -2325,7 +2325,7 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
     // as the transcript) - pre-M25 a goal longer than the box clipped
     // at the edge while being typed, cursor included. Box height is
     // the WRAPPED row count + borders.
-    let inner_w = area.width.saturating_sub(2).max(1);
+    let inner_w = area.width.saturating_sub(8).max(1);
     let active = !state.transcript.is_empty()
         || !state.answer_inflight.is_empty()
         || state.cur_step > 0
@@ -2343,14 +2343,18 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
     } else {
         state.editor.display_text()
     };
-    let raw = format!("hs> {shown_input}");
+    let raw = format!("Agent  {shown_input}");
     let wrapped_rows: usize = raw
         .split('\n')
         .map(|l| wrap_line(&Line::from(l.to_string()), inner_w).len())
         .sum();
-    let max_h = area.height.saturating_sub(4).max(3);
-    let want_h = (wrapped_rows as u16 + 2).clamp(3, max_h);
-    let composer = Rect::new(0, l.hud.y.saturating_sub(want_h), area.width, want_h);
+    let want_h = (wrapped_rows as u16 + 1).clamp(2, area.height.saturating_sub(3).max(2));
+    let composer = Rect::new(
+        2.min(area.width),
+        l.hud.y.saturating_sub(want_h),
+        area.width.saturating_sub(4),
+        want_h,
+    );
     let rail = Rect::new(
         0,
         composer.y.saturating_sub(1),
@@ -2469,46 +2473,16 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
         );
     }
 
-    // Composer: rounded box, model+cost title, editor content, cursor
-    // on the editor's cell. The box grows with the buffer (viewport
-    // yields), capped so the chrome always fits.
+    // Composer: the live reference uses one quiet prompt row, not a dashboard box.
     if composer.height > 0 && composer.width > 0 {
-        let mut title_spans = vec![Span::styled(
-            format!(" {} ", state.model_label),
-            sgr_style(&state.theme.accent),
-        )];
-        if let Some(pct) = state.context_remaining_pct {
-            title_spans.push(Span::styled(
-                format!("\u{00b7} {pct}% context "),
-                sgr_style(&state.theme.dim),
-            ));
-        }
-        title_spans.push(Span::styled("\u{00b7} ", sgr_style(&state.theme.dim)));
-        title_spans.push(Span::styled(
-            format!(
-                "{} ",
-                crate::uipaint::format_usd_micros(state.total_cost_micros)
-            ),
-            sgr_style(&state.theme.cost),
-        ));
-        let title = Line::from(title_spans);
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .border_style(sgr_style(&state.theme.dim))
-            .title(title);
         let mut content: Vec<Line> = Vec::new();
         for l in raw.split('\n') {
             content.extend(wrap_line(&Line::from(l.to_string()), inner_w));
         }
-        let input = Paragraph::new(content).block(block);
-        f.render_widget(input, composer);
-        if composer.height >= 3 && composer.width > 6 {
+        f.render_widget(Paragraph::new(content), composer);
+        if composer.width > 7 {
             let (row, col) = state.editor.cursor();
-            // M25: wrap the buffer up to (row, col) the same way the
-            // content wrapped; the cursor lands on the last wrapped
-            // row's tail, not on the old unwrapped (row, col) cell.
-            let mut before = String::from("hs> ");
+            let mut before = String::from("Agent  ");
             for (i, l) in state.editor.display_text().split('\n').enumerate() {
                 if i < row {
                     before.push_str(l);
@@ -2522,11 +2496,38 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
             for l in before.split('\n') {
                 bl.extend(wrap_line(&Line::from(l.to_string()), inner_w));
             }
-            let cy = composer.y + 1 + bl.len().saturating_sub(1) as u16;
-            let cx = composer.x + 1 + bl.last().map_or(0, |l| l.width() as u16);
-            if cx < composer.x + composer.width - 1 && cy < composer.y + composer.height - 1 {
+            let cy = composer.y + bl.len().saturating_sub(1) as u16;
+            let cx = composer.x + bl.last().map_or(0, |l| l.width() as u16);
+            if cx < composer.x + composer.width && cy < composer.y + composer.height {
                 f.set_cursor_position((cx, cy));
             }
+        }
+        let mut meta = vec![Span::styled(
+            state.model_label.clone(),
+            sgr_style(&state.theme.dim),
+        )];
+        if let Some(pct) = state.context_remaining_pct {
+            meta.push(Span::styled(
+                format!("  {pct}% context"),
+                sgr_style(&state.theme.dim),
+            ));
+        }
+        let hints = if active && state.cur_step > 0 {
+            "  enter queue  esc interrupt"
+        } else {
+            "  @ files  shift+enter new line  tab modes"
+        };
+        meta.push(Span::styled(hints, sgr_style(&state.theme.dim)));
+        if composer.height > 1 {
+            f.render_widget(
+                Paragraph::new(Line::from(meta)),
+                Rect::new(
+                    composer.x,
+                    composer.y + composer.height - 1,
+                    composer.width,
+                    1,
+                ),
+            );
         }
     }
 
@@ -2565,9 +2566,21 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
         let ph = rows + 2;
         if composer.y > ph + 1 {
             let w = area.width.min(64);
-            let rect = Rect::new(composer.x, composer.y - ph, w, ph);
+            let ph = (ph + 2).min(viewport.height.max(3));
+            let rect = Rect::new(
+                (area.width - w) / 2,
+                viewport.y + viewport.height.saturating_sub(ph) / 2,
+                w,
+                ph,
+            );
             f.render_widget(ratatui::widgets::Clear, rect);
-            let mut lines: Vec<Line> = Vec::new();
+            let mut lines: Vec<Line> = vec![
+                Line::from(Span::styled(
+                    "Search...",
+                    Style::default().add_modifier(Modifier::DIM),
+                )),
+                Line::from(""),
+            ];
             if p.matches.is_empty() {
                 lines.push(Line::from(Span::styled(
                     "  no matching commands",
@@ -2599,7 +2612,7 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
                 .border_style(sgr_style(&state.theme.dim))
-                .title(Span::styled(" commands ", sgr_style(&state.theme.accent)));
+                .title(Span::styled(" Commands ", sgr_style(&state.theme.accent)));
             f.render_widget(Paragraph::new(lines).block(block), rect);
         }
     }
