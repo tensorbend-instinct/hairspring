@@ -45,16 +45,6 @@ impl LoopPhase {
         LoopPhase::Observe,
         LoopPhase::Reflect,
     ];
-
-    fn label(self) -> &'static str {
-        match self {
-            LoopPhase::Idle => "",
-            LoopPhase::Plan => "PLAN",
-            LoopPhase::Act => "ACT",
-            LoopPhase::Observe => "OBSERVE",
-            LoopPhase::Reflect => "REFLECT",
-        }
-    }
 }
 
 /// One glyph per stream event kind for the loop-rail ticker.
@@ -2452,51 +2442,15 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
         }
     }
 
-    // Loop rail: phases on the left (active accented), ticker on the
-    // right (oldest to newest).
+    // Grok-style active status: one right-aligned line naming only the
+    // current step and action. Internal phases remain available in the
+    // optional decomposition views instead of competing with the task.
     if active && rail.height > 0 && rail.width > 0 {
-        let accent = sgr_style(&state.theme.accent);
-        let dim = Style::default().add_modifier(Modifier::DIM);
-        let mut spans: Vec<Span> = Vec::new();
-        for (i, ph) in LoopPhase::ALL.iter().enumerate() {
-            if i > 0 {
-                spans.push(Span::styled(" \u{203a} ", dim)); // ›
-            }
-            let style = if *ph == state.phase { accent } else { dim };
-            spans.push(Span::styled(ph.label(), style));
-        }
-        // M27: phases get their full MEASURED width - pre-M27 a fixed
-        // 3/5 split clipped "REFLECT" to "R" at 40 columns. The
-        // ticker takes the remainder and yields entirely below a
-        // readable minimum (4 cells); only a terminal narrower than
-        // the rail itself clips phase names.
-        let phases_w: u16 = (LoopPhase::ALL
-            .iter()
-            .map(|p| p.label().chars().count())
-            .sum::<usize>()
-            + 3 * (LoopPhase::ALL.len() - 1)) as u16;
-        let left_w = phases_w.min(rail.width);
-        let phases = Paragraph::new(Line::from(spans));
-        f.render_widget(phases, Rect::new(rail.x, rail.y, left_w, 1));
-        let right_w = rail.width - left_w;
-        if right_w >= 4 {
-            let ticker: String = state.ticker.iter().map(|k| kind_glyph(*k)).collect();
-            // Eric 2026-09-10: the rail names what is happening NOW
-            // (step/max + action), ticker glyphs trailing behind it.
-            let activity = state.activity_line();
-            let right = if activity.is_empty() {
-                ticker
-            } else if ticker.is_empty() {
-                activity
-            } else {
-                format!("{activity}  {ticker}")
-            };
-            let tick = Paragraph::new(right).alignment(ratatui::layout::Alignment::Right);
-            f.render_widget(
-                tick,
-                Rect::new(rail.x + left_w.min(rail.width), rail.y, right_w, 1),
-            );
-        }
+        let activity = state.activity_line();
+        f.render_widget(
+            Paragraph::new(activity).alignment(ratatui::layout::Alignment::Right),
+            rail,
+        );
     }
 
     // Composer: rounded box, model+cost title, editor content, cursor
@@ -2570,7 +2524,16 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
             ));
             footer.push(Span::raw("  "));
         }
-        footer.extend(state.hud_spans().spans);
+        footer.push(Span::styled(
+            state.model_label.clone(),
+            sgr_style(&state.theme.dim),
+        ));
+        if let Some(pct) = state.context_remaining_pct {
+            footer.push(Span::styled(
+                format!("  {pct}% context"),
+                sgr_style(&state.theme.dim),
+            ));
+        }
         if active && state.cur_step > 0 {
             footer.push(Span::raw("  enter queue  esc interrupt"));
         } else if active {

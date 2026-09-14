@@ -7,9 +7,9 @@
 
 use hs_loop::tui::{self, TuiState};
 use hs_loop::uipaint::{Theme, UiEvent};
+use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::style::{Color, Modifier};
-use ratatui::Terminal;
 
 fn render(st: &TuiState, w: u16, h: u16) -> ratatui::buffer::Buffer {
     let backend = TestBackend::new(w, h);
@@ -19,7 +19,12 @@ fn render(st: &TuiState, w: u16, h: u16) -> ratatui::buffer::Buffer {
 }
 
 /// Find all cells whose symbol equals `sym`; returns (x, y, fg, modifier).
-fn cells(buf: &ratatui::buffer::Buffer, sym: &str, w: u16, h: u16) -> Vec<(u16, u16, Color, Modifier)> {
+fn cells(
+    buf: &ratatui::buffer::Buffer,
+    sym: &str,
+    w: u16,
+    h: u16,
+) -> Vec<(u16, u16, Color, Modifier)> {
     let mut out = Vec::new();
     for y in 0..h {
         for x in 0..w {
@@ -58,9 +63,16 @@ fn tool_call_lines_carry_theme_colors() {
     // ...the plugin name speaks the tool color...
     let trow = arrows[0].1;
     let text = row_text(&buf, trow, 80);
-    assert!(text.contains("term.exec"), "plugin on the arrow row: {text}");
+    assert!(
+        text.contains("term.exec"),
+        "plugin on the arrow row: {text}"
+    );
     let name_x = text.find("term.exec").unwrap() as u16;
-    assert_eq!(buf[(name_x, trow)].fg, Color::Cyan, "plugin in theme tool color");
+    assert_eq!(
+        buf[(name_x, trow)].fg,
+        Color::Cyan,
+        "plugin in theme tool color"
+    );
     // ...and the ok verdict speaks theme.ok (green).
     let checks = cells(&buf, "\u{2713}", 80, 24);
     assert!(!checks.is_empty(), "ok check rendered");
@@ -110,26 +122,36 @@ fn composer_border_is_dim_and_title_accented() {
     // The model label on the border row speaks the accent.
     let (_, cy, _, _) = corners[0];
     let text = row_text(&buf, cy, 80);
-    assert!(text.contains("scripted"), "composer title on border row: {text}");
+    assert!(
+        text.contains("scripted"),
+        "composer title on border row: {text}"
+    );
     let lx = text.find("scripted").unwrap() as u16;
-    assert_eq!(buf[(lx, cy)].fg, Color::Cyan, "composer model label accented");
+    assert_eq!(
+        buf[(lx, cy)].fg,
+        Color::Cyan,
+        "composer model label accented"
+    );
 }
 
 #[test]
-fn hud_separators_dim_and_cost_colored() {
+fn footer_is_quiet_and_task_focused() {
     let mut st = TuiState::default();
-    st.missions_run = 1;
-    st.total_steps = 2;
-    st.total_model_calls = 3;
+    st.model_label = "deepseek".into();
+    st.cwd_label = "~/hairspring".into();
+    st.context_remaining_pct = Some(73);
     st.total_cost_micros = 2100;
-    st.stream_short = "abc123".into();
     let buf = render(&st, 80, 24);
-    let hud = row_text(&buf, 23, 80);
-    assert!(hud.contains("$0.0021"), "hud cost rendered: {hud}");
-    let cx = hud.find("$0.0021").unwrap() as u16;
-    assert_eq!(buf[(cx, 23)].fg, Color::Yellow, "hud cost in theme.cost (33)");
-    let sx = hud.find("\u{00b7}").unwrap() as u16;
-    assert!(buf[(sx, 23)].modifier.contains(Modifier::DIM), "hud separators dim");
+    let footer = row_text(&buf, 23, 80);
+    assert!(
+        footer.contains("~/hairspring") && footer.contains("deepseek"),
+        "cwd + model: {footer}"
+    );
+    assert!(footer.contains("73% context"), "context meter: {footer}");
+    assert!(
+        !footer.contains("missions") && !footer.contains("calls"),
+        "no machine counters: {footer}"
+    );
 }
 
 #[test]
