@@ -84,3 +84,29 @@ fn typing_slash_opens_centered_searchable_command_discovery() {
         "overlay occupies canvas rather than attaching to composer: {s}"
     );
 }
+
+#[test]
+fn narrow_home_does_not_clip_an_instruction_banner() {
+    let st = TuiState::default();
+    let s = screen(&st, 60, 20);
+    assert!(
+        !s.contains("type a goal and press Enter"),
+        "live narrow home relies on prompt, without clipped duplicate instructions: {s}"
+    );
+}
+#[test]
+fn model_picker_has_the_same_search_first_hierarchy() {
+    let mut st = TuiState::default();
+    st.open_picker_kind(
+        tui::PickerKind::Models,
+        vec!["scripted (current)".into(), "+ Add provider...".into()],
+    );
+    let s = screen(&st, 100, 32);
+    assert!(
+        s.contains("Select model")
+            && s.contains("Search...")
+            && s.contains("enter select")
+            && s.contains("esc close"),
+        "live picker hierarchy: {s}"
+    );
+}
