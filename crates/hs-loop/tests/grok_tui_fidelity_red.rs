@@ -26,6 +26,7 @@ fn empty_home_centers_identity_and_prompt_instead_of_showing_an_empty_dashboard(
     st.model_label = "DeepSeek V4 Pro".into();
     st.cwd_label = "~/hairspring".into();
     let s = screen(&st, 80, 24);
+    let _ = std::fs::write("/tmp/hairspring-grok-home.txt", &s);
     assert!(s.contains("HAIRSPRING"), "home identity: {s}");
     assert!(
         s.contains("What are we building?"),
