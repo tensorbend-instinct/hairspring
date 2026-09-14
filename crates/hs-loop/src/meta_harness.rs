@@ -197,15 +197,20 @@ impl MetaHarness {
 
     fn write_manifest(&self) -> Result<(), MetaHarnessError> {
         let p = self.root.join("search_config.json");
-        if !p.exists() {
-            fs::write(
-                p,
-                serde_json::to_vec_pretty(&serde_json::json!({
-                    "baseline": self.config.baseline_name,
-                    "trials_per_task": self.config.trials_per_task,
-                    "search_tasks": self.config.search_tasks,
-                }))?,
-            )?;
+        let expected = serde_json::json!({
+            "baseline": self.config.baseline_name,
+            "trials_per_task": self.config.trials_per_task,
+            "search_tasks": self.config.search_tasks,
+        });
+        if p.exists() {
+            let existing: serde_json::Value = serde_json::from_slice(&fs::read(&p)?)?;
+            if existing != expected {
+                return Err(MetaHarnessError::Invalid(
+                    "resume configuration differs from the recorded search protocol".into(),
+                ));
+            }
+        } else {
+            fs::write(p, serde_json::to_vec_pretty(&expected)?)?;
         }
         Ok(())
     }
