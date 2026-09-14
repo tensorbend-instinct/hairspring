@@ -5,8 +5,11 @@
 //! newline (multi-line), submit-with-history, and rendering that puts
 //! the terminal cursor on the editor's cursor cell.
 
-use hs_loop::tui::{render_skeleton, TuiState};
-use ratatui::{backend::{Backend, TestBackend}, Terminal};
+use hs_loop::tui::{TuiState, render_skeleton};
+use ratatui::{
+    Terminal,
+    backend::{Backend, TestBackend},
+};
 
 // R1: typing inserts at the cursor and advances it.
 #[test]
@@ -59,14 +62,26 @@ fn r3_submit_and_history() {
     assert_eq!(st.editor.history_up(), Some("second".to_string()));
     assert_eq!(st.editor.text(), "second");
     assert_eq!(st.editor.history_up(), Some("first".to_string()));
-    assert_eq!(st.editor.history_up(), Some("first".to_string()), "clamped at oldest");
+    assert_eq!(
+        st.editor.history_up(),
+        Some("first".to_string()),
+        "clamped at oldest"
+    );
     assert_eq!(st.editor.history_down(), Some("second".to_string()));
-    assert_eq!(st.editor.history_down(), Some(String::new()), "back to the live line");
-    assert_eq!(st.editor.submit(), None, "empty submit is None, no history entry");
+    assert_eq!(
+        st.editor.history_down(),
+        Some(String::new()),
+        "back to the live line"
+    );
+    assert_eq!(
+        st.editor.submit(),
+        None,
+        "empty submit is None, no history entry"
+    );
 }
 
 // R4: the composer renders editor text and the frame cursor sits on the
-// editor cursor cell (inside the box, after the "hs> " prompt).
+// editor cursor cell after the quiet "Agent  " label.
 #[test]
 fn r4_render_places_cursor() {
     let backend = TestBackend::new(80, 24);
@@ -78,10 +93,17 @@ fn r4_render_places_cursor() {
     term.draw(|f| render_skeleton(f, &st)).unwrap();
     let buf = term.backend().buffer();
     let row: String = (0..80).map(|x| buf[(x, 21)].symbol()).collect();
-    assert!(row.contains("hs> probe"), "editor text inside the box: {row:?}");
+    assert!(
+        row.contains("Agent  probe"),
+        "editor text on prompt row: {row:?}"
+    );
     let pos = term.backend_mut().get_cursor_position().unwrap();
     let (cx, cy) = (pos.x, pos.y);
-    assert_eq!((cx, cy), (10, 21), "cursor after 'hs> probe' (1 border + 9 chars)");
+    assert_eq!(
+        (cx, cy),
+        (14, 21),
+        "cursor after the indented Agent label + probe"
+    );
 }
 
 // R5: vertical cursor movement across a multi-line buffer.
@@ -100,5 +122,9 @@ fn r5_vertical_movement() {
     assert_eq!(st.editor.cursor(), (0, 1), "same column on the longer line");
     st.editor.move_end();
     st.editor.move_down();
-    assert_eq!(st.editor.cursor(), (1, 1), "clamped at the shorter line's end");
+    assert_eq!(
+        st.editor.cursor(),
+        (1, 1),
+        "clamped at the shorter line's end"
+    );
 }

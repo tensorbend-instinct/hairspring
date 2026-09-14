@@ -6,7 +6,7 @@
 //! state.
 
 use hs_loop::tui::{self, TuiState};
-use ratatui::{backend::TestBackend, Terminal};
+use ratatui::{Terminal, backend::TestBackend};
 
 // R1: the picker overlay renders centered over the transcript with a
 // numbered, highlighted selection.
@@ -86,22 +86,33 @@ fn r3_page_and_wheel_scroll() {
     let backend = TestBackend::new(40, 24);
     let mut term = Terminal::new(backend).unwrap();
     term.draw(|f| tui::render_skeleton(f, &st)).unwrap();
-    let bottom: String = (0..40).map(|x| term.backend().buffer()[(x, 18)].symbol()).collect();
-    assert!(bottom.contains("line 40"), "paged up 19 from 59: {bottom:?}");
+    let bottom: String = (0..40)
+        .map(|x| term.backend().buffer()[(x, 18)].symbol())
+        .collect();
+    assert!(
+        bottom.contains("line 39"),
+        "paged up under the larger live-reference viewport: {bottom:?}"
+    );
     st.transcript_wheel_up(3);
     term.draw(|f| tui::render_skeleton(f, &st)).unwrap();
-    let bottom2: String = (0..40).map(|x| term.backend().buffer()[(x, 18)].symbol()).collect();
-    assert!(bottom2.contains("line 37"), "wheel up 3 more: {bottom2:?}");
+    let bottom2: String = (0..40)
+        .map(|x| term.backend().buffer()[(x, 18)].symbol())
+        .collect();
+    assert!(bottom2.contains("line 36"), "wheel up 3 more: {bottom2:?}");
     st.transcript_page_up(19);
     st.transcript_page_up(19);
     st.transcript_page_up(19);
     term.draw(|f| tui::render_skeleton(f, &st)).unwrap();
-    let top: String = (0..40).map(|x| term.backend().buffer()[(x, 0)].symbol()).collect();
+    let top: String = (0..40)
+        .map(|x| term.backend().buffer()[(x, 1)].symbol())
+        .collect();
     assert!(top.contains("line 00"), "clamped at the very top: {top:?}");
     st.transcript_wheel_down(3);
     term.draw(|f| tui::render_skeleton(f, &st)).unwrap();
-    // Window is lines[0..4]: row 0 holds line 00, row 3 holds line 03.
-    let row3: String = (0..40).map(|x| term.backend().buffer()[(x, 3)].symbol()).collect();
+    // Window is lines[0..4]: header owns row 0; row 1 holds line 00, row 4 holds line 03.
+    let row3: String = (0..40)
+        .map(|x| term.backend().buffer()[(x, 4)].symbol())
+        .collect();
     assert!(row3.contains("line 03"), "wheel back down 3: {row3:?}");
 }
 
@@ -115,12 +126,22 @@ fn r4_resize_reflows() {
     let small = TestBackend::new(60, 15);
     let mut term = Terminal::new(small).unwrap();
     term.draw(|f| tui::render_skeleton(f, &st)).unwrap();
-    let hud_small: String = (0..60).map(|x| term.backend().buffer()[(x, 14)].symbol()).collect();
-    assert!(hud_small.contains("missions"), "HUD on the last row at 15 rows");
+    let hud_small: String = (0..60)
+        .map(|x| term.backend().buffer()[(x, 14)].symbol())
+        .collect();
+    assert!(
+        hud_small.contains("hs"),
+        "quiet model footer on the last row at 15 rows"
+    );
     let big = TestBackend::new(120, 40);
     let mut term2 = Terminal::new(big).unwrap();
     term2.draw(|f| tui::render_skeleton(f, &st)).unwrap();
-    let hud_big: String = (0..120).map(|x| term2.backend().buffer()[(x, 39)].symbol()).collect();
-    assert!(hud_big.contains("missions"), "HUD on the last row at 40 rows");
+    let hud_big: String = (0..120)
+        .map(|x| term2.backend().buffer()[(x, 39)].symbol())
+        .collect();
+    assert!(
+        hud_big.contains("hs"),
+        "quiet model footer on the last row at 40 rows"
+    );
     assert_eq!(st.transcript.len(), 10, "transcript untouched by resize");
 }
