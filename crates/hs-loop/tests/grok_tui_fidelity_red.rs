@@ -52,6 +52,7 @@ fn active_session_has_one_header_message_canvas_prompt_and_contextual_footer() {
     st.cur_action = "thinking".into();
     st.push_goal_echo("Find and fix the bug");
     let s = screen(&st, 100, 28);
+    let _ = std::fs::write("/tmp/hairspring-grok-active.txt", &s);
     assert!(
         s.contains("HAIRSPRING: Fix the verifier"),
         "clear session header: {s}"
