@@ -54,3 +54,33 @@ fn escape_interrupts_an_active_run_like_the_live_reference() {
         KeyAction::Interrupt
     );
 }
+
+#[test]
+fn prompt_is_quiet_borderless_row_not_a_large_box() {
+    let mut st = TuiState::default();
+    st.model_label = "scripted".into();
+    let s = screen(&st, 100, 32);
+    assert!(
+        s.contains("Agent  What are we building?"),
+        "live reference labels the one quiet prompt row: {s}"
+    );
+    assert!(
+        !s.contains('╭') && !s.contains('╰'),
+        "prompt must not be a bordered dashboard widget: {s}"
+    );
+}
+#[test]
+fn typing_slash_opens_centered_searchable_command_discovery() {
+    let mut st = TuiState::default();
+    type_text(&mut st, "/");
+    let s = screen(&st, 60, 20);
+    assert!(
+        s.contains("Commands") && s.contains("Search..."),
+        "live slash overlay: {s}"
+    );
+    assert!(
+        s.find("Commands").unwrap_or(usize::MAX)
+            < s.find("What are we building?").unwrap_or(usize::MAX),
+        "overlay occupies canvas rather than attaching to composer: {s}"
+    );
+}
