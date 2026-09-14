@@ -110,28 +110,20 @@ fn goal_echo_arrow_is_accented() {
 }
 
 #[test]
-fn composer_border_is_dim_and_title_accented() {
+fn prompt_is_quiet_and_model_moves_to_meta_row() {
     let mut st = TuiState::default();
     st.model_label = "scripted".into();
     let buf = render(&st, 80, 24);
-    // Top-left composer corner is the ╭ glyph on row h-5+1 = 20 at h=24.
-    let corners = cells(&buf, "\u{256d}", 80, 24);
-    assert!(!corners.is_empty(), "composer corner rendered");
-    let (_, _, _, m) = corners[0];
-    assert!(m.contains(Modifier::DIM), "composer border dim: {m:?}");
-    // The model label on the border row speaks the accent.
-    let (_, cy, _, _) = corners[0];
-    let text = row_text(&buf, cy, 80);
-    assert!(
-        text.contains("scripted"),
-        "composer title on border row: {text}"
-    );
-    let lx = text.find("scripted").unwrap() as u16;
-    assert_eq!(
-        buf[(lx, cy)].fg,
-        Color::Cyan,
-        "composer model label accented"
-    );
+    let all = (0..24)
+        .map(|y| row_text(&buf, y, 80))
+        .collect::<Vec<_>>()
+        .join(
+            "
+",
+        );
+    assert!(all.contains("Agent  What are we building?"));
+    assert!(!all.contains('╭') && !all.contains('╰'));
+    assert!(all.contains("scripted  @ files"));
 }
 
 #[test]

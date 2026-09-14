@@ -32,8 +32,7 @@ fn r1_four_region_layout() {
     assert_eq!(l.viewport.width, 100);
 }
 
-// R2: the skeleton renders: composer box borders pinned at the bottom,
-// HUD text on the last row.
+// R2: the skeleton renders one quiet prompt row and footer, matching the live reference.
 #[test]
 fn r2_skeleton_renders_pinned_composer_and_hud() {
     let backend = TestBackend::new(80, 24);
@@ -41,40 +40,23 @@ fn r2_skeleton_renders_pinned_composer_and_hud() {
     term.draw(|f| tui::render_skeleton(f, &tui::TuiState::default()))
         .unwrap();
     let buf = term.backend().buffer();
-    // Composer top border on row 20 (24 rows: viewport 0..19, rail 19?
-    // layout: hud=23, composer=20..23, rail=19, viewport 0..19).
-    let top_row: String = (0..80).map(|x| buf[(x, 20)].symbol()).collect();
+    let all = (0..24)
+        .map(|y| (0..80).map(|x| buf[(x, y)].symbol()).collect::<String>())
+        .collect::<Vec<_>>()
+        .join(
+            "
+",
+        );
     assert!(
-        top_row.starts_with('\u{256d}'),
-        "composer top-left corner: {top_row:?}"
+        all.contains("Agent  What are we building?"),
+        "quiet prompt: {all}"
     );
     assert!(
-        top_row.ends_with('\u{256e}'),
-        "composer top-right corner: {top_row:?}"
-    );
-    let bot_row: String = (0..80).map(|x| buf[(x, 22)].symbol()).collect();
-    assert!(
-        bot_row.starts_with('\u{2570}'),
-        "composer bottom-left: {bot_row:?}"
-    );
-    assert!(
-        bot_row.ends_with('\u{256f}'),
-        "composer bottom-right: {bot_row:?}"
+        !all.contains('╭') && !all.contains('╰'),
+        "no prompt widget border: {all}"
     );
     let hud: String = (0..80).map(|x| buf[(x, 23)].symbol()).collect();
-    assert!(
-        hud.contains("hs"),
-        "footer carries the active model: {hud:?}"
-    );
-    assert!(
-        !hud.contains("missions"),
-        "normal footer omits machine counters: {hud:?}"
-    );
-    let input: String = (0..80).map(|x| buf[(x, 21)].symbol()).collect();
-    assert!(
-        input.contains("hs> "),
-        "composer input line carries the prompt: {input:?}"
-    );
+    assert!(hud.contains("hs"));
 }
 
 // R3: the active status row names the current work without exposing the
@@ -91,7 +73,13 @@ fn r3_activity_row_is_task_focused() {
     };
     term.draw(|f| tui::render_skeleton(f, &state)).unwrap();
     let buf = term.backend().buffer();
-    let rail: String = (0..80).map(|x| buf[(x, 19)].symbol()).collect();
+    let rail: String = (0..24)
+        .map(|y| (0..80).map(|x| buf[(x, y)].symbol()).collect::<String>())
+        .collect::<Vec<_>>()
+        .join(
+            "
+",
+        );
     assert!(
         rail.contains("step 2 · running tests"),
         "current work is visible: {rail:?}"
