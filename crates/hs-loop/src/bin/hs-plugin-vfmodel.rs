@@ -11,14 +11,14 @@
 include!("shared/sdk.rs");
 
 fn main() {
-    let script: Vec<String> =
-        std::fs::read_to_string(std::env::var("HS_VF_SCRIPT").expect("HS_VF_SCRIPT"))
-            .expect("script readable")
-            .lines()
-            .filter(|l| !l.trim().is_empty())
-            .map(std::string::ToString::to_string)
-            .collect();
+    // The script is re-read per call (2026-09-14): a long-lived loop runs
+    // many missions, and a test rewrites the script between them.
+    let script_path = std::env::var("HS_VF_SCRIPT").expect("HS_VF_SCRIPT");
     let n = std::cell::Cell::new(0usize);
+    // Optional scripted reasoning for the mission model calls
+    // (HS_VF_REASONING): proves the verifier audits the agent's own
+    // reasoning, not just the ledger.
+    let reasoning = std::env::var("HS_VF_REASONING").ok();
     serve(
         "vfmodel",
         "model",
@@ -51,6 +51,27 @@ fn main() {
                                 .and_then(|n| n.parse::<usize>().ok())
                                 .map(|n| format!("TOKEN-{n}-SECRET"))
                         });
+                    // The agent's own reasoning is evidence (2026-09-14):
+                    // a self-named untried approach refutes the submission.
+                    let reasoning_sec = prompt
+                        .split("AGENT_REASONING (the agent's own recent reasoning")
+                        .nth(1)
+                        .unwrap_or("");
+                    if let Some(pos) = reasoning_sec.find("UNTRIED_LEAD:") {
+                        let lead = reasoning_sec[pos + "UNTRIED_LEAD:".len()..]
+                            .lines()
+                            .next()
+                            .unwrap_or("")
+                            .trim()
+                            .to_string();
+                        let verdict = serde_json::json!({"refuted": true, "findings": [{"kind": "gap", "location": "reasoning", "detail": format!("the agent's own reasoning names an untried approach: {lead}")}], "blocking": "none"});
+                        return serde_json::json!({
+                            "completion": serde_json::json!({"tool":"verdict.submit","args":verdict}).to_string(),
+                            "input_tokens": prompt.len() / 4 + 1,
+                            "output_tokens": 24,
+                            "cost_usd_micros": 900
+                        });
+                    }
                     let verdict = if !verified {
                         serde_json::json!({"refuted": true, "findings": [{"kind": "gap", "location": "ledger", "detail": "no recorded verification run - a claim without test evidence is fabricated"}], "blocking": "none"})
                     } else if let Some(t) = token {
@@ -69,14 +90,24 @@ fn main() {
                         "cost_usd_micros": 900
                     });
                 }
+                let script: Vec<String> = std::fs::read_to_string(&script_path)
+                    .expect("script readable")
+                    .lines()
+                    .filter(|l| !l.trim().is_empty())
+                    .map(std::string::ToString::to_string)
+                    .collect();
                 let i = n.get().min(script.len().saturating_sub(1));
                 n.set(n.get() + 1);
-                serde_json::json!({
+                let mut resp = serde_json::json!({
                     "completion": script.get(i).cloned().unwrap_or_default(),
                     "input_tokens": prompt.len() / 4 + 1,
                     "output_tokens": 12,
                     "cost_usd_micros": 900
-                })
+                });
+                if let Some(r) = &reasoning {
+                    resp["reasoning_content"] = serde_json::Value::String(r.clone());
+                }
+                resp
             }
             _ => serde_json::json!({"$error": "unknown method"}),
         },

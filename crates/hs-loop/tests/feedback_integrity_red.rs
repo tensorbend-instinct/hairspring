@@ -336,11 +336,13 @@ default = true
     p
 }
 
-/// Finding 2: the ratchet cap banked a PASS byte-identical to a verified
-/// one - result.json could not tell "refuted 3x then the cap freed it"
-/// from "audited and accepted". The result carries an outcome label.
+/// Finding 2 (updated 2026-09-14): the ratchet cap banked a PASS
+/// byte-identical to a verified one - result.json could not tell "refuted
+/// 3x then the cap freed it" from "audited and accepted". The label stays,
+/// and the cap is no longer a pass at all: a capped audit closes
+/// continuable, never done.
 #[test]
-fn ratchet_cap_pass_is_labeled_ratchet_capped() {
+fn ratchet_cap_close_is_labeled_and_never_a_pass() {
     let _g = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
@@ -355,10 +357,17 @@ fn ratchet_cap_pass_is_labeled_ratchet_capped() {
     let kernel = hs_kernel::Kernel::load(&config).unwrap();
     let mut l = InnerLoop::new(kernel, log.path(), true, 6).unwrap();
     let r = l.run_mission("task-12").unwrap();
-    assert!(r.passed, "cap reached: the mission resolves: {r:?}");
+    assert!(
+        !r.passed,
+        "cap reached: NOT a pass - the mission stays open: {r:?}"
+    );
     assert_eq!(
         r.outcome, "ratchet_capped",
-        "a capped pass is labeled, never silent: {r:?}"
+        "a capped close is labeled, never silent: {r:?}"
+    );
+    assert!(
+        hs_loop::mission_span(log.path(), r.stream_id, "task-12").is_some(),
+        "the capped close is continuable - the same goal resumes it"
     );
 }
 

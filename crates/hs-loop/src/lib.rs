@@ -102,11 +102,12 @@ pub struct MissionResult {
     pub harness_error: Option<String>,
     /// How the mission resolved (feedback integrity F2/F3): "verified"
     /// (checker green + verifier audited and accepted), "`ratchet_capped`"
-    /// (checker green but the verifier refuted every round and the cap
-    /// freed the submit), "`verifier_malfunction`" (checker green, the
-    /// audit itself errored and never blocked), "`budget_killed`",
-    /// "`steps_exhausted`", "`harness_error`". A capped or malfunction pass
-    /// is never byte-identical to an audited one again.
+    /// (checker green but the verifier refuted every round - NOT a pass:
+    /// the close is continuable and the same goal resumes the mission),
+    /// "`verifier_malfunction`" (checker green, the audit itself errored
+    /// and never blocked), "`budget_killed`",
+    /// "`steps_exhausted`", "`harness_error`". A capped or malfunction
+    /// close is never byte-identical to an audited one.
     pub outcome: String,
 }
 
@@ -209,6 +210,11 @@ pub struct InnerLoop {
     idi_detections: u32,
     idi_repairs: u32,
     prior_gaps: Vec<String>,
+    /// The agent's own recent reasoning, newest last, bounded to
+    /// `REASONING_EVIDENCE_MAX_CHARS`. The verifier audits this too: an
+    /// abandoned lead lives in the model's reasoning, never in the ledger
+    /// (2026-09-14 reward-hack fix).
+    reasoning_tail: String,
     /// Fix 4: mission wall budget (secs) + start instant, for the per-step
     /// "T-minus" header. None = wall not tracked (old behavior).
     wall_secs: Option<u64>,
@@ -504,6 +510,7 @@ impl InnerLoop {
             idi_detections: 0,
             idi_repairs: 0,
             prior_gaps: vec![],
+            reasoning_tail: String::new(),
             wall_secs: None,
             steering_inbox: None,
             task_inbox: None,
@@ -603,6 +610,7 @@ impl InnerLoop {
             idi_detections: 0,
             idi_repairs: 0,
             prior_gaps: vec![],
+            reasoning_tail: String::new(),
             wall_secs: None,
             steering_inbox: None,
             task_inbox: None,
@@ -1795,6 +1803,14 @@ impl InnerLoop {
         self.idi_interventions = 0;
         self.idi_detections = 0;
         self.idi_repairs = 0;
+        // Verifier state is per-mission, never process-global (2026-09-14
+        // reward-hack fix): the TUI is one long-lived loop, and a prior
+        // mission's burned rounds converted THIS mission's first submit
+        // into an unaudited ratchet close. A resumed leg restores its own
+        // gaps from the stream below; a fresh mission starts clean.
+        self.verifier_rounds = 0;
+        self.prior_gaps.clear();
+        self.reasoning_tail.clear();
         // M21: per-mission spend is the delta from this point.
         self.mission_cost_start = self.cost_total_micros;
         self.mission_conservative_start = self.conservative_cost_total_micros;
@@ -2138,6 +2154,26 @@ impl InnerLoop {
             self.cost_total_micros += out.cost_usd_micros.max(0) as u64;
             self.conservative_cost_total_micros += out.conservative_cost_usd_micros.max(0) as u64;
             self.last_model = Some(out.model.clone());
+            // The verifier audits the agent's OWN reasoning too
+            // (2026-09-14): an unexplored lead is named in reasoning, not
+            // in the ledger. Keep a bounded tail, newest last.
+            {
+                let rc = out.reasoning_content.trim();
+                if !rc.is_empty() {
+                    self.reasoning_tail.push_str("
+---
+");
+                    self.reasoning_tail.push_str(rc);
+                    if self.reasoning_tail.len() > REASONING_EVIDENCE_MAX_CHARS {
+                        let mut cut =
+                            self.reasoning_tail.len() - REASONING_EVIDENCE_MAX_CHARS;
+                        while !self.reasoning_tail.is_char_boundary(cut) {
+                            cut += 1;
+                        }
+                        self.reasoning_tail.drain(..cut);
+                    }
+                }
+            }
             if let Some(sink) = self.ui_sink.as_mut() {
                 sink(uipaint::UiEvent::ModelCallEnd {
                     model: out.model.clone(),
@@ -2724,6 +2760,7 @@ impl InnerLoop {
                         &answer_text,
                         &self.ledger,
                         &self.prior_gaps,
+                        &self.reasoning_tail,
                     );
                     let verdict_tools = serde_json::json!([crate::toolschema::verdict_tool()]);
                     // M18: the verifier round trip is a real billed model
@@ -2874,16 +2911,39 @@ impl InnerLoop {
                         }
                     }
                 } else {
-                    outcome = "ratchet_capped";
+                    // 2026-09-14 reward-hack fix: verifier non-convergence
+                    // is NOT a pass. The old cap "freed the submit" and
+                    // closed passed=true, so a model could end any mission
+                    // by eating 3 refusals - and the process-global round
+                    // counter then waved every later submit through with no
+                    // audit at all. A capped audit closes continuable and
+                    // non-pass: the same goal resumes this mission with the
+                    // verifier's findings restored.
                     self.writer.append(
                         EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(
                             serde_json::to_vec(&serde_json::json!({
                                 "why": "verifier_ratchet", "rounds": VERIFIER_MAX_ROUNDS,
-                                "detail": "verifier failed to converge in 3 rounds - the checker verdict stands",
+                                "detail": "verifier failed to converge in 3 rounds - a capped audit is not a pass; the close is continuable and the same goal resumes this mission",
                             }))
                             .expect("json! values serialize"),
                         )),
                     )?;
+                    self.checkpoint(steps, model_calls);
+                    self.close_goal(mission, false, "ratchet_capped", steps, model_calls)?;
+                    return Ok(MissionResult {
+                        passed: false,
+                        steps,
+                        model_calls,
+                        stream_id: self.stream_id,
+                        answer_path,
+                        budget_killed: false,
+            cost_micros: self.cost_total_micros.saturating_sub(self.mission_cost_start),
+            conservative_cost_micros: self
+                .conservative_cost_total_micros
+                .saturating_sub(self.mission_conservative_start),
+                        harness_error: None,
+                        outcome: "ratchet_capped".to_string(),
+                    });
                 }
                 // Async delegation: join every running child before
                 // the passing close so its cost lands in these books
@@ -2981,14 +3041,21 @@ pub fn book_wall_kill(
     })
 }
 
+/// How much of the agent's own reasoning the verifier sees (newest
+/// last). Bounded so a long mission cannot blow up the audit prompt.
+const REASONING_EVIDENCE_MAX_CHARS: usize = 8000;
+
 /// Item 3: the verifier's prompt. Audit-recorded-evidence only;
 /// default-refuted on uncertainty; anti-ratchet on re-rounds
 /// (the verifier design; Grok `goal_verifier_prompt.md` adapted).
+/// 2026-09-14: the evidence now includes the agent's own reasoning - the
+/// place an abandoned lead is actually named.
 fn build_verifier_prompt(
     mission: &str,
     answer: &str,
     ledger: &crate::ledger::Ledger,
     prior_gaps: &[String],
+    reasoning_tail: &str,
 ) -> String {
     let gaps = if prior_gaps.is_empty() {
         "none".to_string()
@@ -2999,9 +3066,15 @@ fn build_verifier_prompt(
             .collect::<Vec<_>>()
             .join("\n")
     };
+    let reasoning = if reasoning_tail.trim().is_empty() {
+        "(none recorded)"
+    } else {
+        reasoning_tail.trim()
+    };
     let mut p = String::new();
     p.push_str("ADVERSARIAL VERIFIER\n");
     p.push_str("You are not the agent that did this work. Default to refuted when uncertain a required criterion holds; never invent requirements. Audit the RECORDED evidence only - a prose claim of test output with no recorded run is fabricated: refute. On a re-verification round (PRIOR_GAPS non-empty), check that each prior gap is genuinely fixed plus demonstrable defects; a fresh stylistic objection a prior round implicitly accepted is out of scope - when every prior gap is fixed and the objective holds, return refuted false.\n");
+    p.push_str("The agent's own reasoning is recorded evidence too: if it names a concrete approach not yet tried, an abandoned lead, or a doubt the ANSWER suppresses, the objective is not met - refute with the abandoned lead as the gap. A null or negative result is acceptable only when the recorded evidence (LEDGER + AGENT_REASONING) shows the approaches the agent itself identified are genuinely exhausted.\n");
     p.push_str(&format!("OBJECTIVE: {mission}\n"));
     p.push_str(&format!("ANSWER:\n{answer}\n"));
     p.push_str(&format!(
@@ -3009,6 +3082,9 @@ fn build_verifier_prompt(
         ledger.summary()
     ));
     p.push_str(&format!("PRIOR_GAPS:\n{gaps}\n"));
+    p.push_str(&format!(
+        "AGENT_REASONING (the agent's own recent reasoning - recorded evidence, newest last):\n{reasoning}\n"
+    ));
     p.push_str("Submit the verdict by calling the verdict.submit tool exactly once - never prose, never bare JSON.");
 
     p
