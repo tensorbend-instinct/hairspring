@@ -43,7 +43,7 @@ for i in range(5):
  y=76-i*14; box(a,2,y,38,10,*left[i],BF,BLUE); box(a,60,y,38,10,*right[i],GF,GREEN); arrow(a,(41,y+5),(59,y+5),'proposal')
 a.text(21,88,'THE MODEL MAY PROPOSE',ha='center',weight='bold',color=BLUE); a.text(79,88,'SOFTWARE MAKES THE LAST CALL',ha='center',weight='bold',color=GREEN)
 a.text(50,4,'The model can suggest each outcome. A separate mechanism decides what becomes official.',ha='center',fontsize=7,color=MUT)
-save(f,'fig-authority')
+save(f,'fig-decisions')
 #4 recovery
 f,a=setup(3.75,'Crash recovery: resume the same run, not a reconstructed imitation')
 steps=[('Before crash','goal\nmodel replies\ntool calls'),('Durable prefix','ordered events\nfile hashes\nspend + limits'),('Crash','unfinished tail\nis detected',RF,RED),('Replay','restore transcript\ntool state\ncounters + cost',GF,GREEN),('Continue','same run id\nsame limits\nnext valid step',GF,GREEN)]

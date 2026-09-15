@@ -24,7 +24,7 @@ Most software agents repeat the same cycle: give a model a goal, let it use tool
 
 Hairspring separates doing the work from deciding what becomes official. The model may search, edit, run tools, start limited child agents, and revise its answer. It may not write the final pass result. Software checks run against the submitted files. A second model, started with fresh context, may look for a specific blocking defect, but it cannot override a failed test. One durable event record stores the evidence needed to inspect or resume the run.
 
-The same rule applies beyond the final answer. An agent may propose a shared fact, a memory, or a change to its own instructions. Separate software decides whether to accept it. In this paper, the word \emph{authority} means only ``the power to make that proposal official.'' Figure~\ref{fig:authority} names each proposal and the software that makes the last call.
+The same rule applies beyond the final answer. An agent may propose a shared fact, a memory, or a change to its own instructions. Separate software decides whether to accept it. Software makes the final decision on whether each proposal becomes official. Figure~\ref{fig:decisions} pairs each proposal with the software that makes that decision.
 
 \paragraph{What this paper contributes.}
 \begin{enumerate}
@@ -80,12 +80,12 @@ The checker restores the workspace to the submitted state and runs those checks 
 \end{figure*}
 
 \section{The boundary between suggestions and decisions}
-Figure~\ref{fig:authority} shows the boundary directly. The left side lists what a model may suggest. The right side names the mechanism that decides whether that suggestion becomes official.
+Figure~\ref{fig:decisions} shows the boundary directly. The left side lists what a model may suggest. The right side names the mechanism that decides whether that suggestion becomes official.
 
 \begin{figure*}[t]
-\centering\includegraphics[width=.97\textwidth]{figures/fig-authority.pdf}
-\caption{Who makes the last call. Each row pairs a model suggestion with the software decision required before it becomes official. ``Authority'' in this paper means only that final decision power.}
-\label{fig:authority}
+\centering\includegraphics[width=.97\textwidth]{figures/fig-decisions.pdf}
+\caption{Who makes the last call. Each row pairs a model suggestion with the software decision required before it becomes official. Software makes the final decision on whether each proposal becomes official.}
+\label{fig:decisions}
 \end{figure*}
 
 \paragraph{Tools and files.} The kernel exposes one generated list of typed tools, so the prompt and the executable registry cannot silently disagree. Tool requests and results retain names, arguments, timing, outcome, and payload references. File edits use patches or anchored replacements. Commands run in an operating-system sandbox; startup fails if the required sandbox is unavailable.
@@ -237,7 +237,7 @@ Crate & Responsibility\\\hline
 \end{table}
 
 \section{Event and verdict flow}
-The following abbreviated trace shows the intended ordering. Field names are illustrative; the executable schema in \code{hs-core} is authoritative.
+The following abbreviated trace shows the intended ordering. Field names are illustrative; the executable schema in \code{hs-core} is the source of truth.
 \begin{verbatim}
 mission.opened    { goal, project_root, provider, budgets }
 model.requested   { step, context_hash }
