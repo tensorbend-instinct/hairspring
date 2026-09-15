@@ -506,3 +506,14 @@ fn install_warns_when_another_hairspring_shadows_the_install() {
         "install.sh must warn loudly when it detects the shadow"
     );
 }
+
+
+#[test]
+fn install_replaces_managed_tree_and_fails_on_any_shadow() {
+ let install=std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"),"/../../install.sh")).unwrap();
+ assert!(install.contains("rm -rf \"$PREFIX/bin.new\""),"build a clean staged managed tree");
+ assert!(install.contains("mv \"$PREFIX/bin.new\" \"$PREFIX/bin\""),"atomically replace prior managed binaries");
+ assert!(install.contains("exit 1"),"shadowing executable must fail install, not merely warn");
+ assert!(install.contains("type -a hairspring"),"print every resolution candidate");
+ assert!(install.contains("sha256"),"report exact installed binary hash");
+}
