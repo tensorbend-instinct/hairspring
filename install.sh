@@ -49,14 +49,50 @@ rm -rf "$PREFIX/bin.old"
 cp "$SRC/examples/seqmodel-demo.jsonl" "$PREFIX/seqmodel-demo.jsonl"
 ln -sf "$PREFIX/bin/hs-repl" "$BINLINK_DIR/hairspring"
 
-resolved="$(command -v hairspring 2>/dev/null || true)"
+# The binary must resolve on a normal login shell, not only in this one.
+# When the binlink dir is not on PATH, add it to the login profile with an
+# idempotent, append-only managed block; unrelated profile content and the
+# user's shell setup are left untouched.
+case ":$PATH:" in
+    *":$BINLINK_DIR:"*) on_path=1 ;;
+    *) on_path=0 ;;
+esac
+MARKER="hairspring PATH (managed by install.sh)"
+add_path_block() {
+    prof="$1"
+    if ! grep -qF "$MARKER" "$prof" 2>/dev/null; then
+        {
+            printf '# >>> %s >>>\n' "$MARKER"
+            printf 'export PATH="%s:$PATH"\n' "$BINLINK_DIR"
+            printf '# <<< %s <<<\n' "$MARKER"
+        } >> "$prof"
+        echo "Added $BINLINK_DIR to PATH in $prof (managed block; open a new shell to pick it up)."
+    fi
+}
+if [ "$on_path" -eq 0 ]; then
+    add_path_block "$HOME/.profile"
+    case "${SHELL:-}" in
+        */zsh) add_path_block "$HOME/.zprofile" ;;
+    esac
+fi
+
+if [ ! -x "$BINLINK_DIR/hairspring" ]; then
+    echo "ERROR: installed $BINLINK_DIR/hairspring is missing or not executable" >&2
+    exit 1
+fi
+if command -v bash >/dev/null 2>&1; then LOGIN_SH=bash; else LOGIN_SH=sh; fi
+if [ "$on_path" -eq 1 ]; then
+    resolved="$(command -v hairspring 2>/dev/null || true)"
+else
+    resolved="$("$LOGIN_SH" -lc 'command -v hairspring' 2>/dev/null | head -n 1 || true)"
+fi
 if [ "$resolved" != "$BINLINK_DIR/hairspring" ]; then
-    echo "ERROR: installed $BINLINK_DIR/hairspring but PATH resolves ${resolved:-nothing}" >&2
-    if command -v bash >/dev/null 2>&1; then bash -c 'type -a hairspring' >&2 || true; else command -V hairspring >&2 || true; fi
+    echo "ERROR: installed $BINLINK_DIR/hairspring but a normal shell resolves ${resolved:-nothing}" >&2
+    "$LOGIN_SH" -lc 'type -a hairspring' >&2 2>/dev/null || true
     exit 1
 fi
 printf 'Resolution:\n'
-if command -v bash >/dev/null 2>&1; then bash -c 'type -a hairspring'; else command -V hairspring; fi
+"$LOGIN_SH" -lc 'type -a hairspring' 2>/dev/null || command -V hairspring
 installed_hash="$(sha256sum "$PREFIX/bin/hs-repl" | awk '{print $1}')"
 source_commit="$(git -C "$SRC" rev-parse HEAD 2>/dev/null || echo unknown)"
 printf 'Source commit: %s\nInstalled binary: %s\nInstalled sha256: %s\n' "$source_commit" "$PREFIX/bin/hs-repl" "$installed_hash"
@@ -69,7 +105,8 @@ fi
 cat <<MSG
 
 Installed. Next:
-  1. Make sure $BINLINK_DIR is on your PATH.
+  1. PATH is handled: $BINLINK_DIR was already on it, or a managed block
+     was appended to your login profile (open a new shell to pick it up).
   2. Add your model key:  hairspring setup
      (guided: checks what is configured, stores the key owner-only under
      $CONFIG_DIR/keys/, validates it, and prints the next command)
