@@ -52,11 +52,11 @@ ln -sf "$PREFIX/bin/hs-repl" "$BINLINK_DIR/hairspring"
 resolved="$(command -v hairspring 2>/dev/null || true)"
 if [ "$resolved" != "$BINLINK_DIR/hairspring" ]; then
     echo "ERROR: installed $BINLINK_DIR/hairspring but PATH resolves ${resolved:-nothing}" >&2
-    type -a hairspring >&2 || true
+    if command -v bash >/dev/null 2>&1; then bash -c 'type -a hairspring' >&2 || true; else command -V hairspring >&2 || true; fi
     exit 1
 fi
 printf 'Resolution:\n'
-type -a hairspring
+if command -v bash >/dev/null 2>&1; then bash -c 'type -a hairspring'; else command -V hairspring; fi
 installed_hash="$(sha256sum "$PREFIX/bin/hs-repl" | awk '{print $1}')"
 source_commit="$(git -C "$SRC" rev-parse HEAD 2>/dev/null || echo unknown)"
 printf 'Source commit: %s\nInstalled binary: %s\nInstalled sha256: %s\n' "$source_commit" "$PREFIX/bin/hs-repl" "$installed_hash"
