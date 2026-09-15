@@ -110,3 +110,14 @@ fn model_picker_has_the_same_search_first_hierarchy() {
         "live picker hierarchy: {s}"
     );
 }
+
+#[test]
+fn completed_tool_rows_stay_compact_without_raw_payload_dump(){
+ use hs_loop::uipaint::UiEvent;
+ let mut st=TuiState::default(); st.push_goal_echo("inspect");
+ st.on_ui_event(&UiEvent::ToolCallStart{plugin:"term.exec".into(),args_summary:"printf hello".into()});
+ st.on_ui_event(&UiEvent::ToolCallEnd{plugin:"term.exec".into(),ok:true,output_summary:"{\"bytes\":69,\"path\":\"/tmp/a\",\"written\":true}".into(),elapsed_ms:10});
+ let s=screen(&st,100,32);
+ assert!(s.contains("term.exec")&&s.contains("✓"),"compact inline tool: {s}");
+ assert!(!s.contains("{\"bytes\"")&&!s.contains("\"written\":true"),"raw JSON belongs in an expanded view, not the normal canvas: {s}");
+}
