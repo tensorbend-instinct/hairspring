@@ -1270,6 +1270,36 @@ impl InnerLoop {
                 if summary.trim().is_empty() {
                     return None;
                 }
+                // Atomic declare-at-submit (RED 2026-09-15,
+                // hs-research-repro stream 70ec2565): the world plane owns
+                // the happy-path submission, so the optional `checks`
+                // argument is persisted HERE - to <workspace>/.hs/checks
+                // before the artifact materializes - or the submission is
+                // refused. The checker that runs on this submission re-runs
+                // exactly those commands; nothing about the declaration is
+                // trusted. A declaration that cannot persist fails the
+                // submit instead of burning the checker's "no checks
+                // declared" round-trip.
+                if let Some(checks) = args["checks"].as_str() {
+                    let refused = |e: String| {
+                        Some(ToolCallOutcome {
+                            resolved: None,
+                            output: serde_json::json!({"$error": e}),
+                            latency_ms: u32::try_from(started.elapsed().as_millis())
+                                .unwrap_or(u32::MAX),
+                        })
+                    };
+                    let Ok(ws) = std::env::var("HS_SWE_WORKSPACE") else {
+                        return refused(
+                            "checks passed but HS_SWE_WORKSPACE is unset - refusing to drop the declaration silently".to_string(),
+                        );
+                    };
+                    if let Err(e) =
+                        crate::selfcheck::declare_checks(std::path::Path::new(&ws), checks)
+                    {
+                        return refused(format!("checks: {e}"));
+                    }
+                }
                 (summary, true)
             } else {
                 let Ok(ws) = std::env::var("HS_SWE_WORKSPACE") else {

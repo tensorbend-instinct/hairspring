@@ -9,6 +9,39 @@
 /// Where the agent's declared checks live inside a candidate worktree.
 pub const CHECKS_REL: &str = ".hs/checks";
 
+/// Atomic declare-at-submit channel (RED 2026-09-15, hs-research-repro
+/// stream 70ec2565): answer.submit's optional `checks` argument lands here
+/// so research-shaped work can declare its verification WITH the submission
+/// instead of one step earlier (the goal-verbatim mission prompt never
+/// teaches the checks-before-submit ordering; the model learned it from the
+/// post-submit "no checks declared" feedback and died at the step cap one
+/// resubmit short). Same file, same contract: the checker re-runs exactly
+/// these commands - nothing about the declaration is trusted. Refuses an
+/// empty declaration rather than dropping it silently; returns the number
+/// of declared commands.
+pub fn declare_checks(root: &std::path::Path, content: &str) -> Result<u32, String> {
+    let cmds = content
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+        .count();
+    if cmds == 0 {
+        return Err(format!(
+            "empty declaration: pass verification commands, one per line (they land in {CHECKS_REL} and the checker re-runs them)"
+        ));
+    }
+    let dir = root.join(".hs");
+    std::fs::create_dir_all(&dir).map_err(|e| format!("create {}: {e}", dir.display()))?;
+    let f = dir.join("checks");
+    let mut body = content.to_string();
+    if !body.ends_with('\n') {
+        body.push('\n');
+    }
+    std::fs::write(&f, body).map_err(|e| format!("write {}: {e}", f.display()))?;
+    #[allow(clippy::cast_possible_truncation)]
+    Ok(cmds as u32)
+}
+
 /// checker.run verdict for the candidate of `ws`: run every declared
 /// command in the candidate, green only when all pass. Feedback names the
 /// failing command with its output tail so the loop can repair.

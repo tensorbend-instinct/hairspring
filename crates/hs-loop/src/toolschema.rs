@@ -170,10 +170,11 @@ pub fn tb_tools() -> Vec<Value> {
         ),
         f(
             "answer.submit",
-            "Finish the task: writes your completion summary (summary: what you changed and how you verified it) to ANSWER_PATH and triggers the checker, which runs YOUR .hs/checks against the live machine. Green ends the mission; red comes back as FEEDBACK. Submit only when every check you declared passes.",
+            "Finish the task: writes your completion summary (summary: what you changed and how you verified it) to ANSWER_PATH and triggers the checker, which runs YOUR .hs/checks against the live machine. Green ends the mission; red comes back as FEEDBACK. Your checks must be declared when you submit: write .hs/checks yourself in an earlier step, or pass them atomically in the optional checks field (one command per line, persisted to .hs/checks BEFORE the checker runs). Submit only when every check you declared passes.",
             json!({"type":"object","properties":{
                 "path":{"type":"string","description":"the ANSWER_PATH value"},
-                "summary":{"type":"string","description":"what you changed and how you verified it"}},"required":["path","summary"]}),
+                "summary":{"type":"string","description":"what you changed and how you verified it"},
+                "checks":{"type":"string","description":"optional: your verification commands, one per line; persisted to .hs/checks BEFORE the checker runs on this submission"}},"required":["path","summary"]}),
         ),
     ]
 }
