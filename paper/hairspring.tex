@@ -80,7 +80,7 @@ The checker restores the workspace to the submitted state and runs those checks 
 \end{figure*}
 
 \section{The boundary between suggestions and decisions}
-Figure~\ref{fig:authority} replaces the phrase ``authority outside the model'' with the concrete decision it was meant to describe. The left side lists what a model may suggest. The right side names the mechanism that makes that suggestion official.
+Figure~\ref{fig:authority} shows the boundary directly. The left side lists what a model may suggest. The right side names the mechanism that decides whether that suggestion becomes official.
 
 \begin{figure*}[t]
 \centering\includegraphics[width=.97\textwidth]{figures/fig-authority.pdf}
@@ -184,7 +184,7 @@ Recent long-horizon research controllers organize work into strategy exploration
 \item The study has no repeated seeds and cannot estimate result variance.
 \item Self-improvement changes prompts and policy artifacts, not the Rust implementation.
 \item Memory writes, recall, and cross-child reuse are exercised end to end; live-model selection quality at scale is not measured.
-\item Research planning is flat. Strategy readiness, typed dependencies, objection-preserving synthesis, and section-addressed repair remain unimplemented.
+\item Research planning is flat. The system does not yet track strategy readiness, typed dependencies, preserved objections, or repairs tied to specific sections.
 \item At the evaluated paper revision, the workspace test suite passed; current pedantic Clippy does not pass. Passing tests do not make a different quality gate pass.
 \end{enumerate}
 
@@ -304,7 +304,7 @@ Research-proof controller & Not implemented & Strategy readiness and section dep
 \end{tabularx}
 \end{center}
 
-{\tiny\setlength{\itemsep}{-2pt}\setlength{\parskip}{0pt}\begin{thebibliography}{16}
+{\small\setlength{\itemsep}{1pt}\setlength{\parskip}{0pt}\begin{thebibliography}{16}
 \bibitem{react} S. Yao et al. ``ReAct: Synergizing Reasoning and Acting in Language Models.'' \emph{ICLR}, 2023.
 \bibitem{reflexion} N. Shinn et al. ``Reflexion: Language Agents with Verbal Reinforcement Learning.'' \emph{NeurIPS}, 2023.
 \bibitem{sweagent} J. Yang et al. ``SWE-agent: Agent--Computer Interfaces Enable Automated Software Engineering.'' \emph{NeurIPS}, 2024. \url{https://arxiv.org/abs/2405.15793}.
@@ -313,7 +313,7 @@ Research-proof controller & Not implemented & Strategy readiness and section dep
 \bibitem{selfconsistency} X. Wang et al. ``Self-Consistency Improves Chain of Thought Reasoning in Language Models.'' \emph{ICLR}, 2023.
 \bibitem{consensus} ``When Consensus Is Not Correctness: Diversity Collapse and Manufactured Overconfidence in Multi-Agent LLM Debate.'' \emph{KDD Workshop on Agentic AI Evaluation}, 2026. \url{https://kdd-eval-workshop.github.io/agenticai-evaluation-kdd2026/assets/papers/49_When_Consensus_Is_Not_Corre.pdf}.
 \bibitem{cascades} ``From Spark to Fire: Modeling and Mitigating Error Cascades in LLM-Based Multi-Agent Collaboration.'' 2026. \url{https://arxiv.org/abs/2603.04474}.
-\bibitem{tot} S. Yao et al. ``Tree of Thoughts: Deliberate Problem Solving with Large Language Models.'' \emph{NeurIPS}, 2023.
+\newpage\bibitem{tot} S. Yao et al. ``Tree of Thoughts: Deliberate Problem Solving with Large Language Models.'' \emph{NeurIPS}, 2023.
 \bibitem{treesearch} ``Cost-Awareness in Tree-Search LLM Planning: A Systematic Study.'' 2025. \url{https://arxiv.org/abs/2505.14656}.
 \bibitem{gepa} ``GEPA: Reflective Prompt Evolution.'' DSPy documentation, 2026. \url{https://dspy.ai/api/optimizers/GEPA/overview/}.
 \bibitem{memfail} ``MemFail: Stress-Testing Failure Modes of LLM Memory Systems.'' 2026. \url{https://arxiv.org/abs/2605.26667}.

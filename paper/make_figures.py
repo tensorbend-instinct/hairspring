@@ -42,13 +42,13 @@ right=[('Pass or fail','tests + fresh review'),('Official record','single append
 for i in range(5):
  y=76-i*14; box(a,2,y,38,10,*left[i],BF,BLUE); box(a,60,y,38,10,*right[i],GF,GREEN); arrow(a,(41,y+5),(59,y+5),'proposal')
 a.text(21,88,'THE MODEL MAY PROPOSE',ha='center',weight='bold',color=BLUE); a.text(79,88,'SOFTWARE MAKES THE LAST CALL',ha='center',weight='bold',color=GREEN)
-a.text(50,4,'This separation is what the old phrase "authority outside the model" meant.',ha='center',fontsize=7,color=MUT)
+a.text(50,4,'The model can suggest each outcome. A separate mechanism decides what becomes official.',ha='center',fontsize=7,color=MUT)
 save(f,'fig-authority')
 #4 recovery
 f,a=setup(3.75,'Crash recovery: resume the same run, not a reconstructed imitation')
 steps=[('Before crash','goal\nmodel replies\ntool calls'),('Durable prefix','ordered events\nfile hashes\nspend + limits'),('Crash','unfinished tail\nis detected',RF,RED),('Replay','restore transcript\ntool state\ncounters + cost',GF,GREEN),('Continue','same run id\nsame limits\nnext valid step',GF,GREEN)]
 for i,item in enumerate(steps):
- x=2+i*20; fc=item[3] if len(item)>3 else BF; ec=item[4] if len(item)>4 else BLUE; box(a,x,51,16,25,item[0],item[1],fc,ec)
+ x=2+i*20; fc=item[2] if len(item)>2 else BF; ec=item[3] if len(item)>3 else BLUE; box(a,x,51,16,25,item[0],item[1],fc,ec)
  if i<4:arrow(a,(x+16,63),(x+20,63))
 a.text(50,30,'Only a complete, consistent prefix is replayed. A partial final event is discarded.',ha='center',fontsize=8,color=INK)
 a.text(50,18,'Recovered state includes the evidence and spending history, so a restart cannot erase a failure or reset a budget.',ha='center',fontsize=7.3,color=MUT)
@@ -72,10 +72,10 @@ a.text(2,86,'Green = host-side tests passed. Red = failed or timed out. This is 
 for row,(name,y) in enumerate([('Hairspring',65),('Direct-loop baseline',43)]):
  a.text(2,y+5,name,va='center',weight='bold',fontsize=7.4)
  for i,h in enumerate(hs):
-  x=20+i*7.5; ok=h['ok'] if row==0 else sm[h['id']]['passed']; st=h['steps'] if row==0 else sm[h['id']]['steps']
-  a.add_patch(Rectangle((x,y),6.3,10,fc=GF if ok else RF,ec=GREEN if ok else RED)); a.text(x+3.15,y+5,str(st),ha='center',va='center',fontsize=6.2)
-  if row==1:a.text(x+3.15,39,h['id'],ha='right',rotation=32,fontsize=5.2,color=MUT)
-a.text(97,70,'9/10',ha='right',weight='bold',color=GREEN,fontsize=9); a.text(97,48,'3/10',ha='right',weight='bold',color=RED,fontsize=9)
+  x=18+i*7.2; ok=h['ok'] if row==0 else sm[h['id']]['passed']; st=h['steps'] if row==0 else sm[h['id']]['steps']
+  a.add_patch(Rectangle((x,y),5.9,10,fc=GF if ok else RF,ec=GREEN if ok else RED)); a.text(x+2.95,y+5,str(st),ha='center',va='center',fontsize=6.2)
+  if row==1:a.text(x+2.95,39,h['id'],ha='right',rotation=32,fontsize=5.2,color=MUT)
+a.text(98,70,'9/10',ha='right',weight='bold',color=GREEN,fontsize=9); a.text(98,48,'3/10',ha='right',weight='bold',color=RED,fontsize=9)
 H=(sum(x['steps'] for x in hs),sum(x['wall'] for x in hs),sum(x['cost'] for x in hs)); S=(sum(x['steps'] for x in sw),sum(x['wall_secs'] for x in sw),sum(x['litellm_cost'] for x in sw))
 a.text(2,20,f'Worker steps: {H[0]:,} vs {S[0]:,}',fontsize=7.5); a.text(35,20,f'Wall time: {H[1]:,} s vs {S[1]:,} s',fontsize=7.5); a.text(70,20,f'Cost: \${H[2]:.2f} vs \${S[2]:.2f}',fontsize=7.5)
 a.text(50,8,'Result: Hairspring recovered six more tasks, but took more time and cost more. The data does not isolate which subsystem caused the gain.',ha='center',fontsize=7,color=MUT)
