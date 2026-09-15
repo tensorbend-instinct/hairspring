@@ -186,3 +186,17 @@ fn t6_term_exec_feeds_evidence_ledger() {
     let rendered = ledger.summary();
     assert!(rendered.contains("sh check.sh"), "got: {rendered}");
 }
+
+/// A critic replays declared checks from a read-only worktree. Rust checks
+/// must therefore establish a writable isolated target inside the command or
+/// script itself instead of relying on the author session environment.
+#[test]
+fn t5_prompt_requires_self_contained_writable_build_scratch() {
+    let p = hs_loop::sweprompt::build_tb_mission_prompt_critic(&hs_loop::sweprompt::TbPromptArgs {
+        workdir: "/app".into(), instruction: "Build Rust CLI".into(),
+        answer_path: "/tmp/answer.txt".into(), mcp_tools: String::new(),
+    });
+    assert!(p.contains("CARGO_TARGET_DIR"), "prompt must name the Rust build scratch contract: {p}");
+    assert!(p.contains("writable") && p.contains("/tmp"), "prompt must explain read-only replay: {p}");
+    assert!(p.contains("self-contained"), "checks must carry their own environment: {p}");
+}
