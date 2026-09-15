@@ -1864,7 +1864,12 @@ impl TuiState {
                     Span::styled(format!("  {elapsed_ms}ms"), dim),
                 ];
                 if !output_summary.is_empty() {
-                    spans.push(Span::styled(format!("  {output_summary}"), dim));
+                    let trimmed = output_summary.trim();
+                    let looks_structured = (trimmed.starts_with('{') && trimmed.ends_with('}'))
+                        || (trimmed.starts_with('[') && trimmed.ends_with(']'));
+                    if !looks_structured {
+                        spans.push(Span::styled(format!("  {output_summary}"), dim));
+                    }
                 }
                 self.push_transcript_spans(spans);
             }
