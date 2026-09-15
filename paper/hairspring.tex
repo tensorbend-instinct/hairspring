@@ -1,259 +1,342 @@
 \documentclass[10pt,letterpaper]{article}
-\usepackage[letterpaper,margin=0.78in,top=0.70in,bottom=0.72in]{geometry}
-\usepackage[T1]{fontenc}
-\usepackage{mathptmx}
-\usepackage[scaled=.88]{helvet}
-\usepackage{graphicx}
-\usepackage{tabularx,array,colortbl}
-\usepackage{color}
-\usepackage{url}
-\usepackage{fancyhdr}
-\usepackage{amsmath}
-\definecolor{HSBlue}{rgb}{0.231,0.404,1.0}\definecolor{HSGreen}{rgb}{0.298,0.545,0.357}\definecolor{HSOrange}{rgb}{0.941,0.502,0.169}\definecolor{HSRed}{rgb}{1.0,0.353,0.239}\definecolor{HSInk}{rgb}{0.086,0.129,0.243}\definecolor{HSMuted}{rgb}{0.4,0.439,0.522}\definecolor{HSWash}{rgb}{0.961,0.969,0.984}
-\setlength{\parindent}{1em}\setlength{\parskip}{0pt}\setlength{\tabcolsep}{5pt}\renewcommand{\arraystretch}{1.15}
-\pagestyle{fancy}\fancyhf{}\fancyhead[L]{\sffamily\scriptsize\color{HSMuted}HAIRSPRING}\fancyhead[R]{\sffamily\scriptsize\color{HSMuted}Authority outside the model}\fancyfoot[C]{\thepage}\renewcommand{\headrulewidth}{0pt}
-\makeatletter
-\renewcommand\section{\@startsection{section}{1}{0pt}{2.3ex plus .5ex}{.8ex}{\large\bfseries\color{HSInk}}}
-\renewcommand\subsection{\@startsection{subsection}{2}{0pt}{1.7ex plus .4ex}{.5ex}{\normalsize\bfseries\color{HSInk}}}
-\renewcommand\subsubsection{\@startsection{subsubsection}{3}{0pt}{1.2ex}{.35ex}{\normalsize\bfseries\color{HSInk}}}
-\makeatother
-\newcommand{\status}[1]{\textsf{\footnotesize\bfseries\color{HSBlue}#1}}
+\usepackage[letterpaper,top=.78in,bottom=.76in,left=.82in,right=.82in]{geometry}
+\usepackage[T1]{fontenc}\usepackage{mathptmx}
+\usepackage{graphicx,tabularx,array,color,url,amsmath}
+\definecolor{ink}{rgb}{0.14,0.15,0.16}\definecolor{muted}{rgb}{0.37,0.39,0.43}\definecolor{blue}{rgb}{0.39,0.51,0.66}\definecolor{wash}{rgb}{0.95,0.96,0.96}\definecolor{green}{rgb}{0.47,0.61,0.48}\definecolor{orange}{rgb}{0.80,0.60,0.39}\definecolor{red}{rgb}{0.73,0.44,0.40}
+\setlength{\parindent}{1.15em}\setlength{\parskip}{0pt}\setlength{\tabcolsep}{4.5pt}\renewcommand{\arraystretch}{1.12}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}\newcolumntype{R}{>{\raggedleft\arraybackslash}X}
+\newcommand{\system}{\textsc{Hairspring}}
+\newcommand{\status}[1]{\textsc{#1}}
 \newcommand{\code}[1]{\texttt{\small #1}}
-\newcommand{\claimbox}[2]{\vspace{.5em}\noindent\colorbox{HSWash}{\parbox{.94\linewidth}{\sffamily\small\textbf{#1}\quad #2}}\vspace{.5em}}
-\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcommand{\evidence}[1]{\par\smallskip\noindent\textcolor{blue}{\textbf{Evidence.}} #1\par\smallskip}
+\pagestyle{plain}
+\title{\vspace{-0.4in}\textsc{Hairspring}: Authority outside the model\\[6pt]\large A replayable agent harness for work that must survive its own confidence}
+\author{Tensorbend Instinct}
+\date{September 2026}
 \begin{document}
-\thispagestyle{empty}
-\vspace*{1.05in}
-\begin{center}
-{\fontsize{27}{31}\selectfont\scshape Hairspring}\par\vspace{.18in}
-{\fontsize{20}{24}\selectfont Authority outside the model}\par\vspace{.35in}
-{\large A replayable agent harness for work that must survive its own confidence}\par\vspace{.45in}
-{\sffamily Tensorbend Instinct}\par\vspace{.45in}
-\end{center}
+\maketitle
 \begin{abstract}
-Language models can act through tools, revise artifacts, and run for long periods. The hard part is deciding what counts. A model can mistake a plausible answer for a correct one, a passing local probe for the requested outcome, or a useful change for an improvement. HAIRSPRING moves those decisions into a substrate the model does not control. Executable checks close missions. An independent critic attempts to refute the submitted artifact. A single-writer, hash-chained event log makes the run replayable. World and memory services admit validated state. A pinned scorer promotes changes only after held-out trials. On a matched ten-task SWE-bench-Live subset, HAIRSPRING resolved nine tasks and SWE-agent resolved three with the same model and host-side grading. The result isolates a useful design point: the common think--act--observe loop is not the differentiator. Authority is.
+Language models can use tools, revise artifacts, and run for long periods. The unresolved design question is who decides what counts. If the same model proposes the work and declares it correct, a fluent failure can cross the system boundary as success. \system{} moves that authority into a replayable substrate. Executable checks close missions. A critic in a fresh context attempts to refute the submitted artifact. A single writer records canonical, hash-linked events. World and memory services admit validated state. A pinned scorer promotes policy changes only after held-out trials. On a matched ten-task SWE-bench-Live subset, \system{} resolved 9 tasks and SWE-agent resolved 3 with the same model family and host-side grading. \system{} used fewer agent steps, more wall time, and more provider-reported cost. This is a bounded harness result, not a general leaderboard claim. It supports a narrower point: the common think--act--observe loop is not the differentiator. Authority is.
 \end{abstract}
-\claimbox{Evidence status.}{\status{PROVEN} marks direct source, test, or raw-run evidence at commit \texttt{4273dcc}. \status{EXTRAPOLATED} marks a mechanism-level inference. \status{ESTIMATE} marks a target or unmeasured prediction.}
-\vfill
-\noindent\rule{\linewidth}{.5pt}\par\smallskip
-{\small\sffamily September 2026 \hfill Source revision \texttt{4273dccf6d00fa7}\par
-This paper describes the implementation and measurements in the private research repository at that revision.}
-\newpage
 
-\section{The problem is authority}
-An agent harness usually gives a model a goal, a tool set, and a loop. The model thinks, acts, observes, and eventually says it is done. That loop is useful, but it leaves the most important decisions inside the component most likely to be confidently wrong.
+\section{Introduction}
+Agent harnesses commonly wrap a language model in the same control loop: provide a goal, expose tools, append observations, and continue until the model submits an answer. The loop is useful. It is also incomplete. It says how work proceeds, but not who may declare the work correct, which effects become shared state, how a crashed mission resumes, or what evidence can replace the current policy.
 
-HAIRSPRING separates work from judgment. The model proposes actions and artifacts. Other mechanisms decide whether the work changes state, closes the mission, enters shared memory, or replaces the current harness policy. This separation creates five authority boundaries:
-\begin{itemize}
-\item \textbf{The checker closes.} The submitted artifact must satisfy executable checks.
-\item \textbf{The critic refutes.} A fresh model context receives the goal and artifact, not the worker's rationale, and looks for a blocking defect.
-\item \textbf{The log is the state.} One writer appends canonical, hash-linked events. Recovery replays the record.
-\item \textbf{The world validates.} Agents submit proposals; the world service records accepted effects and reusable artifacts.
-\item \textbf{The scorer promotes.} Candidate policies run on held-out assays against a pinned scorer. The candidate cannot grade itself.
-\end{itemize}
+These decisions matter because model confidence is not an execution boundary. A model can submit a plausible answer after running the wrong test, repair a symptom while preserving the defect, or repeat a failed action because the environment never proved that success was possible. A longer context does not fix this class of error. It gives the same component more history while leaving its authority unchanged.
 
-\status{PROVEN} The implementation contains these paths in \texttt{hs-loop}, \texttt{hs-log}, \texttt{hs-world}, \texttt{hs-memory}, \texttt{hs-scorer}, and \texttt{hs-selfmod}. The workspace test suite exercised 994 named tests at the evaluated revision; the complete run reported 992 passed and zero failed, with two non-test listings excluded by Cargo's harness output.
+\system{} separates work from judgment. The model proposes actions and artifacts. Mechanisms outside the working context decide whether an effect enters durable state, whether the mission closes, and whether a policy change replaces the incumbent. The event record connects those mechanisms. It is operational state rather than a post-hoc transcript: recovery, inspection, memory extraction, accounting, and outer-loop scoring read the same history.
 
-\begin{figure}[t]
-\centering\includegraphics[width=\linewidth]{figures/architecture.pdf}
-\caption{HAIRSPRING separates the model's working loop from the mechanisms that authorize a pass, durable state, shared knowledge, and promotion. Solid arrows carry work. Dashed red arrows carry refutations back to the worker.}
+\paragraph{Contributions.} This paper makes four contributions.
+\begin{enumerate}
+\item It defines an authority architecture for long-running agents: checker, critic, event record, world service, memory service, and scorer have distinct powers.
+\item It implements the architecture as a 14-crate Rust workspace with an installed terminal path, typed plugin protocol, process confinement, replay, bounded child agents, and policy-level self-improvement.
+\item It reports a matched ten-task comparison against SWE-agent, including steps, wall time, cost, failures, and the limits of the comparison.
+\item It turns failures at subsystem seams into an evaluation method that distinguishes local mechanism tests, installed-path tests, live artifact trials, and matched external evaluation.
+\end{enumerate}
+
+\begin{figure*}[t]
+\centering\includegraphics[width=\textwidth]{figures/architecture.pdf}
+\caption{The \system{} architecture. Panel (a) follows a mission from goal to recorded outcome. Failed checks and grounded critic findings return to the worker. Panel (b) shows how one event record feeds recovery, shared state, memory, accounting, and evolution. Panel (c) names the authority boundaries. The model proposes; separate mechanisms close, admit, and promote.}
 \label{fig:architecture}
-\end{figure}
+\end{figure*}
 
-\section{System design}
-Figure~\ref{fig:architecture} shows two coupled systems. The upper path runs a mission. The lower path owns durable authority. The worker cannot write a passing verdict or a promotion record directly.
+\section{Design problem: the model cannot be its own authority}
+A useful harness must answer five questions that the inner loop cannot settle by assertion.
 
-\subsection{Mission lifecycle}
-A mission binds a plain-language goal to a project root, tools, provider configuration, checks, cost accounting, and a durable run directory. The model calls typed tools. Tool requests and results become events. The worker submits an answer only after declaring its checks atomically with the submission. The checker restores the judged workspace, runs the checks, and then invokes the critic. A checker pass followed by no critic refutation closes the mission as \texttt{verified}. A failure returns evidence to the worker for repair.
+\paragraph{Did the requested artifact work?} The answer belongs to executable checks that run against the judged workspace, followed by an independent attempt to find a blocking defect.
 
-The ordering matters. Earlier versions accepted answer text before the final check declaration. The evaluated revision closes that race: \texttt{answer.submit} accepts and persists inline checks before judgment. The exact ten-step failure shape that exposed the problem is now a regression test.
+\paragraph{What happened before a crash?} The answer belongs to a durable event stream with explicit ordering, payload identity, and recovery semantics. A reconstructed prompt is not enough because it can omit tool state, counters, costs, or partial effects.
 
-\subsection{Tools and confinement}
-Tools are processes behind an NDJSON protocol. The kernel registers their capabilities and the mission surface is generated from that registry. On Linux, bubblewrap exposes the project and required toolchain caches while making system paths read-only. On macOS, the runner emits a Seatbelt profile. Startup fails if confinement is unavailable rather than silently running unconfined.
+\paragraph{Which effects become shared truth?} The answer belongs to a validation boundary. Child agents may propose updates, but proposals do not become world state merely because a model wrote them.
 
-The edit path uses anchored or apply-patch mutations instead of unconstrained file replacement. Tool execution, model calls, and child-agent work are charged to the mission record. The terminal interface shows the goal, transcript, tools, agents, evidence, cost, and final state from the same record used for recovery.
+\paragraph{Which memories deserve reuse?} The answer belongs to records with provenance and observable reuse signals. Retrieval relevance is different from correctness; the system preserves that distinction.
 
-\subsection{Critic and verdict semantics}
-The critic is adversarial but asymmetric. It may block a pass by producing a grounded finding; it cannot approve work on its own. It runs in a fresh context and, on the production path, under a read-only operating-system identity. An abnormal critic exit fails closed. Verdict records distinguish a verified result from a ratchet-capped result or verifier malfunction so reporting cannot turn a machinery problem into success.
+\paragraph{Which change improves the harness?} The answer belongs to repeated trials under a pinned scorer. A candidate cannot choose the test, grade the result, and promote itself.
 
-\status{PROVEN} Regression tests cover the critic's reachability from the default terminal path, read-only execution, abnormal-exit behavior, evidence visibility, and verdict labels.
+The architecture follows from these answers. The model remains free to search, edit, call tools, delegate, and revise. It cannot write a passing verdict, append directly to the canonical log, bypass world validation, or publish a promotion record without the scorer path.
 
-\subsection{Parallel work, world, and memory}
-A parent can spawn bounded asynchronous children. Children share world and memory planes, but may not recursively delegate. Each child books cost against the parent and joins before mission close. Agents do not write shared truth directly: world proposals pass a validation boundary first. Validated skills can be reused by another child without a direct message between them.
+\section{System overview}
+A mission binds a goal to a project root, provider configuration, tool registry, checks, budgets, and a durable run directory. The worker calls typed tools through a newline-delimited JSON protocol. The loop records requests and results as events. Large payloads are stored by content hash. The worker submits an artifact together with the checks that define success. The checker restores the judged workspace, runs those checks, and invokes the critic. A failure returns evidence for repair. A check pass with no blocking critic finding records a verified outcome.
 
-Memory stores extracted records in a global knowledge base. A later citation increments a record's score; a served but unused record decrements it. This is a behavioral signal, not a claim that the memory is correct. Citation provenance stays attached to the record.
+Five planes surround this lifecycle.
+\begin{description}
+\item[Log plane.] Canonical events, one writer, segmented persistence, torn-tail recovery, and replay.
+\item[World plane.] Validated proposals, shared artifacts, and observable reuse across agents.
+\item[Memory plane.] Extracted records, provenance, retrieval, and citation feedback.
+\item[Accounting plane.] Model calls, tool work, child-agent work, limits, and billed cost.
+\item[Evolution plane.] Candidate policies, pinned assays, canaries, promotion, and rollback.
+\end{description}
 
-\subsection{Self-improvement}
-The inner loop improves a task artifact. The outer loop proposes changes to policy, runs candidate and parent on held-out tasks, records traces and scores, and promotes only when the candidate wins under the pinned rule. Two observed policy promotions preserved equal pass counts while reducing total steps from 94 to 52 and then from 76 to 41. These are small, two-task held-out assays, not population-level estimates.
+This organization is model-agnostic. Providers are configuration. The authority boundaries do not depend on a particular model family, and a model change is logged as an infrastructure change rather than silently credited to policy fitness.
+
+\section{Mission execution}
+\subsection{Typed tools and a generated surface}
+Tools run as processes behind a typed protocol. The kernel registers capabilities and generates the mission surface from that registry. This avoids maintaining one tool list in the prompt and another in execution code. Requests and results retain the registered tool name, arguments, timing, outcome, and payload references in the event stream.
+
+The edit path uses anchored or patch-based mutations rather than unconstrained file replacement. Terminal execution occurs inside a platform confinement layer. On Linux, the runner uses bubblewrap; on macOS, it emits a Seatbelt profile. Startup fails when the required confinement mechanism is unavailable. The project and required caches remain writable while system paths remain read-only.
+
+\subsection{Submission is a transaction}
+A submission carries the answer and its declared checks together. The checker judges a restored workspace, not whichever transient directory happens to be current. This ordering closes a race found in an earlier path where answer text could become visible before the final check declaration was persisted. The regression test reproduces the original multi-step failure rather than testing only the repaired function.
+
+\subsection{The critic can block but cannot approve}
+The critic receives the goal and submitted artifact in a fresh context without the worker's rationale. Its job is to identify a grounded blocking defect. In the production path it runs under a read-only operating-system identity. An abnormal critic exit fails closed. A critic report can return work for repair; it cannot by itself turn failed executable checks into a pass.
+
+Verdict records distinguish verified work from capped retries or verifier malfunction. This distinction prevents an operational limit from being rendered as successful judgment.
+
+\section{The event record}
+A transcript records conversation. A run record must reconstruct action. \system{} uses typed, canonical events, content-addressed payloads, segmented streams, and a single append authority. Recovery reads a consistent prefix, detects torn tails, and restores mission state. Plugins return effects to the loop rather than appending events directly.
 
 \begin{figure}[t]
-\centering\includegraphics[width=.97\linewidth]{figures/record.pdf}
-\caption{The append-only event record is operational state, not a post-hoc transcript. Recovery, inspection, memory extraction, accounting, and outer-loop scoring read the same source.}
+\centering\includegraphics[width=.98\linewidth]{figures/record.pdf}
+\caption{Event anatomy and downstream uses. Requests, effects, evidence, and verdicts enter one durable stream. Resume, trace rendering, memory extraction, and scoring consume the same record.}
 \label{fig:record}
 \end{figure}
 
-\section{Why the event record is the system}
-A transcript explains what a model said. A run record must reconstruct what happened. HAIRSPRING canonicalizes typed events, stores large payloads by content hash, appends segmented streams with fsync durability, detects torn tails, and replays from a consistent prefix. Plugins cannot append directly; the loop is the sole writer.
+The constraint changes the semantics of resume. A resumed mission carries the previous transcript, tool results, counters, ledger, and billed cost. It does not start a cosmetically similar mission under a new identity. Mid-run steering, provider changes, child-agent work, and scoring evidence remain events in the same history.
 
-That constraint simplifies recovery and audit. A resumed mission carries the prior transcript, tool results, counters, ledger, and billed cost rather than starting a cosmetically similar new mission. Mid-run steering becomes another event. Model or executor changes are recorded as infrastructure changes, not credited as policy fitness.
+\evidence{Storage tests inject torn tails, duplicate clock values, corrupt registry markers, dead plugins, interrupted migrations, and replay after promotion. The relevant proofs live in the crate test suites at the evaluated source revision.}
 
-\status{PROVEN} Tests inject torn tails, corrupt registry markers, duplicate clock values, dead plugins, interrupted migrations, and replay after promotion. Byte-exact recovery and single-writer fencing are asserted at the storage boundary.
+\section{Shared work without shared authority}
+\subsection{Bounded child agents}
+A parent can start asynchronous child missions with explicit step limits. Each child writes to its own stream under the parent's log root, books its work to the parent, and joins before mission close. Child agents cannot recursively delegate. The depth boundary is enforced by the spawned tool surface, not by a natural-language request.
 
-\section{Evaluation}
-We report measurements only when the raw artifact identifies the task, outcome, steps, cost, and judging path. The principal comparison uses the same ten SWE-bench-Live tasks, the same model family, and host-side fail-to-pass checks. Each system operated through its native interface. This is a harness comparison on one curated subset, not a leaderboard claim.
+\subsection{World proposals}
+Agents submit proposed effects to the world service. Validation separates a model's report from shared state. Accepted artifacts can be discovered by another child without a direct message between them. Reuse remains observable in the world record.
 
-\subsection{Matched SWE-bench-Live subset}
+\subsection{Memory with provenance}
+The memory service stores extracted records in a global knowledge base. A served record that a later mission cites receives positive feedback; a served record that the mission ignores receives negative feedback. This is a reuse signal, not a truth score. The original source and mission identity remain attached to the record.
+
+The system has end-to-end tests for writes, recall, and cross-child reuse. A broader behavioral question remains open: whether a capable live model selects the right record as the knowledge base grows.
+
+\section{Policy-level self-improvement}
+The inner loop repairs a task artifact. The outer loop changes harness policy. A proposer receives durable prior policy, traces, scores, reflections, and frontier state. It emits a candidate. Candidate and parent run on held-out tasks under a scorer pin established before mutation. Canaries detect scorer drift. Promotion records retain candidate and parent hashes, assay conditions, traces, scores, decision, and reason.
+
+Two observed promotions preserved equal pass counts while reducing total steps from 94 to 52 and then from 76 to 41. These were small, two-task assays. They show that the promotion path can produce and install a winner. They do not estimate a population-level improvement rate. The current system changes prompts and policy artifacts; it does not yet author and safely promote changes to its own Rust implementation.
+
+\begin{table}[t]
+\centering\small
+\caption{Observed policy promotions. Each row compares a candidate with its parent on two held-out tasks.}
+\begin{tabular}{lrrr}\hline
+Assay & Candidate steps & Parent steps & Reduction \\\hline
+Cycle 1 & 52 & 94 & 44.7\%\\
+Cycle 2 & 41 & 76 & 46.1\%\\\hline
+\end{tabular}
+\label{tab:promotions}
+\end{table}
+
+\section{Evaluation method}
+The evaluation separates four kinds of evidence. Source and unit tests establish that a mechanism exists and preserves local invariants. Installed-path seam tests establish that the terminal, registry, sandbox, checker, and rendered state connect the mechanism to a real mission. Live artifact trials establish that a real model can produce and pass an independently judged artifact. Matched external evaluations compare harness outcomes under a shared judge.
+
 \begin{figure}[t]
-\centering\includegraphics[width=.95\linewidth]{figures/benchmark.pdf}
-\caption{Raw results for the matched ten-task subset. HAIRSPRING resolved 9/10 and SWE-agent 3/10. HAIRSPRING used fewer agent steps but more wall time and reported cost because its verifier-repair loop performed additional judgment.}
-\label{fig:bench}
+\centering\includegraphics[width=.96\linewidth]{figures/evidence-layers.pdf}
+\caption{The evidence ladder used in this paper. A large unit suite does not substitute for an installed-path result, and a live result does not by itself establish a general benchmark claim.}
+\label{fig:evidence}
 \end{figure}
 
-\begin{table}[h]
+The principal comparison uses ten SWE-bench-Live tasks with the same model family and host-side fail-to-pass checks. Each system operated through its native interface. Raw records identify task, submission status, outcome, steps, wall time, and cost. The comparison is a curated subset, not a leaderboard sample. There are no repeated seeds or confidence intervals.
+
+\section{Matched software-engineering result}
+\begin{figure}[t]
+\centering\includegraphics[width=.96\linewidth]{figures/benchmark.pdf}
+\caption{Matched ten-task results. \system{} resolved 9 tasks; SWE-agent resolved 3. \system{} used fewer agent steps and more provider-reported cost.}
+\label{fig:benchmark}
+\end{figure}
+
+\begin{table}[t]
 \centering\small
-\caption{Matched ten-task result. Cost is the provider-reported run total in the raw ledgers.}
-\begin{tabular}{lrrrr}
-\hline
-System & Resolved & Agent steps & Wall time & Cost (USD)\\
-\hline
-HAIRSPRING & 9/10 & 987 & 8.13 h & 6.48\\
-SWE-agent & 3/10 & 1,170 & 1.00 h & 0.90\\
-\hline
+\caption{Aggregate matched result. Wall time and cost are sums of the raw per-task records.}
+\begin{tabular}{lrrrr}\hline
+System & Resolved & Agent steps & Wall time & Cost (USD)\\\hline
+\system{} & 9/10 & 987 & 26,935 s & 6.484234\\
+SWE-agent & 3/10 & 1,170 & 3,613 s & 0.903649\\\hline
 \end{tabular}
+\label{tab:benchmark}
 \end{table}
 
-\status{PROVEN} HAIRSPRING's single failure was a two-hour timeout on \texttt{haystack-8619}. After preflight and judgment defects were fixed, the 49-task continuation closed 48 valid tasks; one instance was excluded because its test patch declared an already tracked file as new. The ten-task table remains the clean matched comparison and is not replaced by that later engineering run.
+\system{}'s failure was a two-hour timeout on \code{deepset-ai/haystack-8619}. The successful runs ranged from 23 to 171 worker steps. SWE-agent's three passes were \code{conan-17092}, \code{haystack-8525}, and \code{conan-17129}. Several SWE-agent failures reached a submission but failed host-side tests; others encountered missing evaluation dependencies. The shared host-side verdict remains the reported outcome.
 
-The result supports one mechanism claim: executable judgment plus critic-guided repair can recover tasks that a cheaper flat loop leaves unresolved. It does not isolate every subsystem. In particular, a parallel-execution seam produced no benefit in the first controlled arm and was reverted. HAIRSPRING therefore does not credit the result to parallelism.
+The result supports one bounded mechanism claim: executable judgment followed by evidence-driven repair can recover tasks that a cheaper flat loop leaves unresolved. It does not isolate the independent contribution of every subsystem. In particular, an early parallel-execution seam produced no gain in its controlled arm and was reverted. The paper therefore does not attribute the benchmark result to parallelism.
 
-\subsection{Self-improvement assays}
-\begin{table}[h]
-\centering\small
-\caption{Observed policy promotions. Both arms passed two held-out tasks.}
-\begin{tabular}{lrrr}
-\hline
-Promotion & Candidate steps & Parent steps & Relative reduction\\
-\hline
-Cycle 1 & 52 & 94 & 44.7\%\\
-Cycle 2 & 41 & 76 & 46.1\%\\
-\hline
-\end{tabular}
-\end{table}
-
-\status{PROVEN} The promotion journals retain parent and candidate text, hashes, trace stream identifiers, decision, and reason. \status{EXTRAPOLATED} Larger gains should not be assumed: the sample is four task outcomes across two successive assays.
-
-\subsection{Engineering evidence}
-\begin{table}[h]
-\small
-\caption{Evidence carried with the paper. Commands run from a fresh clone at \texttt{4273dcc}.}
-\begin{tabularx}{\linewidth}{p{.24\linewidth}Y}
-\hline
-Measurement & Regeneration command\\
-\hline
-70,429 Rust lines, 14 crates & \code{find crates -name '*.rs' -print0 | xargs -0 wc -l}; \code{find crates -mindepth 2 -maxdepth 2 -name Cargo.toml | wc -l}\\
-994 named tests & \code{cargo test --workspace --locked -- --list | grep -c ': test\$'}\\
-992 passed, 0 failed & \code{cargo test --workspace --locked --no-fail-fast}\\
-Matched benchmark & \code{python3 paper/reproduce.py benchmark} using the checked-in raw CSV and JSON\\
-Paper PDF & \code{cd paper \&\& make clean all}\\
-\hline
+\subsection{Per-task results}
+\begin{table}[htbp]
+\centering\scriptsize
+\caption{\system{} per-task results from the checked-in raw CSV.}
+\begin{tabularx}{\linewidth}{Yrrrrl}\hline
+Instance & Pass & Steps & Calls & Wall (s) & Cost (millidollars)\\\hline
+cfn-lint-3764 & yes & 32 & 33 & 96 & 603\\
+conan-17129 & yes & 61 & 62 & 158 & 769\\
+haystack-8525 & yes & 23 & 24 & 67 & 397\\
+haystack-8609 & yes & 60 & 61 & 237 & 1,302\\
+conan-17092 & yes & 68 & 71 & 631 & 3,503\\
+cfn-lint-3862 & yes & 86 & 89 & 349 & 3,024\\
+streamlink-6439 & yes & 49 & 50 & 197 & 2,834\\
+haystack-8799 & yes & 171 & 172 & 1,551 & 5,053\\
+pdm-3314 & yes & 69 & 70 & 424 & 2,250\\
+haystack-8619 & no & 368 & 368 & 2,774 & 7,200\\\hline
 \end{tabularx}
 \end{table}
 
-Clippy is not reported as clean at this revision. Running \code{cargo clippy --workspace --all-targets --locked -- -D warnings} produced 50 failures under the current toolchain, including numeric-cast and needless-borrow lints. The test suite remained green. This distinction is intentional: a passing test suite does not make a different quality gate pass.
+\section{Comparison with SWE-agent}
+SWE-agent is the reproducible incumbent for this study because it provides a public implementation, a defined agent--computer interface, and an executable run path. The systems solve different boundary problems. SWE-agent focuses the model's interaction with a computer. \system{} adds in-run judgment, replay, shared-state authority, and outer-loop policy evaluation.
 
-\section{Comparison with the strongest incumbent}
-SWE-agent is the strongest reproducible incumbent in the local software-engineering evaluation because it provides a public implementation, a defined agent-computer interface, and an executable run path. Table~\ref{tab:compare} compares responsibilities rather than product slogans.
-
-\begin{table}[h]
+\begin{table}[htbp]
 \small
-\caption{Mechanism comparison. ``Native'' means the responsibility is represented directly in the harness.}
-\label{tab:compare}
-\begin{tabularx}{\linewidth}{p{.26\linewidth}YY}
-\hline
-Responsibility & HAIRSPRING & SWE-agent\\
-\hline
-Tool interface & Typed plugin registry; generated mission surface & Purpose-built agent-computer interface\\
-Mission close & Executable checks plus independent refutation & Agent submission followed by external benchmark grading\\
-Recovery & Event replay and resumable counters, cost, transcript, and tools & Trajectory artifacts; run recovery is not the core abstraction\\
-Shared state & Validated world proposals and scored memory & No equivalent native world authority plane\\
-Parallel agents & Bounded children with shared planes and folded cost & Single-agent reference path\\
-Harness evolution & Held-out candidate/parent assays with pinned promotion & Outside the harness\\
-Observed ten-task result & 9/10 at \$6.48 & 3/10 at \$0.90\\
-\hline
+\caption{Responsibility comparison. ``Native'' means the responsibility is a first-class harness path rather than a downstream benchmark function.}
+\begin{tabularx}{\linewidth}{p{.24\linewidth}YY}\hline
+Responsibility & \system{} & SWE-agent\\\hline
+Computer interface & Typed process plugins; generated surface & Purpose-built agent--computer interface\\
+Mission close & Executable checks plus fresh-context refutation & Agent submission; benchmark grades later\\
+Recovery & Event replay restores counters, cost, transcript, and tools & Trajectory artifacts; resume is not the central abstraction\\
+Shared state & Validated world proposals and provenance-bearing memory & No equivalent authority plane in the reference path\\
+Parallel work & Bounded child streams with folded accounting & Single-agent reference path\\
+Harness evolution & Held-out candidate/parent assays with pinned scorer & Outside the harness\\
+Matched result & 9/10 at \$6.48 & 3/10 at \$0.90\\\hline
 \end{tabularx}
 \end{table}
 
-HAIRSPRING trades cost and latency for a stronger in-run judgment path. SWE-agent remains the simpler and cheaper choice when external grading already supplies the authority and recovery, memory, and self-modification are outside the job.
+The trade is visible. \system{} spends more time and money to judge and repair during the run. SWE-agent remains simpler and cheaper when an external evaluator already supplies the authority and replay, memory, shared world state, and self-improvement are outside the job.
+
+\section{Failure-driven engineering}
+The highest-value defects crossed subsystem boundaries while local tests remained green. Four examples shaped the current test rule.
+
+\paragraph{A dead tool surface.} A capability could exist in a crate while the production terminal never registered it. The fix required a seam test through the real registry and TUI path.
+
+\paragraph{A wrong production mode.} General missions accidentally used an amnesiac benchmark arm. Unit tests for both modes passed; only a live installed-path run exposed the selection error.
+
+\paragraph{Recursive delegation.} The first real delegation test allowed descendants to delegate until the host reached roughly 7,800 processes. The repaired design removes delegation from a child's surface and adds an explicit spawn cap.
+
+\paragraph{An impossible gate.} Missing test dependencies and strict marker settings caused the evaluator to collect zero tests while the agent kept repairing a correct patch. Preflight now proves that the gate can execute before a mission starts.
+
+These failures lead to one rule: a mechanism is not accepted because its crate test passes. Its regression must reproduce how a model reaches it through the installed terminal path, including registry, sandbox, project root, judgment order, and rendered outcome.
 
 \section{Relationship to long-horizon research controllers}
-Stellar Colosseum organizes research into strategy exploration, a readiness gate, a typed proof-section dependency graph, parallel local construction, and global verification. Its most transferable idea is not a fixed many-agent tree. It is explicit control over when a strategy is mature enough to decompose and where a verifier's finding should return.
+Stellar Colosseum organizes long-form research into strategy exploration, a readiness gate, a section dependency graph, local subproblem solving, and global verification. Its strongest transferable idea is explicit control over when a strategy is mature enough to decompose and where a verifier's finding should return \cite{colosseum}.
 
-HAIRSPRING already supplies the substrate needed by such a controller: replayable state, executable checks, a fresh critic, bounded live children, shared world and memory planes, accounting, and held-out evolution. It does not yet implement Colosseum's research-proof control plane. Missions are flat; critic feedback is routed as whole-mission prior gaps; candidates are selected or compared rather than constructively synthesized with their objections; no typed section DAG localizes repair to an affected closure.
+\system{} supplies a lower substrate for such a controller: replayable state, executable checks, a fresh critic, bounded children, shared world and memory planes, accounting, and held-out evolution. It does not yet implement Colosseum's research-proof control plane. Missions remain flat. Critic findings return as whole-mission gaps. Candidates are selected or compared rather than constructively synthesized with their objections. No typed section graph localizes a defect to the affected dependency closure.
 
-\status{EXTRAPOLATED} A research mode can be built above the existing authority boundaries: explore $\rightarrow$ readiness decision $\rightarrow$ typed dependency graph $\rightarrow$ eligible child solves $\rightarrow$ global verification $\rightarrow$ affected-section repair or renewed exploration. The existing whole-artifact critic should remain final authority. Fixed 32- or 16-leaf trees should not become defaults without matched-compute evidence.
-
-\section{Failure analysis}
-The most important HAIRSPRING results came from failures that crossed subsystem boundaries while local tests stayed green. Examples include a tool advertised under one name and registered under another, a production mission accidentally running the benchmark's amnesiac baseline arm, a child process tree that recursively delegated until the host reached roughly 7,800 processes, and a checker whose environment caused zero tests to run while the agent kept repairing a correct patch.
-
-These failures changed the test rule. A mechanism is not accepted because its crate test passes. The regression must reproduce the way a model reaches it through the installed terminal path, with the actual registry, sandbox, project root, judgment order, and rendered state. The current suite contains these seam tests alongside unit tests.
+A research mode can be built above the current boundaries: strategy exploration $\rightarrow$ readiness decision $\rightarrow$ typed dependency graph $\rightarrow$ eligible child solves $\rightarrow$ global verification $\rightarrow$ affected-section repair or renewed exploration. The whole-artifact critic should remain final authority. Fixed tree widths should not become defaults without matched-compute evidence.
 
 \section{Limitations}
 \begin{enumerate}
-\item \textbf{The strongest headline comparison is small.} Ten curated SWE-bench-Live tasks establish a measured difference on that subset, not general software-engineering superiority. There are no repeated seeds or confidence intervals.
-\item \textbf{Verification is expensive.} HAIRSPRING spent about 7.2 times as much as SWE-agent on the matched subset and took longer. The evaluation does not yet trace critic cost and steps round by round in older runs.
-\item \textbf{Self-improvement is policy-level.} The system can propose and promote prompt or policy changes. It cannot yet modify and safely promote its own Rust implementation.
-\item \textbf{Memory use is partly behavioral.} End-to-end write and recall paths are proven, including cross-child reuse. Whether a capable live model chooses the right memory at scale remains unmeasured.
-\item \textbf{The research controller is flat.} There is no explicit strategy-readiness state, typed section dependency graph, or section-addressed defect routing.
-\item \textbf{Platform coverage is incomplete.} Linux is exercised on the build box. The project currently has no macOS continuous-integration home.
-\item \textbf{Static quality is not clean at this revision.} Tests pass, but current pedantic Clippy fails. The paper reports both facts.
+\item The headline comparison contains ten curated tasks. It establishes a difference on that subset, not general software-engineering superiority.
+\item Verification is expensive. On the matched subset, \system{} spent about 7.2 times as much as SWE-agent and took substantially longer.
+\item The study has no repeated seeds and cannot estimate result variance.
+\item Self-improvement changes prompts and policy artifacts, not the Rust implementation.
+\item Memory writes, recall, and cross-child reuse are exercised end to end; live-model selection quality at scale is not measured.
+\item The research controller is flat. Strategy readiness, typed section dependencies, objection-preserving synthesis, and section-addressed repair remain unimplemented.
+\item At the evaluated paper revision, the workspace test suite passed but current pedantic Clippy produced 50 failures. Passing tests do not make a different quality gate pass.
 \end{enumerate}
 
 \section{Reproducibility}
-The repository includes the paper source, generated figures, raw matched-run records, and a small reproduction script. The commands below do not call a paid model.
+The repository carries manuscript source, generated figures, raw matched records, and a reproduction script. The source revision for the measurements is \code{4273dccf6d00fa727b01fcbdedc6773ace9eca12}. Paper changes after that revision do not alter the raw run records.
 
+\begin{table}[htbp]
+\small
+\caption{Regeneration commands. These commands do not call a paid model.}
+\begin{tabularx}{\linewidth}{p{.29\linewidth}Y}\hline
+Measurement & Command from repository root\\\hline
+Rust source lines & \code{find crates -name '*.rs' -print0 | xargs -0 wc -l}\\
+Workspace crates & \code{find crates -mindepth 2 -maxdepth 2 -name Cargo.toml | wc -l}\\
+Named tests & \code{cargo test --workspace --locked -- --list | grep -c ': test\$'}\\
+Workspace tests & \code{cargo test --workspace --locked --no-fail-fast}\\
+Matched aggregates & \code{python3 paper/reproduce.py benchmark}\\
+Paper PDF & \code{cd paper \&\& make clean all}\\\hline
+\end{tabularx}
+\end{table}
+
+The SWE-bench-Live runs require task repositories, test patches, provider credentials, and runner environments. The checked-in CSV and JSON permit recomputation of the aggregates without rerunning paid inference.
+
+\section{Discussion}
+Authority boundaries make failures legible. A failed check is not an answer-quality opinion; it is an execution fact. A critic malfunction is not a pass; it is a machinery state. A useful memory is not shared truth; it is a record with provenance and a reuse signal. A candidate with an attractive explanation is not an improvement; it is an assay input.
+
+This framing does not remove model error. It changes where error can become state. The worker may still choose a poor plan or spend too long on a dead end. The substrate can preserve the evidence, enforce budgets, refuse an invalid close, and route a grounded defect back for repair. Those properties become more important as missions grow longer because recovery and attribution costs rise with the amount of hidden state.
+
+\section{Conclusion}
+\system{} treats agency as a problem of authority. The model does the open-ended work. A checker, critic, event record, world service, memory service, and pinned scorer decide what becomes a pass, durable state, shared knowledge, or an installed policy.
+
+On one matched ten-task software-engineering subset, this architecture resolved more tasks than SWE-agent while using fewer worker steps, more money, and more wall time. The result is narrow. The design lesson is broader: a longer loop does not make its own verdict safer. Long-running agents become easier to inspect, recover, and improve when the loop proposes and the substrate decides.
+
+\appendix
+\section{Artifact map}
+The implementation is divided by responsibility rather than by interface layer.
+\begin{table}[htbp]\small
+\begin{tabularx}{\linewidth}{p{.22\linewidth}Y}\hline
+Crate & Responsibility\\\hline
+\code{hs-core} & Event schema, canonical encoding, hash chaining\\
+\code{hs-log} & Segmented streams, payload store, fsync, recovery, rewind\\
+\code{hs-kernel} & Plugin process isolation, protocol, dispatch\\
+\code{hs-loop} & Worker loop, checker path, REPL, TUI, built-in tools and models\\
+\code{hs-swarm} & Bounded asynchronous children, booking, join at close\\
+\code{hs-goal} & Graded mission rig and external grading\\
+\code{hs-hashline}, \code{hs-applypatch} & Anchored and patch-based editing\\
+\code{hs-bench}, \code{hs-scorer} & Benchmarks, tiered scoring, pins, canaries, baselines\\
+\code{hs-selfmod} & Candidate cycle, migration, promotion, rewind\\
+\code{hs-memory}, \code{hs-world} & Provenance-bearing memory and validated shared state\\
+\code{hs-cli} & Event-log inspection and fixtures\\\hline
+\end{tabularx}
+\end{table}
+
+\section{Event and verdict flow}
+The following abbreviated trace shows the intended ordering. Field names are illustrative; the executable schema in \code{hs-core} is authoritative.
+\begin{verbatim}
+mission.opened    { goal, project_root, provider, budgets }
+model.requested   { step, context_hash }
+model.responded   { usage, billed_cost }
+tool.requested    { name, args_hash }
+tool.completed    { status, payload_hash }
+answer.submitted  { artifact_hash, declared_checks }
+checks.completed  { status, evidence_hash }
+critic.completed  { refuted, findings_hash }
+mission.closed    { outcome: "verified" | "rejected" | "stopped" }
+\end{verbatim}
+
+A valid close follows persisted submission and judgment evidence. A replay reconstructs state from the ordered stream and content-addressed payloads. It does not ask the worker to summarize what happened.
+
+\section{Matched raw-result schema}
+The \system{} CSV uses one row per task:
+\begin{verbatim}
+instance_id, passed, model_calls, steps, wall_ms, cost_microusd, note
+\end{verbatim}
+The SWE-agent JSON stores the corresponding instance identifier, submission flag, host-side result, test tail, steps, cost, and token counts. \code{paper/reproduce.py benchmark} sums the two files and prints the totals reported in Table~\ref{tab:benchmark}.
+
+\section{Fresh-clone reproduction}
 \begin{verbatim}
 git clone https://github.com/tensorbend-instinct/hairspring.git
 cd hairspring
 git checkout 4273dccf6d00fa727b01fcbdedc6773ace9eca12
-
-# Build and execute the test suite
 export PATH="$HOME/.cargo/bin:$PATH"
+
 cargo test --workspace --locked --no-fail-fast
-
-# Recompute paper metrics from checked-in raw artifacts
-python3 paper/reproduce.py benchmark
 python3 paper/reproduce.py source
-
-# Render the manuscript
+python3 paper/reproduce.py benchmark
 cd paper && make clean all
 \end{verbatim}
 
-The SWE-bench-Live comparison requires the original task repositories, test patches, provider credentials, and runner environments. The checked-in evidence files are the raw per-task records used for Figure~\ref{fig:bench}; they support recomputation of the reported totals without rerunning paid inference.
+earpage
+\section{Evaluation claims and boundaries}
+\begin{table}[htbp]\small
+\begin{tabularx}{\linewidth}{p{.27\linewidth}p{.16\linewidth}Y}\hline
+Claim & Status & Boundary\\\hline
+14 crates; 342 Rust files; 70,429 lines & Measured & Source tree at the evaluated revision\\
+992 tests passed; 0 failed & Measured & Saved complete workspace run; named-test listing reports 994 entries\\
+9/10 versus 3/10 & Measured & One curated matched subset, same model family, host-side grading\\
+Verifier--repair supports recovery & Supported & Mechanism-level interpretation; no component ablation isolates the full effect\\
+Parallelism caused the gain & Not supported & First controlled seam was null and reverted\\
+General software-engineering superiority & Not claimed & No random sample, repeated seeds, or confidence interval\\
+Research-proof controller & Not implemented & Strategy readiness and section dependency state remain future work\\\hline
+\end{tabularx}
+\end{table}
 
-\section{Next experiments}
-The next build item is a research-mode state machine over the current substrate. Its evaluation should compare four controllers at matched model, task set, token or dollar ceiling, decision opportunities, and verifier policy: the current flat loop, matched Best-of-N, partitioned aggregation, and overlapping aggregation. The primary outcome is externally judged correctness. Secondary outcomes are cost, wall time, revisions, critic findings per accepted artifact, and defect-localization precision.
-
-A second study should ablate the independent critic, executable checks, and repair routing one at a time. This is needed before attributing the SWE-bench-Live gain to a single component. A third should run repeated seeds for policy promotion and report both pass-rate and efficiency distributions.
-
-\section{Conclusion}
-HAIRSPRING treats agency as a problem of authority. The model remains free to search, edit, call tools, delegate, and revise. It cannot declare that work correct, write shared truth, erase the record, or promote its own policy. Those decisions live in mechanisms that can be replayed and tested.
-
-The measured result is narrow but clear: on one matched ten-task software-engineering subset, this design resolved more tasks than the incumbent while using fewer steps and more money. The broader claim remains a design claim. Long-running agents become easier to trust when the loop does the work and the substrate decides what counts.
-
-\section*{Hostile review and changes made}
-Before release, the manuscript was reviewed against its three weakest points.
-\begin{itemize}
-\item \textbf{Risk: the 9/10 result reads as a general win.} Fixed by naming the curated subset in the abstract, adding the 3/10 incumbent cost and wall tradeoff, preserving the one failure, and stating that the study lacks repeated seeds.
-\item \textbf{Risk: implementation breadth substitutes for mechanism evidence.} Fixed by separating source/test proof from benchmark claims and by naming the parallelism null result rather than crediting the full architecture.
-\item \textbf{Risk: the paper implies quality gates are clean.} Fixed by rerunning both tests and Clippy at the paper revision and reporting 992 passed, zero failed, alongside the current 50-error Clippy failure.
-\end{itemize}
-
-\begin{thebibliography}{9}
-\bibitem{sweagent} J. Yang et al. \emph{SWE-agent: Agent-Computer Interfaces Enable Automated Software Engineering}. NeurIPS, 2024. \url{https://arxiv.org/abs/2405.15793}.
-\bibitem{swarmworld} S. Pal et al. \emph{SwarmWorld: Stigmergic technological evolution in societies of language-model agents}. 2026. \url{https://arxiv.org/abs/2608.26081}.
-\bibitem{metaharness} Y. Lee et al. \emph{Meta-Harness: End-to-End Optimization of Model Harnesses}. 2026. \url{https://arxiv.org/html/2603.28052}.
-\bibitem{manus} Y. Ji. \emph{Context Engineering for AI Agents: Lessons from Building Manus}. 2025. \url{https://manus.im/en/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus}.
-\bibitem{colosseum} H. Lin et al. \emph{Stellar Colosseum: A Many-Agent Harness for Long-Horizon Research in Mathematics and Theoretical Computer Science}. 2026. \url{https://arxiv.org/abs/2609.15983}.
+\begin{thebibliography}{12}
+\bibitem{sweagent} J. Yang et al. ``SWE-agent: Agent--Computer Interfaces Enable Automated Software Engineering.'' \emph{NeurIPS}, 2024. \url{https://arxiv.org/abs/2405.15793}.
+\bibitem{colosseum} H. Lin et al. ``Stellar Colosseum: A Many-Agent Harness for Long-Horizon Research in Mathematics and Theoretical Computer Science.'' 2026. \url{https://arxiv.org/abs/2609.15983}.
+\bibitem{swarmworld} S. Pal et al. ``SwarmWorld: Stigmergic technological evolution in societies of language-model agents.'' 2026. \url{https://arxiv.org/abs/2608.26081}.
+\bibitem{metaharness} Y. Lee et al. ``Meta-Harness: End-to-End Optimization of Model Harnesses.'' 2026. \url{https://arxiv.org/html/2603.28052}.
+\bibitem{manus} Y. Ji. ``Context Engineering for AI Agents: Lessons from Building Manus.'' 2025. \url{https://manus.im/en/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus}.
+\bibitem{react} N. Shinn et al. ``Reflexion: Language Agents with Verbal Reinforcement Learning.'' \emph{NeurIPS}, 2023.
+\bibitem{tot} S. Yao et al. ``Tree of Thoughts: Deliberate Problem Solving with Large Language Models.'' \emph{NeurIPS}, 2023.
+\bibitem{sc} X. Wang et al. ``Self-Consistency Improves Chain of Thought Reasoning in Language Models.'' \emph{ICLR}, 2023.
+\bibitem{aider} P. Gauthier. ``Aider: AI pair programming in your terminal.'' 2024. \url{https://aider.chat/}.
 \end{thebibliography}
 
 \section*{Citation}
@@ -263,7 +346,7 @@ Before release, the manuscript was reviewed against its three weakest points.
   author = {{Tensorbend Instinct}},
   year   = {2026},
   url    = {https://github.com/tensorbend-instinct/hairspring},
-  note   = {Revision 4273dccf6d00fa727b01fcbdedc6773ace9eca12}
+  note   = {Evidence revision 4273dccf6d00fa727b01fcbdedc6773ace9eca12}
 }
 \end{verbatim}
 \end{document}

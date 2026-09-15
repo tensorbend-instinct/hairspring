@@ -2,7 +2,7 @@
 all: hairspring.pdf
 figures:
 	python3 make_figures.py
-hairspring.pdf: hairspring.tex hairspring.template.html paper.css postprocess.py build.sh figures/architecture.png figures/record.png figures/benchmark.png
+hairspring.pdf: hairspring.tex figures/architecture.pdf figures/record.pdf figures/benchmark.pdf figures/evidence-layers.pdf
 	./build.sh
 clean:
-	rm -rf .pages hairspring.raw.html hairspring.full.pdf hairspring.pdf
+	rm -f hairspring.aux hairspring.log hairspring.out hairspring.pdf
