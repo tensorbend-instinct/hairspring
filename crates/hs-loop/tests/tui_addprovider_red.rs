@@ -494,7 +494,7 @@ fn palette_lists_models_add() {
 }
 
 #[test]
-fn install_warns_when_another_hairspring_shadows_the_install() {
+fn install_fails_when_another_hairspring_shadows_the_install() {
     let install =
         std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../install.sh")).unwrap();
     assert!(
@@ -502,8 +502,8 @@ fn install_warns_when_another_hairspring_shadows_the_install() {
         "install.sh must detect a shadowing hairspring earlier in PATH"
     );
     assert!(
-        install.contains("WARNING"),
-        "install.sh must warn loudly when it detects the shadow"
+        install.contains("ERROR:"),
+        "install.sh must fail loudly when it detects the shadow"
     );
 }
 

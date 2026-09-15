@@ -34,24 +34,32 @@ hs-plugin-fileread hs-plugin-reposearch hs-plugin-repoexec \
 hs-plugin-editapply hs-plugin-notescratch hs-plugin-termexec \
 hs-plugin-swarm hs-plugin-policy hs-plugin-scripted hs-plugin-deepseek hs-plugin-provmodel hs-promote hs-plugin-gatemodel hs-plugin-checker"
 
-mkdir -p "$PREFIX/bin" "$BINLINK_DIR" "$CONFIG_DIR"
+mkdir -p "$PREFIX" "$BINLINK_DIR" "$CONFIG_DIR"
+# A managed upgrade is a clean replacement, not copies over an old tree:
+# removed plugin names cannot survive and shadow the exact checkout being installed.
+rm -rf "$PREFIX/bin.new"
+mkdir -p "$PREFIX/bin.new"
 for b in $BINS; do
-    cp "$SRC/target/release/$b" "$PREFIX/bin/$b"
+    cp "$SRC/target/release/$b" "$PREFIX/bin.new/$b"
 done
+rm -rf "$PREFIX/bin.old"
+if [ -d "$PREFIX/bin" ]; then mv "$PREFIX/bin" "$PREFIX/bin.old"; fi
+mv "$PREFIX/bin.new" "$PREFIX/bin"
+rm -rf "$PREFIX/bin.old"
 cp "$SRC/examples/seqmodel-demo.jsonl" "$PREFIX/seqmodel-demo.jsonl"
 ln -sf "$PREFIX/bin/hs-repl" "$BINLINK_DIR/hairspring"
 
-# A hairspring earlier in PATH shadows this install (Eric 2026-09-13:
-# install.sh can run clean while an older build keeps answering).
 resolved="$(command -v hairspring 2>/dev/null || true)"
-if [ -n "$resolved" ] && [ "$resolved" != "$BINLINK_DIR/hairspring" ]; then
-    cat <<WARN
-
-WARNING: 'hairspring' resolves to $resolved - that build shadows the
-one just installed at $BINLINK_DIR/hairspring. Remove it, or put
-$BINLINK_DIR earlier in PATH.
-WARN
+if [ "$resolved" != "$BINLINK_DIR/hairspring" ]; then
+    echo "ERROR: installed $BINLINK_DIR/hairspring but PATH resolves ${resolved:-nothing}" >&2
+    type -a hairspring >&2 || true
+    exit 1
 fi
+printf 'Resolution:\n'
+type -a hairspring
+installed_hash="$(sha256sum "$PREFIX/bin/hs-repl" | awk '{print $1}')"
+source_commit="$(git -C "$SRC" rev-parse HEAD 2>/dev/null || echo unknown)"
+printf 'Source commit: %s\nInstalled binary: %s\nInstalled sha256: %s\n' "$source_commit" "$PREFIX/bin/hs-repl" "$installed_hash"
 
 if [ ! -f "$CONFIG_DIR/hairspring.toml" ]; then
     sed "s|@PREFIX@|$PREFIX|g" "$SRC/hairspring.example.toml" > "$CONFIG_DIR/hairspring.toml"
