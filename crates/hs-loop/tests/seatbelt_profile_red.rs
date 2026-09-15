@@ -39,8 +39,13 @@ fn p1_profile_denies_all_writes_then_allows_root_and_tmp() {
 fn p2_verifier_profile_denies_the_root_last() {
     let p = termexec::seatbelt_profile(Path::new("/private/tmp/hs-demo"), false);
     let allow_start = p.find("(allow file-write*").expect("an allow rule");
-    let allow_end = allow_start + p[allow_start..].find(")
-").expect("allow rule closes");
+    let allow_end = allow_start
+        + p[allow_start..]
+            .find(
+                ")
+",
+            )
+            .expect("allow rule closes");
     let allow_rule = &p[allow_start..allow_end];
     assert!(
         !allow_rule.contains("/private/tmp/hs-demo"),
@@ -111,7 +116,11 @@ fn b2_environment_is_scrubbed() {
         std::env::set_var("HS_PROJECT_ROOT", &root);
         std::env::set_var("HS_TEST_LEAK", "hunter2");
     }
-    let o = termexec::run(&root, "echo PATH=$PATH; echo LEAK=${HS_TEST_LEAK-unset}", 10);
+    let o = termexec::run(
+        &root,
+        "echo PATH=$PATH; echo LEAK=${HS_TEST_LEAK-unset}",
+        10,
+    );
     unsafe {
         std::env::remove_var("HS_PROJECT_ROOT");
         std::env::remove_var("HS_TEST_LEAK");
@@ -121,9 +130,15 @@ fn b2_environment_is_scrubbed() {
     // is the fixed toolchain PATH (Eric 2026-09-10, iMessage: missions
     // must build language envs with standard toolchains -> /usr/local/bin
     // and homebrew's /opt/homebrew/bin are on it), NOT the host's PATH.
-    assert!(out.contains("/usr/local/bin"), "toolchain bins on PATH: {out}");
+    assert!(
+        out.contains("/usr/local/bin"),
+        "toolchain bins on PATH: {out}"
+    );
     assert!(out.contains(":/usr/bin:/bin"), "system bins on PATH: {out}");
-    assert!(!out.contains("/root/.cargo"), "host PATH must not leak: {out}");
+    assert!(
+        !out.contains("/root/.cargo"),
+        "host PATH must not leak: {out}"
+    );
     assert!(out.contains("LEAK=unset"), "no harness env leaks in: {out}");
 }
 
@@ -158,4 +173,34 @@ fn b3_verifier_cannot_write_task_files_but_keeps_scratch() {
 #[test]
 fn b4_platform_probe_passes_on_this_dev_box() {
     termexec::sandbox_probe().expect("the dev box confines missions (bwrap)");
+}
+
+#[test]
+fn b5_author_scratch_persists_across_termexec_calls() {
+    let _g = ENV_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    unsafe { std::env::set_var("HS_PROJECT_ROOT", &root) };
+    let a = termexec::run(
+        &root,
+        r#"mkdir -p "$HOME/.cargo/bin" && printf tool > "$HOME/.cargo/bin/persist-probe""#,
+        10,
+    );
+    assert_eq!(a["exit_code"], 0, "first call writes cache: {a}");
+    let b = termexec::run(
+        &root,
+        r#"test "$HOME" = "$PWD" && test "$(cat "$HOME/.cargo/bin/persist-probe")" = tool && echo PERSISTED"#,
+        10,
+    );
+    unsafe { std::env::remove_var("HS_PROJECT_ROOT") };
+    assert_eq!(
+        b["exit_code"], 0,
+        "a toolchain/cache written in one call survives the next: {b}"
+    );
+    assert!(
+        b["stdout"].as_str().unwrap_or("").contains("PERSISTED"),
+        "{b}"
+    );
 }

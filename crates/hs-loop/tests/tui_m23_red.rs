@@ -13,7 +13,7 @@
 //! counts hidden rows; the streaming tail wraps too.
 
 use hs_loop::tui::{self, TuiState};
-use ratatui::{backend::TestBackend, Terminal};
+use ratatui::{Terminal, backend::TestBackend};
 
 fn viewport_text(st: &TuiState, w: u16, h: u16) -> String {
     let backend = TestBackend::new(w, h);
@@ -21,7 +21,11 @@ fn viewport_text(st: &TuiState, w: u16, h: u16) -> String {
     term.draw(|f| tui::render_skeleton(f, st)).unwrap();
     let buf = term.backend().buffer().clone();
     (0..h as usize)
-        .map(|y| (0..w).map(|x| buf[(x, y as u16)].symbol().to_string()).collect::<String>())
+        .map(|y| {
+            (0..w)
+                .map(|x| buf[(x, y as u16)].symbol().to_string())
+                .collect::<String>()
+        })
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -46,7 +50,7 @@ fn r1_long_prose_wraps_fully_visible() {
 
 // R2: scroll accounting is in ROWS - a line that wraps to two rows
 // scrolls as two, and the marker counts hidden rows. ("x"*80 at
-// width 40 reflows to exactly 2 rows: one hard-broken word.)
+// width 40 with the measured Exo transcript border has 38 inner columns, so this reflows to 3 rows.)
 #[test]
 fn r2_scroll_and_marker_count_rows() {
     let mut st = TuiState::default();
@@ -66,7 +70,10 @@ fn r2_scroll_and_marker_count_rows() {
     let before = viewport_text(&st, 40, 12);
     st.push_transcript_line(&wide);
     let after = viewport_text(&st, 40, 12);
-    assert!(after.contains("5 below"), "push adds rows: {after:?}");
+    assert!(
+        after.contains("6 below"),
+        "push adds three inner-viewport rows: {after:?}"
+    );
     let top = |t: &str| t.lines().next().unwrap_or("").to_string();
     assert_eq!(
         top(&before),
@@ -92,7 +99,9 @@ fn r3_tool_beat_wraps() {
 #[test]
 fn r4_streaming_tail_wraps() {
     let mut st = TuiState::default();
-    st.on_answer_delta("streaming words flow in one delta with no newline yet and keep coming TAILMARK");
+    st.on_answer_delta(
+        "streaming words flow in one delta with no newline yet and keep coming TAILMARK",
+    );
     let text = viewport_text(&st, 40, 12);
     assert!(
         text.contains("TAILMARK"),

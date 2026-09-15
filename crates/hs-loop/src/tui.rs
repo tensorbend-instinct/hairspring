@@ -2353,7 +2353,8 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
         .split('\n')
         .map(|l| wrap_line(&Line::from(l.to_string()), inner_w).len())
         .sum();
-    let want_h = (wrapped_rows as u16 + 1).clamp(2, area.height.saturating_sub(3).max(2));
+    // Exo current runtime: content row(s), one meta row, and a closed titled border.
+    let want_h = (wrapped_rows as u16 + 3).clamp(4, area.height.saturating_sub(3).max(4));
     let composer = Rect::new(
         2.min(area.width),
         l.hud.y.saturating_sub(want_h),
@@ -2368,32 +2369,33 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
     );
     let mut viewport = Rect::new(0, 0, area.width, rail.y);
 
-    // Grok CLI hierarchy: one slim session header above one message canvas.
-    if active && viewport.height > 1 {
+    // Exo current runtime hierarchy: one closed transcript frame titled with the
+    // session, then a separately closed composer. Keep the home canvas open.
+    if active && viewport.height > 2 {
         let title = if state.session_title.is_empty() {
             "Session"
         } else {
             &state.session_title
         };
-        let left = format!("HAIRSPRING: {title}");
-        let mut spans = vec![Span::styled(left, sgr_style(&state.theme.accent))];
-        if !state.stream_short.is_empty() {
-            let used = spans[0].width() as u16;
-            let gap = viewport
-                .width
-                .saturating_sub(used + state.stream_short.len() as u16);
-            spans.push(Span::raw(" ".repeat(gap as usize)));
-            spans.push(Span::styled(
-                state.stream_short.clone(),
-                sgr_style(&state.theme.dim),
-            ));
-        }
+        let suffix = if state.stream_short.is_empty() {
+            String::new()
+        } else {
+            format!(" · {}", state.stream_short)
+        };
+        let label = format!(" HAIRSPRING: {title}{suffix} ");
         f.render_widget(
-            Paragraph::new(Line::from(spans)),
-            Rect::new(0, 0, viewport.width, 1),
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(sgr_style(&state.theme.dim))
+                .title(Span::styled(label, sgr_style(&state.theme.accent))),
+            viewport,
         );
-        viewport.y += 1;
-        viewport.height -= 1;
+        viewport = Rect::new(
+            viewport.x + 1,
+            viewport.y + 1,
+            viewport.width.saturating_sub(2),
+            viewport.height.saturating_sub(2),
+        );
     }
 
     // M26: a fresh session is not a void - an empty transcript shows
@@ -2485,7 +2487,14 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
         for l in raw.split('\n') {
             content.extend(wrap_line(&Line::from(l.to_string()), inner_w));
         }
-        f.render_widget(Paragraph::new(content), composer);
+        let composer_block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(sgr_style(&state.theme.dim))
+            .title(Span::styled(
+                " message or /command ",
+                sgr_style(&state.theme.accent),
+            ));
+        f.render_widget(Paragraph::new(content).block(composer_block), composer);
         if composer.width > 7 {
             let (row, col) = state.editor.cursor();
             let mut before = String::from("Agent  ");
@@ -2502,8 +2511,8 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
             for l in before.split('\n') {
                 bl.extend(wrap_line(&Line::from(l.to_string()), inner_w));
             }
-            let cy = composer.y + bl.len().saturating_sub(1) as u16;
-            let cx = composer.x + bl.last().map_or(0, |l| l.width() as u16);
+            let cy = composer.y + 1 + bl.len().saturating_sub(1) as u16;
+            let cx = composer.x + 1 + bl.last().map_or(0, |l| l.width() as u16);
             if cx < composer.x + composer.width && cy < composer.y + composer.height {
                 f.set_cursor_position((cx, cy));
             }
@@ -2528,9 +2537,9 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
             f.render_widget(
                 Paragraph::new(Line::from(meta)),
                 Rect::new(
-                    composer.x,
-                    composer.y + composer.height - 1,
-                    composer.width,
+                    composer.x + 1,
+                    composer.y + composer.height - 2,
+                    composer.width.saturating_sub(2),
                     1,
                 ),
             );

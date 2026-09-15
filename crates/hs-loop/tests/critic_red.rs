@@ -106,6 +106,39 @@ fn u4_step_cap_fails_closed() {
     assert!(r.reason.to_lowercase().contains("cap"), "says why: {r:?}");
 }
 
+/// RED: two final calls are reserved: an ignored verdict request is
+/// rejected without running its tool, then the retry can return the verdict.
+#[test]
+fn u4b_final_step_is_reserved_for_verdict() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut m = hs_loop::critic::ScriptedCritic::new(vec![
+        hs_loop::critic::CriticReply::ToolCalls(vec![("c1".into(), "true".into())]),
+        hs_loop::critic::CriticReply::ToolCalls(vec![("c2".into(), "printf SHOULD_NOT_RUN".into())]),
+        hs_loop::critic::CriticReply::Final("{\"refuted\": false, \"reason\": \"probe passed\"}".into()),
+    ]);
+    let cfg = hs_loop::critic::RefuteConfig { max_steps: 3, ..Default::default() };
+    let r = hs_loop::critic::refute(dir.path(), "Do x.", "true", &cfg, &mut m);
+    assert!(r.passed, "final verdict budget must survive one refusal: {r:?}");
+    assert_eq!(r.steps, 3);
+    assert!(!r.trace.iter().any(|v| v["output"].as_str().is_some_and(|o| o.contains("SHOULD_NOT_RUN"))), "final tool was not executed: {r:?}");
+}
+
+/// RED: refusing both reserved verdict calls terminates explicitly.
+#[test]
+fn u4c_final_step_refusing_verdict_terminates_cleanly() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut m = hs_loop::critic::ScriptedCritic::new(vec![
+        hs_loop::critic::CriticReply::ToolCalls(vec![("c1".into(), "true".into())]),
+        hs_loop::critic::CriticReply::ToolCalls(vec![("c2".into(), "true".into())]),
+        hs_loop::critic::CriticReply::ToolCalls(vec![("c3".into(), "true".into())]),
+    ]);
+    let cfg = hs_loop::critic::RefuteConfig { max_steps: 3, ..Default::default() };
+    let r = hs_loop::critic::refute(dir.path(), "Do x.", "true", &cfg, &mut m);
+    assert!(!r.passed);
+    assert!(r.reason.contains("required final verdict twice"), "bounded terminal reason: {r:?}");
+    assert_eq!(r.steps, 3);
+}
+
 /// U5: a malformed final message is FAIL-CLOSED.
 #[test]
 fn u5_malformed_verdict_fails_closed() {

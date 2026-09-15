@@ -87,18 +87,18 @@ fn r3_page_and_wheel_scroll() {
     let mut term = Terminal::new(backend).unwrap();
     term.draw(|f| tui::render_skeleton(f, &st)).unwrap();
     let bottom: String = (0..40)
-        .map(|x| term.backend().buffer()[(x, 18)].symbol())
+        .map(|x| term.backend().buffer()[(x, 16)].symbol())
         .collect();
     assert!(
-        bottom.contains("line 39"),
+        bottom.contains("line 40"),
         "paged up under the larger live-reference viewport: {bottom:?}"
     );
     st.transcript_wheel_up(3);
     term.draw(|f| tui::render_skeleton(f, &st)).unwrap();
     let bottom2: String = (0..40)
-        .map(|x| term.backend().buffer()[(x, 18)].symbol())
+        .map(|x| term.backend().buffer()[(x, 16)].symbol())
         .collect();
-    assert!(bottom2.contains("line 36"), "wheel up 3 more: {bottom2:?}");
+    assert!(bottom2.contains("line 37"), "wheel up 3 more: {bottom2:?}");
     st.transcript_page_up(19);
     st.transcript_page_up(19);
     st.transcript_page_up(19);

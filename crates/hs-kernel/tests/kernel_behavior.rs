@@ -340,3 +340,35 @@ fn calls_are_recorded_in_the_event_log() {
     let sid = events[0].stream_id;
     hs_log::verify_stream(logdir.path(), sid).unwrap();
 }
+
+
+/// RED: dropping a kernel while a tool slot is idle must synchronously reap
+/// that plugin. Otherwise a failed checker can retain stream authority.
+#[test]
+fn dropping_kernel_reaps_idle_tool_process() {
+    let _guard = TEST_LOCK.lock().unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let path = write_config(dir.path(), &format!(r#"
+[[tools]]
+name = "echo"
+command = ["{FIXTURE}", "echo-tool"]
+subjects = ["*"]
+"#));
+    let k = Kernel::load(&path).unwrap();
+    k.call_tool("anyone", "echo", serde_json::json!({"text":"x"})).unwrap();
+    let before = child_pids();
+    assert_eq!(before.len(), 1, "one plugin child: {before:?}");
+    drop(k);
+    std::thread::sleep(std::time::Duration::from_millis(100));
+    assert!(child_pids().is_empty(), "kernel drop must reap checker authority; still alive: {:?}", child_pids());
+}
+
+fn child_pids() -> Vec<u32> {
+    let me = std::process::id();
+    std::fs::read_dir("/proc").unwrap().filter_map(Result::ok).filter_map(|e| {
+        let pid: u32 = e.file_name().to_string_lossy().parse().ok()?;
+        let status = std::fs::read_to_string(e.path().join("status")).ok()?;
+        let ppid = status.lines().find_map(|l| l.strip_prefix("PPid:")).and_then(|v| v.trim().parse::<u32>().ok())?;
+        (ppid == me).then_some(pid)
+    }).collect()
+}

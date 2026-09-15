@@ -92,7 +92,7 @@ fn r4_render_places_cursor() {
     }
     term.draw(|f| render_skeleton(f, &st)).unwrap();
     let buf = term.backend().buffer();
-    let row: String = (0..80).map(|x| buf[(x, 21)].symbol()).collect();
+    let row: String = (0..80).map(|x| buf[(x, 20)].symbol()).collect();
     assert!(
         row.contains("Agent  probe"),
         "editor text on prompt row: {row:?}"
@@ -101,8 +101,8 @@ fn r4_render_places_cursor() {
     let (cx, cy) = (pos.x, pos.y);
     assert_eq!(
         (cx, cy),
-        (14, 21),
-        "cursor after the indented Agent label + probe"
+        (15, 20),
+        "cursor after the border + indented Agent label + probe"
     );
 }
 

@@ -114,7 +114,7 @@ fn r5_event_ticker_is_not_rendered_as_mystery_glyphs() {
     state.push_stream_event(hs_core::EventKind::Observation);
     term.draw(|f| tui::render_skeleton(f, &state)).unwrap();
     let buf = term.backend().buffer();
-    let rail: String = (0..80).map(|x| buf[(x, 19)].symbol()).collect();
+    let rail: String = (0..80).map(|x| buf[(x, 18)].symbol()).collect();
     assert!(
         rail.trim().is_empty(),
         "idle event history is not UI chrome: {rail:?}"

@@ -1108,3 +1108,14 @@ impl std::fmt::Debug for Kernel {
             .finish()
     }
 }
+
+
+impl Drop for PluginProc {
+    fn drop(&mut self) {
+        // Closing stdin alone is not enough: a plugin can have an in-flight
+        // provider worker and stay alive after its supervisor disappears.
+        // Reap synchronously so checker authority cannot survive the Kernel.
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}

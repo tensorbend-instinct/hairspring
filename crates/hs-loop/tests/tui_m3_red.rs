@@ -56,7 +56,7 @@ fn r3_viewport_follows_tail() {
     term.draw(|f| tui::render_skeleton(f, &st)).unwrap();
     let buf = term.backend().buffer();
     let top: String = (0..40).map(|x| buf[(x, 0)].symbol()).collect();
-    let bottom: String = (0..40).map(|x| buf[(x, 19)].symbol()).collect();
+    let bottom: String = (0..40).map(|x| buf[(x, 16)].symbol()).collect();
     assert!(
         bottom.contains("line 29"),
         "newest line at the viewport bottom: {bottom:?}"
@@ -81,29 +81,29 @@ fn r4_scrollback_pins_and_refollows() {
     let mut term = Terminal::new(backend).unwrap();
     term.draw(|f| tui::render_skeleton(f, &st)).unwrap();
     let bottom: String = (0..40)
-        .map(|x| term.backend().buffer()[(x, 18)].symbol())
+        .map(|x| term.backend().buffer()[(x, 16)].symbol())
         .collect();
     assert!(
-        bottom.contains("line 23"),
+        bottom.contains("line 24"),
         "scrolled 5 up from the tail: {bottom:?}"
     );
     // New activity does not yank a scrolled-back view.
     st.push_transcript_line("line 30");
     term.draw(|f| tui::render_skeleton(f, &st)).unwrap();
     let bottom2: String = (0..40)
-        .map(|x| term.backend().buffer()[(x, 18)].symbol())
+        .map(|x| term.backend().buffer()[(x, 16)].symbol())
         .collect();
     assert!(
-        bottom2.contains("line 23"),
+        bottom2.contains("line 24"),
         "pinned while scrolled: {bottom2:?}"
     );
     st.transcript_scroll_to_bottom();
     term.draw(|f| tui::render_skeleton(f, &st)).unwrap();
     let bottom3: String = (0..40)
-        .map(|x| term.backend().buffer()[(x, 18)].symbol())
+        .map(|x| term.backend().buffer()[(x, 16)].symbol())
         .collect();
     assert!(
-        bottom3.contains("line 29"),
+        bottom3.contains("line 30"),
         "follow re-engaged: {bottom3:?}"
     );
 }

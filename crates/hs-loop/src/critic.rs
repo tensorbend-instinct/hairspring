@@ -170,6 +170,17 @@ pub fn refute(
         if cost >= cfg.budget_micros {
             out!(false, format!("critic hit its budget cap (${:.2}) without a verdict - fail-closed", cfg.budget_micros as f64 / 1e6));
         }
+        // Reserve the final model call for a verdict. Without this boundary an
+        // investigative critic can spend every step on probes and never answer.
+        // Keep two calls at the end for convergence: the first requests a
+        // verdict; if the model still emits tools, reject them without
+        // execution and use the second call for a schema-tight retry.
+        let final_only = steps.saturating_add(2) >= cfg.max_steps;
+        if final_only {
+            messages.push(json!({"role": "user", "content":
+                "FINAL STEP. Do not call tools. Reply with EXACTLY one JSON object and nothing else: {\"refuted\": true, \"reason\": \"<reproduced failure>\"} or {\"refuted\": false, \"reason\": \"<what you tested and re-derived>\"}."
+            }));
+        }
         steps += 1;
         let reply = match model.step(&messages) {
             Ok(r) => r,
@@ -200,6 +211,25 @@ pub fn refute(
                 }
             }
             CriticReply::ToolCalls(calls) => {
+                if final_only {
+                    if steps >= cfg.max_steps {
+                        out!(false, "critic hit its step cap after ignoring the required final verdict twice - fail-closed".to_string());
+                    }
+                    let tcs: Vec<Value> = calls.iter().map(|(id, cmd)| json!({
+                        "id": id, "type": "function",
+                        "function": {"name": TERM_EXEC_TOOL, "arguments": json!({"command": cmd}).to_string()}
+                    })).collect();
+                    messages.push(json!({"role": "assistant", "content": null, "tool_calls": tcs}));
+                    for (id, cmd) in &calls {
+                        trace.push(json!({"kind": "final_tool_rejected", "command": cmd}));
+                        messages.push(json!({"role": "tool", "tool_call_id": id,
+                            "content": "NOT EXECUTED: investigation is closed; return the required final verdict JSON."}));
+                    }
+                    messages.push(json!({"role": "user", "content":
+                        "Your tool calls were not executed because investigation is closed. FINAL VERDICT NOW. Reply with EXACTLY one JSON object and nothing else: {\"refuted\": true, \"reason\": \"<reproduced failure>\"} or {\"refuted\": false, \"reason\": \"<what you tested and re-derived>\"}."
+                    }));
+                    continue;
+                }
                 probes += calls.len() as u32;
                 let tcs: Vec<Value> = calls
                     .iter()

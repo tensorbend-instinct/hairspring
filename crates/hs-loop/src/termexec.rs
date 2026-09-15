@@ -260,8 +260,26 @@ fn spawn_confined(
         .arg(command)
         .current_dir(workdir)
         .env_clear()
-        .env("PATH", "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin")
-        .env("HOME", "/tmp")
+        .env(
+            "PATH",
+            if identity.is_none() {
+                format!(
+                    "{}/.cargo/bin:{}/.local/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin",
+                    root.display(),
+                    root.display()
+                )
+            } else {
+                "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin".to_string()
+            },
+        )
+        .env(
+            "HOME",
+            if identity.is_none() {
+                root.as_os_str()
+            } else {
+                std::ffi::OsStr::new("/tmp")
+            },
+        )
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .process_group(0);
@@ -284,6 +302,8 @@ fn spawn_confined(
 ) -> Result<std::process::Child, Value> {
     let root_s = root.to_string_lossy().into_owned();
     let mut cmd = std::process::Command::new("bwrap");
+    let author_path =
+        format!("{root_s}/.cargo/bin:{root_s}/.local/bin:/usr/local/bin:/usr/bin:/bin");
     cmd.args([
         "--unshare-user",
         "--unshare-pid",
@@ -294,10 +314,14 @@ fn spawn_confined(
         "--clearenv",
         "--setenv",
         "PATH",
-        "/usr/local/bin:/usr/bin:/bin",
+        if identity.is_none() {
+            &author_path
+        } else {
+            "/usr/local/bin:/usr/bin:/bin"
+        },
         "--setenv",
         "HOME",
-        "/tmp",
+        if identity.is_none() { &root_s } else { "/tmp" },
         "--ro-bind",
         "/usr",
         "/usr",
@@ -343,7 +367,11 @@ fn spawn_confined(
     // "65534 0 1" on a root host), so the inner-nobody drop alone let
     // the critic write root-owned task files. The uid args stay as
     // defense-in-depth; the bind mode is the enforcement.
-    let bind = if identity.is_some() { "--ro-bind" } else { "--bind" };
+    let bind = if identity.is_some() {
+        "--ro-bind"
+    } else {
+        "--bind"
+    };
     cmd.args([bind, &root_s, &root_s]);
     if let Some((uid, gid)) = identity {
         cmd.args(["--uid", &uid.to_string(), "--gid", &gid.to_string()]);

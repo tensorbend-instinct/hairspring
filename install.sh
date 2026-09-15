@@ -18,7 +18,7 @@ SRC="$(cd "$(dirname "$0")" && pwd)"
 if ! command -v cargo >/dev/null 2>&1; then
     echo "cargo not found - installing Rust via rustup..."
     curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal
-    . "$HOME/.cargo/env"
+    . "${CARGO_HOME:-$HOME/.cargo}/env"
 fi
 
 echo "Building HAIRSPRING (release, locked)..."
