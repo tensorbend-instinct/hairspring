@@ -2,6 +2,7 @@
 \usepackage[letterpaper,top=.78in,bottom=.76in,left=.82in,right=.82in]{geometry}
 \usepackage[T1]{fontenc}\usepackage{mathptmx}
 \usepackage{graphicx,tabularx,array,color,url,amsmath}
+\usepackage{capt-of}
 \definecolor{ink}{rgb}{0.14,0.15,0.16}\definecolor{muted}{rgb}{0.37,0.39,0.43}\definecolor{blue}{rgb}{0.39,0.51,0.66}\definecolor{wash}{rgb}{0.95,0.96,0.96}\definecolor{green}{rgb}{0.47,0.61,0.48}\definecolor{orange}{rgb}{0.80,0.60,0.39}\definecolor{red}{rgb}{0.73,0.44,0.40}
 \setlength{\parindent}{1.15em}\setlength{\parskip}{0pt}\setlength{\tabcolsep}{4.5pt}\renewcommand{\arraystretch}{1.12}
 \newcolumntype{Y}{>{\raggedright\arraybackslash}X}\newcolumntype{R}{>{\raggedleft\arraybackslash}X}
@@ -30,7 +31,7 @@ This paper argues that current harnesses differ mostly in how they decorate the 
 \begin{enumerate}
 \item A taxonomy of the five current approach classes for agent harnesses, organized by what each class is rather than by product, with the in-model authority and the characteristic failure of each class (Section~2).
 \item An authority architecture that moves all five authorities into a replayable substrate: checker, critic, event record, world service, memory service, and pinned scorer have distinct powers the model cannot exercise (Sections~3--8).
-\item An implementation as a 14-crate Rust workspace with an installed terminal path, typed plugin protocol, process confinement, replay, bounded child agents, and policy-level self-improvement with observed live promotions (Sections~4--8).
+\item An implementation as a 14-crate Rust workspace with an installed terminal path, typed plugin protocol, process confinement, replay, bounded child agents, and policy-level self-improvement under a pinned scorer with replayable decision records (Sections~4--8).
 \item A matched ten-task software-engineering comparison against a representative direct-loop baseline under host-side grading, with raw records checked in, and an evaluation method that separates mechanism tests, installed-path tests, live trials, and matched external evaluation (Sections~9--10).
 \end{enumerate}
 
@@ -146,18 +147,8 @@ The inner loop repairs a task artifact. The outer loop changes harness policy. A
 \label{fig:improve}
 \end{figure*}
 
-Two observed promotions preserved equal pass counts while reducing total steps from 94 to 52 and then from 76 to 41 (Figure~\ref{fig:improve}). These were small, two-task assays. They show that the promotion path can produce and install a winner through the live terminal path. They do not estimate a population-level improvement rate. The current system changes prompts and policy artifacts; it does not yet author and safely promote changes to its own Rust implementation.
+Gate tests at the evaluated source revision exercise the full promotion path: a candidate runs against its parent on held-out tasks under a scorer pinned before mutation, and a malformed or fabricated verdict scores zero and is rewound rather than shipped. No live-promotion records are checked in, so this paper makes no observed-promotion claim. The current system changes prompts and policy artifacts; it does not yet author and safely promote changes to its own Rust implementation.
 
-\begin{table}[t]
-\centering\small
-\caption{Observed policy promotions. Each row compares a candidate with its parent on two held-out tasks.}
-\begin{tabular}{lrrr}\hline
-Assay & Candidate steps & Parent steps & Reduction \\\hline
-Cycle 1 & 52 & 94 & 44.7\%\\
-Cycle 2 & 41 & 76 & 46.1\%\\\hline
-\end{tabular}
-\label{tab:promotions}
-\end{table}
 
 \section{Evaluation method}
 The evaluation separates four kinds of evidence. Source and unit tests establish that a mechanism exists and preserves local invariants. Installed-path seam tests establish that the terminal, registry, sandbox, checker, and rendered state connect the mechanism to a real mission. Live artifact trials establish that a real model can produce and pass an independently judged artifact. Matched external evaluations compare harness outcomes under a shared judge. A large unit suite does not substitute for an installed-path result, and a live result does not by itself establish a general benchmark claim.
@@ -198,7 +189,7 @@ The highest-value defects crossed subsystem boundaries while local tests remaine
 
 \paragraph{A wrong production mode.} General missions accidentally used an amnesiac benchmark arm. Unit tests for both modes passed; only a live installed-path run exposed the selection error.
 
-\paragraph{Recursive delegation.} The first real delegation test allowed descendants to delegate until the host reached roughly 7,800 processes. The repaired design removes delegation from a child's surface and adds an explicit spawn cap.
+\paragraph{Recursive delegation.} The first delegation design allowed descendants to delegate further, so process growth was bounded only by the host. The repaired design removes delegation from a child's surface and adds an explicit spawn cap; the spawn-cap seam test reproduces the failure class.
 
 \paragraph{An impossible gate.} Missing test dependencies and strict marker settings caused the evaluator to collect zero tests while the agent kept repairing a correct patch. Preflight now proves that the gate can execute before a mission starts.
 
@@ -219,7 +210,7 @@ Recent long-horizon research controllers organize work into strategy exploration
 \item Self-improvement changes prompts and policy artifacts, not the Rust implementation.
 \item Memory writes, recall, and cross-child reuse are exercised end to end; live-model selection quality at scale is not measured.
 \item The research-controller plane is flat. Strategy readiness, typed dependencies, objection-preserving synthesis, and section-addressed repair remain unimplemented.
-\item At the evaluated paper revision, the workspace test suite passed but current pedantic Clippy produced 50 failures. Passing tests do not make a different quality gate pass.
+\item At the evaluated paper revision, the workspace test suite passed; current pedantic Clippy does not pass. Passing tests do not make a different quality gate pass.
 \end{enumerate}
 
 \section{Reproducibility}
@@ -233,13 +224,12 @@ Measurement & Command from repository root\\\hline
 Rust source lines & \code{find crates -name '*.rs' -print0 | xargs -0 wc -l}\\
 Workspace crates & \code{find crates -mindepth 2 -maxdepth 2 -name Cargo.toml | wc -l}\\
 Named tests & \code{cargo test --workspace --locked -- --list | grep -c ': test\$'}\\
-Workspace tests & \code{cargo test --workspace --locked --no-fail-fast}\\
 Matched aggregates & \code{python3 paper/reproduce.py benchmark}\\
 Paper PDF & \code{cd paper \&\& make clean all}\\\hline
 \end{tabularx}
 \end{table}
 
-The benchmark runs require task repositories, test patches, provider credentials, and runner environments. The checked-in CSV and JSON permit recomputation of the aggregates without rerunning paid inference.
+The benchmark runs require task repositories, test patches, provider credentials, and runner environments. The checked-in CSV and JSON permit recomputation of the aggregates without rerunning paid inference. The workspace test suite was measured on the build host at the evaluated revision; the installed-path seam tests address that host's absolute plugin paths, so a fresh clone compiles the suite but does not reproduce those runs. Fresh-clone regeneration covers the source metrics, the named-test listing, and the matched aggregates.
 
 \section{Discussion}
 Authority boundaries make failures legible. A failed check is not an answer-quality opinion; it is an execution fact. A critic malfunction is not a pass; it is a machinery state. A useful memory is not shared truth; it is a record with provenance and a reuse signal. A candidate with an attractive explanation is not an improvement; it is an assay input.
@@ -320,26 +310,24 @@ cd hairspring
 git checkout 4273dccf6d00fa727b01fcbdedc6773ace9eca12
 export PATH="$HOME/.cargo/bin:$PATH"
 
-cargo test --workspace --locked --no-fail-fast
 python3 paper/reproduce.py source
 python3 paper/reproduce.py benchmark
 cd paper && make clean all
 \end{verbatim}
 
-\clearpage
 \section{Evaluation claims and boundaries}
-\begin{table}[htbp]\small
+\begin{center}\small
 \begin{tabularx}{\linewidth}{p{.27\linewidth}p{.16\linewidth}Y}\hline
 Claim & Status & Boundary\\\hline
 14 crates; 342 Rust files; 70,429 lines & Measured & Source tree at the evaluated revision\\
-992 tests passed; 0 failed & Measured & Saved complete workspace run; named-test listing reports 994 entries\\
+992 tests passed; 0 failed & Measured & Complete workspace run on the build host at the evaluated revision; named-test listing reports 994 entries\\
 9/10 versus 3/10 & Measured & One curated matched subset, same model family, host-side grading\\
 Verifier--repair supports recovery & Supported & Mechanism-level interpretation; no component ablation isolates the full effect\\
 Parallelism caused the gain & Not supported & First controlled seam was null and reverted\\
 General software-engineering superiority & Not claimed & No random sample, repeated seeds, or confidence interval\\
 Research-proof controller & Not implemented & Strategy readiness and section dependency state remain future work\\\hline
 \end{tabularx}
-\end{table}
+\end{center}
 
 {\small\begin{thebibliography}{16}
 \bibitem{react} S. Yao et al. ``ReAct: Synergizing Reasoning and Acting in Language Models.'' \emph{ICLR}, 2023.

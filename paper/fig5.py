@@ -34,8 +34,8 @@ ax.add_patch(FancyArrowPatch((.012,.79),(.015,.79),arrowstyle='-|>',mutation_sca
 ax.text(.42,.252,'next cycle: a promoted policy becomes the new parent',color=MUTED,fontsize=6.2,ha='center',va='center',style='italic',bbox=dict(fc='white',ec='none',pad=.7))
 # observed results strip
 ax.add_patch(FancyBboxPatch((.02,.05),.96,.16,boxstyle='round,pad=0.005,rounding_size=.006',fc=GF,ec=DGREEN,lw=1.0))
-ax.text(.04,.175,'observed live promotions (two-task assays; they prove the path works, not a population rate)',weight='bold',fontsize=6.8,color=DGREEN)
-ax.text(.04,.105,'cycle 1: equal pass count, 94 \u2192 52 total steps (-44.7%) - candidate promoted through the live TUI path',fontsize=6.8,color=INK)
-ax.text(.04,.075,'cycle 2: equal pass count, 76 \u2192 41 total steps (-46.1%) - a fabricated rejection verdict was caught and voided, not shipped',fontsize=6.8,color=INK)
+ax.text(.04,.175,'what every promotion leaves behind (no live-promotion rate is claimed)',weight='bold',fontsize=6.8,color=DGREEN)
+ax.text(.04,.105,'decision record: candidate + parent hashes, assay conditions, traces, scores, decision, reason',fontsize=6.8,color=INK)
+ax.text(.04,.075,'a malformed or fabricated verdict scores zero and is rewound; gate tests exercise the full path',fontsize=6.8,color=INK)
 fig.savefig(out/'fig-improve.pdf',bbox_inches='tight'); fig.savefig(out/'fig-improve.png',dpi=200,bbox_inches='tight'); plt.close(fig)
 print('ok fig5')
