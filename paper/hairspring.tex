@@ -16,7 +16,7 @@
 \begin{document}
 \maketitle
 \begin{abstract}
-A language model can write code, use tools, and say that a task is finished. Its confidence is not proof. Hairspring is an agent harness built around a simple rule: the model proposes work, while ordinary software verifies the result, records what happened, restores the run after a crash, controls what agents share and remember, and tests changes to the harness before installing them. This paper explains that design from the ground up. It compares five common agent designs, shows the failure each leaves open, and traces one Hairspring mission from goal to verified result. On a matched set of ten software-engineering tasks, using the same model family and host-side tests, Hairspring resolved nine tasks and a direct-loop baseline resolved three. Hairspring used fewer model steps, but about 7.5 times the wall time and 7.2 times the cost. This is one small, curated comparison, not a general leaderboard result. The evidence supports a narrower claim: independent checks and evidence-driven repair can recover work that a model's own judgment misses.
+A language model can write code, use tools, and say that a task is finished. Its confidence is not proof. Hairspring is an agent harness built around a simple rule: the model proposes work, while ordinary software verifies the result, records what happened, restores the run after a crash, controls what agents share and remember, and tests changes to the harness before installing them. This paper explains that design from the ground up. It compares five common agent designs, states the failure each leaves open, and traces one Hairspring mission from goal to checked result. On a curated set of ten software-engineering tasks, Hairspring resolved nine tasks and a direct-loop baseline resolved three under the same host-side tests. Hairspring used fewer model steps, but about 7.5 times the wall time and 7.2 times the cost. The checked-in records do not identify the model configuration for both arms, so this paper does not claim model parity. The comparison has no random sampling, repeated trials, or component ablation. It is an engineering case study, not evidence of general superiority.
 \end{abstract}
 
 \section{The problem in plain English}
@@ -128,15 +128,15 @@ A malformed or fabricated verdict scores zero, and a failed candidate is undone.
 \section{Evaluation method}
 The evaluation separates four kinds of evidence. Source and unit tests establish that a mechanism exists and preserves local rules. Installed-path tests establish that the terminal, registry, sandbox, checker, and rendered state connect that mechanism to a real mission. Live artifact trials establish that a real model can produce an artifact that passes independent checks. Matched external evaluations compare harness outcomes under one shared judge. A large unit suite does not substitute for an installed-path result, and a live result does not establish a general benchmark claim by itself.
 
-The principal comparison uses ten software-engineering tasks drawn from a live public benchmark, with the same model family and host-side fail-to-pass checks. Each system operated through its native interface. Raw records identify task, submission status, outcome, steps, wall time, and cost, and are checked into the repository. The comparison is a curated subset, not a leaderboard sample. There are no repeated seeds or confidence intervals.
+The principal comparison uses ten software-engineering tasks drawn from a live public benchmark, with the same host-side fail-to-pass checks. Each system operated through its native interface. The checked-in comparison records do not identify both arms' model configuration, so model parity cannot be audited from the artifact. Raw records identify task, submission status, outcome, steps, wall time, and cost, and are checked into the repository. The comparison is a curated subset, not a leaderboard sample. There are no repeated seeds or confidence intervals.
 
 \section{What the matched comparison measured}
 \label{sec:measured}
-The baseline is a representative of class C1: a public, purpose-built agent--computer interface scaffold that runs a direct loop and is widely used as a reproducible software-engineering baseline \cite{sweagent}. It is the right comparison because it is the strongest simple shape: no workflow graph, no role ensemble, no search controller --- just a well-built loop.
+The baseline is a representative of class C1: a public agent--computer interface scaffold that runs a direct loop \cite{sweagent}. It provides a concrete comparison to a simpler control-flow shape: no workflow graph, role ensemble, or search controller.
 
 \begin{figure}[t]
 \centering\includegraphics[width=.96\linewidth]{figures/fig-comparison.pdf}
-\caption{Matched ten-task results. \system{} resolved 9 tasks; the class-C1 baseline resolved 3. The baseline's submissions failed host-side tests on most tasks; \system{}'s verdicts are executable, so its failures are timeouts, not fluent wrong answers. Verification costs wall time and money; it buys recovered tasks.}
+\caption{Curated ten-task results. \system{} resolved 9 tasks; the class-C1 baseline resolved 3 under the same host-side tests. The comparison does not establish model parity or isolate the effect of verification.}
 \label{fig:comparison}
 \end{figure}
 
@@ -153,7 +153,7 @@ Class-C1 baseline & 3/10 & 1,170 & 3,613 s & 0.903649\\\hline
 
 \system{}'s failure was a two-hour timeout on \code{deepset-ai/haystack-8619}. The successful runs ranged from 23 to 171 worker steps. The baseline's three passes were \code{conan-17092}, \code{haystack-8525}, and \code{conan-17129}. Several baseline failures reached a submission but failed host-side tests; others encountered missing evaluation dependencies. The shared host-side verdict remains the reported outcome.
 
-The result supports one bounded mechanism claim: executable judgment followed by evidence-driven repair can recover tasks that a cheaper flat loop leaves unresolved. It does not isolate the independent contribution of every subsystem. An early controlled test of parallel execution produced no gain and was reverted. The paper does not attribute the benchmark result to parallelism.
+The result is consistent with the hypothesis that executable judgment followed by repair can recover tasks that a cheaper flat loop leaves unresolved. It does not establish causality: the artifact lacks a component ablation, repeated trials, and an auditable record of model parity. An early controlled test of parallel execution produced no gain and was reverted. The paper does not attribute the benchmark result to parallelism.
 
 The trade is visible. \system{} spends about 7.2 times as much money and 7.5 times as much wall time to judge and repair during the run, and recovers six additional tasks for it. The baseline remains simpler and cheaper when an external evaluator already supplies the final verdict and the job does not need recovery, memory, shared state, or self-improvement. Per-task records, including the corrected wall and cost columns, are in Appendix~\ref{app:pertask}.
 
@@ -214,7 +214,7 @@ This framing does not remove model error. It changes where error can become stat
 \section{Conclusion}
 \system{} treats reliable agent work as a separation-of-responsibilities problem. Across five common agent designs, model output can still become accepted without independent proof. Hairspring uses a simpler rule: the model does open-ended work, while tests, a fresh reviewer, an event writer, validators, and a fixed scorer decide what becomes a pass, official record, shared fact, stored memory, or installed policy.
 
-On one matched ten-task software-engineering subset, this architecture resolved more tasks than a representative direct-loop baseline while using fewer worker steps, more money, and more wall time. The result is narrow. The design lesson is broader: a longer loop does not make its own verdict safer. Long-running agents become easier to inspect, recover, and improve when the model proposes and software decides.
+On one curated ten-task software-engineering subset, this architecture resolved more tasks than a representative direct-loop baseline while using fewer worker steps, more money, and more wall time. The artifact supports those descriptive totals, not a causal or general superiority claim. The design goal is to make long-running work easier to inspect and recover by separating model proposals from software decisions.
 
 \appendix
 \section{Artifact map}
@@ -294,10 +294,10 @@ cd paper && make clean all
 \begin{center}\small
 \begin{tabularx}{\linewidth}{p{.27\linewidth}p{.16\linewidth}Y}\hline
 Claim & Status & Boundary\\\hline
-14 crates; 342 Rust files; 70,429 lines & Measured & Source tree at the evaluated revision\\
-992 tests passed; 0 failed & Measured & Complete workspace run on the build host at the evaluated revision; named-test listing reports 994 entries\\
-9/10 versus 3/10 & Measured & One curated matched subset, same model family, host-side grading\\
-Verifier--repair supports recovery & Supported & Mechanism-level interpretation; no component ablation isolates the full effect\\
+14 crates; 342 Rust files; 70,429 lines & Reported & Requires the evaluated source revision\\
+992 tests passed; 0 failed & Reported & Build-host run is not reproduced by the paper artifact; named-test listing reports 994 entries\\
+9/10 versus 3/10 & Measured & One curated subset under shared host-side tests; model parity is not recorded\\
+Verifier--repair supports recovery & Hypothesis & Comparison is consistent with it; no component ablation establishes causality\\
 Parallelism caused the gain & Not supported & First controlled test showed no gain and was reverted\\
 General software-engineering superiority & Not claimed & No random sample, repeated seeds, or confidence interval\\
 Research-proof controller & Not implemented & Strategy readiness and section dependency state remain future work\\\hline
@@ -313,7 +313,7 @@ Research-proof controller & Not implemented & Strategy readiness and section dep
 \bibitem{selfconsistency} X. Wang et al. ``Self-Consistency Improves Chain of Thought Reasoning in Language Models.'' \emph{ICLR}, 2023.
 \bibitem{consensus} ``When Consensus Is Not Correctness: Diversity Collapse and Manufactured Overconfidence in Multi-Agent LLM Debate.'' \emph{KDD Workshop on Agentic AI Evaluation}, 2026. \url{https://kdd-eval-workshop.github.io/agenticai-evaluation-kdd2026/assets/papers/49_When_Consensus_Is_Not_Corre.pdf}.
 \bibitem{cascades} ``From Spark to Fire: Modeling and Mitigating Error Cascades in LLM-Based Multi-Agent Collaboration.'' 2026. \url{https://arxiv.org/abs/2603.04474}.
-\newpage\bibitem{tot} S. Yao et al. ``Tree of Thoughts: Deliberate Problem Solving with Large Language Models.'' \emph{NeurIPS}, 2023.
+\bibitem{tot} S. Yao et al. ``Tree of Thoughts: Deliberate Problem Solving with Large Language Models.'' \emph{NeurIPS}, 2023.
 \bibitem{treesearch} ``Cost-Awareness in Tree-Search LLM Planning: A Systematic Study.'' 2025. \url{https://arxiv.org/abs/2505.14656}.
 \bibitem{gepa} ``GEPA: Reflective Prompt Evolution.'' DSPy documentation, 2026. \url{https://dspy.ai/api/optimizers/GEPA/overview/}.
 \bibitem{memfail} ``MemFail: Stress-Testing Failure Modes of LLM Memory Systems.'' 2026. \url{https://arxiv.org/abs/2605.26667}.
