@@ -86,6 +86,7 @@ pub const TUI_HELP: &str = "hairspring - full-screen surface
   <text>    run <text> as a goal (queues behind a running mission)
   /status   model, missions, steps, calls, cost, stream of this session
   /history  goals you have submitted this session
+  /research analyze the shared research graph (leaders, neglected leaves, verification)
   /last     the latest mission's answer artifact
   /resume   pick a prior session to continue
   /caps     view or change the live caps (steps, wall, budget, critic)
@@ -182,6 +183,11 @@ pub const TUI_COMMANDS: &[CommandSpec] = &[
     CommandSpec {
         name: "history",
         summary: "goals submitted this session",
+        args: None,
+    },
+    CommandSpec {
+        name: "research",
+        summary: "analyze shared research leaders, gaps, and verification",
         args: None,
     },
     CommandSpec {

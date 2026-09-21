@@ -211,3 +211,7 @@ captures are runtime artifacts and are never committed.
 ## License
 
 Proprietary; third-party notices in `THIRD_PARTY_NOTICES.md` and `LICENSES/`.
+
+## Shared research and policy training
+
+HAIRSPRING includes an Agora-derived shared research graph and Bellman Policy Optimization training primitives. The graph keeps typed results, failures, hypotheses, lineage, cross-author evidence, replaceable verification verdicts, and explore/exploit views on the same append-only authority log. BPO exposes the paper's critic-free grouped terminal-reward loss for model-training integrations; it is not misapplied to discrete prompt promotion. See [Agora and BPO](docs/agora-and-bpo.md).

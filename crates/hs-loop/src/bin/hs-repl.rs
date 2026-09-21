@@ -214,6 +214,7 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
         ModelSet(Result<String, String>),
         CapsInfo(String),
         CapsSet(String),
+        ResearchInfo(String),
     }
 
     enum UiCmd {
@@ -221,6 +222,7 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
         Switch(uuid::Uuid),
         SetModel(String),
         CapsQuery,
+        ResearchQuery,
         SetCap { key: String, value: String },
     }
 
@@ -291,6 +293,23 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
                             .map_err(|e| e.to_string());
                         let _ = tx.send(TuiMsg::Done(r));
                     }
+                }
+                UiCmd::ResearchQuery => {
+                    let text = match hs_world::research::ResearchGraph::open(&wdir)
+                        .and_then(|g| g.analyze().map_err(|e| e))
+                    {
+                        Ok(a) => format!(
+                            "research graph: {} contributions\nleaders: {} · neglected leaves: {} · open hypotheses: {} · unverified results: {} · contested targets: {}",
+                            a.total,
+                            a.leaders.len(),
+                            a.neglected_leaves.len(),
+                            a.open_hypotheses.len(),
+                            a.unverified_results.len(),
+                            a.contested_targets.len()
+                        ),
+                        Err(e) => format!("research graph unavailable: {e:?}"),
+                    };
+                    let _ = tx.send(TuiMsg::ResearchInfo(text));
                 }
                 UiCmd::CapsQuery => {
                     let _ = tx.send(TuiMsg::CapsInfo(hs_loop::tui::format_caps_listing(
@@ -472,6 +491,11 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
                     }
                     Err(e) => st.push_transcript_line(&format!("resume failed: {e}")),
                 },
+                TuiMsg::ResearchInfo(s) => {
+                    for line in s.lines() {
+                        st.push_transcript_line(line);
+                    }
+                }
                 TuiMsg::CapsInfo(s) => {
                     for line in s.lines() {
                         st.push_transcript_line(line);
@@ -676,6 +700,8 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
                                 }
                             } else if t == "/status" {
                                 st.push_transcript_line(&st.status_line());
+                            } else if t == "/research" {
+                                let _ = goal_tx.send(UiCmd::ResearchQuery);
                             } else if t == "/history" {
                                 let h = st.editor.goal_entries();
                                 if h.is_empty() {
