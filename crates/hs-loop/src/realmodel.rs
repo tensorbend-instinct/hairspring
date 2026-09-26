@@ -821,6 +821,7 @@ fn call_with_body_streaming(
         attempt_no += 1;
         enum Msg {
             Delta(String),
+            Heartbeat,
             Done(Result<ParsedCall, AttemptError>),
         }
         let (tx, rx) = std::sync::mpsc::channel::<Msg>();
@@ -829,12 +830,13 @@ fn call_with_body_streaming(
         std::thread::spawn(move || {
             let r = attempt_streaming(&pt, &a, &u, &k, &b, native, &mut |d: &str| {
                 let _ = tx.send(Msg::Delta(d.to_string()));
-            });
+            }, &mut || { let _ = tx.send(Msg::Heartbeat); });
             let _ = tx.send(Msg::Done(r));
         });
         let outcome = loop {
             match rx.recv_timeout(Duration::from_secs(watchdog)) {
                 Ok(Msg::Delta(d)) => on_delta(&d),
+                Ok(Msg::Heartbeat) => (),
                 Ok(Msg::Done(r)) => break r,
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
                     break Err(AttemptError::Other(format!(
@@ -893,6 +895,7 @@ fn attempt_streaming(
     body: &serde_json::Value,
     native: bool,
     on_delta: &mut dyn FnMut(&str),
+    on_heartbeat: &mut dyn FnMut(),
 ) -> Result<ParsedCall, AttemptError> {
     let mut body = body.clone();
     body["stream"] = serde_json::json!(true);
@@ -935,6 +938,7 @@ fn attempt_streaming(
         if n == 0 {
             break; // EOF without [DONE]: assemble what we have
         }
+        on_heartbeat();
         let data = match line.trim().strip_prefix("data:") {
             Some(d) => d.trim(),
             None => continue, // event:/comment/blank lines
