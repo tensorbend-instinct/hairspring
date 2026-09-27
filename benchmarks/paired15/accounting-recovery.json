@@ -1,0 +1,14 @@
+{
+  "status": "conservative recovery checkpoint, not provider charge verification",
+  "event": "ephemeral workspace/container reset, 2026-09-27 approximately 06:09 America/New_York",
+  "previous_settled_or_booked_micros": 5280297,
+  "lost_in_flight_reserve_micros": 771860,
+  "lost_reserve_disposition": "missing proof; booked in full as spent, provider usage/charge unknown",
+  "recovered_booked_spend_micros": 6052157,
+  "outstanding_reserve_micros": 0,
+  "ceiling_micros": 150000000,
+  "task": "django__django-11133 HAIRSPRING",
+  "task_state": "unfinished; no terminal grade; candidate workspace, trace, and run record lost",
+  "evidence": "Last live ledger and process read in task-agent transcript at 06:03:55 EDT: spent 5280297, reserved 771860, active runner and DeepSeek socket; at 06:09:45 EDT all scratch and processes absent. Earlier two no-usage reservations were booked at full reserve and are already within previous_settled_or_booked_micros.",
+  "new_calls_after_reset": 0
+}

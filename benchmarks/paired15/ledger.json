@@ -1,0 +1,10 @@
+{
+  "spent_micros": 6052157,
+  "reserved_micros": 0,
+  "blocked": false,
+  "recovery_adjustment": {
+    "micros": 771860,
+    "label": "missing proof; booked in full as spent, provider usage/charge unknown",
+    "source": "accounting-recovery.json"
+  }
+}
