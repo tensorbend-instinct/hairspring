@@ -1,10 +1,24 @@
 {
-  "spent_micros": 6052157,
+  "spent_micros": 7775067,
   "reserved_micros": 0,
   "blocked": false,
   "recovery_adjustment": {
     "micros": 771860,
     "label": "missing proof; booked in full as spent, provider usage/charge unknown",
     "source": "accounting-recovery.json"
-  }
+  },
+  "adjustments": [
+    {
+      "at": 1790508999.1801639,
+      "request_id": "d979a4aeb10c9f90",
+      "micros": 771860,
+      "label": "provider usage unknown, booked at reserve after dead proxy; no final usage"
+    },
+    {
+      "at": 1790508999.180165,
+      "request_id": "d75ae4b10286e119",
+      "micros": 771860,
+      "label": "provider usage unknown, booked at reserve after dead proxy; no final usage"
+    }
+  ]
 }
