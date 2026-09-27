@@ -15,9 +15,8 @@ if subprocess.check_output(['git','rev-parse','HEAD'],cwd=repo,text=True).strip(
 (out/'test.patch').write_text(r.test_patch)
 agent=out/'agent-source';subprocess.run(['git','clone','--quiet','--no-hardlinks',str(repo),str(agent)],check=True)
 subprocess.run(['git','checkout','--quiet',r.base_commit],cwd=agent,check=True)
-# The agent-source tree is clean; the test patch is visible only to orchestrator/grade clone.
+# Both source trees are clean. Hidden test patch is held outside either tree and applied only to the private grader clone.
 subprocess.run(['git','apply','--check',str(out/'test.patch')],cwd=repo,check=True)
-subprocess.run(['git','apply',str(out/'test.patch')],cwd=repo,check=True)
 (out/'public.json').write_text(json.dumps({'instance_id':a.id,'repo':r.repo,'base_commit':r.base_commit,'problem_statement':r.problem_statement},indent=2)+'\n')
 (out/'private.json').write_text(json.dumps({'instance_id':a.id,'FAIL_TO_PASS':json.loads(r.FAIL_TO_PASS),'PASS_TO_PASS':json.loads(r.PASS_TO_PASS),'test_patch_sha256':hashlib.sha256(r.test_patch.encode()).hexdigest()},indent=2)+'\n')
 print(json.dumps({'instance_id':a.id,'base_commit':r.base_commit,'agent_tree':str(agent),'grade_tree':str(repo),'test_patch_sha256':hashlib.sha256(r.test_patch.encode()).hexdigest()}))

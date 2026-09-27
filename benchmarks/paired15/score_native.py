@@ -19,7 +19,8 @@ if base!=base2:sys.exit('base commit mismatch')
 patch=subprocess.run(['git','diff','--binary','HEAD','--'],cwd=agent,text=True,stdout=subprocess.PIPE,check=True).stdout
 (out/'candidate.patch').write_text(patch)
 file_names=subprocess.check_output(['git','ls-files','--others','--exclude-standard'],cwd=agent,text=True).splitlines();(out/'untracked.json').write_text(json.dumps(file_names,indent=2)+'\n')
-if file_names and not a.allow_untracked:sys.exit('agent has untracked files; inspect before deciding whether to include')
+non_metadata=[x for x in file_names if x not in ('.hs/checks','.hs/instruction.txt')]
+if non_metadata and not a.allow_untracked:sys.exit('agent has untracked source files: '+repr(non_metadata))
 if any(x.startswith(('tests/','testing/')) or '/tests/' in x for x in subprocess.check_output(['git','diff','--name-only','HEAD','--'],cwd=agent,text=True).splitlines()):sys.exit('candidate changes test files; inspect before scoring')
 if patch:
  check=subprocess.run(['git','apply','--check',str(out/'candidate.patch')],cwd=repo,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)

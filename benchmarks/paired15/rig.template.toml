@@ -1,0 +1,25 @@
+[[tools]]
+name = "term.exec"
+command = ["__BIN_DIR__/hs-plugin-termexec"]
+subjects = ["*"]
+[[tools]]
+name = "repo.read"
+command = ["__BIN_DIR__/hs-plugin-fileread"]
+subjects = ["*"]
+[[tools]]
+name = "repo.search"
+command = ["__BIN_DIR__/hs-plugin-reposearch"]
+subjects = ["*"]
+[[tools]]
+name = "answer.submit"
+command = ["__BIN_DIR__/hs-plugin-answersubmit"]
+subjects = ["*"]
+[[tools]]
+name = "checker.run"
+command = ["__BIN_DIR__/hs-plugin-critic"]
+subjects = ["*"]
+[[models]]
+name = "deepseek"
+command = ["__BIN_DIR__/hs-plugin-deepseek"]
+default = true
+subjects = ["*"]

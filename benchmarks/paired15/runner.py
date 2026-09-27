@@ -2,9 +2,24 @@
 """Sequential, resumable paired runner. Private hidden tests never enter either agent mount."""
 import argparse,datetime,hashlib,json,os,pathlib,shutil,socket,subprocess,sys,time
 R=pathlib.Path(__file__).resolve().parent
-P=pathlib.Path('/home/sandbox/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu')
+P=pathlib.Path('/home/sandbox/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu')
 V=R/'openhands-env12'; BIN=pathlib.Path(__file__).resolve().parents[2]/'target/debug'
-GRADE={'django__django-15103':'/tmp/hs-audit/native-probe/venv38/bin/python','pylint-dev__':'/home/sandbox/recovery/hairspring/benchmarks/paired15/pylint38-env/bin/python','pytest-dev__':'/home/sandbox/recovery/hairspring/benchmarks/paired15/pytest38-env/bin/python','scikit-learn__':'/home/sandbox/recovery/hairspring/benchmarks/paired15/sklearn38-env/bin/python','sphinx-doc__':'/home/sandbox/recovery/hairspring/benchmarks/paired15/sphinx38-env/bin/python','sympy__':'/usr/bin/python3.10'}
+GRADE={
+ 'django__django-15103':str(R/'django41-env/bin/python'),
+ 'django__django-16877':str(R/'django50-env/bin/python'),
+ 'django__django-14608':str(R/'django40-env/bin/python'),
+ 'django__django-13343':str(R/'django32-env/bin/python'),
+ 'django__django-13590':str(R/'django32-env/bin/python'),
+ 'django__django-13821':str(R/'django32-env/bin/python'),
+ 'django__django-11141':str(R/'django31-env/bin/python'),
+ 'django__django-11133':str(R/'django38-env/bin/python'),
+ 'django__django-11490':str(R/'django38-env/bin/python'),
+ 'pylint-dev__':str(R/'pylint38-env/bin/python'),
+ 'pytest-dev__':str(R/'pytest38-env/bin/python'),
+ 'scikit-learn__':str(R/'sklearn38-env/bin/python'),
+ 'sphinx-doc__':str(R/'sphinx38-env/bin/python'),
+ 'sympy__':'/usr/bin/python3.10',
+}
 OH_SCRIPT='''
 import json,pathlib,socket,subprocess,time,traceback
 from openhands.sdk import LLM,Agent,Conversation
@@ -71,12 +86,12 @@ def prepare(case,harness,out):
 def grade_python(id):
  for prefix,path in GRADE.items():
   if id.startswith(prefix):return path
- return '/tmp/hs-audit/native-probe/venv38/bin/python'
+ return str(R/'django38-env/bin/python')
 def run_one(id,harness,out,port,ledger_path,bridge,fake=False):
- case=R/('probe-'+id.split('__')[-1].split('-')[-1] if False else '')
  candidates=list(R.glob('probe-*'))
  case=next((c for c in candidates if (c/'public.json').exists() and json.loads((c/'public.json').read_text())['instance_id']==id),None)
  if case is None:raise RuntimeError('missing audited preflight case '+id)
+ if not fake and not pathlib.Path(grade_python(id)).is_file():raise RuntimeError('grading Python missing for '+id)
  if out.exists():raise RuntimeError('run directory already exists, do not overwrite: '+str(out))
  out.mkdir(parents=True);work=prepare(case,harness,out);state=out/'state';state.mkdir();(out/'persistence').mkdir()
  (state/'problem.txt').write_text(json.loads((case/'public.json').read_text())['problem_statement'])
@@ -130,6 +145,7 @@ def main():
  if a.id and a.id not in ids:ap.error('not in locked sample')
  if a.id and not a.harness:ap.error('single ID requires harness')
  if not a.fake:
+  if not (BIN/'hs-repl').is_file() or not V.is_dir() or not P.is_dir():raise RuntimeError('runtime dependencies absent; do not start paid work')
   preflight_proxy(a.port)
   initial=ledger(pathlib.Path(a.ledger))
   if initial.get('blocked') or initial.get('reserved_micros') or initial.get('error') or initial.get('spent_micros',0)<6052157:raise RuntimeError('recovered ledger missing, unsettled, or below conservative baseline')
