@@ -165,10 +165,10 @@ fn adapters_against_mock_server() {
 }
 
 /// A provider that accepts the connection and never responds must be cut
-/// off by the watchdog with the sentinel completion - the pre-fix behavior
+/// off by the watchdog with a provider error - the pre-fix behavior
 /// hung the whole harness for 30+ minutes (observed live 2026-09-03).
 #[test]
-fn watchdog_cutoff_returns_sentinel_not_hang() {
+fn watchdog_cutoff_returns_error_not_hang() {
     let _g = ENV_LOCK.lock().unwrap();
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
@@ -190,18 +190,13 @@ fn watchdog_cutoff_returns_sentinel_not_hang() {
     // FIXME: Audit that the environment access only happens in single-threaded code.
     unsafe { std::env::set_var("HS_REALMODEL_CALL_TIMEOUT_SECS", "2") };
     let t0 = std::time::Instant::now();
-    let r = hs_loop::realmodel::call(&hs_loop::realmodel::glm(), "hi", None).unwrap();
+    let e = hs_loop::realmodel::call(&hs_loop::realmodel::glm(), "hi", None).unwrap_err();
     assert!(
         t0.elapsed() < std::time::Duration::from_secs(15),
         "watchdog did not cut the hung call: {:?}",
         t0.elapsed()
     );
-    assert_eq!(
-        r["completion"],
-        hs_loop::realmodel::WATCHDOG_SENTINEL,
-        "hung provider must yield the sentinel (feedback), not an error"
-    );
-    assert_eq!(r["cost_usd_micros"], 0);
+    assert!(e.contains("provider watchdog timeout"), "{e}");
 }
 
 /// The provider's 4xx/5xx BODY carries the actionable cause (live burn

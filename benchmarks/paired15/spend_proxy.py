@@ -27,6 +27,9 @@ if A.admin_port:
 # 1M input at $0.30/M, 393216 output at $1.20/M (rounded up).
 RESERVE=int((Decimal(1_000_000)*Decimal('.30')+Decimal(393_216)*Decimal('1.20')).to_integral_value(rounding=ROUND_UP))
 # Rates are USD micros per million tokens, so multiplication above is USD micros.
+UPSTREAM_DEADLINE_SECS = 1020.0
+if os.environ.get('HS_PROXY_TEST_UPSTREAM') == '1':
+    UPSTREAM_DEADLINE_SECS = float(os.environ.get('HS_PROXY_TEST_DEADLINE_SECS', '1020'))
 LOCK=threading.Lock()
 def mutate(delta=0,settle=None,label=None,request_id=None):
     with LOCK:
@@ -108,13 +111,13 @@ class Handler(BaseHTTPRequestHandler):
                 key=K.read_text().strip() if K else MEMORY_KEY
             if not key:raise RuntimeError('no key loaded')
             req=urllib.request.Request(A.upstream.rstrip('/')+'/chat/completions',data=body,method='POST',headers={'Authorization':'Bearer '+key,'Content-Type':'application/json','Accept':'text/event-stream' if v.get('stream') else 'application/json'})
-            with urllib.request.urlopen(req,timeout=1020) as resp:
+            with urllib.request.urlopen(req,timeout=UPSTREAM_DEADLINE_SECS) as resp:
                 # Maintain a total 1020s upstream response deadline, not only
                 # a per-read socket inactivity timeout.
                 sock=resp.fp.raw._sock if hasattr(resp.fp.raw, '_sock') else resp.fp.raw
                 def remaining():
-                    seconds=1020-(time.monotonic()-started)
-                    if seconds<=0:raise TimeoutError('upstream 1020s deadline')
+                    seconds=UPSTREAM_DEADLINE_SECS-(time.monotonic()-started)
+                    if seconds<=0:raise TimeoutError('upstream total-response deadline')
                     try:sock.settimeout(seconds)
                     except OSError:pass
                 transition(request_id,'upstream_response',status=resp.status)
@@ -157,6 +160,11 @@ class Handler(BaseHTTPRequestHandler):
                 try:self.send_error(502,'upstream or stream error')
                 except OSError:pass
         finally:
+            # If a chunked response was started but the upstream died, close
+            # this HTTP connection: an open keep-alive stream without its final
+            # zero chunk can otherwise leave the model client waiting forever.
+            if response_started and not completed:
+                self.close_connection=True
             actual=cost(usage) if completed else None
             if actual is None:
                 mutate(settle=RESERVE,label='no usage, booked at reserve',request_id=request_id)

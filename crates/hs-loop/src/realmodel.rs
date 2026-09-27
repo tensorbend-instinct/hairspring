@@ -595,10 +595,8 @@ fn attempt(
     r.map_err(AttemptError::Other)
 }
 
-/// Sentinel completion returned when the provider holds a call past the
-/// watchdog. It is deliberately NOT a JSON tool call: the inner loop records
-/// it as a malformed completion and feeds it back, so a hung provider costs
-/// the mission a step instead of hanging the harness forever.
+/// Legacy timeout marker retained for old trace readers. New timeouts return
+/// a provider error so the run cannot be scored as a model failure.
 pub const WATCHDOG_SENTINEL: &str = "__provider_watchdog_timeout__";
 
 /// Watchdog per attempt (seconds), env-overridable. Re-grounded 2026-09-03:
@@ -765,19 +763,10 @@ fn call_with_body(
                 last_err = e.msg();
             }
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                // Hung provider: do NOT retry (a hung endpoint hangs retries
-                // too). Sentinel = feedback, not a harness error.
-                return Ok(json!({
-                    "completion": WATCHDOG_SENTINEL,
-                    "input_tokens": 0,
-                    "output_tokens": 0,
-                    "cached_tokens": 0,
-                    "reasoning_tokens": 0,
-                    "reasoning_content": "",
-                    "cost_usd_micros": 0,
-                    "conservative_cost_usd_micros": 0,
-                    "provider_model": model,
-                }));
+                // A transport timeout is not a model response. Abort the
+                // mission instead of feeding a fake completion that could be
+                // followed by a green checker and a misleading native grade.
+                return Err(format!("{}: provider watchdog timeout after {watchdog}s", p.name));
             }
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
                 last_err = format!("{}: worker thread died", p.name);
@@ -929,6 +918,7 @@ fn attempt_streaming(
         std::collections::BTreeMap::new();
     let mut usage = serde_json::Value::Null;
     let mut finish_reason = String::new();
+    let mut saw_done = false;
     let mut line = String::new();
     loop {
         line.clear();
@@ -936,7 +926,7 @@ fn attempt_streaming(
             .read_line(&mut line)
             .map_err(|e| AttemptError::Other(format!("{}: stream read: {e}", p.name)))?;
         if n == 0 {
-            break; // EOF without [DONE]: assemble what we have
+            break;
         }
         on_heartbeat();
         let data = match line.trim().strip_prefix("data:") {
@@ -944,6 +934,7 @@ fn attempt_streaming(
             None => continue, // event:/comment/blank lines
         };
         if data == "[DONE]" {
+            saw_done = true;
             break;
         }
         let Ok(chunk) = serde_json::from_str::<serde_json::Value>(data) else {
@@ -981,6 +972,11 @@ fn attempt_streaming(
                 }
             }
         }
+    }
+    if !saw_done || !usage.is_object() {
+        return Err(AttemptError::Other(format!(
+            "{}: incomplete provider stream (missing [DONE] or final usage)", p.name
+        )));
     }
     let tool_calls: Vec<serde_json::Value> = tcs
         .into_values()
