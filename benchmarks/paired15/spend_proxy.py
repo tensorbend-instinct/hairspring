@@ -109,7 +109,7 @@ class Handler(BaseHTTPRequestHandler):
         admitted_monotonic=time.monotonic()
         deadline=admitted_monotonic+UPSTREAM_DEADLINE_SECS
         REQUEST_CLOCKS[request_id]=(admitted_monotonic,deadline)
-        transition(request_id,'admitted',reserve_micros=RESERVE,request_bytes=len(body),message_bytes=sum(len(json.dumps(m).encode()) for m in v.get('messages',[]) if isinstance(m,dict)))
+        transition(request_id,'admitted',reserve_micros=RESERVE,request_bytes=len(body),message_bytes=sum(len(json.dumps(m).encode()) for m in v.get('messages',[]) if isinstance(m,dict)),stream=bool(v.get('stream')))
         # Only the coordinator touches the client or ledger. The upstream
         # worker can stall anywhere (DNS/connect/TLS/headers/body), so socket
         # inactivity timeouts cannot enforce an absolute request deadline.
@@ -153,7 +153,9 @@ class Handler(BaseHTTPRequestHandler):
             while not stop.is_set():
                 try:events.put((kind,value),timeout=.1);return
                 except queue.Full:pass
+        # Telemetry contains counts and completion markers only, never response text.
         def upstream():
+            total_bytes=0
             try:
                 if os.environ.get('HS_PROXY_TEST_UPSTREAM')=='1':
                     time.sleep(float(os.environ.get('HS_PROXY_TEST_ADMISSION_STALL_SECS','0')))
@@ -167,15 +169,22 @@ class Handler(BaseHTTPRequestHandler):
                     except AttributeError:pass
                     put('headers',(resp.status,resp.headers.get('Content-Type','application/json')))
                     if v.get('stream'):
-                        while not stop.is_set():
-                            chunk=resp.readline()
-                            if not chunk:break
+                        # SSE is complete at [DONE], not at HTTP socket EOF.
+                        # A provider can keep its connection alive indefinitely.
+                        for chunk in iter(resp.readline,b''):
+                            if stop.is_set():break
+                            total_bytes+=len(chunk)
                             put('chunk',chunk)
+                            if chunk.strip()==b'data: [DONE]':
+                                transition(request_id,'upstream_sse_done',upstream_bytes=total_bytes)
+                                break
                     else:
                         while not stop.is_set():
                             chunk=resp.read(16384)
                             if not chunk:break
+                            total_bytes+=len(chunk)
                             put('chunk',chunk)
+                    transition(request_id,'upstream_body_complete',upstream_bytes=total_bytes)
                     put('done')
             except urllib.error.HTTPError as e:put('http_error',e.code)
             except Exception as e:put('error',type(e).__name__)
