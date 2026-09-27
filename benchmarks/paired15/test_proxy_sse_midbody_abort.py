@@ -42,6 +42,6 @@ with tempfile.TemporaryDirectory() as d:
    assert any(x.get('stage')=='settled_at_reserve' for x in transitions),transitions
    assert sum(x['stage']=='admitted' for x in transitions)==1,transitions
    assert any(x['stage']=='upstream_first_byte' and x.get('upstream_bytes',0)>0 for x in transitions),transitions
-   assert any(x['stage']=='upstream_failure_detail' and x.get('upstream_bytes',-1)>0 and x.get('error')=='ProtocolError' for x in transitions),transitions
+   assert any(x['stage']=='upstream_failure_detail' and x.get('upstream_bytes',-1)>0 and x.get('error')=='RemoteProtocolError' for x in transitions),transitions
    print('mid-body SSE close booked reserve once; no hidden retry',round(elapsed,3))
   finally:Up.release.set();proxy.terminate();proxy.wait(timeout=3);up.shutdown()

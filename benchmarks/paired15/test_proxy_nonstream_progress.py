@@ -1,4 +1,4 @@
-"""A partial non-SSE body is measured even while the upstream stops sending."""
+"""An invalid non-SSE body is measured and booked conservatively, without a timer."""
 import json,os,pathlib,socket,subprocess,sys,tempfile,threading,time,urllib.request
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 R=pathlib.Path(__file__).resolve().parent
@@ -27,8 +27,8 @@ with tempfile.TemporaryDirectory() as d:
    time.sleep(.05)
    es=[json.loads(x) for x in (t/'proxy.log').read_text().splitlines() if 'proxy_transition' in x]
    assert any(e['stage']=='upstream_first_byte' and e['upstream_bytes']==11 for e in es),es
-   assert any(e['stage']=='settled_at_reserve' and e['outcome']=='upstream_total_deadline' for e in es),es
-   assert not any(e['stage']=='upstream_body_complete' for e in es),es
+   assert any(e['stage']=='settled_at_reserve' and e['outcome']=='upstream_error' for e in es),es
+   assert any(e['stage']=='upstream_body_complete' and e['upstream_bytes']==11 for e in es),es
    assert json.loads((t/'ledger').read_text())['reserved_micros']==0
-   print('partial non-SSE response: first-byte marker retained through deadline')
+   print('invalid non-SSE response: bytes measured, parse failed, reserve booked')
   finally:proxy.terminate();proxy.wait(timeout=3);up.shutdown()

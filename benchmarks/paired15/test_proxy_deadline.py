@@ -1,5 +1,5 @@
-"""Fast local total-deadline expiry while fake upstream keeps sending bytes."""
-import http.client,json,os,pathlib,socket,subprocess,sys,tempfile,threading,time,urllib.request
+"""A continuous stream survives the former total deadline and settles actual usage."""
+import json,os,pathlib,socket,subprocess,sys,tempfile,threading,time,urllib.request
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 R=pathlib.Path(__file__).resolve().parent
 class Up(BaseHTTPRequestHandler):
@@ -7,10 +7,9 @@ class Up(BaseHTTPRequestHandler):
  def do_POST(self):
   self.rfile.read(int(self.headers['Content-Length']))
   self.send_response(200);self.send_header('Content-Type','text/event-stream');self.end_headers()
-  for _ in range(15):
-   try:self.wfile.write(b'data: {"choices":[]}\n\n');self.wfile.flush()
-   except OSError:break
-   time.sleep(.08)
+  for _ in range(8):
+   self.wfile.write(b'data: {"choices":[]}\n\n');self.wfile.flush();time.sleep(.08)
+  self.wfile.write(b'data: {"usage":{"prompt_tokens":10,"completion_tokens":5},"choices":[]}\n\ndata: [DONE]\n\n');self.wfile.flush()
 with tempfile.TemporaryDirectory() as d:
  t=pathlib.Path(d);key=t/'key';key.write_text('dummy');key.chmod(0o600)
  up=ThreadingHTTPServer(('127.0.0.1',0),Up);threading.Thread(target=up.serve_forever,daemon=True).start()
@@ -24,18 +23,11 @@ with tempfile.TemporaryDirectory() as d:
      with socket.create_connection(('127.0.0.1',port),timeout=.1):break
     except OSError:time.sleep(.02)
    body=json.dumps({'model':'deepseek-flash','stream':True,'stream_options':{'include_usage':True}}).encode()
-   req=urllib.request.Request(f'http://127.0.0.1:{port}/chat/completions',data=body)
    started=time.monotonic()
-   try:urllib.request.urlopen(req,timeout=3).read();raise AssertionError('incomplete stream accepted')
-   except (OSError,ValueError,http.client.IncompleteRead) as e:print('incomplete stream closed',type(e).__name__)
-   assert time.monotonic()-started < 1.0
-   for _ in range(100):
-    q=json.loads((t/'ledger').read_text() or '{}')
-    if q.get('reserved_micros')==0 and q.get('spent_micros')==771860:break
-    time.sleep(.02)
-   assert q['reserved_micros']==0 and q['spent_micros']==771860,q
+   data=urllib.request.urlopen(urllib.request.Request(f'http://127.0.0.1:{port}/chat/completions',data=body),timeout=3).read()
+   assert time.monotonic()-started>.5 and b'data: [DONE]' in data
+   q=json.loads((t/'ledger').read_text());assert q['reserved_micros']==0 and q['spent_micros']==9,q
    transitions=[json.loads(line) for line in (t/'proxy.log').read_text().splitlines() if 'proxy_transition' in line]
-   assert any(v.get('stage')=='upstream_error' and v.get('error')=='TimeoutError' for v in transitions),transitions
-   assert any(v.get('stage')=='settled_at_reserve' and v.get('micros')==771860 for v in transitions),transitions
-   print('deadline expiry booked full reserve without a hanging client')
+   assert any(v.get('stage')=='settled_usage' and v.get('outcome')=='upstream_complete' for v in transitions),transitions
+   print('former total deadline crossed; full stream delivered; usage booked once')
   finally:p.terminate();p.wait(timeout=3);up.shutdown()

@@ -1,4 +1,4 @@
-"""A stuck coordinator must not strand the reserve past the exchange deadline."""
+"""A slow coordinator does not kill the provider call or double-settle."""
 import json,os,pathlib,socket,subprocess,sys,tempfile,threading,time,urllib.request
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 R=pathlib.Path(__file__).resolve().parent
@@ -23,22 +23,21 @@ with tempfile.TemporaryDirectory(prefix='hs-coordinator-deadline-') as d:
     except OSError:time.sleep(.02)
    body=json.dumps({'model':'deepseek-flash','stream':True,'stream_options':{'include_usage':True}}).encode()
    req=urllib.request.Request(f'http://127.0.0.1:{pp}/chat/completions',data=body)
+   result={}
    def client():
-    try:urllib.request.urlopen(req,timeout=3).read()
-    except Exception:pass
-   threading.Thread(target=client,daemon=True).start()
+    try:result['data']=urllib.request.urlopen(req,timeout=4).read()
+    except Exception as e:result['error']=repr(e)
+   client_thread=threading.Thread(target=client,daemon=True);client_thread.start()
    for _ in range(100):
     if 'coordinator_forward_enter' in (t/'proxy.log').read_text():break
     time.sleep(.01)
    else:raise AssertionError('coordinator did not enter forward path')
-   begin=time.monotonic()
-   for _ in range(100):
-    q=json.loads((t/'ledger').read_text() or '{}')
-    if q.get('reserved_micros')==0 and q.get('spent_micros')==771860:break
-    time.sleep(.01)
-   assert q['reserved_micros']==0 and q['spent_micros']==771860,q
-   assert time.monotonic()-begin<.65,'settlement waited for blocked coordinator'
-   print('independent deadline booked reserve while coordinator held its lock')
-   time.sleep(.7)
-   q=json.loads((t/'ledger').read_text());assert q['spent_micros']==771860 and q['reserved_micros']==0,'late coordinator settled twice'
+   time.sleep(.35)
+   q=json.loads((t/'ledger').read_text());assert q['reserved_micros']==771860 and q['spent_micros']==0,q
+   client_thread.join(timeout=4);assert not client_thread.is_alive() and 'data' in result,result
+   assert b'data: [DONE]' in result['data'],result
+   q=json.loads((t/'ledger').read_text());assert q['spent_micros']==9 and q['reserved_micros']==0,q
+   transitions=[json.loads(x) for x in (t/'proxy.log').read_text().splitlines() if 'proxy_transition' in x]
+   assert len([x for x in transitions if x.get('stage')=='settled_usage'])==1,transitions
+   print('blocked coordinator left call alive; final usage settled exactly once')
   finally:proxy.terminate();proxy.wait(timeout=3);up.shutdown()

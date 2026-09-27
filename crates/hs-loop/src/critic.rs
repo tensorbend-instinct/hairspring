@@ -401,9 +401,8 @@ pub fn provider_from_env() -> Result<crate::realmodel::Provider, String> {
 
 // ---------------------------------------------------------------------------
 // Provider critic: production model. Minimal OpenAI-shaped client with the
-// realmodel watchdog pattern (thread + recv_timeout: ureq's global timeout
-// does not fire on a stalled body read). Key material is fill-only from the
-// environment and never logged.
+// Provider critic follows the model call through completion or an actual
+// transport error. Key material is fill-only and never logged.
 
 pub struct ProviderCritic {
     name: String,
@@ -448,7 +447,7 @@ impl ProviderCritic {
 
     fn attempt(&self, body: &Value) -> Result<Value, String> {
         let agent: ureq::Agent = ureq::Agent::config_builder()
-            .timeout_global(Some(std::time::Duration::from_secs(crate::realmodel::watchdog_secs() + 30)))
+            .timeout_global(None)
             .build()
             .into();
         let mut resp = agent
@@ -489,8 +488,8 @@ impl CriticModel for ProviderCritic {
             "tools": tools,
             "tool_choice": "auto",
         });
-        // Watchdog: a stalled provider must cost the gate a failure, not
-        // hang the harness (realmodel finding 2026-09-03).
+        // A model call has no per-call kill timer. Transport errors still
+        // fail closed; an unresponsive connection remains open.
         let (tx, rx) = std::sync::mpsc::channel();
         let me = Self {
             name: self.name.clone(),
@@ -508,10 +507,7 @@ impl CriticModel for ProviderCritic {
         std::thread::spawn(move || {
             let _ = tx.send(me.attempt(&body2));
         });
-        let v = match rx.recv_timeout(std::time::Duration::from_secs(crate::realmodel::watchdog_secs())) {
-            Ok(r) => r?,
-            Err(_) => return Err(format!("{} critic: provider watchdog timeout", self.name)),
-        };
+        let v = rx.recv().map_err(|_| format!("{} critic: provider worker died", self.name))??;
         let usage = &v["usage"];
         let in_tok = usage["prompt_tokens"].as_u64().unwrap_or(0);
         let cached = usage["prompt_cache_hit_tokens"].as_u64().unwrap_or(0);

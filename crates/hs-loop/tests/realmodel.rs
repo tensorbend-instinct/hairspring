@@ -164,39 +164,32 @@ fn adapters_against_mock_server() {
     assert!(!e.contains("mock-ds-key"));
 }
 
-/// A provider that accepts the connection and never responds must be cut
-/// off by the watchdog with a provider error - the pre-fix behavior
-/// hung the whole harness for 30+ minutes (observed live 2026-09-03).
+/// The model call must outlive the former per-call watchdog and return the
+/// provider's actual response rather than manufacturing a timeout.
 #[test]
-fn watchdog_cutoff_returns_error_not_hang() {
+fn slow_provider_response_survives_old_watchdog() {
     let _g = ENV_LOCK.lock().unwrap();
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
     std::thread::spawn(move || {
-        for s in listener.incoming().flatten() {
-            // hold the connection open, say nothing, for far longer
-            // than the watchdog
-            std::thread::sleep(std::time::Duration::from_secs(30));
-            drop(s);
+        if let Ok((mut s, _)) = listener.accept() {
+            let mut b = [0u8; 8192];
+            let _ = s.read(&mut b);
+            std::thread::sleep(std::time::Duration::from_millis(1200));
+            let body = r#"{"choices":[{"message":{"content":"done"}}],"usage":{"prompt_tokens":1,"completion_tokens":1}}"#;
+            let response = format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body);
+            let _ = s.write_all(response.as_bytes());
         }
     });
-    // FIXME: Audit that the environment access only happens in single-threaded code.
-    unsafe { std::env::set_var(
-        "HS_GLM_BASE_URL",
-        format!("http://127.0.0.1:{port}/chat/completions"),
-    ); };
-    // FIXME: Audit that the environment access only happens in single-threaded code.
-    unsafe { std::env::set_var("HS_GLM_API_KEY", "test-dummy-not-a-real-key") };
-    // FIXME: Audit that the environment access only happens in single-threaded code.
-    unsafe { std::env::set_var("HS_REALMODEL_CALL_TIMEOUT_SECS", "2") };
+    unsafe {
+        std::env::set_var("HS_GLM_BASE_URL", format!("http://127.0.0.1:{port}/chat/completions"));
+        std::env::set_var("HS_GLM_API_KEY", "test-dummy-not-a-real-key");
+        std::env::set_var("HS_REALMODEL_CALL_TIMEOUT_SECS", "1");
+    }
     let t0 = std::time::Instant::now();
-    let e = hs_loop::realmodel::call(&hs_loop::realmodel::glm(), "hi", None).unwrap_err();
-    assert!(
-        t0.elapsed() < std::time::Duration::from_secs(15),
-        "watchdog did not cut the hung call: {:?}",
-        t0.elapsed()
-    );
-    assert!(e.contains("provider watchdog timeout"), "{e}");
+    let r = hs_loop::realmodel::call(&hs_loop::realmodel::glm(), "hi", None);
+    assert!(t0.elapsed() >= std::time::Duration::from_millis(1200), "cut off before provider finished: {r:?}");
+    assert!(r.is_ok(), "slow provider should be allowed to finish: {r:?}");
 }
 
 /// The provider's 4xx/5xx BODY carries the actionable cause (live burn

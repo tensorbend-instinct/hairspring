@@ -595,24 +595,9 @@ fn attempt(
     r.map_err(AttemptError::Other)
 }
 
-/// Legacy timeout marker retained for old trace readers. New timeouts return
-/// a provider error so the run cannot be scored as a model failure.
+/// Legacy timeout marker retained for old trace readers; no per-call
+/// deadline is enforced on live provider requests.
 pub const WATCHDOG_SENTINEL: &str = "__provider_watchdog_timeout__";
-
-/// Watchdog per attempt (seconds), env-overridable. Re-grounded 2026-09-03:
-/// measured max-effort thinking calls run 80s (convergent context) to 270s+
-/// (non-convergent, 13.7k reasoning tokens); low-effort ~18s. 420s default;
-/// the realbench run used 900s via `HS_REALMODEL_CALL_TIMEOUT_SECS`.
-/// ureq's `timeout_global` (600s) demonstrably does NOT fire on a stalled
-/// response-body read (observed: calls stuck 31+ min, zero harness events),
-/// so the watchdog wraps the entire attempt in a thread with a `recv_timeout`.
-#[must_use]
-pub fn watchdog_secs() -> u64 {
-    std::env::var("HS_REALMODEL_CALL_TIMEOUT_SECS")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(420)
-}
 
 /// Attempt budget for retryable provider failures (429/5xx/transport),
 /// env-overridable. Default 12: with capped backoff a rate-limit window of
@@ -699,7 +684,7 @@ fn extra_body(p: &Provider) -> Result<Option<serde_json::Value>, String> {
     }
 }
 
-/// POST the body with retries + the hang watchdog. native = the request
+/// POST the body with retryable-error handling. native = the request
 /// carried tool schemas, so the response must parse through the native
 /// `tool_calls` path.
 fn call_with_body(
@@ -710,14 +695,13 @@ fn call_with_body(
 ) -> Result<serde_json::Value, String> {
     let (key, url, _) = wire(p)?;
     let agent: ureq::Agent = ureq::Agent::config_builder()
-        .timeout_global(Some(Duration::from_secs(25 * 60)))
+        .timeout_global(None)
         // Error statuses must arrive as responses: the retry policy needs
         // the status code and the Retry-After header, which ureq's error
         // path discards.
         .http_status_as_error(false)
         .build()
         .into();
-    let watchdog = watchdog_secs();
     let attempts = max_attempts();
     let base = backoff_base_secs();
     let mut last_err = String::new();
@@ -735,7 +719,7 @@ fn call_with_body(
             let r = attempt(&pt, &a, &u, &k, &b, native);
             let _ = tx.send(r);
         });
-        match rx.recv_timeout(Duration::from_secs(watchdog)) {
+        match rx.recv() {
             Ok(Ok(out)) => {
                 return Ok(json!({
                     "completion": out.completion,
@@ -762,13 +746,7 @@ fn call_with_body(
                 pending_sleep = e.sleep_for(attempt_no, base);
                 last_err = e.msg();
             }
-            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                // A transport timeout is not a model response. Abort the
-                // mission instead of feeding a fake completion that could be
-                // followed by a green checker and a misleading native grade.
-                return Err(format!("{}: provider watchdog timeout after {watchdog}s", p.name));
-            }
-            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+            Err(std::sync::mpsc::RecvError) => {
                 last_err = format!("{}: worker thread died", p.name);
                 pending_sleep = Duration::from_secs(base);
             }
@@ -777,9 +755,8 @@ fn call_with_body(
     Err(last_err)
 }
 
-/// Gap #3: streaming `call_with_body`. Same retry/watchdog policy, but the
-/// worker reads the SSE body line by line: every delta chunk resets the
-/// watchdog (a streaming provider is alive), content and tool-call
+/// Gap #3: streaming `call_with_body`. Same retryable-error policy; the
+/// worker reads the SSE body line by line. Content and tool-call
 /// argument fragments forward to `on_delta` as they arrive, and the chunks
 /// assemble into the SAME provider response shape the non-streaming path
 /// parses - finalization goes through `parse_response` either way, so a
@@ -793,11 +770,10 @@ fn call_with_body_streaming(
 ) -> Result<serde_json::Value, String> {
     let (key, url, _) = wire(p)?;
     let agent: ureq::Agent = ureq::Agent::config_builder()
-        .timeout_global(Some(Duration::from_secs(25 * 60)))
+        .timeout_global(None)
         .http_status_as_error(false)
         .build()
         .into();
-    let watchdog = watchdog_secs();
     let attempts = max_attempts();
     let base = backoff_base_secs();
     let mut last_err = String::new();
@@ -823,17 +799,11 @@ fn call_with_body_streaming(
             let _ = tx.send(Msg::Done(r));
         });
         let outcome = loop {
-            match rx.recv_timeout(Duration::from_secs(watchdog)) {
+            match rx.recv() {
                 Ok(Msg::Delta(d)) => on_delta(&d),
                 Ok(Msg::Heartbeat) => (),
                 Ok(Msg::Done(r)) => break r,
-                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                    break Err(AttemptError::Other(format!(
-                        "{}: no SSE chunk for {}s (stalled stream)",
-                        p.name, watchdog
-                    )));
-                }
-                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                Err(std::sync::mpsc::RecvError) => {
                     break Err(AttemptError::Other(format!(
                         "{}: stream worker died",
                         p.name

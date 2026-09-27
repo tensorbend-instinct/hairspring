@@ -5,8 +5,9 @@ A concurrent call reserves max documented Flash cost at peak prices; unknown usa
 books the entire reserve as spent and records the uncertainty. A configured cap is across processes
 using one ledger file and flock. The upstream URL must be the direct provider.
 """
-import argparse,fcntl,json,os,pathlib,threading,queue,urllib.request,urllib.error,secrets,hmac,html,urllib.parse,time,socket
-import urllib3
+import argparse,fcntl,json,os,pathlib,threading,queue,urllib.request,urllib.error,secrets,hmac,urllib.parse,time,codecs
+import httpx
+from httpx_sse._decoders import SSEDecoder, SSELineDecoder
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from decimal import Decimal,ROUND_UP
 P=argparse.ArgumentParser();P.add_argument('--key-file');P.add_argument('--admin-port',type=int);P.add_argument('--admin-token-file');P.add_argument('--ledger',required=True);P.add_argument('--port',type=int,default=18748);P.add_argument('--upstream',default='https://api.deepseek.com');P.add_argument('--ceiling-micros',type=int,default=150_000_000);A=P.parse_args()
@@ -30,12 +31,8 @@ RESERVE=int((Decimal(1_000_000)*Decimal('.30')+Decimal(393_216)*Decimal('1.20'))
 # Rates are USD micros per million tokens, so multiplication above is USD micros.
 # One process-wide HTTPS pool (up to four cached connections per origin); provider HTTP/1.1 keep-alive survives
 # successful complete responses. Failed/partial responses discard their socket.
-# block=False avoids pool acquisition delays past the absolute admission deadline; concurrency is governed by caller admission.
-UPSTREAM_POOL=urllib3.PoolManager(num_pools=1,maxsize=4,block=False,
-    retries=False,timeout=urllib3.Timeout(connect=20,read=1020))
-UPSTREAM_DEADLINE_SECS = 1020.0
-if os.environ.get('HS_PROXY_TEST_UPSTREAM') == '1':
-    UPSTREAM_DEADLINE_SECS = float(os.environ.get('HS_PROXY_TEST_DEADLINE_SECS', '1020'))
+# The shared pool caps active sockets; admission also enforces the mission ledger.
+UPSTREAM_CLIENT=httpx.Client(timeout=None,limits=httpx.Limits(max_connections=32,max_keepalive_connections=4,keepalive_expiry=60))
 LOCK=threading.Lock()
 SETTLED_REQUESTS=set()
 REQUEST_CLOCKS={}
@@ -113,50 +110,28 @@ class Handler(BaseHTTPRequestHandler):
         if not mutate(delta=RESERVE):
             transition(request_id,'admission_denied');self.send_error(429,'mission spend ceiling');return
         admitted_monotonic=time.monotonic()
-        deadline=admitted_monotonic+UPSTREAM_DEADLINE_SECS
-        REQUEST_CLOCKS[request_id]=(admitted_monotonic,deadline)
+        REQUEST_CLOCKS[request_id]=(admitted_monotonic,None)
         transition(request_id,'admitted',reserve_micros=RESERVE,request_bytes=len(body),message_bytes=sum(len(json.dumps(m).encode()) for m in v.get('messages',[]) if isinstance(m,dict)),stream=bool(v.get('stream')))
-        # Only the coordinator touches the client or ledger. The upstream
-        # worker can stall anywhere (DNS/connect/TLS/headers/body), so socket
-        # inactivity timeouts cannot enforce an absolute request deadline.
+        # Only the coordinator touches the client or ledger. A model call stays
+        # open until the provider finishes or the transport actually fails.
         events=queue.Queue(maxsize=32);stop=threading.Event()
         settled=threading.Event();usage_box={'snapshot':(None,False)}
-        upstream_socket_box={'value':None}
-        # The watchdog never waits for coordinator progress or client I/O.
-        # It alone guarantees settlement even if the coordinator is wedged.
+        # Settle only when provider exchange completes or transport fails.
         def settle_once(outcome):
             # One immutable tuple assignment publishes usage without a coordinator lock.
             snapshot=usage_box['snapshot']
             actual=cost(snapshot[0]) if snapshot[1] else None
             amount=RESERVE if actual is None else actual
             if mutate(settle=amount,label='no usage, booked at reserve' if actual is None else None,request_id=request_id):
-                measured=REQUEST_CLOCKS.get(request_id,(None,deadline))[1]
-                effective_outcome='upstream_total_deadline' if actual is None and time.monotonic()>=measured and outcome in ('upstream_error','unknown') else outcome
-                transition(request_id,'settled_at_reserve' if actual is None else 'settled_usage',micros=amount,outcome=effective_outcome)
+                transition(request_id,'settled_at_reserve' if actual is None else 'settled_usage',micros=amount,outcome=outcome)
             settled.set()
             REQUEST_CLOCKS.pop(request_id,None)
         def heartbeat():
-            # Separate observer: a slow log never holds up deadline enforcement.
+            # Observational heartbeat; it never ends or settles a call.
             interval=.05 if os.environ.get('HS_PROXY_TEST_HEARTBEAT_FAST')=='1' else 30.0
             while not settled.wait(interval):
-                transition(request_id,'watchdog_heartbeat',remaining_monotonic_secs=max(0,deadline-time.monotonic()))
-                if time.monotonic()>=deadline:break
-        threading.Thread(target=heartbeat,daemon=True,name='proxy-heartbeat-'+request_id).start()
-        def watchdog():
-            if not settled.wait(max(0,deadline-time.monotonic())):
-                stop.set()
-                settle_once('upstream_total_deadline')
-                upstream_socket=upstream_socket_box['value']
-                if upstream_socket is not None:
-                    try:upstream_socket.shutdown(socket.SHUT_RDWR)
-                    except OSError:pass
-                    try:upstream_socket.close()
-                    except OSError:pass
-                try:self.connection.shutdown(2)
-                except OSError:pass
-                try:self.connection.close()
-                except OSError:pass
-        threading.Thread(target=watchdog,daemon=True,name='proxy-deadline-'+request_id).start()
+                transition(request_id,'upstream_heartbeat',upstream_bytes=progress['bytes'])
+        threading.Thread(target=heartbeat,daemon=True,name='proxy-observer-'+request_id).start()
         def put(kind, value=None):
             while not stop.is_set():
                 try:events.put((kind,value),timeout=.1);return
@@ -184,23 +159,21 @@ class Handler(BaseHTTPRequestHandler):
                 headers={'Authorization':'Bearer '+key,'Content-Type':'application/json',
                     'Accept':'text/event-stream' if v.get('stream') else 'application/json',
                     'Accept-Encoding':'identity'}
-                resp=UPSTREAM_POOL.urlopen('POST',A.upstream.rstrip('/')+'/chat/completions',
-                    body=body,headers=headers,preload_content=False,decode_content=False,
-                    retries=False,redirect=False,timeout=urllib3.Timeout(connect=20,read=UPSTREAM_DEADLINE_SECS))
-                response_complete=False
-                try:
-                    try:upstream_socket_box['value']=resp.connection.sock
-                    except AttributeError:pass
-                    progress['status']=resp.status
-                    if resp.status>=400:
-                        put('http_error',resp.status)
+                with UPSTREAM_CLIENT.stream('POST',A.upstream.rstrip('/')+'/chat/completions',
+                    content=body,headers=headers) as resp:
+                    progress['status']=resp.status_code
+                    if resp.status_code>=400:
+                        put('http_error',resp.status_code)
                         return
-                    put('headers',(resp.status,resp.headers.get('Content-Type','application/json')))
+                    put('headers',(resp.status_code,resp.headers.get('Content-Type','application/json')))
                     if v.get('stream'):
-                        # SSE is complete at [DONE], not at HTTP socket EOF.
-                        # A provider can keep its connection alive indefinitely.
-                        for chunk in iter(resp.readline,b''):
-                            if stop.is_set():break
+                        # httpx owns HTTP framing. Forward SSE bytes unchanged.
+                        # A stock SSE decoder recognizes terminal [DONE] without
+                        # waiting for upstream HTTP EOF or an idle keep-alive.
+                        terminal_lines=SSELineDecoder();terminal_events=SSEDecoder()
+                        utf8=codecs.getincrementaldecoder('utf-8')()
+                        for chunk in resp.iter_raw():
+                            if not chunk:continue
                             total_bytes+=len(chunk)
                             now=time.monotonic()
                             if progress['first_at'] is None:
@@ -208,17 +181,14 @@ class Handler(BaseHTTPRequestHandler):
                                 transition(request_id,'upstream_first_byte',upstream_bytes=total_bytes)
                             progress['bytes']=total_bytes;progress['last_at']=now
                             put('chunk',chunk)
-                            if chunk.strip()==b'data: [DONE]':
+                            lines=terminal_lines.decode(utf8.decode(chunk))
+                            if any((event is not None and event.data=='[DONE]')
+                                   for line in lines for event in (terminal_events.decode(line),)):
                                 transition(request_id,'upstream_sse_done',upstream_bytes=total_bytes)
-                                # SSE terminates before HTTP EOF. This socket cannot be
-                                # reused unless the remaining chunk framing is consumed.
                                 break
                     else:
-                        while not stop.is_set():
-                            # read1 returns available bytes rather than waiting to fill
-                            # 16 KiB, making the progress markers meaningful.
-                            chunk=resp.read1(16384) if hasattr(resp,'read1') else resp.read(16384)
-                            if not chunk:break
+                        for chunk in resp.iter_bytes(chunk_size=16384):
+                            if not chunk:continue
                             total_bytes+=len(chunk)
                             now=time.monotonic()
                             if progress['first_at'] is None:
@@ -226,17 +196,9 @@ class Handler(BaseHTTPRequestHandler):
                                 transition(request_id,'upstream_first_byte',upstream_bytes=total_bytes)
                             progress['bytes']=total_bytes;progress['last_at']=now
                             put('chunk',chunk)
-                    if not stop.is_set():
-                        transition(request_id,'upstream_body_complete',upstream_bytes=total_bytes)
-                        put('done')
-                    response_complete=not v.get('stream') and not stop.is_set()
-                finally:
-                    upstream_socket_box['value']=None
-                    if response_complete:
-                        resp.release_conn()
-                    else:
-                        resp.close()
-            except urllib3.exceptions.HTTPError as e:
+                    transition(request_id,'upstream_body_complete',upstream_bytes=total_bytes)
+                    put('done')
+            except httpx.HTTPError as e:
                 transition(request_id,'upstream_failure_detail',error=type(e).__name__,upstream_bytes=total_bytes,
                     first_byte_monotonic=progress['first_at'],response_status=progress['status'])
                 put('error',type(e).__name__)
@@ -244,32 +206,28 @@ class Handler(BaseHTTPRequestHandler):
             finally:upstream_done.set()
         threading.Thread(target=upstream,daemon=True,name='proxy-upstream-'+request_id).start()
         usage=None;completed=False;client_alive=True;response_started=False;outcome='unknown'
-        acc=bytearray();stream_line=bytearray();saw_done=False
+        acc=bytearray();sse_lines=SSELineDecoder();sse_events=SSEDecoder();sse_utf8=codecs.getincrementaldecoder('utf-8')();saw_done=False
         try:
             while True:
-                remaining=deadline-time.monotonic()
-                if remaining<=0:raise TimeoutError('upstream total-response deadline')
-                try:kind,value=events.get(timeout=remaining)
-                except queue.Empty:raise TimeoutError('upstream total-response deadline') from None
+                kind,value=events.get()
                 if kind=='headers':
                     transition(request_id,'upstream_response',status=value[0])
                     try:
-                        self.connection.settimeout(max(.001,deadline-time.monotonic()))
-                        self.send_response(value[0]);self.send_header('Content-Type',value[1]);self.send_header('Transfer-Encoding','chunked');self.end_headers();response_started=True
+                        self.connection.settimeout(None)
+                        self.send_response(value[0]);self.send_header('Content-Type',value[1]);self.send_header('Connection','close');self.end_headers();self.close_connection=True;response_started=True
                     except (OSError,ValueError) as e:
                         client_alive=False;transition(request_id,'client_disconnected',error=type(e).__name__)
                 elif kind=='chunk':
                     if v.get('stream'):
-                        stream_line.extend(value)
-                        while b'\n' in stream_line:
-                            line,_,rest=stream_line.partition(b'\n');stream_line=bytearray(rest)
-                            if line.startswith(b'data: '):
-                                if line[6:].strip()==b'[DONE]':saw_done=True
+                        for line in sse_lines.decode(sse_utf8.decode(value)):
+                            event=sse_events.decode(line)
+                            if event is not None:
+                                if event.data=='[DONE]':saw_done=True
                                 else:
                                     try:
-                                        u=json.loads(line[6:]).get('usage')
-                                        if u is not None:usage=u
-                                    except (ValueError,UnicodeDecodeError):pass
+                                        parsed=json.loads(event.data)
+                                        if parsed.get('usage') is not None:usage=parsed['usage']
+                                    except (ValueError,TypeError):pass
                     else:acc.extend(value)
                     if client_alive:
                         try:
@@ -278,20 +236,18 @@ class Handler(BaseHTTPRequestHandler):
                                 if os.environ.get('HS_PROXY_TEST_HOLD_COORDINATOR_LOCK')=='1':
                                     with LOCK:time.sleep(float(os.environ['HS_PROXY_TEST_BLOCK_FORWARD_SECS']))
                                 else:time.sleep(float(os.environ['HS_PROXY_TEST_BLOCK_FORWARD_SECS']))
-                            self.connection.settimeout(max(.001,deadline-time.monotonic()))
-                            self.wfile.write(('%X\r\n'%len(value)).encode()+value+b'\r\n');self.wfile.flush()
+                            self.connection.settimeout(None)
+                            self.wfile.write(value);self.wfile.flush()
                         except (OSError,ValueError) as e:
                             client_alive=False;transition(request_id,'client_disconnected',error=type(e).__name__)
                 elif kind=='done':
-                    if time.monotonic()>=deadline:raise TimeoutError('upstream total-response deadline')
                     if v.get('stream'):
                         if not saw_done or cost(usage) is None:raise ValueError('incomplete upstream SSE usage')
                     else:
                         usage=json.loads(acc).get('usage')
                     if client_alive:
-                        self.connection.settimeout(max(.001,deadline-time.monotonic()))
-                        self.wfile.write(b'0\r\n\r\n');self.wfile.flush()
-                    if time.monotonic()>=deadline:raise TimeoutError('upstream total-response deadline')
+                        self.connection.settimeout(None)
+                        self.wfile.flush()
                     usage_box['snapshot']=(usage,True)
                     completed=True;outcome='upstream_complete';break
                 elif kind=='http_error':
