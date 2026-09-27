@@ -161,6 +161,9 @@ class Handler(BaseHTTPRequestHandler):
                     else:acc.extend(value)
                     if client_alive:
                         try:
+                            if os.environ.get('HS_PROXY_TEST_UPSTREAM')=='1' and os.environ.get('HS_PROXY_TEST_BLOCK_FORWARD_SECS'):
+                                transition(request_id,'coordinator_forward_enter')
+                                time.sleep(float(os.environ['HS_PROXY_TEST_BLOCK_FORWARD_SECS']))
                             self.connection.settimeout(max(.001,deadline-time.monotonic()))
                             self.wfile.write(('%X\r\n'%len(value)).encode()+value+b'\r\n');self.wfile.flush()
                         except (OSError,ValueError) as e:
