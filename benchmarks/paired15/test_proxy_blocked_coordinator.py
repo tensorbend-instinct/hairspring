@@ -13,7 +13,7 @@ def port():
 with tempfile.TemporaryDirectory(prefix='hs-coordinator-deadline-') as d:
  t=pathlib.Path(d);key=t/'key';key.write_text('dummy');key.chmod(0o600)
  up=ThreadingHTTPServer(('127.0.0.1',0),Up);threading.Thread(target=up.serve_forever,daemon=True).start()
- pp=port();env={**os.environ,'HS_PROXY_TEST_UPSTREAM':'1','HS_PROXY_TEST_DEADLINE_SECS':'.25','HS_PROXY_TEST_BLOCK_FORWARD_SECS':'.8'}
+ pp=port();env={**os.environ,'HS_PROXY_TEST_UPSTREAM':'1','HS_PROXY_TEST_DEADLINE_SECS':'.25','HS_PROXY_TEST_BLOCK_FORWARD_SECS':'.8','HS_PROXY_TEST_HOLD_COORDINATOR_LOCK':'1'}
  with (t/'proxy.log').open('w') as log:
   proxy=subprocess.Popen([sys.executable,str(R/'spend_proxy.py'),'--key-file',str(key),'--ledger',str(t/'ledger'),'--port',str(pp),'--upstream',f'http://127.0.0.1:{up.server_port}'],env=env,stdout=log,stderr=subprocess.STDOUT)
   try:
@@ -38,7 +38,7 @@ with tempfile.TemporaryDirectory(prefix='hs-coordinator-deadline-') as d:
     time.sleep(.01)
    assert q['reserved_micros']==0 and q['spent_micros']==771860,q
    assert time.monotonic()-begin<.65,'settlement waited for blocked coordinator'
-   print('independent deadline booked reserve while coordinator blocked')
+   print('independent deadline booked reserve while coordinator held its lock')
    time.sleep(.7)
    q=json.loads((t/'ledger').read_text());assert q['spent_micros']==771860 and q['reserved_micros']==0,'late coordinator settled twice'
   finally:proxy.terminate();proxy.wait(timeout=3);up.shutdown()

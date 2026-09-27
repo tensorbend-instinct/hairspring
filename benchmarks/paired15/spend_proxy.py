@@ -33,28 +33,29 @@ if os.environ.get('HS_PROXY_TEST_UPSTREAM') == '1':
 LOCK=threading.Lock()
 SETTLED_REQUESTS=set()
 def mutate(delta=0,settle=None,label=None,request_id=None):
-    with LOCK:
-        with L.open('r+') as f:
-            fcntl.flock(f,fcntl.LOCK_EX);f.seek(0)
-            try:s=json.loads(f.read() or '{}')
-            except json.JSONDecodeError:raise RuntimeError('unreadable ledger')
-            s.setdefault('spent_micros',0);s.setdefault('reserved_micros',0);s.setdefault('blocked',False)
-            if delta:
-                if s['blocked'] or s['spent_micros']+s['reserved_micros']+delta>A.ceiling_micros:
-                    result=False
-                else:s['reserved_micros']+=delta;result=True
-            elif settle is not None:
-                if request_id is None:raise RuntimeError('settlement requires request ID')
-                if request_id in SETTLED_REQUESTS:return False
-                if s['reserved_micros']<RESERVE:raise RuntimeError('reserve underflow')
-                s['reserved_micros']-=RESERVE;s['spent_micros']+=settle
-                SETTLED_REQUESTS.add(request_id)
-                if label:s.setdefault('adjustments',[]).append({'at':time.time(),'request_id':request_id,'micros':settle,'label':label})
-                if s['spent_micros']+s['reserved_micros']>A.ceiling_micros:s['blocked']=True
-                result=True
-            else:result=s
-            f.seek(0);f.write(json.dumps(s));f.truncate();f.flush();os.fsync(f.fileno());fcntl.flock(f,fcntl.LOCK_UN)
-            return result
+    # flock serializes independent file descriptions across threads and processes.
+    # Settlement must never acquire the coordinator's in-process LOCK.
+    with L.open('r+') as f:
+        fcntl.flock(f,fcntl.LOCK_EX);f.seek(0)
+        try:s=json.loads(f.read() or '{}')
+        except json.JSONDecodeError:raise RuntimeError('unreadable ledger')
+        s.setdefault('spent_micros',0);s.setdefault('reserved_micros',0);s.setdefault('blocked',False)
+        if delta:
+            if s['blocked'] or s['spent_micros']+s['reserved_micros']+delta>A.ceiling_micros:
+                result=False
+            else:s['reserved_micros']+=delta;result=True
+        elif settle is not None:
+            if request_id is None:raise RuntimeError('settlement requires request ID')
+            if request_id in SETTLED_REQUESTS:return False
+            if s['reserved_micros']<RESERVE:raise RuntimeError('reserve underflow')
+            s['reserved_micros']-=RESERVE;s['spent_micros']+=settle
+            SETTLED_REQUESTS.add(request_id)
+            if label:s.setdefault('adjustments',[]).append({'at':time.time(),'request_id':request_id,'micros':settle,'label':label})
+            if s['spent_micros']+s['reserved_micros']>A.ceiling_micros:s['blocked']=True
+            result=True
+        else:result=s
+        f.seek(0);f.write(json.dumps(s));f.truncate();f.flush();os.fsync(f.fileno());fcntl.flock(f,fcntl.LOCK_UN)
+        return result
 
 def transition(request_id,stage,**fields):
     # Never log request body, authorization header, or response content.
@@ -106,13 +107,14 @@ class Handler(BaseHTTPRequestHandler):
         # worker can stall anywhere (DNS/connect/TLS/headers/body), so socket
         # inactivity timeouts cannot enforce an absolute request deadline.
         events=queue.Queue(maxsize=32);stop=threading.Event()
-        settled=threading.Event();usage_lock=threading.Lock();usage_box={'value':None,'complete':False}
+        settled=threading.Event();usage_box={'snapshot':(None,False)}
         upstream_socket_box={'value':None}
         # The watchdog never waits for coordinator progress or client I/O.
         # It alone guarantees settlement even if the coordinator is wedged.
         def settle_once(outcome):
-            with usage_lock:
-                actual=cost(usage_box['value']) if usage_box['complete'] else None
+            # One immutable tuple assignment publishes usage without a coordinator lock.
+            snapshot=usage_box['snapshot']
+            actual=cost(snapshot[0]) if snapshot[1] else None
             amount=RESERVE if actual is None else actual
             if mutate(settle=amount,label='no usage, booked at reserve' if actual is None else None,request_id=request_id):
                 transition(request_id,'settled_at_reserve' if actual is None else 'settled_usage',micros=amount,outcome=outcome)
@@ -195,7 +197,9 @@ class Handler(BaseHTTPRequestHandler):
                         try:
                             if os.environ.get('HS_PROXY_TEST_UPSTREAM')=='1' and os.environ.get('HS_PROXY_TEST_BLOCK_FORWARD_SECS'):
                                 transition(request_id,'coordinator_forward_enter')
-                                time.sleep(float(os.environ['HS_PROXY_TEST_BLOCK_FORWARD_SECS']))
+                                if os.environ.get('HS_PROXY_TEST_HOLD_COORDINATOR_LOCK')=='1':
+                                    with LOCK:time.sleep(float(os.environ['HS_PROXY_TEST_BLOCK_FORWARD_SECS']))
+                                else:time.sleep(float(os.environ['HS_PROXY_TEST_BLOCK_FORWARD_SECS']))
                             self.connection.settimeout(max(.001,deadline-time.monotonic()))
                             self.wfile.write(('%X\r\n'%len(value)).encode()+value+b'\r\n');self.wfile.flush()
                         except (OSError,ValueError) as e:
@@ -210,8 +214,7 @@ class Handler(BaseHTTPRequestHandler):
                         self.connection.settimeout(max(.001,deadline-time.monotonic()))
                         self.wfile.write(b'0\r\n\r\n');self.wfile.flush()
                     if time.monotonic()>=deadline:raise TimeoutError('upstream total-response deadline')
-                    with usage_lock:
-                        usage_box['value']=usage;usage_box['complete']=True
+                    usage_box['snapshot']=(usage,True)
                     completed=True;outcome='upstream_complete';break
                 elif kind=='http_error':
                     outcome='upstream_http_error';transition(request_id,outcome,status=value)
