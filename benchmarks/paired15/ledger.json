@@ -1,5 +1,5 @@
 {
-  "spent_micros": 8627730,
+  "spent_micros": 10587499,
   "reserved_micros": 0,
   "blocked": false,
   "recovery_adjustment": {
@@ -25,6 +25,18 @@
       "request_id": "0034b6d4f5fe1654",
       "micros": 771860,
       "label": "provider usage unknown, booked at reserve after third-attempt deadline death; proxy stopped"
+    },
+    {
+      "at": 1790512345.0935633,
+      "request_id": "702d21c133fd46a2",
+      "micros": 771860,
+      "label": "provider usage unknown, booked at reserve after fourth-attempt deadline death; proxy stopped"
+    },
+    {
+      "at": 1790512345.093565,
+      "request_id": "21823b9021ae0967",
+      "micros": 771860,
+      "label": "provider usage unknown, booked at reserve after fourth-attempt deadline death; proxy stopped"
     }
   ]
 }
