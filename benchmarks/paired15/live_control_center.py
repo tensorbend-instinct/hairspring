@@ -31,7 +31,12 @@ class Handler(BaseHTTPRequestHandler):
    if path=='/snapshot.json':data=snapshot();mime='application/json; charset=utf-8'
    elif path in STATIC:
     f,mime=STATIC[path];data=(DOC/f).read_bytes()
-    if path=='/':data=data.replace(b'published snapshots, not the provider directly.',b'live public-safe run state, refreshed every 2 seconds.').replace(b'Snapshot published',b'Live snapshot').replace(b'Checks for a new snapshot every 30 seconds',b'Polls the live run every 2 seconds').replace(b'An open call\'s age is frozen at the snapshot, not ticking live.',b'Open-call age updates each poll.')
+    if path=='/':
+     data=data.replace(b'published snapshots, not the provider directly.',b'live public-safe run state, refreshed every 2 seconds.').replace(b'Snapshot published',b'Live snapshot').replace(b'Checks for a new snapshot every 30 seconds',b'Polls the live run every 2 seconds').replace(b'An open call\'s age is frozen at the snapshot, not ticking live.',b'Open-call age updates each poll.')
+     first=data.index(b'<section class="panel"><div class="section-title"><div><p class="eyebrow">LIVE / RUN BOX</p>')
+     last=data.index(b'</section>',first)+len(b'</section>')
+     archive=b'<section class="panel"><div class="section-title"><div><p class="eyebrow">ARCHIVE</p><h2>Published snapshots</h2></div><p>The durable Pages copy can lag this live view.</p></div><p><a href="https://tensorbend-instinct.github.io/hairspring/run/" rel="noopener noreferrer">Open the published archive</a></p></section>'
+     data=data[:first]+archive+data[last:]
     elif path=='/app.js':data=data.replace(b'setInterval(load,30000)',b'setInterval(load,2000)')
    else:self.send_error(404);return
   except Exception:self.send_error(503,'snapshot unavailable');return
