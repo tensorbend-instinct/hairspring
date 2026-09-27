@@ -51,6 +51,19 @@ while not STOP:
   emit('dead',pid=CHILD.pid);launch();current=None;first_ok=None;consecutive_failures=0
  u=url()
  if u!=current:
+  if published:
+   # A published URL cannot outlive its connector. Withdraw it before switching.
+   try:
+    work=ROOT/'publish'
+    if not work.exists():subprocess.run(['git','clone','--quiet','--depth','1','https://github.com/tensorbend-instinct/hairspring.git',str(work)],check=True,timeout=30)
+    subprocess.run(['git','pull','--ff-only','--quiet'],cwd=work,check=True,timeout=30)
+    page=work/'docs/run/index.html';txt=page.read_text()
+    txt=re.sub(r'<p id="live-status">.*?</p>','<p id="live-status">Live view is being checked. The published snapshots below remain available.</p>',txt,count=1)
+    page.write_text(txt);subprocess.run(['git','add','docs/run/index.html'],cwd=work,check=True)
+    subprocess.run(['git','-c','user.name=Instinct','-c','user.email=instinct@users.noreply.github.com','commit','-m','Withdraw stale tunnel link'],cwd=work,check=True,stdout=subprocess.DEVNULL)
+    subprocess.run(['git','push','origin','HEAD:main'],cwd=work,check=True,timeout=30,stdout=subprocess.DEVNULL)
+    published=None;emit('unpublished',reason='connector changed')
+   except Exception as e:emit('unpublish_failed',error=type(e).__name__)
   if u:emit('url',url=u)
   current=u;first_ok=None;checks=0
  if u:
