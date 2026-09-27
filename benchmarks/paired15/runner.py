@@ -24,6 +24,8 @@ OH_SCRIPT='''
 import json,pathlib,socket,subprocess,time,traceback
 from openhands.sdk import LLM,Agent,Conversation
 from openhands.sdk.tool.spec import Tool
+from openhands.tools import register_default_tools,TerminalTool,FileEditorTool
+register_default_tools(enable_browser=False)
 from openhands.sdk.workspace import LocalWorkspace
 from openhands.sdk.event import ActionEvent,AgentErrorEvent
 assert not pathlib.Path('/tmp/hs-audit').exists()
@@ -37,8 +39,8 @@ try:
   except OSError:time.sleep(.02)
  else:raise RuntimeError('proxy socket did not accept connections')
  llm=LLM(model='deepseek/deepseek-flash',base_url='http://127.0.0.1:18748/v1',api_key='local-placeholder',max_output_tokens=393216,usage_id='benchmark-agent',stream=False,num_retries=0)
- agent=Agent(llm=llm,tools=[Tool(name='TerminalTool'),Tool(name='FileEditorTool')])
- conv=Conversation(agent=agent,workspace=LocalWorkspace(working_dir=pathlib.Path('/workspace')),persistence_dir='/persistence',max_iteration_per_run=2147483647,stuck_detection=False,visualizer=None,delete_on_close=False)
+ agent=Agent(llm=llm,tools=[Tool(name=TerminalTool.name),Tool(name=FileEditorTool.name)])
+ conv=Conversation(agent=agent,workspace=LocalWorkspace(working_dir=pathlib.Path('/workspace')),persistence_dir='/persistence',max_iteration_per_run=1 if pathlib.Path('/runstate/smoke').exists() else 2147483647,stuck_detection=False,visualizer=None,delete_on_close=False)
  try:
   conv.send_message(pathlib.Path('/runstate/problem.txt').read_text())
   conv.run()
@@ -62,7 +64,9 @@ try:
   except OSError:time.sleep(.02)
  else:raise RuntimeError('proxy socket did not accept connections')
  env={**os.environ,'PATH':'/opt/hs:/usr/bin:/bin','HOME':'/workspace','HS_DEEPSEEK_API_KEY':'local-placeholder','HS_DEEPSEEK_BASE_URL':'http://127.0.0.1:18748/chat/completions','HS_DEEPSEEK_MODEL':'deepseek-flash','HS_CRITIC_MODEL':'deepseek','HS_REALMODEL_CALL_TIMEOUT_SECS':'960','HS_POLICY_TOML':'/runstate/policy.toml','HS_TUI':'off'}
+ if pathlib.Path('/runstate/smoke').exists():env['HS_CRITIC_SCRIPT']='tool:git status --short|clean'
  cmd=['/opt/hs/hs-repl','run','--goal',pathlib.Path('/runstate/problem.txt').read_text(),'--config','/runstate/rig.toml','--dir','/runstate/mission','--project-dir','/workspace']
+ if pathlib.Path('/runstate/smoke').exists():cmd+=['--max-steps','3']
  raise SystemExit(subprocess.run(cmd,env=env).returncode)
 finally:relay.terminate();relay.wait(timeout=5)
 '''
@@ -87,7 +91,7 @@ def grade_python(id):
  for prefix,path in GRADE.items():
   if id.startswith(prefix):return path
  return str(R/'django38-env/bin/python')
-def run_one(id,harness,out,port,ledger_path,bridge,fake=False):
+def run_one(id,harness,out,port,ledger_path,bridge,fake=False,grade_smoke=False):
  candidates=list(R.glob('probe-*'))
  case=next((c for c in candidates if (c/'public.json').exists() and json.loads((c/'public.json').read_text())['instance_id']==id),None)
  if case is None:raise RuntimeError('missing audited preflight case '+id)
@@ -97,6 +101,7 @@ def run_one(id,harness,out,port,ledger_path,bridge,fake=False):
  (state/'problem.txt').write_text(json.loads((case/'public.json').read_text())['problem_statement']+'\n\nExecution constraints: Network access is unavailable inside this sandbox. Work with the checked-out repository and installed local tools only. Do not modify, add, or delete test files; only change implementation files. Hidden grading happens after you finish.\n')
  if harness=='HAIRSPRING':
   (state/'policy.toml').write_text('[prompts]\ntui-mission = """{goal}\n\nExecution constraints: Network access is unavailable inside this sandbox. Work with the checked-out repository and installed local tools only. Do not modify, add, or delete test files; only change implementation files. Hidden grading happens after you finish.\n"""\n')
+ if grade_smoke:(state/'smoke').write_text('test-only bounded fake model')
  if harness=='HAIRSPRING':(state/'rig.toml').write_text((R/'rig.template.toml').read_text().replace('__BIN_DIR__','/opt/hs'))
  status={'instance_id':id,'harness':harness,'state':'started','started_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'ledger_before':ledger(ledger_path)};atom(out/'record.json',status)
  binds=['bwrap','--unshare-net','--ro-bind','/usr','/usr','--ro-bind','/bin','/bin','--ro-bind','/lib','/lib','--ro-bind','/lib64','/lib64','--ro-bind','/etc','/etc','--proc','/proc','--dev','/dev','--tmpfs','/tmp','--dir','/workspace','--bind',str(work),'/workspace','--dir','/runstate','--bind',str(state),'/runstate','--dir','/bridge','--bind',str(bridge),'/bridge','--chdir','/workspace']
@@ -125,7 +130,7 @@ def run_one(id,harness,out,port,ledger_path,bridge,fake=False):
    except ValueError:pass
   if records:status.update({k:records[-1].get(k) for k in ('steps','model_calls','harness_error','outcome','passed','answer_path','stream_id')})
  atom(out/'record.json',status)
- if fake:return status
+ if fake and not grade_smoke:return status
  # Any nonterminal/error must count unfinished even if source happens to pass.
  finished=(harness=='OpenHands' and rc==0 and status.get('status') in ('ConversationExecutionStatus.FINISHED','finished')) or (harness=='HAIRSPRING' and rc==0 and status.get('outcome')=='verified' and status.get('passed') is True and not status.get('harness_error'))
  if not finished:
@@ -140,8 +145,9 @@ def run_one(id,harness,out,port,ledger_path,bridge,fake=False):
  status['state']='graded' if 'score' in status else 'grade_failed';atom(out/'record.json',status);return status
 
 def main():
- ap=argparse.ArgumentParser();ap.add_argument('--out',required=True);ap.add_argument('--port',type=int,default=18748);ap.add_argument('--ledger',required=True);ap.add_argument('--bridge',required=True);ap.add_argument('--fake',action='store_true');ap.add_argument('--id');ap.add_argument('--harness',choices=['HAIRSPRING','OpenHands']);a=ap.parse_args()
+ ap=argparse.ArgumentParser();ap.add_argument('--out',required=True);ap.add_argument('--port',type=int,default=18748);ap.add_argument('--ledger',required=True);ap.add_argument('--bridge',required=True);ap.add_argument('--fake',action='store_true');ap.add_argument('--grade-smoke',action='store_true');ap.add_argument('--id');ap.add_argument('--harness',choices=['HAIRSPRING','OpenHands']);a=ap.parse_args()
  ids=json.loads((R/'manifest.json').read_text())['ids'];out=pathlib.Path(a.out).resolve();out.mkdir(parents=True,exist_ok=True)
+ if a.grade_smoke and not a.fake:ap.error('grade smoke is fake-only')
  if a.id and a.id not in ids:ap.error('not in locked sample')
  if a.id and not a.harness:ap.error('single ID requires harness')
  if a.harness and not a.id:ap.error('harness requires a single ID')
@@ -159,7 +165,7 @@ def main():
     if old['state'] in ('graded','unfinished'):
      print('already recorded',id,h,old['state'],flush=True);continue
     raise RuntimeError('prior run unfinished or ambiguous; do not silently rerun '+str(path))
-   result=run_one(id,h,path,a.port,pathlib.Path(a.ledger),bridge,a.fake)
+   result=run_one(id,h,path,a.port,pathlib.Path(a.ledger),bridge,a.fake,a.grade_smoke)
    print(json.dumps({'id':id,'harness':h,'state':result['state'],'resolved':result.get('resolved'),'steps':result.get('steps'),'wall_secs':result.get('wall_secs'),'spent_micros':result['ledger_after'].get('spent_micros')}),flush=True)
    if result['state'] not in ('graded','unfinished') and not a.fake:raise RuntimeError('grade failed; stop batch')
    if result['state']=='unfinished' and not a.fake:raise RuntimeError('unfinished task; stop sequential batch for diagnosis')
