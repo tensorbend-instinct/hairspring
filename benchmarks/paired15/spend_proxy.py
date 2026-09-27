@@ -5,7 +5,7 @@ A concurrent call reserves max documented Flash cost at peak prices; unknown usa
 books the entire reserve as spent and records the uncertainty. A configured cap is across processes
 using one ledger file and flock. The upstream URL must be the direct provider.
 """
-import argparse,fcntl,json,os,pathlib,threading,queue,urllib.request,urllib.error,secrets,hmac,html,urllib.parse,time
+import argparse,fcntl,json,os,pathlib,threading,queue,urllib.request,urllib.error,secrets,hmac,html,urllib.parse,time,socket
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from decimal import Decimal,ROUND_UP
 P=argparse.ArgumentParser();P.add_argument('--key-file');P.add_argument('--admin-port',type=int);P.add_argument('--admin-token-file');P.add_argument('--ledger',required=True);P.add_argument('--port',type=int,default=18748);P.add_argument('--upstream',default='https://api.deepseek.com');P.add_argument('--ceiling-micros',type=int,default=150_000_000);A=P.parse_args()
@@ -31,6 +31,7 @@ UPSTREAM_DEADLINE_SECS = 1020.0
 if os.environ.get('HS_PROXY_TEST_UPSTREAM') == '1':
     UPSTREAM_DEADLINE_SECS = float(os.environ.get('HS_PROXY_TEST_DEADLINE_SECS', '1020'))
 LOCK=threading.Lock()
+SETTLED_REQUESTS=set()
 def mutate(delta=0,settle=None,label=None,request_id=None):
     with LOCK:
         with L.open('r+') as f:
@@ -43,8 +44,11 @@ def mutate(delta=0,settle=None,label=None,request_id=None):
                     result=False
                 else:s['reserved_micros']+=delta;result=True
             elif settle is not None:
+                if request_id is None:raise RuntimeError('settlement requires request ID')
+                if request_id in SETTLED_REQUESTS:return False
                 if s['reserved_micros']<RESERVE:raise RuntimeError('reserve underflow')
                 s['reserved_micros']-=RESERVE;s['spent_micros']+=settle
+                SETTLED_REQUESTS.add(request_id)
                 if label:s.setdefault('adjustments',[]).append({'at':time.time(),'request_id':request_id,'micros':settle,'label':label})
                 if s['spent_micros']+s['reserved_micros']>A.ceiling_micros:s['blocked']=True
                 result=True
@@ -102,6 +106,32 @@ class Handler(BaseHTTPRequestHandler):
         # worker can stall anywhere (DNS/connect/TLS/headers/body), so socket
         # inactivity timeouts cannot enforce an absolute request deadline.
         events=queue.Queue(maxsize=32);stop=threading.Event()
+        settled=threading.Event();usage_lock=threading.Lock();usage_box={'value':None,'complete':False}
+        upstream_socket_box={'value':None}
+        # The watchdog never waits for coordinator progress or client I/O.
+        # It alone guarantees settlement even if the coordinator is wedged.
+        def settle_once(outcome):
+            with usage_lock:
+                actual=cost(usage_box['value']) if usage_box['complete'] else None
+            amount=RESERVE if actual is None else actual
+            if mutate(settle=amount,label='no usage, booked at reserve' if actual is None else None,request_id=request_id):
+                transition(request_id,'settled_at_reserve' if actual is None else 'settled_usage',micros=amount,outcome=outcome)
+            settled.set()
+        def watchdog():
+            if not settled.wait(max(0,deadline-time.monotonic())):
+                stop.set()
+                settle_once('upstream_total_deadline')
+                upstream_socket=upstream_socket_box['value']
+                if upstream_socket is not None:
+                    try:upstream_socket.shutdown(socket.SHUT_RDWR)
+                    except OSError:pass
+                    try:upstream_socket.close()
+                    except OSError:pass
+                try:self.connection.shutdown(2)
+                except OSError:pass
+                try:self.connection.close()
+                except OSError:pass
+        threading.Thread(target=watchdog,daemon=True,name='proxy-deadline-'+request_id).start()
         def put(kind, value=None):
             while not stop.is_set():
                 try:events.put((kind,value),timeout=.1);return
@@ -116,6 +146,8 @@ class Handler(BaseHTTPRequestHandler):
                 if not key:raise RuntimeError('no key loaded')
                 req=urllib.request.Request(A.upstream.rstrip('/')+'/chat/completions',data=body,method='POST',headers={'Authorization':'Bearer '+key,'Content-Type':'application/json','Accept':'text/event-stream' if v.get('stream') else 'application/json'})
                 with urllib.request.urlopen(req,timeout=UPSTREAM_DEADLINE_SECS) as resp:
+                    try:upstream_socket_box['value']=resp.fp.raw._sock
+                    except AttributeError:pass
                     put('headers',(resp.status,resp.headers.get('Content-Type','application/json')))
                     if v.get('stream'):
                         while not stop.is_set():
@@ -178,6 +210,8 @@ class Handler(BaseHTTPRequestHandler):
                         self.connection.settimeout(max(.001,deadline-time.monotonic()))
                         self.wfile.write(b'0\r\n\r\n');self.wfile.flush()
                     if time.monotonic()>=deadline:raise TimeoutError('upstream total-response deadline')
+                    with usage_lock:
+                        usage_box['value']=usage;usage_box['complete']=True
                     completed=True;outcome='upstream_complete';break
                 elif kind=='http_error':
                     outcome='upstream_http_error';transition(request_id,outcome,status=value)
@@ -196,13 +230,7 @@ class Handler(BaseHTTPRequestHandler):
             stop.set()
             # Never allow an incomplete chunked response to linger on keepalive.
             if response_started and not completed:self.close_connection=True
-            actual=cost(usage) if completed else None
-            if actual is None:
-                mutate(settle=RESERVE,label='no usage, booked at reserve',request_id=request_id)
-                transition(request_id,'settled_at_reserve',micros=RESERVE,outcome=outcome)
-            else:
-                mutate(settle=actual)
-                transition(request_id,'settled_usage',micros=actual,usage=usage,outcome=outcome)
+            settle_once(outcome)
 
 class AdminHandler(BaseHTTPRequestHandler):
     def log_message(self,*args):pass
