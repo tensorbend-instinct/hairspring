@@ -27,7 +27,8 @@ from openhands.sdk.tool.spec import Tool
 from openhands.tools import register_default_tools,TerminalTool,FileEditorTool
 register_default_tools(enable_browser=False)
 from openhands.sdk.workspace import LocalWorkspace
-from openhands.sdk.event import ActionEvent,AgentErrorEvent
+from openhands.sdk.event import ActionEvent,AgentErrorEvent,MessageEvent
+from openhands.sdk.event.conversation_error import ConversationErrorEvent
 assert not pathlib.Path('/tmp/hs-audit').exists()
 assert not pathlib.Path('/runstate/test.patch').exists()
 s=socket.socket();assert s.connect_ex(('1.1.1.1',443))!=0
@@ -45,7 +46,7 @@ try:
   conv.send_message(pathlib.Path('/runstate/problem.txt').read_text())
   conv.run()
   events=list(conv.state.events)
-  summary={'harness':'OpenHands','status':str(conv.state.execution_status),'steps':len({e.llm_response_id for e in events if isinstance(e,ActionEvent)}),'actions':sum(isinstance(e,ActionEvent) for e in events),'errors':sum(isinstance(e,AgentErrorEvent) for e in events),'events':len(events),'model':'deepseek/deepseek-flash'}
+  summary={'harness':'OpenHands','status':str(conv.state.execution_status),'steps':len({e.llm_response_id for e in events if isinstance(e,(ActionEvent,MessageEvent)) and e.llm_response_id}),'actions':sum(isinstance(e,ActionEvent) for e in events),'errors':sum(isinstance(e,(AgentErrorEvent,ConversationErrorEvent)) for e in events),'events':len(events),'model':'deepseek/deepseek-flash'}
   pathlib.Path('/runstate/summary.json').write_text(json.dumps(summary,indent=2)+'\\n')
   print(json.dumps(summary),flush=True)
  finally:conv.close()
@@ -135,7 +136,7 @@ def run_one(id,harness,out,port,ledger_path,bridge,fake=False,grade_smoke=False)
  atom(out/'record.json',status)
  if fake and not grade_smoke:return status
  # Any nonterminal/error must count unfinished even if source happens to pass.
- finished=(harness=='OpenHands' and rc==0 and status.get('status') in ('ConversationExecutionStatus.FINISHED','finished')) or (harness=='HAIRSPRING' and rc==0 and status.get('outcome')=='verified' and status.get('passed') is True and not status.get('harness_error'))
+ finished=(harness=='OpenHands' and rc==0 and status.get('status') in ('ConversationExecutionStatus.FINISHED','finished') and status.get('errors')==0) or (harness=='HAIRSPRING' and rc==0 and status.get('outcome')=='verified' and status.get('passed') is True and not status.get('harness_error'))
  if not finished:
   status['resolved']=False
   status['state']='unfinished';atom(out/'record.json',status);return status
