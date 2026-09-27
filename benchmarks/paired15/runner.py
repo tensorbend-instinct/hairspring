@@ -94,7 +94,7 @@ def run_one(id,harness,out,port,ledger_path,bridge,fake=False):
  if not fake and not pathlib.Path(grade_python(id)).is_file():raise RuntimeError('grading Python missing for '+id)
  if out.exists():raise RuntimeError('run directory already exists, do not overwrite: '+str(out))
  out.mkdir(parents=True);work=prepare(case,harness,out);state=out/'state';state.mkdir();(out/'persistence').mkdir()
- (state/'problem.txt').write_text(json.loads((case/'public.json').read_text())['problem_statement'])
+ (state/'problem.txt').write_text(json.loads((case/'public.json').read_text())['problem_statement']+'\n\nExecution constraints: Network access is unavailable inside this sandbox. Work with the checked-out repository and installed local tools only. Do not modify, add, or delete test files; only change implementation files. Hidden grading happens after you finish.\n')
  if harness=='HAIRSPRING':
   (state/'policy.toml').write_text('[prompts]\ntui-mission = """{goal}\n\nExecution constraints: Network access is unavailable inside this sandbox. Work with the checked-out repository and installed local tools only. Do not modify, add, or delete test files; only change implementation files. Hidden grading happens after you finish.\n"""\n')
  if harness=='HAIRSPRING':(state/'rig.toml').write_text((R/'rig.template.toml').read_text().replace('__BIN_DIR__','/opt/hs'))
