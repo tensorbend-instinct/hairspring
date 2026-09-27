@@ -8,3 +8,6 @@ detached-proof-safe/
 rust-build.log
 rust-build-launch.log
 rust-build-state.json
+sklearn-grade-run.log
+sklearn-grade-launch.log
+sklearn-grade-state.json

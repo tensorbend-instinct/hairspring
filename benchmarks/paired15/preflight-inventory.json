@@ -1,0 +1,156 @@
+{
+  "generated_at": "2026-09-27T10:31:33.270379+00:00",
+  "dataset_sha256": "a45b1fe4e2f0c8390b2b2938ac83e92ed5979000856808f3679c07812e9e6dcd",
+  "cases": [
+    {
+      "id": "django__django-11133",
+      "case_dir": "probe-django11133",
+      "base_commit": "879cc3da6249e920b8d54518a0ae06de835d7373",
+      "hidden_test_sha256": "ef28eb84141ad909c3732fc7473368f1c6a22510e9ed51190401876db8e003f9",
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 64,
+      "source_clean": true,
+      "agent_clean": true
+    },
+    {
+      "id": "django__django-11141",
+      "case_dir": "probe-11141",
+      "base_commit": "5d9cf79baf07fc4aed7ad1b06990532a65378155",
+      "hidden_test_sha256": "2368754a38055f10014bbcf18e23e95bbe26b0785de064f4fc561f6c3a03749f",
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 24,
+      "source_clean": true,
+      "agent_clean": true
+    },
+    {
+      "id": "django__django-11490",
+      "case_dir": "probe-11490",
+      "base_commit": "a7038adbd02c916315b16939b835f021c2ee8880",
+      "hidden_test_sha256": "994eee9feeb7b498338e1171b87a3fec432a6ceb6eb091a1ffa81e238d58284e",
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 23,
+      "source_clean": true,
+      "agent_clean": true
+    },
+    {
+      "id": "django__django-13343",
+      "case_dir": "probe-13343",
+      "base_commit": "ece18207cbb64dd89014e279ac636a6c9829828e",
+      "hidden_test_sha256": "7f73d08650619d434dc12a5ba369eb61da2f7fbf0a369884f72a1e44a0f2b141",
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 130,
+      "source_clean": true,
+      "agent_clean": true
+    },
+    {
+      "id": "django__django-13590",
+      "case_dir": "probe-13590",
+      "base_commit": "755dbf39fcdc491fe9b588358303e259c7750be4",
+      "hidden_test_sha256": "a9cd7e81ce4161982d59b09646963a9d0a85fa047d4ed7df754ae0f9d56f40c7",
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 145,
+      "source_clean": true,
+      "agent_clean": true
+    },
+    {
+      "id": "django__django-13821",
+      "case_dir": "probe-13821",
+      "base_commit": "e64c1d8055a3e476122633da141f16b50f0c4a2d",
+      "hidden_test_sha256": "8e12fbbb9efda7d0e63af414bb83c0fa056e085a40205d63d69926d2a3908261",
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 14,
+      "source_clean": true,
+      "agent_clean": true
+    },
+    {
+      "id": "django__django-14608",
+      "case_dir": "probe-14608",
+      "base_commit": "7f33c1e22dbc34a7afae7967783725b10f1f13b1",
+      "hidden_test_sha256": "44da3f8270178029a8069bb1a08da9a76f96884e5a76cb88c564b48b48a98b0f",
+      "fail_to_pass_count": 4,
+      "pass_to_pass_count": 394,
+      "source_clean": true,
+      "agent_clean": true
+    },
+    {
+      "id": "django__django-15103",
+      "case_dir": "probe-15103",
+      "base_commit": "dd528cb2cefc0db8b91a7ff0a2bc87305b976597",
+      "hidden_test_sha256": "e12231ed9ceb44650d2924c420aa3a87b8f2ee5d4197bd1af9eeba44eef0e577",
+      "fail_to_pass_count": 2,
+      "pass_to_pass_count": 17,
+      "source_clean": true,
+      "agent_clean": true
+    },
+    {
+      "id": "django__django-16315",
+      "case_dir": "probe-16315",
+      "base_commit": "7d5329852f19c6ae78c6f6f3d3e41835377bf295",
+      "hidden_test_sha256": "fec04b5f7733fc5a237815ce95ef9bdfa42d8a034cfa9a24aa078bc068775074",
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 42,
+      "source_clean": true,
+      "agent_clean": true
+    },
+    {
+      "id": "django__django-16877",
+      "case_dir": "probe-16877",
+      "base_commit": "98f6ada0e2058d67d91fb6c16482411ec2ca0967",
+      "hidden_test_sha256": "33bac00af7495396787af9fc64ceddd6a4311fc413507219271ae8a6cf0b0a2d",
+      "fail_to_pass_count": 4,
+      "pass_to_pass_count": 0,
+      "source_clean": true,
+      "agent_clean": true
+    },
+    {
+      "id": "pylint-dev__pylint-4551",
+      "case_dir": "probe-4551",
+      "base_commit": "99589b08de8c5a2c6cc61e13a37420a868c80599",
+      "hidden_test_sha256": "ccdbb6351dd77464ac7429d8a43de3fc42088c03aed9618e5ba77bc8178fec87",
+      "fail_to_pass_count": 10,
+      "pass_to_pass_count": 0,
+      "source_clean": true,
+      "agent_clean": true
+    },
+    {
+      "id": "pytest-dev__pytest-6202",
+      "case_dir": "probe-6202",
+      "base_commit": "3a668ea6ff24b0c8f00498c3144c63bac561d925",
+      "hidden_test_sha256": "f43aa68a70c2dda295f2d8bc3319fda4e38f6a05bf145e5ce47c9610d031e267",
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 72,
+      "source_clean": true,
+      "agent_clean": true
+    },
+    {
+      "id": "scikit-learn__scikit-learn-14053",
+      "case_dir": "probe-14053",
+      "base_commit": "6ab8c86c383dd847a1be7103ad115f174fe23ffd",
+      "hidden_test_sha256": "c2e36339c3ce91cc91f34f38d5c1ad33e3ed8319d34c33d0527621ca3f475def",
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 5,
+      "source_clean": true,
+      "agent_clean": true
+    },
+    {
+      "id": "sphinx-doc__sphinx-7440",
+      "case_dir": "probe-7440",
+      "base_commit": "9bb204dcabe6ba0fc422bf4a45ad0c79c680d90b",
+      "hidden_test_sha256": "6dbf83d82b931d827fc87f0263cb08ff6b22aff7afb7591e5f32b3bf09f81be1",
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 12,
+      "source_clean": true,
+      "agent_clean": true
+    },
+    {
+      "id": "sympy__sympy-23262",
+      "case_dir": "probe-23262",
+      "base_commit": "fdc707f73a65a429935c01532cd3970d3355eab6",
+      "hidden_test_sha256": "93364bb4634aab816f68f82f2b017708ccd412a98de15f602670027914db6089",
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 61,
+      "source_clean": true,
+      "agent_clean": true
+    }
+  ]
+}
