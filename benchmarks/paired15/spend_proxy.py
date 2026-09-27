@@ -202,6 +202,11 @@ class Handler(BaseHTTPRequestHandler):
                         for chunk in iter(resp.readline,b''):
                             if stop.is_set():break
                             total_bytes+=len(chunk)
+                            now=time.monotonic()
+                            if progress['first_at'] is None:
+                                progress['first_at']=now
+                                transition(request_id,'upstream_first_byte',upstream_bytes=total_bytes)
+                            progress['bytes']=total_bytes;progress['last_at']=now
                             put('chunk',chunk)
                             if chunk.strip()==b'data: [DONE]':
                                 transition(request_id,'upstream_sse_done',upstream_bytes=total_bytes)
@@ -231,7 +236,10 @@ class Handler(BaseHTTPRequestHandler):
                         resp.release_conn()
                     else:
                         resp.close()
-            except urllib3.exceptions.HTTPError as e:put('error',type(e).__name__)
+            except urllib3.exceptions.HTTPError as e:
+                transition(request_id,'upstream_failure_detail',error=type(e).__name__,upstream_bytes=total_bytes,
+                    first_byte_monotonic=progress['first_at'],response_status=progress['status'])
+                put('error',type(e).__name__)
             except Exception as e:put('error',type(e).__name__)
             finally:upstream_done.set()
         threading.Thread(target=upstream,daemon=True,name='proxy-upstream-'+request_id).start()
