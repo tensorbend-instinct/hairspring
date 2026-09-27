@@ -1,5 +1,5 @@
 """Fast local total-deadline expiry while fake upstream keeps sending bytes."""
-import json,os,pathlib,socket,subprocess,sys,tempfile,threading,time,urllib.request
+import http.client,json,os,pathlib,socket,subprocess,sys,tempfile,threading,time,urllib.request
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 R=pathlib.Path(__file__).resolve().parent
 class Up(BaseHTTPRequestHandler):
@@ -27,13 +27,15 @@ with tempfile.TemporaryDirectory() as d:
    req=urllib.request.Request(f'http://127.0.0.1:{port}/chat/completions',data=body)
    started=time.monotonic()
    try:urllib.request.urlopen(req,timeout=3).read();raise AssertionError('incomplete stream accepted')
-   except (OSError,ValueError) as e:print('incomplete stream closed',type(e).__name__)
+   except (OSError,ValueError,http.client.IncompleteRead) as e:print('incomplete stream closed',type(e).__name__)
    assert time.monotonic()-started < 1.0
    for _ in range(100):
     q=json.loads((t/'ledger').read_text() or '{}')
     if q.get('reserved_micros')==0 and q.get('spent_micros')==771860:break
     time.sleep(.02)
    assert q['reserved_micros']==0 and q['spent_micros']==771860,q
-   assert 'settled_at_reserve' in (t/'proxy.log').read_text()
+   transitions=[json.loads(line) for line in (t/'proxy.log').read_text().splitlines() if 'proxy_transition' in line]
+   assert any(v.get('stage')=='upstream_error' and v.get('error')=='TimeoutError' for v in transitions),transitions
+   assert any(v.get('stage')=='settled_at_reserve' and v.get('micros')==771860 for v in transitions),transitions
    print('deadline expiry booked full reserve without a hanging client')
   finally:p.terminate();p.wait(timeout=3);up.shutdown()

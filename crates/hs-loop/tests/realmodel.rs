@@ -264,3 +264,32 @@ fn load_key_falls_back_to_config_dir_key_file() {
     let k = load_key(&deepseek()).expect("config-dir key file is found");
     assert_eq!(k, "sk-from-config-dir");
 }
+
+/// A truncated SSE response must never turn partial text into a completion.
+#[test]
+fn incomplete_stream_is_provider_error() {
+    let _g = ENV_LOCK.lock().unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut buf = [0u8; 8192];
+        let _ = stream.read(&mut buf);
+        let body = b"data: {\"choices\":[{\"delta\":{\"content\":\"partial\"}}]}\n\n";
+        let header = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            body.len()
+        );
+        stream.write_all(header.as_bytes()).unwrap();
+        stream.write_all(body).unwrap();
+    });
+    unsafe {
+        std::env::set_var("HS_GLM_BASE_URL", format!("http://127.0.0.1:{port}/chat/completions"));
+        std::env::set_var("HS_GLM_API_KEY", "test-dummy-not-a-real-key");
+        std::env::set_var("HS_REALMODEL_MAX_ATTEMPTS", "1");
+    }
+    let result = call_streaming(&glm(), "hi", None, &|_| {});
+    unsafe { std::env::remove_var("HS_REALMODEL_MAX_ATTEMPTS") };
+    let err = result.unwrap_err();
+    assert!(err.contains("incomplete provider stream"), "{err}");
+}
