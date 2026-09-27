@@ -357,7 +357,7 @@ pub fn build_body(
     let mut body = json!({
         "model": model,
         "temperature": 0,
-        "max_tokens": 32768,
+        "max_tokens": 393216,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": prompt},
@@ -399,7 +399,7 @@ pub fn build_body_messages(
     let mut body = json!({
         "model": model,
         "temperature": 0,
-        "max_tokens": 32768,
+        "max_tokens": 393216,
         "messages": msgs,
     });
     if let Some(t) = tools {
