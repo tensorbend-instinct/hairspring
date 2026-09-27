@@ -108,6 +108,9 @@ class Handler(BaseHTTPRequestHandler):
                 except queue.Full:pass
         def upstream():
             try:
+                if os.environ.get('HS_PROXY_TEST_UPSTREAM')=='1':
+                    time.sleep(float(os.environ.get('HS_PROXY_TEST_ADMISSION_STALL_SECS','0')))
+                if stop.is_set():return
                 with KEY_LOCK:
                     key=K.read_text().strip() if K else MEMORY_KEY
                 if not key:raise RuntimeError('no key loaded')
