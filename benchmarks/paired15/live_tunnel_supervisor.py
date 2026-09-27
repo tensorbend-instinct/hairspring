@@ -78,7 +78,7 @@ while not STOP:
      subprocess.run(['git','push','origin','HEAD:main'],cwd=work,check=True,timeout=30,stdout=subprocess.DEVNULL)
     published=target;emit('published' if target else 'unpublished',url=target)
    except Exception as e:emit('publish_failed',error=type(e).__name__)
-  if ok and first_ok and time.time()-first_ok>=600 and checks>=30 and published!=u:
+  if ok and first_ok and time.time()-first_ok>=600 and checks>=30 and (ROOT/'browser_verified_url').exists() and (ROOT/'browser_verified_url').read_text().strip()==u and published!=u:
    publish(u)
   elif not ok and published:
    publish(None)
