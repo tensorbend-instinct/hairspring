@@ -5,7 +5,7 @@ A concurrent call reserves max documented Flash cost at peak prices; unknown usa
 books the entire reserve as spent and records the uncertainty. A configured cap is across processes
 using one ledger file and flock. The upstream URL must be the direct provider.
 """
-import argparse,fcntl,json,os,pathlib,threading,urllib.request,urllib.error,secrets,hmac,html,urllib.parse,time
+import argparse,fcntl,json,os,pathlib,threading,queue,urllib.request,urllib.error,secrets,hmac,html,urllib.parse,time
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from decimal import Decimal,ROUND_UP
 P=argparse.ArgumentParser();P.add_argument('--key-file');P.add_argument('--admin-port',type=int);P.add_argument('--admin-token-file');P.add_argument('--ledger',required=True);P.add_argument('--port',type=int,default=18748);P.add_argument('--upstream',default='https://api.deepseek.com');P.add_argument('--ceiling-micros',type=int,default=150_000_000);A=P.parse_args()
@@ -97,74 +97,97 @@ class Handler(BaseHTTPRequestHandler):
         if not mutate(delta=RESERVE):
             transition(request_id,'admission_denied');self.send_error(429,'mission spend ceiling');return
         transition(request_id,'admitted',reserve_micros=RESERVE,request_bytes=len(body),message_bytes=sum(len(json.dumps(m).encode()) for m in v.get('messages',[]) if isinstance(m,dict)))
-        usage=None;completed=False;client_alive=True;response_started=False;outcome='unknown'
-        def send_chunk(chunk):
-            nonlocal client_alive
-            if not client_alive:return
+        # Only the coordinator touches the client or ledger. The upstream
+        # worker can stall anywhere (DNS/connect/TLS/headers/body), so socket
+        # inactivity timeouts cannot enforce an absolute request deadline.
+        deadline=time.monotonic()+UPSTREAM_DEADLINE_SECS
+        events=queue.Queue(maxsize=32);stop=threading.Event()
+        def put(kind, value=None):
+            while not stop.is_set():
+                try:events.put((kind,value),timeout=.1);return
+                except queue.Full:pass
+        def upstream():
             try:
-                self.wfile.write(('%X\r\n'%len(chunk)).encode()+chunk+b'\r\n');self.wfile.flush()
-            except (OSError,ValueError) as e:
-                client_alive=False;transition(request_id,'client_disconnected',error=type(e).__name__)
+                with KEY_LOCK:
+                    key=K.read_text().strip() if K else MEMORY_KEY
+                if not key:raise RuntimeError('no key loaded')
+                req=urllib.request.Request(A.upstream.rstrip('/')+'/chat/completions',data=body,method='POST',headers={'Authorization':'Bearer '+key,'Content-Type':'application/json','Accept':'text/event-stream' if v.get('stream') else 'application/json'})
+                with urllib.request.urlopen(req,timeout=UPSTREAM_DEADLINE_SECS) as resp:
+                    put('headers',(resp.status,resp.headers.get('Content-Type','application/json')))
+                    if v.get('stream'):
+                        while not stop.is_set():
+                            chunk=resp.readline()
+                            if not chunk:break
+                            put('chunk',chunk)
+                    else:
+                        while not stop.is_set():
+                            chunk=resp.read(16384)
+                            if not chunk:break
+                            put('chunk',chunk)
+                    put('done')
+            except urllib.error.HTTPError as e:put('http_error',e.code)
+            except Exception as e:put('error',type(e).__name__)
+        threading.Thread(target=upstream,daemon=True,name='proxy-upstream-'+request_id).start()
+        usage=None;completed=False;client_alive=True;response_started=False;outcome='unknown'
+        acc=bytearray();stream_line=bytearray();saw_done=False
         try:
-            started=time.monotonic()
-            with KEY_LOCK:
-                key=K.read_text().strip() if K else MEMORY_KEY
-            if not key:raise RuntimeError('no key loaded')
-            req=urllib.request.Request(A.upstream.rstrip('/')+'/chat/completions',data=body,method='POST',headers={'Authorization':'Bearer '+key,'Content-Type':'application/json','Accept':'text/event-stream' if v.get('stream') else 'application/json'})
-            with urllib.request.urlopen(req,timeout=UPSTREAM_DEADLINE_SECS) as resp:
-                # Maintain a total 1020s upstream response deadline, not only
-                # a per-read socket inactivity timeout.
-                sock=resp.fp.raw._sock if hasattr(resp.fp.raw, '_sock') else resp.fp.raw
-                def remaining():
-                    seconds=UPSTREAM_DEADLINE_SECS-(time.monotonic()-started)
-                    if seconds<=0:raise TimeoutError('upstream total-response deadline')
-                    try:sock.settimeout(seconds)
-                    except OSError:pass
-                transition(request_id,'upstream_response',status=resp.status)
-                try:
-                    self.send_response(resp.status)
-                    self.send_header('Content-Type',resp.headers.get('Content-Type','application/json'))
-                    self.send_header('Transfer-Encoding','chunked');self.end_headers();response_started=True
-                except (OSError,ValueError) as e:
-                    client_alive=False;transition(request_id,'client_disconnected',error=type(e).__name__)
-                acc=bytearray()
-                if v.get('stream'):
-                    while True:
-                        remaining();chunk=resp.readline()
-                        if not chunk:break
-                        send_chunk(chunk)
-                        if chunk.startswith(b'data: ') and chunk[6:].strip()!=b'[DONE]':
-                            try:
-                                o=json.loads(chunk[6:]);
-                                if o.get('usage') is not None:usage=o['usage']
-                            except (ValueError,UnicodeDecodeError):pass
-                else:
-                    while True:
-                        remaining();chunk=resp.read(16384)
-                        if not chunk:break
-                        acc.extend(chunk);send_chunk(chunk)
-                    usage=json.loads(acc).get('usage')
-                if client_alive:
-                    try:self.wfile.write(b'0\r\n\r\n');self.wfile.flush()
+            while True:
+                remaining=deadline-time.monotonic()
+                if remaining<=0:raise TimeoutError('upstream total-response deadline')
+                try:kind,value=events.get(timeout=remaining)
+                except queue.Empty:raise TimeoutError('upstream total-response deadline') from None
+                if kind=='headers':
+                    transition(request_id,'upstream_response',status=value[0])
+                    try:
+                        self.connection.settimeout(max(.001,deadline-time.monotonic()))
+                        self.send_response(value[0]);self.send_header('Content-Type',value[1]);self.send_header('Transfer-Encoding','chunked');self.end_headers();response_started=True
                     except (OSError,ValueError) as e:
                         client_alive=False;transition(request_id,'client_disconnected',error=type(e).__name__)
-                completed=True;outcome='upstream_complete'
-        except urllib.error.HTTPError as e:
-            outcome='upstream_http_error';transition(request_id,outcome,status=e.code)
-            if client_alive and not response_started:
-                try:self.send_error(e.code,'provider error')
-                except OSError:pass
+                elif kind=='chunk':
+                    if v.get('stream'):
+                        stream_line.extend(value)
+                        while b'\n' in stream_line:
+                            line,_,rest=stream_line.partition(b'\n');stream_line=bytearray(rest)
+                            if line.startswith(b'data: '):
+                                if line[6:].strip()==b'[DONE]':saw_done=True
+                                else:
+                                    try:
+                                        u=json.loads(line[6:]).get('usage')
+                                        if u is not None:usage=u
+                                    except (ValueError,UnicodeDecodeError):pass
+                    else:acc.extend(value)
+                    if client_alive:
+                        try:
+                            self.connection.settimeout(max(.001,deadline-time.monotonic()))
+                            self.wfile.write(('%X\r\n'%len(value)).encode()+value+b'\r\n');self.wfile.flush()
+                        except (OSError,ValueError) as e:
+                            client_alive=False;transition(request_id,'client_disconnected',error=type(e).__name__)
+                elif kind=='done':
+                    if v.get('stream'):
+                        if not saw_done or cost(usage) is None:raise ValueError('incomplete upstream SSE usage')
+                    else:
+                        usage=json.loads(acc).get('usage')
+                    if client_alive:
+                        self.connection.settimeout(max(.001,deadline-time.monotonic()))
+                        self.wfile.write(b'0\r\n\r\n');self.wfile.flush()
+                    completed=True;outcome='upstream_complete';break
+                elif kind=='http_error':
+                    outcome='upstream_http_error';transition(request_id,outcome,status=value)
+                    if client_alive and not response_started:self.send_error(value,'provider error')
+                    break
+                elif kind=='error':
+                    outcome='upstream_error';transition(request_id,outcome,error=value)
+                    if client_alive and not response_started:self.send_error(502,'upstream or stream error')
+                    break
         except Exception as e:
             outcome='upstream_error';transition(request_id,outcome,error=type(e).__name__)
             if client_alive and not response_started:
                 try:self.send_error(502,'upstream or stream error')
                 except OSError:pass
         finally:
-            # If a chunked response was started but the upstream died, close
-            # this HTTP connection: an open keep-alive stream without its final
-            # zero chunk can otherwise leave the model client waiting forever.
-            if response_started and not completed:
-                self.close_connection=True
+            stop.set()
+            # Never allow an incomplete chunked response to linger on keepalive.
+            if response_started and not completed:self.close_connection=True
             actual=cost(usage) if completed else None
             if actual is None:
                 mutate(settle=RESERVE,label='no usage, booked at reserve',request_id=request_id)
