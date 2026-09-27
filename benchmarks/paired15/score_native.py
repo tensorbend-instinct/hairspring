@@ -45,6 +45,9 @@ if private['instance_id'].startswith(('pytest-dev__','sympy__','sphinx-doc__','p
     else:
         if not all(x.startswith('tests/') and '::' in x for x in targets):sys.exit('unrecognized test pinned ID')
     expansion={x:[x] for x in targets}
+    if private['instance_id'].startswith('sympy__'):
+        original=private['FAIL_TO_PASS']+private['PASS_TO_PASS']
+        expansion={name:['sympy/utilities/tests/test_lambdify.py::'+name] for name in original}
     if private['instance_id']=='pylint-dev__pylint-4551':
         # Two dataset IDs are truncated parameter prefixes. Expand every
         # collected match and require all of them to pass as one pinned ID.
