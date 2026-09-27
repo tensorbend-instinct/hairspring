@@ -5,3 +5,6 @@ openhands-env12/
 probe-*/
 *-env/
 detached-proof-safe/
+rust-build.log
+rust-build-launch.log
+rust-build-state.json

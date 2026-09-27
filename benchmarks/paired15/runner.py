@@ -62,9 +62,7 @@ try:
   except OSError:time.sleep(.02)
  else:raise RuntimeError('proxy socket did not accept connections')
  env={**os.environ,'PATH':'/opt/hs:/usr/bin:/bin','HOME':'/workspace','HS_DEEPSEEK_API_KEY':'local-placeholder','HS_DEEPSEEK_BASE_URL':'http://127.0.0.1:18748/chat/completions','HS_DEEPSEEK_MODEL':'deepseek-flash','HS_CRITIC_MODEL':'deepseek','HS_REALMODEL_CALL_TIMEOUT_SECS':'960','HS_POLICY_TOML':'/runstate/policy.toml','HS_TUI':'off'}
- if pathlib.Path('/runstate/smoke').exists() and pathlib.Path('/runstate/smoke').read_text()!='1':env['HS_CRITIC_SCRIPT']='tool:git status --short|clean'
  cmd=['/opt/hs/hs-repl','run','--goal',pathlib.Path('/runstate/problem.txt').read_text(),'--config','/runstate/rig.toml','--dir','/runstate/mission','--project-dir','/workspace']
- if pathlib.Path('/runstate/smoke').exists():cmd+=['--max-steps',pathlib.Path('/runstate/smoke').read_text() or '1']
  raise SystemExit(subprocess.run(cmd,env=env).returncode)
 finally:relay.terminate();relay.wait(timeout=5)
 '''
@@ -146,6 +144,7 @@ def main():
  ids=json.loads((R/'manifest.json').read_text())['ids'];out=pathlib.Path(a.out).resolve();out.mkdir(parents=True,exist_ok=True)
  if a.id and a.id not in ids:ap.error('not in locked sample')
  if a.id and not a.harness:ap.error('single ID requires harness')
+ if a.harness and not a.id:ap.error('harness requires a single ID')
  if not a.fake:
   if not (BIN/'hs-repl').is_file() or not V.is_dir() or not P.is_dir():raise RuntimeError('runtime dependencies absent; do not start paid work')
   preflight_proxy(a.port)
