@@ -25,7 +25,13 @@ with tempfile.TemporaryDirectory() as d:
     if m:break
    except OSError:pass
    time.sleep(.02)
-  p=int(m.group(1));body=json.dumps({'model':'deepseek-flash'}).encode()
+  p=int(m.group(1))
+  for _ in range(100):
+   try:
+    with socket.create_connection(('127.0.0.1',p),timeout=.1):break
+   except OSError:time.sleep(.02)
+  else:raise AssertionError('proxy never listened')
+  body=json.dumps({'model':'deepseek-flash'}).encode()
   for mode,expect in [('normal',9),('disconnect',9),('missing',771860),('error',771860)]:
    Up.mode=mode;Up.done.clear();before=json.loads((t/'ledger').read_text() or '{}').get('spent_micros',0)
    if mode=='disconnect':

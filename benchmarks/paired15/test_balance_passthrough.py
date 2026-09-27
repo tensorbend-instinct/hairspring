@@ -1,4 +1,4 @@
-import json,pathlib,socket,subprocess,tempfile,threading,urllib.request,os
+import json,pathlib,socket,subprocess,tempfile,threading,urllib.request,os,time
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 R=pathlib.Path('/home/sandbox/recovery/hairspring/benchmarks/paired15')
 class Fake(BaseHTTPRequestHandler):
@@ -14,6 +14,10 @@ with tempfile.TemporaryDirectory(prefix='hs-balance-fake-') as d:
  p=subprocess.Popen(['python3',str(R/'spend_proxy.py'),'--key-file',str(key),'--ledger',str(t/'ledger'),'--port',str(port()),'--upstream',f'http://127.0.0.1:{up.server_port}'],env={**os.environ,'HS_PROXY_TEST_UPSTREAM':'1'},stdout=subprocess.PIPE)
  try:
   proxy_port=json.loads(p.stdout.readline())['port']
+  for _ in range(100):
+   try:
+    with socket.create_connection(('127.0.0.1',proxy_port),timeout=.1):break
+   except OSError:time.sleep(.02)
   with urllib.request.urlopen(f'http://127.0.0.1:{proxy_port}/user/balance',timeout=3) as r:
    body=json.loads(r.read());assert r.status==200 and body['balance_infos'][0]['total_balance']=='123.45'
   print('balance passthrough 200, USD 123.45, provider GET authenticated, no model calls')
