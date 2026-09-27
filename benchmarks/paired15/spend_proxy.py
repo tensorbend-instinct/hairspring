@@ -163,6 +163,7 @@ class Handler(BaseHTTPRequestHandler):
                         except (OSError,ValueError) as e:
                             client_alive=False;transition(request_id,'client_disconnected',error=type(e).__name__)
                 elif kind=='done':
+                    if time.monotonic()>=deadline:raise TimeoutError('upstream total-response deadline')
                     if v.get('stream'):
                         if not saw_done or cost(usage) is None:raise ValueError('incomplete upstream SSE usage')
                     else:
@@ -170,6 +171,7 @@ class Handler(BaseHTTPRequestHandler):
                     if client_alive:
                         self.connection.settimeout(max(.001,deadline-time.monotonic()))
                         self.wfile.write(b'0\r\n\r\n');self.wfile.flush()
+                    if time.monotonic()>=deadline:raise TimeoutError('upstream total-response deadline')
                     completed=True;outcome='upstream_complete';break
                 elif kind=='http_error':
                     outcome='upstream_http_error';transition(request_id,outcome,status=value)
