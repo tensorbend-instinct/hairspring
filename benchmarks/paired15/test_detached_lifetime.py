@@ -1,6 +1,6 @@
 """A tracked detached fake runner lives beyond any 120s orchestration call."""
 import json,pathlib,subprocess,tempfile,time,os,signal
-R=pathlib.Path('/home/sandbox/recovery/hairspring/benchmarks/paired15');out=R/'detached-proof-safe';out.mkdir(exist_ok=True)
+R=pathlib.Path(__file__).resolve().parent;out=R/'detached-proof-safe';out.mkdir(exist_ok=True)
 if (out/'active.json').exists():raise SystemExit('proof already exists, inspect')
 # No bridge call and no paid traffic: a fake runner surrogate sleeps longer than tool timeout,
 # then writes a result in its own new session.

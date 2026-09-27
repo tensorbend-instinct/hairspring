@@ -1,7 +1,7 @@
 """Entire sequential runner through fake metered DeepSeek, never a real payment."""
 import json,os,pathlib,socket,subprocess,tempfile,threading,time,signal,re
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
-R=pathlib.Path('/home/sandbox/recovery/hairspring/benchmarks/paired15')
+R=pathlib.Path(__file__).resolve().parent
 class Fake(BaseHTTPRequestHandler):
  calls=[];hs_step=0
  def log_message(self,*a):pass

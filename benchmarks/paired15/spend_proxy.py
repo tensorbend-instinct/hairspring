@@ -6,6 +6,7 @@ books the entire reserve as spent and records the uncertainty. A configured cap 
 using one ledger file and flock. The upstream URL must be the direct provider.
 """
 import argparse,fcntl,json,os,pathlib,threading,queue,urllib.request,urllib.error,secrets,hmac,html,urllib.parse,time,socket
+import urllib3
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from decimal import Decimal,ROUND_UP
 P=argparse.ArgumentParser();P.add_argument('--key-file');P.add_argument('--admin-port',type=int);P.add_argument('--admin-token-file');P.add_argument('--ledger',required=True);P.add_argument('--port',type=int,default=18748);P.add_argument('--upstream',default='https://api.deepseek.com');P.add_argument('--ceiling-micros',type=int,default=150_000_000);A=P.parse_args()
@@ -27,6 +28,11 @@ if A.admin_port:
 # 1M input at $0.30/M, 393216 output at $1.20/M (rounded up).
 RESERVE=int((Decimal(1_000_000)*Decimal('.30')+Decimal(393_216)*Decimal('1.20')).to_integral_value(rounding=ROUND_UP))
 # Rates are USD micros per million tokens, so multiplication above is USD micros.
+# One process-wide HTTPS pool (up to four cached connections per origin); provider HTTP/1.1 keep-alive survives
+# successful complete responses. Failed/partial responses discard their socket.
+# block=False avoids pool acquisition delays past the absolute admission deadline; concurrency is governed by caller admission.
+UPSTREAM_POOL=urllib3.PoolManager(num_pools=1,maxsize=4,block=False,
+    retries=False,timeout=urllib3.Timeout(connect=20,read=1020))
 UPSTREAM_DEADLINE_SECS = 1020.0
 if os.environ.get('HS_PROXY_TEST_UPSTREAM') == '1':
     UPSTREAM_DEADLINE_SECS = float(os.environ.get('HS_PROXY_TEST_DEADLINE_SECS', '1020'))
@@ -124,7 +130,9 @@ class Handler(BaseHTTPRequestHandler):
             actual=cost(snapshot[0]) if snapshot[1] else None
             amount=RESERVE if actual is None else actual
             if mutate(settle=amount,label='no usage, booked at reserve' if actual is None else None,request_id=request_id):
-                transition(request_id,'settled_at_reserve' if actual is None else 'settled_usage',micros=amount,outcome=outcome)
+                measured=REQUEST_CLOCKS.get(request_id,(None,deadline))[1]
+                effective_outcome='upstream_total_deadline' if actual is None and time.monotonic()>=measured and outcome in ('upstream_error','unknown') else outcome
+                transition(request_id,'settled_at_reserve' if actual is None else 'settled_usage',micros=amount,outcome=effective_outcome)
             settled.set()
             REQUEST_CLOCKS.pop(request_id,None)
         def heartbeat():
@@ -173,11 +181,20 @@ class Handler(BaseHTTPRequestHandler):
                 with KEY_LOCK:
                     key=K.read_text().strip() if K else MEMORY_KEY
                 if not key:raise RuntimeError('no key loaded')
-                req=urllib.request.Request(A.upstream.rstrip('/')+'/chat/completions',data=body,method='POST',headers={'Authorization':'Bearer '+key,'Content-Type':'application/json','Accept':'text/event-stream' if v.get('stream') else 'application/json'})
-                with urllib.request.urlopen(req,timeout=UPSTREAM_DEADLINE_SECS) as resp:
-                    try:upstream_socket_box['value']=resp.fp.raw._sock
+                headers={'Authorization':'Bearer '+key,'Content-Type':'application/json',
+                    'Accept':'text/event-stream' if v.get('stream') else 'application/json',
+                    'Accept-Encoding':'identity'}
+                resp=UPSTREAM_POOL.urlopen('POST',A.upstream.rstrip('/')+'/chat/completions',
+                    body=body,headers=headers,preload_content=False,decode_content=False,
+                    retries=False,redirect=False,timeout=urllib3.Timeout(connect=20,read=UPSTREAM_DEADLINE_SECS))
+                response_complete=False
+                try:
+                    try:upstream_socket_box['value']=resp.connection.sock
                     except AttributeError:pass
                     progress['status']=resp.status
+                    if resp.status>=400:
+                        put('http_error',resp.status)
+                        return
                     put('headers',(resp.status,resp.headers.get('Content-Type','application/json')))
                     if v.get('stream'):
                         # SSE is complete at [DONE], not at HTTP socket EOF.
@@ -188,6 +205,8 @@ class Handler(BaseHTTPRequestHandler):
                             put('chunk',chunk)
                             if chunk.strip()==b'data: [DONE]':
                                 transition(request_id,'upstream_sse_done',upstream_bytes=total_bytes)
+                                # SSE terminates before HTTP EOF. This socket cannot be
+                                # reused unless the remaining chunk framing is consumed.
                                 break
                     else:
                         while not stop.is_set():
@@ -205,7 +224,14 @@ class Handler(BaseHTTPRequestHandler):
                     if not stop.is_set():
                         transition(request_id,'upstream_body_complete',upstream_bytes=total_bytes)
                         put('done')
-            except urllib.error.HTTPError as e:put('http_error',e.code)
+                    response_complete=not v.get('stream') and not stop.is_set()
+                finally:
+                    upstream_socket_box['value']=None
+                    if response_complete:
+                        resp.release_conn()
+                    else:
+                        resp.close()
+            except urllib3.exceptions.HTTPError as e:put('error',type(e).__name__)
             except Exception as e:put('error',type(e).__name__)
             finally:upstream_done.set()
         threading.Thread(target=upstream,daemon=True,name='proxy-upstream-'+request_id).start()

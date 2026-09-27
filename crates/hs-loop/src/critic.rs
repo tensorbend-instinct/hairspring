@@ -484,6 +484,7 @@ impl CriticModel for ProviderCritic {
         let body = json!({
             "model": self.model,
             "temperature": 0,
+            "max_tokens": 393216,
             "messages": messages,
             "tools": tools,
             "tool_choice": "auto",

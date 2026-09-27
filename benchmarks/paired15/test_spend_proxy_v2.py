@@ -1,7 +1,7 @@
 """Offline accounting: disconnect keeps upstream; missing usage/error books reserve."""
 import json,os,pathlib,socket,subprocess,tempfile,threading,time,urllib.request,urllib.error
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
-R=pathlib.Path('/home/sandbox/recovery/hairspring/benchmarks/paired15')
+R=pathlib.Path(__file__).resolve().parent
 class Up(BaseHTTPRequestHandler):
  mode='normal';done=threading.Event();calls=0
  def log_message(self,*a):pass

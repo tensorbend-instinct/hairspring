@@ -1,6 +1,6 @@
 import json,pathlib,socket,subprocess,tempfile,threading,urllib.request,os,time
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
-R=pathlib.Path('/home/sandbox/recovery/hairspring/benchmarks/paired15')
+R=pathlib.Path(__file__).resolve().parent
 class Fake(BaseHTTPRequestHandler):
  def log_message(self,*args):pass
  def do_GET(self):
