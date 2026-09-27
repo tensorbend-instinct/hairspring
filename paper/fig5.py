@@ -16,7 +16,7 @@ def arr(ax,a,b,color=INK,ls='-',rad=0,lw=1.1,ms=8,label=None,lo=(0,0),fs=6.2):
     ax.add_patch(FancyArrowPatch(a,b,arrowstyle='-|>',mutation_scale=ms,color=color,lw=lw,linestyle=ls,connectionstyle=f'arc3,rad={rad}'))
     if label: ax.text((a[0]+b[0])/2+lo[0],(a[1]+b[1])/2+lo[1],label,color=color,fontsize=fs,ha='center',va='center',bbox=dict(fc='white',ec='none',pad=.7))
 fig,ax=plt.subplots(figsize=(7.35,4.3)); ax.set(xlim=(0,1),ylim=(0,1)); ax.axis('off')
-ax.text(.005,.975,'The improvement loop: a candidate must beat its parent under a scorer pinned before it existed',weight='bold',fontsize=9.0,color=INK)
+ax.text(.005,.975,'The improvement loop: the scorer is pinned before a candidate exists',weight='bold',fontsize=9.0,color=INK)
 ax.text(.005,.945,'The inner loop repairs the task. This outer loop changes the policy that drives the worker - and no candidate grades itself.',fontsize=7.0,color=MUTED)
 box(ax,.02,.72,.24,.14,'Proposer model','reads prior policy, traces,\nscores, reflections, frontier',BLUE,BF,7.0)
 box(ax,.36,.72,.22,.14,'Candidate policy','prompt + policy artifacts;\nnever Rust code',ORANGE,OF,7.0)

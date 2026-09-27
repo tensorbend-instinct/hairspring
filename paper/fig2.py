@@ -24,23 +24,23 @@ ax.text(.015,.918,'INSIDE THE WORKING CONTEXT - the model is free to search, edi
 ax.add_patch(FancyBboxPatch((.004,.335),.992,.245,boxstyle='round,pad=0.004',fc='#F6FAF5',ec=DGREEN,lw=1.0,ls='--'))
 ax.text(.015,.555,'OUTSIDE THE MODEL - the substrate holds the five authorities',fontsize=6.8,color=DGREEN,weight='bold')
 # top zone: model side
-box(ax,.02,.70,.150,.13,'Goal + budgets','root, tools, checks,\nstep and dollar caps',BLUE,BF,7.2)
-box(ax,.205,.70,.185,.13,'Worker loop','typed tools as processes;\nevery call is an event',BLUE,BF,7.2)
-box(ax,.425,.70,.190,.13,'Submission','artifact + the checks\nthat define success',BLUE,BF,7.2)
-box(ax,.650,.70,.160,.13,'Bounded children','step-limited, cannot\ndelegate further;\njoins at close',BLUE,BF,7.2)
+box(ax,.02,.70,.150,.13,'Goal + checks','root, tools, checks;\noptional limits',BLUE,BF,7.2)
+box(ax,.205,.70,.185,.13,'Worker loop','typed tools; calls\nrecorded as events',BLUE,BF,6.7)
+box(ax,.425,.70,.190,.13,'Submission','artifact + checks\nthat define success',BLUE,BF,6.7)
+box(ax,.650,.70,.160,.13,'Children','depth + concurrency\nguards; optional caps',BLUE,BF,6.4)
 arr(ax,(.170,.765),(.205,.765),LINE); arr(ax,(.390,.765),(.425,.765),LINE)
 arr(ax,(.520,.70),(.135,.505),BLUE,'-',.12,label='submits',lo=(.03,.05))
 # bottom zone: substrate side
-box(ax,.040,.370,.180,.13,'Executable checks','run on a restored\nworkspace, not the\nworking directory',ORANGE,OF,7.2)
-box(ax,.260,.370,.180,.13,'Fresh-context critic','sees goal + artifact only;\ncan block, never approve',RED,RF,7.2)
-box(ax,.480,.370,.190,.13,'Canonical record','single writer, hash-linked,\nreplayable events',GREEN,GF,7.2)
-box(ax,.710,.370,.260,.13,'Verdict','verified / rejected / stopped -\nnever "the model said so"',GREEN,GF,7.2)
+box(ax,.040,.370,.180,.13,'Executable checks','restored workspace;\nnot model opinion',ORANGE,OF,6.5)
+box(ax,.260,.370,.180,.13,'Fresh review','goal + artifact;\ncan block, not override',RED,RF,6.5)
+box(ax,.480,.370,.190,.13,'Canonical record','single writer; hash-linked\nreplayable events',GREEN,GF,6.5)
+box(ax,.710,.370,.260,.13,'Verdict','verified / rejected / stopped;\nnot a model self-grade',GREEN,GF,6.5)
 arr(ax,(.220,.435),(.260,.435),LINE); arr(ax,(.440,.435),(.480,.435),LINE); arr(ax,(.670,.435),(.710,.435),LINE)
 # feedback to worker
 arr(ax,(.130,.370),(.260,.70),RED,'--',.18)
-ax.text(.175,.62,'failed check or blocking\nfinding returns evidence\nfor repair',color=RED,fontsize=6.2,ha='center',va='center',bbox=dict(fc='white',ec='none',pad=.7))
+ax.text(.185,.605,'failure evidence\nreturns for repair',color=RED,fontsize=5.7,ha='center',va='center',bbox=dict(fc='white',ec='none',pad=.7))
 # planes strip
-ax.text(.005,.285,'The same record feeds five authority planes',weight='bold',fontsize=8.2,color=INK)
+ax.text(.005,.291,'The same record feeds five authority planes',weight='bold',fontsize=7.5,color=INK)
 planes=[('Log','close + record','one append writer;\ntorn-tail recovery',BLUE,BF),
         ('World','share','validated proposals only;\nreuse is observable',GREEN,GF),
         ('Memory','remember','provenance + reuse signal;\nrelevance is not truth',ORANGE,OF),
@@ -54,7 +54,7 @@ for i,(t,a,s,e,f) in enumerate(planes):
     ax.text(x+pw/2,.196,'decides: '+a,ha='center',fontsize=6.0,color=DARKRED,weight='bold')
     ax.text(x+pw/2,.135,s,ha='center',fontsize=5.9,color=MUTED,linespacing=1.3)
     arr(ax,(.575,.370),(x+pw/2,.258),LINE,'--',0,lw=.7,ms=5)
-ax.text(.004,.045,'A mission closes only when the checks pass and the critic finds no blocking defect. The outcome, the evidence, and every step',fontsize=6.8,color=MUTED)
-ax.text(.004,.020,'land in one replayable record. Recovery, shared state, memory, accounting, and evolution all read that same record.',fontsize=6.8,color=MUTED)
+ax.text(.004,.054,'A mission closes only after checks pass and review finds no blocker. Evidence and steps',fontsize=6.5,color=MUTED)
+ax.text(.004,.027,'land in one replayable record read by recovery, shared state, memory, accounting, and evolution.',fontsize=6.5,color=MUTED)
 fig.savefig(out/'fig-pipeline.pdf',bbox_inches='tight'); fig.savefig(out/'fig-pipeline.png',dpi=200,bbox_inches='tight'); plt.close(fig)
 print('ok fig2')

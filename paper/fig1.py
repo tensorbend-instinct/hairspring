@@ -11,7 +11,7 @@ def arr(ax,a,b,color=INK,ls='-',rad=0,lw=1.0,ms=7):
 def wrap(s,n): return '\n'.join(textwrap.fill(p,n) for p in s.split('\n'))
 
 fig,ax=plt.subplots(figsize=(7.35,6.9)); ax.set(xlim=(0,1),ylim=(0,1)); ax.axis('off')
-ax.text(.005,.985,'Five ways agent harnesses are built today, and the authority each leaves inside the model',weight='bold',fontsize=9.2,color=INK)
+ax.text(.005,.985,'Five agent designs and their unchecked authority',weight='bold',fontsize=9.2,color=INK)
 ax.text(.005,.960,'Each class gets work done. Each keeps some of five authorities (close, record, share, remember, improve) in the model that does the work.',fontsize=7.0,color=MUTED)
 
 cols=[
@@ -84,7 +84,7 @@ band=wrap('In every class the component that produces the work also holds author
 ax.add_patch(FancyBboxPatch((.004,.070),.992,.148,boxstyle='round,pad=0.005,rounding_size=.006',fc=RF,ec=RED,lw=1.1))
 ax.text(.018,.196,'Shared root cause',weight='bold',fontsize=8.0,color=DARKRED)
 ax.text(.018,.098,band,fontsize=6.9,color=INK,linespacing=1.5,va='bottom')
-ax.text(.004,.038,'This paper moves the five authorities out of the model and into a replayable substrate. Figure 2 shows the resulting pipeline.',fontsize=7.4,color=DARKRED,weight='bold')
+ax.text(.004,.038,'Five authorities move out of the model and into a replayable substrate.',fontsize=7.4,color=DARKRED,weight='bold')
 ax.text(.004,.012,'Class evidence is cited in the bibliography; the argument here is about shapes, not products.',fontsize=6.2,color=MUTED,style='italic')
 fig.savefig(out/'fig-classes.pdf',bbox_inches='tight'); fig.savefig(out/'fig-classes.png',dpi=200,bbox_inches='tight'); plt.close(fig)
 print('ok')

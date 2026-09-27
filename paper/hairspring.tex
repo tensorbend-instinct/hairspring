@@ -16,7 +16,7 @@
 \begin{document}
 \maketitle
 \begin{abstract}
-A language model can write code, use tools, and say that a task is finished. Its confidence is not proof. Hairspring is an agent harness built around a simple rule: the model proposes work, while ordinary software verifies the result, records what happened, restores the run after a crash, controls what agents share and remember, and tests changes to the harness before installing them. This paper explains that design from the ground up. It compares five common agent designs, shows the failure each leaves open, and traces one Hairspring mission from goal to verified result. On a matched set of ten software-engineering tasks, using the same model family and host-side tests, Hairspring resolved nine tasks and a direct-loop baseline resolved three. Hairspring used fewer model steps, but about 7.5 times the wall time and 7.2 times the cost. This is one small, curated comparison, not a general leaderboard result. The evidence supports a narrower claim: independent checks and evidence-driven repair can recover work that a model's own judgment misses.
+A language model can write code, use tools, and say that a task is finished. Its confidence is not proof. Hairspring separates the worker's proposals from executable checks, a fresh-context review, a durable event record, and separately validated shared state and policy changes. This paper describes those mechanisms and their failure boundaries. A new paired comparison with OpenHands on a locked 15-instance SWE-bench Verified sample, using DeepSeek V4.1 Flash on both sides, is in preparation. Offline harness and scorer validation is complete, but no pair has a completed paid result; this revision reports the method without claiming a winner. The former ten-task comparison used different conditions and cannot be used as evidence for the new comparison.
 \end{abstract}
 
 \section{The problem in plain English}
@@ -31,7 +31,7 @@ The same rule applies beyond the final answer. An agent may propose a shared fac
 \item A plain comparison of five common agent designs and the unchecked failure each leaves open.
 \item A complete mission path in which tests and a fresh review decide whether work passes, while one event record supports inspection and crash recovery.
 \item Separate acceptance paths for shared state, memory, and changes to the harness.
-\item A matched ten-task comparison, with raw per-task records and commands that recompute the reported totals.
+\item A locked, paired 15-instance evaluation protocol with explicit native-grader and unfinished-run boundaries; outcome tables remain pending.
 \end{enumerate}
 
 \section{Five common agent designs}
@@ -69,7 +69,7 @@ The worker can still be creative. These boundaries govern only what becomes a pa
 
 \section{A mission from start to finish}
 \label{sec:pipeline}
-A mission begins with a goal, a project directory, available tools, success checks, and time and cost limits. The model works through typed tools. Each model call and tool result is recorded. When ready, the model submits both an artifact and the checks that should prove it.
+A mission begins with a goal, a project directory, available tools, and success checks. Step, wall-time, and mission spending limits are optional and are not set for the paired evaluation. The model works through typed tools. Each model call and tool result is recorded. When ready, the model submits both an artifact and the checks that should prove it.
 
 The checker restores the workspace to the submitted state and runs those checks there. If a check fails, the failure evidence goes back to the worker for repair. If the checks pass, a fresh-context reviewer sees the goal and artifact, without the worker's explanation, and looks for a blocking defect. That reviewer can return a defect; it cannot turn a failed check into a pass. Only a clean check result plus no blocking finding creates a verified outcome.
 
@@ -97,7 +97,7 @@ Figure~\ref{fig:decisions} shows the boundary directly. The left side lists what
 \section{A record that can restore the run}
 A chat transcript is not enough to resume real work. It may omit tool state, partial effects, spending, or limits. Hairspring stores typed events in order, places large payloads under content hashes, and gives only one component permission to append to the official stream. Tools return results to that writer instead of changing the record directly.
 
-Recovery reads the last complete, consistent prefix. It detects and discards an incomplete tail, then restores the transcript, tool results, counters, file references, and billed cost. The mission continues under the same identity and limits. A restart therefore cannot erase a failed check or reset a budget.
+Recovery reads the last complete, consistent prefix. It detects and discards an incomplete tail, then restores the transcript, tool results, counters, file references, and billed cost. The mission continues under the same identity and any limits the operator explicitly set. A restart therefore cannot erase a failed check or reset a set budget.
 
 \begin{figure*}[t]
 \centering\includegraphics[width=.95\textwidth]{figures/fig-recovery.pdf}
@@ -128,34 +128,32 @@ A malformed or fabricated verdict scores zero, and a failed candidate is undone.
 \section{Evaluation method}
 The evaluation separates four kinds of evidence. Source and unit tests establish that a mechanism exists and preserves local rules. Installed-path tests establish that the terminal, registry, sandbox, checker, and rendered state connect that mechanism to a real mission. Live artifact trials establish that a real model can produce an artifact that passes independent checks. Matched external evaluations compare harness outcomes under one shared judge. A large unit suite does not substitute for an installed-path result, and a live result does not establish a general benchmark claim by itself.
 
-The principal comparison uses ten software-engineering tasks drawn from a live public benchmark, with the same model family and host-side fail-to-pass checks. Each system operated through its native interface. Raw records identify task, submission status, outcome, steps, wall time, and cost, and are checked into the repository. The comparison is a curated subset, not a leaderboard sample. There are no repeated seeds or confidence intervals.
+The planned comparison uses a difficulty-stratified 15-instance sample from SWE-bench Verified. The sample and source-data digest were fixed before paid runs. Each case has a pinned base commit and a hidden-test patch kept outside either agent's working tree. Both harnesses use DeepSeek V4.1 Flash through the same metering proxy, in separate network-isolated workspaces, with one compute instance and one agent run at a time. Neither receives a mission step, wall-time, or output cap below the provider maximum. HAIRSPRING and OpenHands use their native interfaces; this is a harness comparison, not a controlled ablation of a single component.
 
-\section{What the matched comparison measured}
+The evaluator is a local native grader, not the official SWE-bench Docker evaluation. It clones the base, applies pinned tests and the candidate's tracked source patch, runs a repository-specific test adapter, and fails closed if a pinned test is missing or unrun. The base and reference patch were checked as negative and positive scorer controls for all fifteen cases. A bounded fake-model test traversed both harnesses, the shared proxy, and the grader, but generated no successful candidate. Neither an offline fixture nor an interrupted paid attempt counts as a solved task. The first paid HAIRSPRING attempt was lost in a workspace reset before a terminal grade; it remains unfinished.
+
+\section{Paired comparison: results pending}
 \label{sec:measured}
-The baseline is a representative of class C1: a public, purpose-built agent--computer interface scaffold that runs a direct loop and is widely used as a reproducible software-engineering baseline \cite{sweagent}. It is the right comparison because it is the strongest simple shape: no workflow graph, no role ensemble, no search controller --- just a well-built loop.
+The comparison will report correctly solved tasks, worker steps, and wall time, by harness and by instance. A solve requires terminal run evidence and a passing independent native grade. A timeout, transport failure, ungraded patch, or unrun pinned test is not a solve. Spend is monitored under a separate ceiling for operational control and is not a comparison-table metric. No completed paid pair is available at this revision, so there is no aggregate winner, solve rate, or performance ratio to plot.
 
 \begin{figure}[t]
 \centering\includegraphics[width=.96\linewidth]{figures/fig-comparison.pdf}
-\caption{Matched ten-task results. \system{} resolved 9 tasks; the class-C1 baseline resolved 3. The baseline's submissions failed host-side tests on most tasks; \system{}'s verdicts are executable, so its failures are timeouts, not fluent wrong answers. Verification costs wall time and money; it buys recovered tasks.}
+\caption{Evaluation protocol, not a result: fifteen locked instances, paired harnesses, and the same independent grading path. Outcome cells remain pending until terminal records and native grades exist.}
 \label{fig:comparison}
 \end{figure}
 
 \begin{table}[t]
 \centering\small
-\caption{Aggregate matched result. Wall time and cost are sums of the raw per-task records.}
-\begin{tabular}{lrrrr}\hline
-System & Resolved & Worker steps & Wall time & Cost (USD)\\\hline
-\system{} & 9/10 & 987 & 26,935 s & 6.484234\\
-Class-C1 baseline & 3/10 & 1,170 & 3,613 s & 0.903649\\\hline
+\caption{Paired 15-instance comparison. Pending cells are deliberately not estimates.}
+\begin{tabular}{lrrr}\hline
+System & Correctly solved & Worker steps & Wall time \\\hline
+\system{} & pending & pending & pending \\
+OpenHands & pending & pending & pending \\\hline
 \end{tabular}
 \label{tab:benchmark}
 \end{table}
 
-\system{}'s failure was a two-hour timeout on \code{deepset-ai/haystack-8619}. The successful runs ranged from 23 to 171 worker steps. The baseline's three passes were \code{conan-17092}, \code{haystack-8525}, and \code{conan-17129}. Several baseline failures reached a submission but failed host-side tests; others encountered missing evaluation dependencies. The shared host-side verdict remains the reported outcome.
-
-The result supports one bounded mechanism claim: executable judgment followed by evidence-driven repair can recover tasks that a cheaper flat loop leaves unresolved. It does not isolate the independent contribution of every subsystem. An early controlled test of parallel execution produced no gain and was reverted. The paper does not attribute the benchmark result to parallelism.
-
-The trade is visible. \system{} spends about 7.2 times as much money and 7.5 times as much wall time to judge and repair during the run, and recovers six additional tasks for it. The baseline remains simpler and cheaper when an external evaluator already supplies the final verdict and the job does not need recovery, memory, shared state, or self-improvement. Per-task records, including the corrected wall and cost columns, are in Appendix~\ref{app:pertask}.
+The earlier ten-task comparison used a different baseline and model-family conditions. Its archived records remain in \code{paper/evidence/} for provenance but are not pooled into this sample or shown as results here. The new run's raw records, logs, candidate patches, grader output, source and environment digests, and accounting need to survive before numerical claims replace these pending cells.
 
 \section{Defects that changed the design}
 The highest-value defects crossed subsystem boundaries while local tests remained green. Four examples shaped the current test rule.
@@ -164,7 +162,7 @@ The highest-value defects crossed subsystem boundaries while local tests remaine
 
 \paragraph{A wrong production mode.} General missions accidentally used an amnesiac benchmark arm. Unit tests for both modes passed; only a live installed-path run exposed the selection error.
 
-\paragraph{Recursive delegation.} The first delegation design allowed descendants to delegate further, so process growth was bounded only by the host. The repaired design removes delegation from a child's surface and adds an explicit spawn cap; an installed-path test now reproduces this failure class.
+\paragraph{Recursive delegation.} The first delegation design allowed descendants to delegate further, so process growth was bounded only by the host. The repaired design bounds delegation depth and concurrent children; an installed-path test now reproduces this failure class.
 
 \paragraph{An impossible gate.} Missing test dependencies and strict marker settings caused the evaluator to collect zero tests while the agent kept repairing a correct patch. Preflight now proves that the gate can execute before a mission starts.
 
@@ -175,36 +173,19 @@ These failures lead to one rule: a mechanism is not accepted because its crate t
 \section{What Hairspring does not yet coordinate}
 Recent long-horizon research controllers organize work into strategy exploration, readiness gates, dependency graphs, and global verification \cite{colosseum}. Their strongest transferable idea is explicit control over when a strategy is mature enough to decompose and where a verifier's finding should return.
 
-\system{} supplies lower-level services for such controllers: replayable state, executable checks, a fresh reviewer, bounded children, shared state, memory, cost accounting, and held-out policy tests. It does not yet implement that research-planning layer. Missions remain flat. Critic findings return as whole-mission gaps. Candidates are selected or compared rather than constructively synthesized with their objections. No typed dependency graph localizes a defect to the affected closure.
+\system{} supplies lower-level services for such controllers: replayable state, executable checks, a fresh reviewer, depth- and concurrency-bounded children, shared state, memory, cost accounting, and held-out policy tests. It does not yet implement that research-planning layer. Missions remain flat. Critic findings return as whole-mission gaps. Candidates are selected or compared rather than constructively synthesized with their objections. No typed dependency graph localizes a defect to the affected closure.
 
 \section{Limitations}
 \begin{enumerate}
-\item The headline comparison contains ten curated tasks. It establishes a difference on that subset, not general software-engineering superiority.
-\item Verification is expensive. On the matched subset, \system{} spent about 7.2 times as much money and 7.5 times as much wall time as the baseline.
-\item The study has no repeated seeds and cannot estimate result variance.
-\item Self-improvement changes prompts and policy artifacts, not the Rust implementation.
-\item Memory writes, recall, and cross-child reuse are exercised end to end; live-model selection quality at scale is not measured.
-\item Research planning is flat. The system does not yet track strategy readiness, typed dependencies, preserved objections, or repairs tied to specific sections.
-\item At the evaluated paper revision, the workspace test suite passed; current pedantic Clippy does not pass. Passing tests do not make a different quality gate pass.
+\item The new paired 15-instance comparison has no completed result in this revision. Its native grader differs from official SWE-bench Docker evaluation.
+\item One sample without repeated seeds cannot estimate variance or establish general software-engineering superiority.
+\item The two harnesses have different native tool and verification paths, so a paired result would measure their whole systems, not isolate a mechanism.
+\item The previous ten-task evidence belongs to a different comparison and is not evidence for the new sample.
+\item Self-improvement changes prompts and policy artifacts, not the Rust implementation. Live-model selection quality at scale and a research-planning controller are not measured.
 \end{enumerate}
 
 \section{Reproducibility}
-The repository carries manuscript source, generated figures, raw matched records, and a reproduction script. The source revision for the measurements is \code{4273dccf6d00fa727b01fcbdedc6773ace9eca12}. Paper changes after that revision do not alter the raw run records.
-
-\begin{table}[htbp]
-\small
-\caption{Regeneration commands. These commands do not call a paid model.}
-\begin{tabularx}{\linewidth}{p{.29\linewidth}Y}\hline
-Measurement & Command from repository root\\\hline
-Rust source lines & \code{find crates -name '*.rs' -print0 | xargs -0 wc -l}\\
-Workspace crates & \code{find crates -mindepth 2 -maxdepth 2 -name Cargo.toml | wc -l}\\
-Named tests & \code{cargo test --workspace --locked -- --list | grep -c ': test\$'}\\
-Matched aggregates & \code{python3 paper/reproduce.py benchmark}\\
-Paper PDF & \code{cd paper \&\& make clean all}\\\hline
-\end{tabularx}
-\end{table}
-
-The benchmark runs require task repositories, test patches, provider credentials, and runner environments. The checked-in CSV and JSON permit recomputation of the aggregates without rerunning paid inference. The workspace test suite was measured on the build host at the evaluated revision; the installed-path tests use that host's absolute plugin paths, so a fresh clone compiles the suite but does not reproduce those runs. Fresh-clone regeneration covers the source metrics, the named-test listing, and the matched aggregates.
+The locked sample, dataset digest, case base commits, hidden-test digests, native scorer, proxy, runner, dependency freezes, and validation instructions are in \code{benchmarks/paired15/}. See its README for the recovery boundary and accounting caveat. The prior paper's raw ten-task records remain in \code{paper/evidence/} as archival context, not the new experiment. Current paired numerical outcomes will require completed run and grade artifacts; reproducing protocol checks without paid inference cannot generate a solve count.
 
 \section{What the separation changes}
 Separating suggestions from decisions makes failures easier to read. A failed check is an execution fact, not an opinion about answer quality. A broken reviewer is a machinery failure, not a pass. A retrieved memory is a sourced note, not shared truth. A well-explained candidate policy is still only a candidate until the fixed test measures it.
@@ -214,7 +195,7 @@ This framing does not remove model error. It changes where error can become stat
 \section{Conclusion}
 \system{} treats reliable agent work as a separation-of-responsibilities problem. Across five common agent designs, model output can still become accepted without independent proof. Hairspring uses a simpler rule: the model does open-ended work, while tests, a fresh reviewer, an event writer, validators, and a fixed scorer decide what becomes a pass, official record, shared fact, stored memory, or installed policy.
 
-On one matched ten-task software-engineering subset, this architecture resolved more tasks than a representative direct-loop baseline while using fewer worker steps, more money, and more wall time. The result is narrow. The design lesson is broader: a longer loop does not make its own verdict safer. Long-running agents become easier to inspect, recover, and improve when the model proposes and software decides.
+The paired software-engineering outcome remains to be measured. The design claim is narrower: a longer loop does not make its own verdict safer. Long-running agents become easier to inspect, recover, and improve when the model proposes and software decides.
 
 \appendix
 \section{Artifact map}
@@ -252,43 +233,9 @@ mission.closed    { outcome: "verified" | "rejected" | "stopped" }
 
 A valid close follows persisted submission and judgment evidence. A replay reconstructs state from the ordered stream and content-addressed payloads. It does not ask the worker to summarize what happened.
 
-\section{Matched raw-result schema and per-task records}
+\section{Paired-result record contract}
 \label{app:pertask}
-The \system{} CSV uses one row per task:
-\begin{verbatim}
-instance_id, passed, worker_steps, model_calls, cost_micro_usd, wall_seconds, note
-\end{verbatim}
-The baseline JSON stores the corresponding instance identifier, submission flag, host-side result, test tail, steps, cost, and token counts. \code{paper/reproduce.py benchmark} sums the two files and prints the totals reported in Table~\ref{tab:benchmark}. (An earlier revision of this paper transposed the wall and cost columns in the per-task table; the columns below match the schema above and the raw files.)
-
-\begin{table}[htbp]
-\centering\scriptsize
-\caption{\system{} per-task results from the checked-in raw CSV, with corrected wall and cost columns.}
-\begin{tabular}{lrrrrr}\hline
-Instance & Pass & Steps & Calls & Wall (s) & Cost (USD)\\\hline
-cfn-lint-3764 & yes & 32 & 33 & 603 & 0.096\\
-conan-17129 & yes & 61 & 62 & 769 & 0.158\\
-haystack-8525 & yes & 23 & 24 & 397 & 0.067\\
-haystack-8609 & yes & 60 & 61 & 1,302 & 0.237\\
-conan-17092 & yes & 68 & 71 & 3,503 & 0.631\\
-cfn-lint-3862 & yes & 86 & 89 & 3,024 & 0.349\\
-streamlink-6439 & yes & 49 & 50 & 2,834 & 0.197\\
-haystack-8799 & yes & 171 & 172 & 5,053 & 1.551\\
-pdm-3314 & yes & 69 & 70 & 2,250 & 0.424\\
-haystack-8619 & no & 368 & 368 & 7,200 & 2.774\\\hline
-\end{tabular}
-\end{table}
-
-\section{Fresh-clone reproduction}
-\begin{verbatim}
-git clone https://github.com/tensorbend-instinct/hairspring.git
-cd hairspring
-git checkout 4273dccf6d00fa727b01fcbdedc6773ace9eca12
-export PATH="$HOME/.cargo/bin:$PATH"
-
-python3 paper/reproduce.py source
-python3 paper/reproduce.py benchmark
-cd paper && make clean all
-\end{verbatim}
+Each completed run needs its instance ID, harness, terminal state, candidate patch, step count, wall time, and native grade with every pinned test accounted for. The source dataset and hidden-test digests bind the inputs. The prior ten-task CSV and JSON remain archived under \code{paper/evidence/}, but are not the input to Table~\ref{tab:benchmark}. A run lost before terminal evidence or independent grade is marked unfinished, not silently counted unresolved or solved.
 
 \section{Evaluation claims and boundaries}
 \begin{center}\small
@@ -296,10 +243,10 @@ cd paper && make clean all
 Claim & Status & Boundary\\\hline
 14 crates; 342 Rust files; 70,429 lines & Measured & Source tree at the evaluated revision\\
 992 tests passed; 0 failed & Measured & Complete workspace run on the build host at the evaluated revision; named-test listing reports 994 entries\\
-9/10 versus 3/10 & Measured & One curated matched subset, same model family, host-side grading\\
-Verifier--repair supports recovery & Supported & Mechanism-level interpretation; no component ablation isolates the full effect\\
+15-task paired outcome & Pending & No completed paid pair at this revision; native grader is not official Docker SWE-bench\\
+Verifier--repair mechanism & Implemented & Targeted tests do not establish its contribution to the pending comparison\\
 Parallelism caused the gain & Not supported & First controlled test showed no gain and was reverted\\
-General software-engineering superiority & Not claimed & No random sample, repeated seeds, or confidence interval\\
+General software-engineering superiority & Not claimed & No completed comparison result or repeated seeds\\
 Research-proof controller & Not implemented & Strategy readiness and section dependency state remain future work\\\hline
 \end{tabularx}
 \end{center}
