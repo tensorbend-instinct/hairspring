@@ -32,6 +32,7 @@ if os.environ.get('HS_PROXY_TEST_UPSTREAM') == '1':
     UPSTREAM_DEADLINE_SECS = float(os.environ.get('HS_PROXY_TEST_DEADLINE_SECS', '1020'))
 LOCK=threading.Lock()
 SETTLED_REQUESTS=set()
+REQUEST_CLOCKS={}
 def mutate(delta=0,settle=None,label=None,request_id=None):
     # flock serializes independent file descriptions across threads and processes.
     # Settlement must never acquire the coordinator's in-process LOCK.
@@ -59,7 +60,11 @@ def mutate(delta=0,settle=None,label=None,request_id=None):
 
 def transition(request_id,stage,**fields):
     # Never log request body, authorization header, or response content.
-    print(json.dumps({'event':'proxy_transition','request_id':request_id,'stage':stage,'at':time.time(),**fields}),flush=True)
+    now=time.monotonic()
+    admission,deadline=REQUEST_CLOCKS.get(request_id,(None,None))
+    print(json.dumps({'event':'proxy_transition','request_id':request_id,'stage':stage,'at':time.time(),
+        'monotonic_at':now,'monotonic_admission':admission,'monotonic_deadline':deadline,
+        'elapsed_monotonic_secs':None if admission is None else now-admission,**fields}),flush=True)
 
 def cost(usage):
     if not isinstance(usage,dict):return None
@@ -101,7 +106,9 @@ class Handler(BaseHTTPRequestHandler):
         request_id=secrets.token_hex(8)
         if not mutate(delta=RESERVE):
             transition(request_id,'admission_denied');self.send_error(429,'mission spend ceiling');return
-        deadline=time.monotonic()+UPSTREAM_DEADLINE_SECS
+        admitted_monotonic=time.monotonic()
+        deadline=admitted_monotonic+UPSTREAM_DEADLINE_SECS
+        REQUEST_CLOCKS[request_id]=(admitted_monotonic,deadline)
         transition(request_id,'admitted',reserve_micros=RESERVE,request_bytes=len(body),message_bytes=sum(len(json.dumps(m).encode()) for m in v.get('messages',[]) if isinstance(m,dict)))
         # Only the coordinator touches the client or ledger. The upstream
         # worker can stall anywhere (DNS/connect/TLS/headers/body), so socket
@@ -119,6 +126,14 @@ class Handler(BaseHTTPRequestHandler):
             if mutate(settle=amount,label='no usage, booked at reserve' if actual is None else None,request_id=request_id):
                 transition(request_id,'settled_at_reserve' if actual is None else 'settled_usage',micros=amount,outcome=outcome)
             settled.set()
+            REQUEST_CLOCKS.pop(request_id,None)
+        def heartbeat():
+            # Separate observer: a slow log never holds up deadline enforcement.
+            interval=.05 if os.environ.get('HS_PROXY_TEST_HEARTBEAT_FAST')=='1' else 30.0
+            while not settled.wait(interval):
+                transition(request_id,'watchdog_heartbeat',remaining_monotonic_secs=max(0,deadline-time.monotonic()))
+                if time.monotonic()>=deadline:break
+        threading.Thread(target=heartbeat,daemon=True,name='proxy-heartbeat-'+request_id).start()
         def watchdog():
             if not settled.wait(max(0,deadline-time.monotonic())):
                 stop.set()
@@ -261,6 +276,12 @@ class AdminHandler(BaseHTTPRequestHandler):
         threading.Thread(target=self.server.shutdown,daemon=True).start()
 
 if __name__=='__main__':
+    wall_start=time.time();mono_start=time.monotonic()
+    time.sleep(.25)
+    wall_delta=time.time()-wall_start;mono_delta=time.monotonic()-mono_start
     print(json.dumps({'port':A.port,'reserve_micros_per_call':RESERVE,'ceiling_micros':A.ceiling_micros}),flush=True)
+    print(json.dumps({'event':'proxy_clock_calibration','wall_delta_secs':wall_delta,
+        'monotonic_delta_secs':mono_delta,'wall_per_monotonic':wall_delta/mono_delta,
+        'at':time.time(),'monotonic_at':time.monotonic()}),flush=True)
     if A.admin_port:threading.Thread(target=ThreadingHTTPServer(('127.0.0.1',A.admin_port),AdminHandler).serve_forever,daemon=True).start()
     ThreadingHTTPServer(('127.0.0.1',A.port),Handler).serve_forever()
