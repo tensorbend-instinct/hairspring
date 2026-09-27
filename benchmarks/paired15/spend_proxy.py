@@ -96,11 +96,11 @@ class Handler(BaseHTTPRequestHandler):
         request_id=secrets.token_hex(8)
         if not mutate(delta=RESERVE):
             transition(request_id,'admission_denied');self.send_error(429,'mission spend ceiling');return
+        deadline=time.monotonic()+UPSTREAM_DEADLINE_SECS
         transition(request_id,'admitted',reserve_micros=RESERVE,request_bytes=len(body),message_bytes=sum(len(json.dumps(m).encode()) for m in v.get('messages',[]) if isinstance(m,dict)))
         # Only the coordinator touches the client or ledger. The upstream
         # worker can stall anywhere (DNS/connect/TLS/headers/body), so socket
         # inactivity timeouts cannot enforce an absolute request deadline.
-        deadline=time.monotonic()+UPSTREAM_DEADLINE_SECS
         events=queue.Queue(maxsize=32);stop=threading.Event()
         def put(kind, value=None):
             while not stop.is_set():
