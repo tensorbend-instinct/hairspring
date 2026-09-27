@@ -153,7 +153,17 @@ class Handler(BaseHTTPRequestHandler):
             while not stop.is_set():
                 try:events.put((kind,value),timeout=.1);return
                 except queue.Full:pass
-        # Telemetry contains counts and completion markers only, never response text.
+        # Only counts and timing; no response content. The independent progress
+        # observer logs even when the upstream read is blocked on its next byte.
+        progress={'bytes':0,'first_at':None,'last_at':None,'status':None}
+        upstream_done=threading.Event()
+        if not v.get('stream'):
+            def observe_body():
+                while not upstream_done.wait(5.0) and not settled.is_set():
+                    transition(request_id,'upstream_body_progress',upstream_bytes=progress['bytes'],
+                        first_byte_monotonic=progress['first_at'],last_byte_monotonic=progress['last_at'],
+                        response_status=progress['status'])
+            threading.Thread(target=observe_body,daemon=True,name='proxy-body-progress-'+request_id).start()
         def upstream():
             total_bytes=0
             try:
@@ -167,6 +177,7 @@ class Handler(BaseHTTPRequestHandler):
                 with urllib.request.urlopen(req,timeout=UPSTREAM_DEADLINE_SECS) as resp:
                     try:upstream_socket_box['value']=resp.fp.raw._sock
                     except AttributeError:pass
+                    progress['status']=resp.status
                     put('headers',(resp.status,resp.headers.get('Content-Type','application/json')))
                     if v.get('stream'):
                         # SSE is complete at [DONE], not at HTTP socket EOF.
@@ -180,14 +191,23 @@ class Handler(BaseHTTPRequestHandler):
                                 break
                     else:
                         while not stop.is_set():
-                            chunk=resp.read(16384)
+                            # read1 returns available bytes rather than waiting to fill
+                            # 16 KiB, making the progress markers meaningful.
+                            chunk=resp.read1(16384) if hasattr(resp,'read1') else resp.read(16384)
                             if not chunk:break
                             total_bytes+=len(chunk)
+                            now=time.monotonic()
+                            if progress['first_at'] is None:
+                                progress['first_at']=now
+                                transition(request_id,'upstream_first_byte',upstream_bytes=total_bytes)
+                            progress['bytes']=total_bytes;progress['last_at']=now
                             put('chunk',chunk)
-                    transition(request_id,'upstream_body_complete',upstream_bytes=total_bytes)
-                    put('done')
+                    if not stop.is_set():
+                        transition(request_id,'upstream_body_complete',upstream_bytes=total_bytes)
+                        put('done')
             except urllib.error.HTTPError as e:put('http_error',e.code)
             except Exception as e:put('error',type(e).__name__)
+            finally:upstream_done.set()
         threading.Thread(target=upstream,daemon=True,name='proxy-upstream-'+request_id).start()
         usage=None;completed=False;client_alive=True;response_started=False;outcome='unknown'
         acc=bytearray();stream_line=bytearray();saw_done=False
