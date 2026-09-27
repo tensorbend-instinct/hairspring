@@ -313,6 +313,8 @@ pub enum PromotionError {
     PinMismatch { expected: [u8; 32], found: [u8; 32] },
     ScorerFrozen,
     NoVerdict,
+    VerdictMismatch,
+    Persistence(String),
 }
 impl std::fmt::Display for PromotionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -325,6 +327,8 @@ impl std::fmt::Display for PromotionError {
             }
             PromotionError::ScorerFrozen => write!(f, "scorer frozen by canary drift"),
             PromotionError::NoVerdict => write!(f, "no held-out verdict recorded for candidate"),
+            PromotionError::VerdictMismatch => write!(f, "held-out verdict does not match the recorded candidate"),
+            PromotionError::Persistence(e) => write!(f, "promotion record persistence failed: {e}"),
         }
     }
 }
@@ -388,6 +392,11 @@ impl Lineage {
             return Err(PromotionError::ScorerFrozen);
         }
         scorer.verify_pin(verdict, pin)?;
+        if verdict.candidate != candidate.name()
+            || !self.entries.iter().any(|e| e.candidate.name() == candidate.name() && &e.verdict == verdict)
+        {
+            return Err(PromotionError::VerdictMismatch);
+        }
         if !verdict.passed() {
             return Err(PromotionError::AssayFailed {
                 pass_rate: verdict.pass_rate,
@@ -405,7 +414,6 @@ impl Lineage {
             }
         };
         if beats {
-            self.champion = Some(candidate.name().to_string());
             // lineage record is a durable substrate artifact
             let rec = self
                 .dir
@@ -418,7 +426,21 @@ impl Lineage {
                 "pin": hex(pin.hash()),
             })
             .to_string();
-            let _ = std::fs::write(rec, body);
+            // Persist before changing in-memory champion. A disk failure must
+            // leave the previous champion active and visible.
+            let tmp = self.dir.join(format!(".promotion-{}.tmp", uuid::Uuid::new_v4()));
+            let persist = (|| -> std::io::Result<()> {
+                use std::io::Write;
+                let mut f = std::fs::OpenOptions::new().write(true).create_new(true).open(&tmp)?;
+                f.write_all(body.as_bytes())?;
+                f.sync_all()?;
+                std::fs::rename(&tmp, &rec)?;
+                std::fs::File::open(&self.dir)?.sync_all()?;
+                Ok(())
+            })();
+            if persist.is_err() { let _ = std::fs::remove_file(&tmp); }
+            persist.map_err(|e| PromotionError::Persistence(e.to_string()))?;
+            self.champion = Some(candidate.name().to_string());
         }
         Ok(())
     }

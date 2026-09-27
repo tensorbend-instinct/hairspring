@@ -206,6 +206,22 @@ impl World {
         Ok(())
     }
 
+    /// Classify a path by components and resolved existing ancestors.
+    /// A lexical prefix alone accepts `/sandbox-evil` and symlink escapes.
+    fn inside_sandbox(&self, path: &Path) -> bool {
+        use std::path::Component;
+        if !path.is_absolute() || path.components().any(|c| matches!(c, Component::ParentDir)) {
+            return false;
+        }
+        let Ok(root) = self.log_root.canonicalize() else { return false; };
+        let mut ancestor = path;
+        while !ancestor.exists() {
+            let Some(parent) = ancestor.parent() else { return false; };
+            ancestor = parent;
+        }
+        ancestor.canonicalize().is_ok_and(|p| p.starts_with(&root))
+    }
+
     /// An agent proposes an artifact (recorded as a Proposal event); the
     /// world service validates (schema, content hash, legal transition) and
     /// writes the consequence (Validated) or rejects.
@@ -238,10 +254,7 @@ impl World {
         // world's authorization decides - a quarantined fork proposing an
         // external effect is rejected HERE, by the world, not by the
         // proposer's discipline. The rejected proposal stays booked.
-        let effect = if artifact
-            .world_path
-            .starts_with(&*self.log_root.to_string_lossy())
-        {
+        let effect = if self.inside_sandbox(Path::new(&artifact.world_path)) {
             Effect::SandboxWrite
         } else {
             Effect::WriteOutsideSandbox
@@ -341,6 +354,12 @@ impl World {
         }
         let content = self.content_of(&known)?;
         let dest = std::path::PathBuf::from(&known.world_path);
+        let effect = if self.inside_sandbox(&dest) {
+            Effect::SandboxWrite
+        } else {
+            Effect::WriteOutsideSandbox
+        };
+        self.authorize_effect(known.author_stream, effect)?;
         if let Some(parent) = dest.parent() {
             std::fs::create_dir_all(parent)
                 .map_err(|e| WorldError::Rejected(format!("materialize mkdir: {e}")))?;
