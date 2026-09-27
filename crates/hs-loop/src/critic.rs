@@ -62,15 +62,15 @@ pub trait CriticModel {
 
 #[derive(Clone, Debug)]
 pub struct RefuteConfig {
-    pub max_steps: u32,
-    pub wall_secs: u64,
-    pub budget_micros: u64,
+    pub max_steps: Option<u32>,
+    pub wall_secs: Option<u64>,
+    pub budget_micros: Option<u64>,
     pub cmd_timeout_secs: u64,
 }
 
 impl Default for RefuteConfig {
     fn default() -> Self {
-        Self { max_steps: 48, wall_secs: 1800, budget_micros: 1_000_000, cmd_timeout_secs: 120 }
+        Self { max_steps: None, wall_secs: None, budget_micros: None, cmd_timeout_secs: 120 }
     }
 }
 
@@ -78,12 +78,11 @@ impl RefuteConfig {
     #[must_use]
     pub fn from_env() -> Self {
         let d = Self::default();
-        let g = |k: &str, cur: u64| std::env::var(k).ok().and_then(|v| v.parse().ok()).unwrap_or(cur);
         Self {
-            max_steps: g("HS_CRITIC_MAX_STEPS", u64::from(d.max_steps)) as u32,
-            wall_secs: g("HS_CRITIC_WALL_SECS", d.wall_secs),
-            budget_micros: g("HS_CRITIC_BUDGET_MICROS", d.budget_micros),
-            cmd_timeout_secs: g("HS_CRITIC_CMD_TIMEOUT_SECS", d.cmd_timeout_secs),
+            max_steps: std::env::var("HS_CRITIC_MAX_STEPS").ok().and_then(|v| v.parse::<u32>().ok()),
+            wall_secs: std::env::var("HS_CRITIC_WALL_SECS").ok().and_then(|v| v.parse().ok()),
+            budget_micros: std::env::var("HS_CRITIC_BUDGET_MICROS").ok().and_then(|v| v.parse().ok()),
+            cmd_timeout_secs: std::env::var("HS_CRITIC_CMD_TIMEOUT_SECS").ok().and_then(|v| v.parse().ok()).unwrap_or(d.cmd_timeout_secs),
         }
     }
 }
@@ -160,22 +159,18 @@ pub fn refute(
         }};
     }
     loop {
-        if steps >= cfg.max_steps {
-            out!(false, format!("critic hit its step cap ({}) without a verdict - fail-closed", cfg.max_steps));
+        if let Some(cap) = cfg.max_steps {
+            if steps >= cap { out!(false, format!("critic hit its step cap ({cap}) without a verdict - fail-closed")); }
         }
-        if started.elapsed().as_secs() >= cfg.wall_secs {
-            out!(false, format!("critic hit its wall cap ({}s) without a verdict - fail-closed", cfg.wall_secs));
+        if let Some(cap) = cfg.wall_secs {
+            if started.elapsed().as_secs() >= cap { out!(false, format!("critic hit its wall cap ({cap}s) without a verdict - fail-closed")); }
         }
         let (_, _, cost) = model.usage();
-        if cost >= cfg.budget_micros {
-            out!(false, format!("critic hit its budget cap (${:.2}) without a verdict - fail-closed", cfg.budget_micros as f64 / 1e6));
+        if let Some(cap) = cfg.budget_micros {
+            if cost >= cap { out!(false, format!("critic hit its budget cap (${:.2}) without a verdict - fail-closed", cap as f64 / 1e6)); }
         }
-        // Reserve the final model call for a verdict. Without this boundary an
-        // investigative critic can spend every step on probes and never answer.
-        // Keep two calls at the end for convergence: the first requests a
-        // verdict; if the model still emits tools, reject them without
-        // execution and use the second call for a schema-tight retry.
-        let final_only = steps.saturating_add(2) >= cfg.max_steps;
+        // With an explicit cap, reserve two final calls for a verdict.
+        let final_only = cfg.max_steps.is_some_and(|cap| steps.saturating_add(2) >= cap);
         if final_only {
             messages.push(json!({"role": "user", "content":
                 "FINAL STEP. Do not call tools. Reply with EXACTLY one JSON object and nothing else: {\"refuted\": true, \"reason\": \"<reproduced failure>\"} or {\"refuted\": false, \"reason\": \"<what you tested and re-derived>\"}."
@@ -212,7 +207,7 @@ pub fn refute(
             }
             CriticReply::ToolCalls(calls) => {
                 if final_only {
-                    if steps >= cfg.max_steps {
+                    if cfg.max_steps.is_some_and(|cap| steps >= cap) {
                         out!(false, "critic hit its step cap after ignoring the required final verdict twice - fail-closed".to_string());
                     }
                     let tcs: Vec<Value> = calls.iter().map(|(id, cmd)| json!({

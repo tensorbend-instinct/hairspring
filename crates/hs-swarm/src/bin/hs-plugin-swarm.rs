@@ -214,16 +214,12 @@ fn main() {
                 )});
             }
             let feedback = std::env::var("HS_SWARM_FEEDBACK").as_deref() == Ok("1");
-            let max_steps: u32 = std::env::var("HS_SWARM_MAX_STEPS")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(16);
-            let spawner = hs_swarm::Spawner::new(
-                std::path::Path::new(&log_root),
-                std::path::Path::new(&config),
-                feedback,
-                max_steps,
-            );
+            let max_steps: Option<u32> = std::env::var("HS_SWARM_MAX_STEPS")
+                .ok().and_then(|v| v.parse().ok());
+            let spawner = match max_steps {
+                Some(n) => hs_swarm::Spawner::new(std::path::Path::new(&log_root), std::path::Path::new(&config), feedback, n),
+                None => hs_swarm::Spawner::unbounded(std::path::Path::new(&log_root), std::path::Path::new(&config), feedback),
+            };
             match spawner.spawn_child(parent_id, child_id, mission, model.as_deref(), depth + 1) {
                 Ok((child, overhead_ms)) => {
                     // Registry marker BEFORE the thread starts: a poll
@@ -251,12 +247,10 @@ fn main() {
                     }
                     let report_path = dir.join(format!("{child_id}.report.json"));
                     std::thread::spawn(move || {
-                        let spawner = hs_swarm::Spawner::new(
-                            std::path::Path::new(&log_root),
-                            std::path::Path::new(&config),
-                            feedback,
-                            max_steps,
-                        );
+                        let spawner = match max_steps {
+                            Some(n) => hs_swarm::Spawner::new(std::path::Path::new(&log_root), std::path::Path::new(&config), feedback, n),
+                            None => hs_swarm::Spawner::unbounded(std::path::Path::new(&log_root), std::path::Path::new(&config), feedback),
+                        };
                         let report = std::panic::catch_unwind(
                             std::panic::AssertUnwindSafe(|| spawner.run_to_completion(&child)),
                         );

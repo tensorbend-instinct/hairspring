@@ -1022,8 +1022,8 @@ pub fn load(
 
     /// Config-persisted caps (Eric 2026-09-10: /caps writes them, so a
     /// restart keeps them). `[run] max_steps` yields to an explicit
-    /// CLI --max-steps: it applies only when the caller passed the
-    /// CLI default. `[critic]` caps arm as env - the critic plugin is a
+    /// CLI --max-steps: it applies only when the caller did not pass a
+    /// CLI value. `[critic]` caps arm as env - the critic plugin is a
     /// spawned process whose RefuteConfig::from_env stays the reader.
     /// Eric 2026-09-12: caps are opt-in. An explicit --max-steps wins;
     /// else a persisted `[run] max_steps`; else NO step cap is armed.
@@ -1048,6 +1048,9 @@ pub fn load(
             if let Some(n) = cb {
                 std::env::set_var("HS_CRITIC_BUDGET_MICROS", n.to_string());
             }
+            if cs.is_none() { std::env::remove_var("HS_CRITIC_MAX_STEPS"); }
+            if cw.is_none() { std::env::remove_var("HS_CRITIC_WALL_SECS"); }
+            if cb.is_none() { std::env::remove_var("HS_CRITIC_BUDGET_MICROS"); }
         }
     }
 

@@ -1,31 +1,16 @@
-//! RED: v4-pro-era defaults - Eric's 2026-09-10 ruling: "Just use v4 pro
-//! for now, raise its mission cap if it's better per your results".
-//!
-//! Measured basis (cap-escalation matrix, live TUI, 2026-09-10):
-//! - flash critic capped WITHOUT verdict at 8/16/24 steps (B cells);
-//!   greened in 32 of 48 (C48, /tmp/tui-proof-live/C48).
-//! - v4-pro critic verdicted under cap 48 with a higher-quality refute
-//!   (P48, /tmp/tui-proof-live/P48): caught wrong-workdir placement
-//!   flash's green chain never saw.
-//! - v4-pro verdict wall: 338s event latency (up to ~15 min by ts delta);
-//!   a 600s wall default can cut a slow v4-pro verdict mid-flight.
-//! - the mission model (25-step default) hit `steps_exhausted` in P48 right
-//!   as its corrected final submit landed: the mission cap, not the
-//!   critic cap, was the binding constraint.
+//! Default critic mission caps are opt-in. Provider and command watchdogs remain safety timeouts.
 
 use hs_loop::critic::RefuteConfig;
 
 #[test]
-fn critic_default_steps_cover_measured_green() {
+fn critic_caps_are_opt_in_by_default() {
     let d = RefuteConfig::default();
     assert_eq!(
-        d.max_steps, 48,
-        "critic default must cover the measured 32-step flash green (C48) and v4-pro verdicts (P48)"
+        d.max_steps, None,
+        "critic step cap is off by default"
     );
-    assert_eq!(
-        d.wall_secs, 1800,
-        "v4-pro verdict measured 338s-879s wall; 600s default can cut it mid-flight"
-    );
+    assert_eq!(d.wall_secs, None, "critic wall cap is off by default");
+    assert_eq!(d.budget_micros, None, "critic spend cap is off by default");
 }
 
 #[test]

@@ -85,6 +85,15 @@ fn u3_tool_calls_execute_and_feed_back() {
     );
     assert!(r.passed, "{r:?}");
     let fed = m.seen_tool_results();
+    if std::fs::read_to_string("/proc/self/status").unwrap_or_default()
+        .lines().find(|l| l.starts_with("Uid:"))
+        .and_then(|l| l.split_whitespace().nth(2)) != Some("0") {
+        // On an unprivileged test host the verifier must not run an
+        // unenforced shell. The model sees no candidate data.
+        assert!(!fed.iter().any(|s| s.contains("beta-ok")),
+            "read-only probe leaked contents without its privilege boundary: {fed:?}");
+        return;
+    }
     assert!(
         fed.iter().any(|s| s.contains("beta-ok")),
         "tool output fed back to the critic model: {fed:?}"
@@ -100,7 +109,7 @@ fn u4_step_cap_fails_closed() {
         hs_loop::critic::CriticReply::ToolCalls(vec![("c2".into(), "true".into())]),
         hs_loop::critic::CriticReply::ToolCalls(vec![("c3".into(), "true".into())]),
     ]);
-    let cfg = hs_loop::critic::RefuteConfig { max_steps: 2, ..Default::default() };
+    let cfg = hs_loop::critic::RefuteConfig { max_steps: Some(2), ..Default::default() };
     let r = hs_loop::critic::refute(dir.path(), "Do x.", "true", &cfg, &mut m);
     assert!(!r.passed, "capped critic must fail closed: {r:?}");
     assert!(r.reason.to_lowercase().contains("cap"), "says why: {r:?}");
@@ -116,7 +125,7 @@ fn u4b_final_step_is_reserved_for_verdict() {
         hs_loop::critic::CriticReply::ToolCalls(vec![("c2".into(), "printf SHOULD_NOT_RUN".into())]),
         hs_loop::critic::CriticReply::Final("{\"refuted\": false, \"reason\": \"probe passed\"}".into()),
     ]);
-    let cfg = hs_loop::critic::RefuteConfig { max_steps: 3, ..Default::default() };
+    let cfg = hs_loop::critic::RefuteConfig { max_steps: Some(3), ..Default::default() };
     let r = hs_loop::critic::refute(dir.path(), "Do x.", "true", &cfg, &mut m);
     assert!(r.passed, "final verdict budget must survive one refusal: {r:?}");
     assert_eq!(r.steps, 3);
@@ -132,7 +141,7 @@ fn u4c_final_step_refusing_verdict_terminates_cleanly() {
         hs_loop::critic::CriticReply::ToolCalls(vec![("c2".into(), "true".into())]),
         hs_loop::critic::CriticReply::ToolCalls(vec![("c3".into(), "true".into())]),
     ]);
-    let cfg = hs_loop::critic::RefuteConfig { max_steps: 3, ..Default::default() };
+    let cfg = hs_loop::critic::RefuteConfig { max_steps: Some(3), ..Default::default() };
     let r = hs_loop::critic::refute(dir.path(), "Do x.", "true", &cfg, &mut m);
     assert!(!r.passed);
     assert!(r.reason.contains("required final verdict twice"), "bounded terminal reason: {r:?}");

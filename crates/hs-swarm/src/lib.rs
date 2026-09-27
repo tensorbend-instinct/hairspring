@@ -63,7 +63,7 @@ pub struct Spawner {
     log_root: PathBuf,
     kernel_config: PathBuf,
     feedback: bool,
-    max_steps: u32,
+    max_steps: Option<u32>,
 }
 
 impl Spawner {
@@ -73,8 +73,15 @@ impl Spawner {
             log_root: log_root.to_path_buf(),
             kernel_config: kernel_config.to_path_buf(),
             feedback,
-            max_steps,
+            max_steps: Some(max_steps),
         }
+    }
+
+    /// No mission step cap for delegated work; the depth and concurrent-child
+    /// guards still bound fan-out for process safety.
+    #[must_use]
+    pub fn unbounded(log_root: &Path, kernel_config: &Path, feedback: bool) -> Self {
+        Self { log_root: log_root.to_path_buf(), kernel_config: kernel_config.to_path_buf(), feedback, max_steps: None }
     }
 
     /// Spawn a child: create its stream in the same log root with a
@@ -189,8 +196,9 @@ impl Spawner {
             &self.log_root,
             child.stream_id,
             self.feedback,
-            self.max_steps,
+            self.max_steps.unwrap_or(hs_loop::DEFAULT_MISSION_MAX_STEPS),
         )?;
+        if self.max_steps.is_none() { l.clear_max_steps(); }
         // A child is a full operator: same native tool set AND the same
         // shared planes as the interactive surface - the typed memory
         // plane K and the world plane (SwarmWorld fidelity gap 1) -

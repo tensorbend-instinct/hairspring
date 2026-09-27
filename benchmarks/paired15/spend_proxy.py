@@ -108,13 +108,13 @@ class Handler(BaseHTTPRequestHandler):
                 key=K.read_text().strip() if K else MEMORY_KEY
             if not key:raise RuntimeError('no key loaded')
             req=urllib.request.Request(A.upstream.rstrip('/')+'/chat/completions',data=body,method='POST',headers={'Authorization':'Bearer '+key,'Content-Type':'application/json','Accept':'text/event-stream' if v.get('stream') else 'application/json'})
-            with urllib.request.urlopen(req,timeout=900) as resp:
-                # Maintain a total 900s upstream response deadline, not only
+            with urllib.request.urlopen(req,timeout=1020) as resp:
+                # Maintain a total 1020s upstream response deadline, not only
                 # a per-read socket inactivity timeout.
                 sock=resp.fp.raw._sock if hasattr(resp.fp.raw, '_sock') else resp.fp.raw
                 def remaining():
-                    seconds=900-(time.monotonic()-started)
-                    if seconds<=0:raise TimeoutError('upstream 900s deadline')
+                    seconds=1020-(time.monotonic()-started)
+                    if seconds<=0:raise TimeoutError('upstream 1020s deadline')
                     try:sock.settimeout(seconds)
                     except OSError:pass
                 transition(request_id,'upstream_response',status=resp.status)

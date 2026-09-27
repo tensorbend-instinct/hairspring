@@ -74,7 +74,7 @@ fn persisted_session(
             "[run]\nmax_steps = 70\nwall_secs = 900\nbudget_usd = 2.5\n\n",
             "[critic]\nmax_steps = 24\nwall_secs = 300\nbudget_micros = 250000\n\n",
             "[[models]]\nname = \"scripted\"\n",
-            "command = [\"/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted\"]\ndefault = true\n",
+            "command = [\"/home/sandbox/recovery/hairspring/target/debug/hs-plugin-scripted\"]\ndefault = true\n",
         ),
     )
     .unwrap();
@@ -108,9 +108,9 @@ fn persisted_caps_arm_on_load() {
     assert_eq!(snap.steps, Some(70), "[run] max_steps armed: {snap:?}");
     assert_eq!(snap.wall_secs, Some(900), "[run] wall_secs armed: {snap:?}");
     assert_eq!(snap.budget_micros, Some(2_500_000), "[run] budget: {snap:?}");
-    assert_eq!(snap.critic_steps, 24, "[critic] max_steps as env: {snap:?}");
-    assert_eq!(snap.critic_wall_secs, 300, "{snap:?}");
-    assert_eq!(snap.critic_budget_micros, 250_000, "{snap:?}");
+    assert_eq!(snap.critic_steps, Some(24), "[critic] max_steps as env: {snap:?}");
+    assert_eq!(snap.critic_wall_secs, Some(300), "{snap:?}");
+    assert_eq!(snap.critic_budget_micros, Some(250_000), "{snap:?}");
     // restore process-global critic env for other tests
     unsafe {
         std::env::remove_var("HS_CRITIC_MAX_STEPS");
@@ -164,7 +164,7 @@ fn set_cap_persists_and_survives_reload() {
     assert_eq!(snap.steps, Some(77), "steps survived reload: {snap:?}");
     assert_eq!(snap.budget_micros, Some(3_250_000), "budget survived: {snap:?}");
     assert_eq!(snap.wall_secs, None, "wall stayed off: {snap:?}");
-    assert_eq!(snap.critic_steps, 30, "critic steps survived: {snap:?}");
+    assert_eq!(snap.critic_steps, Some(30), "critic steps survived: {snap:?}");
     unsafe {
         std::env::remove_var("HS_CRITIC_MAX_STEPS");
         std::env::remove_var("HS_CRITIC_WALL_SECS");

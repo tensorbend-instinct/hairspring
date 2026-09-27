@@ -43,7 +43,7 @@ fn scripted_session(
 
 const SCRIPTED_MODEL: &str = concat!(
     "[[models]]\nname = \"scripted\"\n",
-    "command = [\"/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted\"]\ndefault = true\n",
+    "command = [\"/home/sandbox/recovery/hairspring/target/debug/hs-plugin-scripted\"]\ndefault = true\n",
 );
 
 /// The bug Eric hit: /caps budget 100 on one session, $10 kill on the
@@ -67,7 +67,7 @@ fn whole_dollar_budget_survives_restart() {
     // wrote before this fix) reads back too.
     let s2 = scripted_session(
         &dir2,
-        "[run]\nbudget_usd = 100\n\n[[models]]\nname = \"scripted\"\ncommand = [\"/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted\"]\ndefault = true\n",
+        "[run]\nbudget_usd = 100\n\n[[models]]\nname = \"scripted\"\ncommand = [\"/home/sandbox/recovery/hairspring/target/debug/hs-plugin-scripted\"]\ndefault = true\n",
         None,
     );
     assert_eq!(
@@ -104,6 +104,9 @@ fn fresh_rig_arms_no_caps() {
     assert_eq!(snap.steps, None, "no default step cap: {snap:?}");
     assert_eq!(snap.wall_secs, None, "no default wall: {snap:?}");
     assert_eq!(snap.budget_micros, None, "no default budget cap: {snap:?}");
+    assert_eq!(snap.critic_steps, None, "no default critic step cap: {snap:?}");
+    assert_eq!(snap.critic_wall_secs, None, "no default critic wall cap: {snap:?}");
+    assert_eq!(snap.critic_budget_micros, None, "no default critic spend cap: {snap:?}");
 }
 
 /// /caps <key> off disarms a cap live AND removes it from the config,

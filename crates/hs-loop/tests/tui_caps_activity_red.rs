@@ -94,12 +94,12 @@ fn caps_listing_names_every_cap() {
         steps: Some(50),
         wall_secs: None,
         budget_micros: Some(10_000_000),
-        critic_steps: 12,
-        critic_wall_secs: 600,
-        critic_budget_micros: 1_000_000,
+        critic_steps: Some(12),
+        critic_wall_secs: Some(600),
+        critic_budget_micros: Some(1_000_000),
     };
     let l = tui::format_caps_listing(&snap);
-    for needle in ["steps 50", "wall", "budget $10.0000 (billed spend)", "critic steps 12", "critic wall 600", "critic budget $1.00"] {
+    for needle in ["steps 50", "wall", "budget $10.0000 (billed spend)", "critic steps 12", "critic wall 600s", "critic budget $1.00"] {
         assert!(l.contains(needle), "missing {needle}: {l}");
     }
 }
@@ -136,15 +136,15 @@ fn mission_emits_step_and_reasoning_events() {
         r#"
 [[tools]]
 name = "answer.write"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-answer"]
+command = ["/home/sandbox/recovery/hairspring/target/debug/hs-plugin-answer"]
 subjects = ["*"]
 [[tools]]
 name = "checker.run"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-liechecker"]
+command = ["/home/sandbox/recovery/hairspring/target/debug/hs-plugin-liechecker"]
 subjects = ["*"]
 [[models]]
 name = "scripted"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted"]
+command = ["/home/sandbox/recovery/hairspring/target/debug/hs-plugin-scripted"]
 default = true
 "#,
     )
