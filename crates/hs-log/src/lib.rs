@@ -287,6 +287,9 @@ impl StreamWriter {
         if files.is_empty() {
             return Err(LogError::StreamMissing(stream));
         }
+        // Fence any live writer before inspecting or truncating a torn tail.
+        // The lock stays owned by the resumed writer through construction.
+        let lock = acquire_writer_lock(&stream_dir(root, stream), stream)?;
         let mut next_seq = 0u64;
         let mut last_hash = [0u8; 32];
         let mut last_event_id = None;
@@ -350,7 +353,7 @@ impl StreamWriter {
                 root: root.to_path_buf(),
                 stream,
                 file,
-                _lock: acquire_writer_lock(&stream_dir(root, stream), stream)?,
+                _lock: lock,
                 seg_index: last_seg_index,
                 seg_len: last_seg_len,
                 next_seq,
