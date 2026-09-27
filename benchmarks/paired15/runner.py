@@ -18,7 +18,7 @@ GRADE={
  'pytest-dev__':str(R/'pytest38-env/bin/python'),
  'scikit-learn__':str(R/'sklearn38-env/bin/python'),
  'sphinx-doc__':str(R/'sphinx38-env/bin/python'),
- 'sympy__':'/usr/bin/python3.10',
+ 'sympy__':str(R/'sympy310-env/bin/python'),
 }
 OH_SCRIPT='''
 import json,pathlib,socket,subprocess,time,traceback
@@ -82,6 +82,8 @@ def prepare(case,harness,out):
  assert subprocess.check_output(['git','rev-parse','HEAD'],cwd=work,text=True).strip()==base
  assert not subprocess.check_output(['git','status','--porcelain'],cwd=work,text=True)
  assert not (work/'test.patch').exists() and not (work/'private.json').exists()
+ assert not (src/'test.patch').exists() and not (src/'private.json').exists()
+ assert not subprocess.check_output(['git','status','--porcelain'],cwd=src,text=True)
  return work
 def grade_python(id):
  for prefix,path in GRADE.items():
