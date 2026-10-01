@@ -26,6 +26,7 @@ pub mod repotools;
 pub mod selfcheck;
 pub mod termexec;
 pub mod sweprompt;
+pub mod argcoerce;
 pub mod toolschema;
 pub mod setup;
 pub mod tui;
@@ -237,6 +238,7 @@ pub struct InnerLoop {
     /// the operator call (native tool calling; Eric 2026-09-05). None = the
     /// model gets no tools param (legacy/text missions, unit fixtures).
     tools: Option<serde_json::Value>,
+    arg_coercions: u64,
     /// Eric's five #4: operator model override (None = config
     /// default). Applies to every operator-subject call: mission
     /// steps, the verdict audit, and distillation.
@@ -496,6 +498,7 @@ impl InnerLoop {
             budget_micros: None,
             budget_guard_mode: BudgetGuardMode::Conservative,
             tools: None,
+            arg_coercions: 0,
             model_override: None,
             pending_children: Vec::new(),
             swarm_depth: std::env::var("HS_SWARM_DEPTH")
@@ -598,6 +601,7 @@ impl InnerLoop {
             budget_micros: None,
             budget_guard_mode: BudgetGuardMode::Conservative,
             tools: None,
+            arg_coercions: 0,
             model_override: None,
             pending_children: Vec::new(),
             swarm_depth: std::env::var("HS_SWARM_DEPTH")
@@ -825,6 +829,12 @@ impl InnerLoop {
 
     /// Native tool schemas for the operator model call (builtin +
     /// MCP-discovered), delivered via the provider API's tools parameter.
+    /// Count of tool-call argument values coerced to their schema type.
+    #[must_use]
+    pub fn arg_coercions(&self) -> u64 {
+        self.arg_coercions
+    }
+
     pub fn set_tools(&mut self, tools: serde_json::Value) {
         self.tools = Some(tools);
     }
@@ -2503,6 +2513,13 @@ impl InnerLoop {
                         });
                     }
                     self.kernel.set_trace_parent(out.start_event_id);
+                    if let Some(sch) = self.tools.as_ref().and_then(|t| crate::argcoerce::schema_for(t, &tool)) {
+                        let (coerced, n) = crate::argcoerce::coerce(sch, &args);
+                        if n > 0 {
+                            self.arg_coercions += u64::from(n);
+                            args = coerced;
+                        }
+                    }
                     match self.dispatch_tool(&tool, &args) {
                     Ok(tool_out) => {
                         if let Some(sink) = self.ui_sink.as_mut() {
