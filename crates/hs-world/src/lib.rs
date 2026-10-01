@@ -781,3 +781,128 @@ impl World {
         })
     }
 }
+
+/// One installed skill: the compact index row shown in the prompt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SkillEntry {
+    pub name: String,
+    pub description: String,
+    pub artifact_id: uuid::Uuid,
+    pub version: u32,
+    pub world_path: String,
+}
+
+/// Parse SKILL.md frontmatter (`---` fenced `key: value` lines). Returns
+/// (name, description) only when both are present and valid: name is
+/// lowercase [a-z0-9_-] up to 64 chars, description 1..=1024 chars.
+fn parse_skill_frontmatter(content: &str) -> Option<(String, String)> {
+    let rest = content.strip_prefix("---\n")?;
+    let end = rest.find("\n---")?;
+    let (mut name, mut desc) = (None, None);
+    for line in rest[..end].lines() {
+        if let Some((k, v)) = line.split_once(':') {
+            let v = v.trim().trim_matches(|c| c == '"' || c == '\'').to_string();
+            match k.trim() {
+                "name" => name = Some(v),
+                "description" => desc = Some(v),
+                _ => {}
+            }
+        }
+    }
+    let (name, desc) = (name?, desc?);
+    let ok_name = !name.is_empty()
+        && name.len() <= 64
+        && name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_');
+    (ok_name && !desc.is_empty() && desc.len() <= 1024).then_some((name, desc))
+}
+
+/// Max bytes of the prompt index block (deterministic truncation).
+pub const SKILL_INDEX_MAX_BYTES: usize = 4096;
+
+impl World {
+    /// Install a validated Skill artifact so it appears in the skill index.
+    pub fn install_skill(&self, artifact_id: uuid::Uuid) -> Result<(), WorldError> {
+        let mut a = self.latest(artifact_id)?;
+        if a.kind != ArtifactKind::Skill {
+            return Err(WorldError::Rejected("install_skill: not a skill artifact".into()));
+        }
+        if a.status != ArtifactStatus::Validated {
+            return Err(WorldError::Rejected(format!(
+                "only validated skills install (found {:?})",
+                a.status
+            )));
+        }
+        a.status = ArtifactStatus::Installed;
+        self.consequence(&a)
+    }
+
+    fn installed_skills(&self) -> Vec<(SkillEntry, Artifact)> {
+        let arts: Vec<Artifact> = self
+            .state
+            .lock()
+            .expect("world state mutex poisoned")
+            .artifacts
+            .values()
+            .filter(|a| a.kind == ArtifactKind::Skill && a.status == ArtifactStatus::Installed)
+            .cloned()
+            .collect();
+        let mut out: Vec<(SkillEntry, Artifact)> = arts
+            .into_iter()
+            .filter_map(|a| {
+                let content = self.content_of(&a).ok()?;
+                let (name, description) = parse_skill_frontmatter(&String::from_utf8(content).ok()?)?;
+                Some((
+                    SkillEntry {
+                        name,
+                        description,
+                        artifact_id: a.artifact_id,
+                        version: a.version,
+                        world_path: a.world_path.clone(),
+                    },
+                    a,
+                ))
+            })
+            .collect();
+        out.sort_by(|x, y| x.0.name.cmp(&y.0.name).then(y.0.version.cmp(&x.0.version)));
+        out.dedup_by(|b, a| a.0.name == b.0.name);
+        out
+    }
+
+    /// Compact index of installed skills (name + description only).
+    #[must_use]
+    pub fn skill_index(&self) -> Vec<SkillEntry> {
+        self.installed_skills().into_iter().map(|(e, _)| e).collect()
+    }
+
+    /// Prompt block listing installed skills; empty when there are none.
+    #[must_use]
+    pub fn skill_index_block(&self) -> String {
+        let idx = self.skill_index();
+        if idx.is_empty() {
+            return String::new();
+        }
+        let mut out = String::from(
+            "## Installed skills\nCall skill.view with a name to load its full instructions.\n",
+        );
+        for e in idx {
+            let line = format!("- {}: {}\n", e.name, e.description);
+            if out.len() + line.len() > SKILL_INDEX_MAX_BYTES {
+                out.push_str("- (more skills omitted; use skill.list)\n");
+                break;
+            }
+            out.push_str(&line);
+        }
+        out
+    }
+
+    /// Full SKILL.md content of an installed skill, by exact name.
+    pub fn skill_view(&self, name: &str) -> Result<String, WorldError> {
+        let (_, a) = self
+            .installed_skills()
+            .into_iter()
+            .find(|(e, _)| e.name == name)
+            .ok_or_else(|| WorldError::Rejected(format!("skill_view: no installed skill named {name:?}")))?;
+        String::from_utf8(self.content_of(&a)?)
+            .map_err(|_| WorldError::Rejected("skill_view: skill is not utf-8".into()))
+    }
+}

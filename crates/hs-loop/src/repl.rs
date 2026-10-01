@@ -662,6 +662,8 @@ pub fn load(
             crate::toolschema::world_observe_tool(),
             crate::toolschema::world_install_tool(),
             crate::toolschema::world_tick_tool(),
+            crate::toolschema::skill_list_tool(),
+            crate::toolschema::skill_view_tool(),
         ]);
         inner.set_tools(serde_json::Value::Array(native_tools));
         let model_label = Self::configured_model_label(config).unwrap_or_else(|| "?".to_string());
@@ -796,6 +798,8 @@ pub fn load(
             crate::toolschema::world_observe_tool(),
             crate::toolschema::world_install_tool(),
             crate::toolschema::world_tick_tool(),
+            crate::toolschema::skill_list_tool(),
+            crate::toolschema::skill_view_tool(),
         ]);
         inner.set_tools(serde_json::Value::Array(native_tools));
         let model_label = Self::configured_model_label(config).unwrap_or_else(|| "?".to_string());

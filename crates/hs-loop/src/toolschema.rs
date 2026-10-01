@@ -385,3 +385,23 @@ pub fn world_tick_tool() -> Value {
         json!({"type":"object","properties":{}}),
     )
 }
+
+/// Hermes-style skills: list installed world skills (name + description).
+#[must_use]
+pub fn skill_list_tool() -> Value {
+    f(
+        "skill.list",
+        "List the installed world skills (name and one-line description). Skills are reusable, verified procedures; the prompt shows the same index.",
+        json!({"type":"object","properties":{}}),
+    )
+}
+
+/// Load an installed skill's full SKILL.md instructions by exact name.
+#[must_use]
+pub fn skill_view_tool() -> Value {
+    f(
+        "skill.view",
+        "Load the full instructions of an installed skill by exact name (from the Installed skills index). Call it when a skill's description matches your task, before re-deriving the procedure.",
+        json!({"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}),
+    )
+}

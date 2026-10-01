@@ -212,6 +212,8 @@ impl Spawner {
         tools.push(hs_loop::toolschema::world_observe_tool());
         tools.push(hs_loop::toolschema::world_install_tool());
         tools.push(hs_loop::toolschema::world_tick_tool());
+        tools.push(hs_loop::toolschema::skill_list_tool());
+        tools.push(hs_loop::toolschema::skill_view_tool());
         tools.push(hs_loop::toolschema::agent_spawn_tool());
         l.set_tools(serde_json::Value::Array(tools));
         l.set_model_override(child.model.clone())?;

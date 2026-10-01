@@ -1134,7 +1134,7 @@ impl InnerLoop {
     /// the model as ordinary tool output - never fatal to the mission.
     /// Returns None for non-world tools.
     fn world_dispatch(&mut self, tool: &str, args: &serde_json::Value) -> Option<ToolCallOutcome> {
-        if !matches!(tool, "world.propose" | "world.observe" | "world.install" | "world.tick") {
+        if !matches!(tool, "world.propose" | "world.observe" | "world.install" | "world.tick" | "skill.list" | "skill.view") {
             return None;
         }
         let started = std::time::Instant::now();
@@ -1150,6 +1150,21 @@ impl InnerLoop {
             return done(serde_json::json!({"error": format!("{tool}: no world attached to this session")}));
         };
         match tool {
+            "skill.list" => {
+                let rows: Vec<serde_json::Value> = world
+                    .skill_index()
+                    .iter()
+                    .map(|e| serde_json::json!({"name": e.name, "description": e.description}))
+                    .collect();
+                done(serde_json::json!({"count": rows.len(), "skills": rows}))
+            }
+            "skill.view" => {
+                let name = args["name"].as_str().unwrap_or("");
+                match world.skill_view(name) {
+                    Ok(body) => done(serde_json::json!({"name": name, "content": body})),
+                    Err(e) => done(serde_json::json!({"error": format!("skill.view: {e:?}")})),
+                }
+            }
             "world.propose" => {
                 use sha2::Digest as _;
                 let path = args["world_path"].as_str().unwrap_or("").to_string();
@@ -1358,7 +1373,7 @@ impl InnerLoop {
         tool: &str,
         args: &serde_json::Value,
     ) -> Result<ToolCallOutcome, KernelError> {
-        if tool == "memory.recall" || tool.starts_with("world.") || tool == "answer.write" || tool == "answer.submit" {
+        if tool == "memory.recall" || tool.starts_with("world.") || tool.starts_with("skill.") || tool == "answer.write" || tool == "answer.submit" {
             let (call_id, start_event_id) = self.kernel.start_internal_tool(tool, args)?;
             let internal = if tool == "memory.recall" { Some(self.memory_recall(args)) }
                 else { self.world_dispatch(tool, args).or_else(|| self.world_artifact_write(tool, args)) };
@@ -2037,6 +2052,12 @@ impl InnerLoop {
                 );
                 for s in &steered {
                     volatile.push_str(&format!("- {s}\n"));
+                }
+            }
+            if let Some(w) = &self.world {
+                let block = w.skill_index_block();
+                if !block.is_empty() {
+                    volatile.push_str(&block);
                 }
             }
             volatile.push_str(&artifact_section(&answer_path, &artifact));
