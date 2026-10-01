@@ -33,7 +33,7 @@ fn installed_skill_is_indexed_in_prompt_and_viewable() {
         world_path: "/skills/bisect-flaky".into(), author_stream: s1, parent_version: None,
         status: hs_world::ArtifactStatus::Proposed,
     }, content.as_bytes()).unwrap();
-    world.install_skill(a.artifact_id).unwrap();
+    world.install_skill_gated(a.artifact_id, &hs_world::SkillGateEvidence{verifier:"v".into(),heldout_with_skill_passed:true,heldout_baseline_passed:false,control_with_skill_passed:true,control_baseline_passed:true}).unwrap();
 
     let mission = "task-7";
     let answer = log.join("work").join(mission).join("answer.txt");
@@ -74,5 +74,6 @@ subjects = ["*"]
     assert!(mc.iter().all(|m| !m.contains("rerun 20 times") || m.contains("STEP-ONE")), "unreached");
     // The body must only reach the prompt after skill.view, never in the first call.
     assert!(!mc[0].contains("STEP-ONE"), "body leaked into first prompt");
+    assert_eq!(hs_world::World::open(&log).unwrap().skill_use_count(a.artifact_id), 1, "skill.view must book one use");
     let _ = std::fs::remove_dir_all(&dir);
 }

@@ -1171,7 +1171,10 @@ impl InnerLoop {
             "skill.view" => {
                 let name = args["name"].as_str().unwrap_or("");
                 match world.skill_view(name) {
-                    Ok(body) => done(serde_json::json!({"name": name, "content": body})),
+                    Ok(body) => {
+                        let _ = world.record_skill_use(name, self.stream_id);
+                        done(serde_json::json!({"name": name, "content": body}))
+                    }
                     Err(e) => done(serde_json::json!({"error": format!("skill.view: {e:?}")})),
                 }
             }

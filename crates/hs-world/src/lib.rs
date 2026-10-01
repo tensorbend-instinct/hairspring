@@ -73,6 +73,8 @@ struct State {
     /// observes that delivered it. Rebuilt from the world stream's reuse
     /// Observation events - the diffusion count for the culture layer.
     reuse: HashMap<(uuid::Uuid, u32), u32>,
+    /// Skill usage ledger: artifact -> recorded uses (rebuilt on open).
+    skill_uses: HashMap<uuid::Uuid, u32>,
 }
 
 /// The shared world: artifact registry + installed controllers, all state
@@ -155,11 +157,15 @@ impl World {
         let reader = StreamReader::open(log_root, stream)?;
         let mut artifacts = HashMap::new();
         let mut reuse = HashMap::new();
+        let mut skill_uses: HashMap<uuid::Uuid, u32> = HashMap::new();
         for e in reader.events()? {
             if e.kind == EventKind::Observation {
                 // reuse bookings: {"reuse": artifact_id, "version": n, ...}
                 if let Ok(bytes) = reader.resolve_payload(&e) {
                     if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+                        if let Some(id) = v["skill_use"].as_str().and_then(|s| uuid::Uuid::parse_str(s).ok()) {
+                            *skill_uses.entry(id).or_insert(0) += 1;
+                        }
                         if let (Some(id), Some(ver)) = (
                             v["reuse"]
                                 .as_str()
@@ -187,6 +193,7 @@ impl World {
                 artifacts,
                 quarantined: std::collections::HashSet::new(),
                 reuse,
+                skill_uses,
             }),
         })
     }
@@ -782,6 +789,16 @@ impl World {
     }
 }
 
+/// Verifier outcomes that gate a skill install (see `install_skill_gated`).
+#[derive(Debug, Clone)]
+pub struct SkillGateEvidence {
+    pub verifier: String,
+    pub heldout_with_skill_passed: bool,
+    pub heldout_baseline_passed: bool,
+    pub control_with_skill_passed: bool,
+    pub control_baseline_passed: bool,
+}
+
 /// One installed skill: the compact index row shown in the prompt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SkillEntry {
@@ -820,8 +837,44 @@ fn parse_skill_frontmatter(content: &str) -> Option<(String, String)> {
 pub const SKILL_INDEX_MAX_BYTES: usize = 4096;
 
 impl World {
-    /// Install a validated Skill artifact so it appears in the skill index.
-    pub fn install_skill(&self, artifact_id: uuid::Uuid) -> Result<(), WorldError> {
+    /// Checker-gated skill install. The caller ran the exact verifier on a
+    /// held-out task and a control task, each with and without the skill;
+    /// the world installs only if the held-out task passes WITH the skill
+    /// and the control does not regress (passed without, fails with). The
+    /// evidence is booked on the world stream either way.
+    pub fn install_skill_gated(
+        &self,
+        artifact_id: uuid::Uuid,
+        ev: &SkillGateEvidence,
+    ) -> Result<(), WorldError> {
+        let a = self.latest(artifact_id)?;
+        let regress = ev.control_baseline_passed && !ev.control_with_skill_passed;
+        let admit = ev.heldout_with_skill_passed && !regress;
+        let mut w = StreamWriter::resume(&self.log_root, self.world_stream)?.writer;
+        w.append(
+            EventBuilder::new(EventKind::Observation).payload(Payload::Inline(
+                serde_json::to_vec(&serde_json::json!({
+                    "skill_gate": artifact_id, "version": a.version, "admitted": admit,
+                    "verifier": ev.verifier,
+                    "heldout_with_skill": ev.heldout_with_skill_passed,
+                    "heldout_baseline": ev.heldout_baseline_passed,
+                    "control_with_skill": ev.control_with_skill_passed,
+                    "control_baseline": ev.control_baseline_passed,
+                }))
+                .expect("gate events serialize"),
+            )),
+        )?;
+        drop(w);
+        if !admit {
+            return Err(WorldError::Rejected(format!(
+                "skill gate: not installed (heldout_with_skill={}, control_regressed={regress})",
+                ev.heldout_with_skill_passed
+            )));
+        }
+        self.install_skill_unchecked(artifact_id)
+    }
+
+    fn install_skill_unchecked(&self, artifact_id: uuid::Uuid) -> Result<(), WorldError> {
         let mut a = self.latest(artifact_id)?;
         if a.kind != ArtifactKind::Skill {
             return Err(WorldError::Rejected("install_skill: not a skill artifact".into()));
@@ -893,6 +946,56 @@ impl World {
             out.push_str(&line);
         }
         out
+    }
+
+    /// Book one use of an installed skill by `by` (usage ledger).
+    pub fn record_skill_use(&self, name: &str, by: uuid::Uuid) -> Result<(), WorldError> {
+        let (e, _) = self
+            .installed_skills()
+            .into_iter()
+            .find(|(e, _)| e.name == name)
+            .ok_or_else(|| WorldError::Rejected(format!("skill use: no installed skill {name:?}")))?;
+        let mut w = StreamWriter::resume(&self.log_root, self.world_stream)?.writer;
+        w.append(
+            EventBuilder::new(EventKind::Observation).payload(Payload::Inline(
+                serde_json::to_vec(&serde_json::json!({
+                    "skill_use": e.artifact_id, "version": e.version, "name": e.name, "by": by,
+                }))
+                .expect("use events serialize"),
+            )),
+        )?;
+        drop(w);
+        *self
+            .state
+            .lock()
+            .expect("world state mutex poisoned")
+            .skill_uses
+            .entry(e.artifact_id)
+            .or_insert(0) += 1;
+        Ok(())
+    }
+
+    /// Recorded uses of a skill (by artifact id), from the usage ledger.
+    #[must_use]
+    pub fn skill_use_count(&self, artifact_id: uuid::Uuid) -> u32 {
+        self.state
+            .lock()
+            .expect("world state mutex poisoned")
+            .skill_uses
+            .get(&artifact_id)
+            .copied()
+            .unwrap_or(0)
+    }
+
+    /// Archive-only lifecycle: an installed skill leaves the index but its
+    /// content and history stay in the log (never deleted).
+    pub fn archive_skill(&self, artifact_id: uuid::Uuid) -> Result<(), WorldError> {
+        let mut a = self.latest(artifact_id)?;
+        if a.kind != ArtifactKind::Skill || a.status != ArtifactStatus::Installed {
+            return Err(WorldError::Rejected("archive_skill: not an installed skill".into()));
+        }
+        a.status = ArtifactStatus::Retired;
+        self.consequence(&a)
     }
 
     /// Full SKILL.md content of an installed skill, by exact name.

@@ -38,8 +38,8 @@ fn index_lists_only_installed_skills_with_frontmatter() {
 
     let world = w(&log);
     assert!(world.skill_index().is_empty(), "nothing installed yet");
-    world.install_skill(good).unwrap();
-    world.install_skill(nofm).unwrap();
+    world.install_skill_gated(good, &pass()).unwrap();
+    world.install_skill_gated(nofm, &pass()).unwrap();
 
     let idx = world.skill_index();
     assert_eq!(idx.len(), 1, "skill without valid frontmatter is not indexed: {idx:?}");
@@ -64,5 +64,76 @@ fn install_skill_rejects_non_skill_and_unvalidated() {
     let log = dir.join("log");
     std::fs::create_dir_all(&log).unwrap();
     let world = w(&log);
-    assert!(world.install_skill(uuid::Uuid::new_v4()).is_err());
+    assert!(world.install_skill_gated(uuid::Uuid::new_v4(), &pass()).is_err());
+}
+
+fn pass() -> hs_world::SkillGateEvidence {
+    hs_world::SkillGateEvidence {
+        verifier: "test".into(),
+        heldout_with_skill_passed: true,
+        heldout_baseline_passed: false,
+        control_with_skill_passed: true,
+        control_baseline_passed: true,
+    }
+}
+
+#[test]
+fn gate_refuses_failing_heldout_or_control_regression_and_books_evidence() {
+    let dir = std::env::temp_dir().join(format!("hsskill3-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let log = dir.join("log");
+    std::fs::create_dir_all(&log).unwrap();
+    let author = uuid::Uuid::new_v4();
+    hs_log::StreamWriter::create(&log, author).unwrap();
+    let id = mk(&log, author, "/skills/s", "---\nname: s\ndescription: d\n---\nbody\n");
+    let world = w(&log);
+
+    let mut fail_heldout = pass();
+    fail_heldout.heldout_with_skill_passed = false;
+    assert!(world.install_skill_gated(id, &fail_heldout).is_err());
+
+    let mut regress = pass();
+    regress.control_with_skill_passed = false; // control passed without the skill, fails with it
+    assert!(world.install_skill_gated(id, &regress).is_err());
+    assert!(world.skill_index().is_empty(), "refused skill must not be indexed");
+
+    // control that already failed without the skill is not a regression
+    let mut ok = pass();
+    ok.control_baseline_passed = false;
+    ok.control_with_skill_passed = false;
+    world.install_skill_gated(id, &ok).unwrap();
+    assert_eq!(world.skill_index().len(), 1);
+
+    let reader = hs_log::StreamReader::open(&log, hs_world::world_stream_id()).unwrap();
+    let gates: Vec<String> = reader.events().unwrap().iter()
+        .filter(|e| e.kind == hs_core::EventKind::Observation)
+        .filter_map(|e| reader.resolve_payload(e).ok())
+        .map(|b| String::from_utf8_lossy(&b).into_owned())
+        .filter(|p| p.contains("skill_gate")).collect();
+    assert_eq!(gates.len(), 3, "every gate decision is booked: {gates:?}");
+    assert!(gates.iter().filter(|g| g.contains("\"admitted\":true")).count() == 1);
+}
+
+#[test]
+fn usage_ledger_counts_uses_across_reopen_and_archive_hides_but_keeps() {
+    let dir = std::env::temp_dir().join(format!("hsskill4-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let log = dir.join("log");
+    std::fs::create_dir_all(&log).unwrap();
+    let author = uuid::Uuid::new_v4();
+    hs_log::StreamWriter::create(&log, author).unwrap();
+    let id = mk(&log, author, "/skills/u", "---\nname: u\ndescription: d\n---\nbody\n");
+    let world = w(&log);
+    world.install_skill_gated(id, &pass()).unwrap();
+    assert_eq!(world.skill_use_count(id), 0);
+    world.record_skill_use("u", author).unwrap();
+    world.record_skill_use("u", author).unwrap();
+    assert!(world.record_skill_use("nope", author).is_err());
+    assert_eq!(w(&log).skill_use_count(id), 2, "ledger must survive reopen");
+
+    world.archive_skill(id).unwrap();
+    assert!(world.skill_index().is_empty());
+    assert!(world.skill_view("u").is_err());
+    assert_eq!(w(&log).skill_use_count(id), 2, "history kept after archive");
+    assert!(world.archive_skill(id).is_err(), "only installed skills archive");
 }
