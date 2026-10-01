@@ -19,8 +19,8 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq bubblewrap python3 python3-venv git build-essential pkg-config libssl-dev
-          python3 -m pip install --user --break-system-packages uv
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          sudo python3 -m pip install --break-system-packages uv
+          command -v uv; uv --version
           rustup toolchain install stable --profile minimal
           rustup default stable
           rustc --version; id -u; sudo id -u
