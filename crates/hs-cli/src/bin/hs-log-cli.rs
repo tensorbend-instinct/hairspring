@@ -25,6 +25,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .unwrap_or_default();
     match cmd {
+        "atif" => {
+            let mut records = Vec::new();
+            for s in &streams {
+                verify_stream(&dir, *s).map_err(|e| format!("corrupt stream: {e:?}"))?;
+                let r = StreamReader::open(&dir, *s)?;
+                for e in r.events()? {
+                    let v = serde_json::from_slice::<serde_json::Value>(&r.resolve_payload(&e)?)
+                        .unwrap_or(serde_json::Value::Null);
+                    records.push((e,v));
+                }
+            }
+            let (trajs,audit)=hs_cli::atif::export(&records, env!("CARGO_PKG_VERSION"));
+            eprintln!("{audit}");
+            println!("{}",serde_json::to_string_pretty(&trajs)?);
+        }
         "otlp" => {
             let mut records = Vec::new();
             for s in &streams {
@@ -169,7 +184,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         _ => {
-            eprintln!("usage: hs-log-cli verify|dump|trace|otlp --dir D [--payloads|--follow]");
+            eprintln!("usage: hs-log-cli verify|dump|trace|otlp|atif --dir D [--payloads|--follow]");
             std::process::exit(2);
         }
     }
