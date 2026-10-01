@@ -5,6 +5,8 @@ name: root-tests
 # no secrets used, read-only token, logs uploaded as artifacts.
 on:
   workflow_dispatch:
+  push:
+    branches: [ci-root-tests]
 permissions:
   contents: read
 jobs:
