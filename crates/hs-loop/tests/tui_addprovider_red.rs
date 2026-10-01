@@ -314,6 +314,10 @@ fn kernel_reload_after_add_sees_the_model() {
     )
     .unwrap();
     let prov = dir.path().join("providers.toml");
+    // Hermetic: the generic plugin resolves the added provider from THIS
+    // file, not from whatever ~/.config/hairspring holds on the host.
+    let prov_s: &'static str = Box::leak(prov.display().to_string().into_boxed_str());
+    let _p = EnvGuard::set(&[("HS_PROVIDERS_TOML", prov_s)]);
     let mut k = hs_kernel::Kernel::load(&rig).unwrap();
     assert!(k.has_model("deepseek"));
     assert!(!k.has_model("openrouter"));

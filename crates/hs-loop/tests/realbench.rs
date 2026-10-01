@@ -1,10 +1,10 @@
 //! REAL-MODEL ablation re-run of gate 3 (parent-approved spend, hard cap
 //! $6 total across both models - Eric 2026-09-03 00:03; enforced via a
 //! shared ledger file; actual final spend $1.5644). These
-//! tests are #[ignore]d: they run only on explicit request with real keys
+//! tests are gated by HS_REALBENCH_LIVE=1: they run only on explicit request with real keys
 //! populated via vault (`HS_GLM_API_KEY`[_FILE], `HS_DEEPSEEK_API_KEY`[_FILE]).
 //!
-//!   cargo test -p hs-loop --test realbench -- --ignored --nocapture
+//!   HS_REALBENCH_LIVE=1 cargo test -p hs-loop --test realbench -- --nocapture
 //!
 //! Measurement, not a pass/fail gate: publishes both arms' steps-to-pass,
 //! pass rate, and actual cost per model. A ledger total past the cap fails
@@ -238,9 +238,20 @@ fn report(model: &str, on: &Arm, off: &Arm, n_tasks: usize) {
     );
 }
 
+/// Paid live-model tests are gated by HS_REALBENCH_LIVE=1, not #[ignore], so
+/// a plain `cargo test` reports them as NOT RUN on stderr instead of hiding
+/// them. With the gate set they run for real (a missing key then fails).
+fn live_gate(name: &str) -> bool {
+    if std::env::var("HS_REALBENCH_LIVE").as_deref() == Ok("1") {
+        return true;
+    }
+    eprintln!("LIVE MODEL TEST NOT RUN: {name} (set HS_REALBENCH_LIVE=1 plus the provider key to spend real money)");
+    false
+}
+
 #[test]
-#[ignore = "real API spend; run explicitly with vault-populated keys"]
 fn real_ablation_glm() {
+    if !live_gate("real_ablation_glm") { return; }
     let tasks = tasks_from_env();
     let keep;
     let root: &std::path::Path = if let Some(d) = streams_root() {
@@ -257,8 +268,8 @@ fn real_ablation_glm() {
 }
 
 #[test]
-#[ignore = "real API spend; run explicitly with vault-populated keys"]
 fn real_ablation_deepseek() {
+    if !live_gate("real_ablation_deepseek") { return; }
     let tasks = tasks_from_env();
     let keep;
     let root: &std::path::Path = if let Some(d) = streams_root() {

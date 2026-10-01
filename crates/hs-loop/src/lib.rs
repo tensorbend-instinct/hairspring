@@ -1846,11 +1846,13 @@ impl InnerLoop {
         // tool.call in this mission carries the mission's run dir, so
         // policy.propose_prompt records into <log>/work/<mission>/ with no
         // env var on the live path.
+        self.writer.set_default_parent(None);
         let trace_root = self.writer.append(EventBuilder::new(EventKind::Observation)
             .payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({
                 "record_type": "mission_start", "mission": mission,
             })).expect("json serializes"))))?;
         self.kernel.set_trace_parent(trace_root.event_id);
+        self.writer.set_default_parent(Some(trace_root.event_id));
         self.kernel
             .set_tool_run_dir(Some(self.log_root.join("work").join(mission)));
         self.mission_started = Some(std::time::Instant::now());

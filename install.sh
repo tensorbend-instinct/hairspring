@@ -63,7 +63,7 @@ add_path_block() {
     if ! grep -qF "$MARKER" "$prof" 2>/dev/null; then
         {
             printf '# >>> %s >>>\n' "$MARKER"
-            printf 'export PATH="%s:$PATH"\n' "$BINLINK_DIR"
+            printf 'case ":$PATH:" in *":%s:"*) ;; *) export PATH="%s:$PATH" ;; esac\n' "$BINLINK_DIR" "$BINLINK_DIR"
             printf '# <<< %s <<<\n' "$MARKER"
         } >> "$prof"
         echo "Added $BINLINK_DIR to PATH in $prof (managed block; open a new shell to pick it up)."

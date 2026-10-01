@@ -198,6 +198,7 @@ pub struct StreamWriter {
     next_seq: u64,
     last_hash: [u8; 32],
     last_event_id: Option<Uuid>,
+    default_parent: Option<Uuid>,
 }
 
 pub struct ResumeOutcome {
@@ -276,6 +277,7 @@ impl StreamWriter {
             next_seq: 0,
             last_hash: [0; 32],
             last_event_id: None,
+            default_parent: None,
         })
     }
 
@@ -359,6 +361,7 @@ impl StreamWriter {
                 next_seq,
                 last_hash,
                 last_event_id,
+                default_parent: None,
             },
             events_recovered: recovered,
             truncated_bytes: truncated,
@@ -380,8 +383,17 @@ impl StreamWriter {
 
     /// Append one event. The writer assigns seq, `prev_hash`, and hash; the
     /// caller owns everything else. Durable (fsynced) when returned.
+    /// Events appended without an explicit parent link to this event, so
+    /// every record in a mission hangs off the mission root.
+    pub fn set_default_parent(&mut self, parent: Option<Uuid>) {
+        self.default_parent = parent;
+    }
+
     pub fn append(&mut self, b: EventBuilder) -> Result<Event, LogError> {
         let mut e = b.build();
+        if e.parent_event_id.is_none() {
+            e.parent_event_id = self.default_parent;
+        }
         e.event_id = Uuid::new_v4();
         e.stream_id = self.stream;
         e.seq = self.next_seq;
