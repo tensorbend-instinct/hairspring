@@ -56,6 +56,7 @@ default = true
 
 #[test]
 fn mission_under_budget_runs_normally() {
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     // post-gate reality: a mission submits only after verifying, so this
     // fixture scripts the honest flow (repo.exec, blind answer, repair) -
     // the test's subject is budget non-interference, not the gate.

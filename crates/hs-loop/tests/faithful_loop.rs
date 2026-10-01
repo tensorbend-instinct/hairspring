@@ -64,7 +64,15 @@ fn tool_results_reach_the_next_step_and_checker_runs_only_after_write() {
             .unwrap()
             .map(|e| e.unwrap().file_name().into_string().unwrap())
             .collect();
-        assert_eq!(v.len(), 1);
+        // Kernel trace stream + mission stream: pick the mission stream
+    // (the one that carries the loop's own Feedback verdicts).
+    v.retain(|n| {
+        let id = uuid::Uuid::parse_str(n).unwrap();
+        hs_log::StreamReader::open(log.path(), id)
+            .map(|r| r.events().unwrap().iter().any(|e| e.kind == hs_core::EventKind::Feedback))
+            .unwrap_or(false)
+    });
+    assert_eq!(v.len(), 1, "exactly one mission stream");
         uuid::Uuid::parse_str(&v.pop().unwrap()).unwrap()
     };
     let evs = hs_log::StreamReader::open(log.path(), sid)

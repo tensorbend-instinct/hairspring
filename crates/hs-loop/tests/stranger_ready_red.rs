@@ -89,7 +89,8 @@ fn t1_live_surface_mission_completes() {
         "{{\"tool\":\"answer.submit\",\"args\":{{\"path\":\"{}\",\"summary\":\"wrote hello.txt containing hello; verified by the declared grep check\"}}}}",
         answer.display()
     );
-    let script = write(dir.path(), "script.jsonl", &format!("{line1}\n{line2}\n"));
+    let verdict = r#"{"tool":"verdict.submit","args":{"refuted":false,"findings":[],"blocking":"none"}}"#;
+    let script = write(dir.path(), "script.jsonl", &format!("{line1}\n{line2}\n{verdict}\n"));
     unsafe {
         std::env::remove_var("HS_MCP_SERVERS");
         std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
@@ -208,7 +209,8 @@ fn t4_offline_demo_closes_verified_in_prompt_aware_mode() {
         "{{\"tool\":\"answer.submit\",\"args\":{{\"path\":\"{}\",\"summary\":\"wrote hello.txt containing hello; verified by the declared grep check\"}}}}",
         answer.display()
     );
-    let script = write(dir.path(), "script.jsonl", &format!("{line1}\n{line2}\n"));
+    let verdict = r#"{"tool":"verdict.submit","args":{"refuted":false,"findings":[],"blocking":"none"}}"#;
+    let script = write(dir.path(), "script.jsonl", &format!("{line1}\n{line2}\n{verdict}\n"));
     unsafe {
         std::env::remove_var("HS_MCP_SERVERS");
         std::env::set_var("HS_SEQMODEL_SCRIPT", &script);
@@ -255,7 +257,8 @@ fn t5_relative_dir_is_canonicalized_at_startup() {
         "{{\"tool\":\"answer.submit\",\"args\":{{\"path\":\"{}\",\"summary\":\"wrote hello.txt containing hello; verified by the declared grep check\"}}}}",
         answer_abs.display()
     );
-    let script = write(dir.path(), "script.jsonl", &format!("{line1}\n{line2}\n"));
+    let verdict = r#"{"tool":"verdict.submit","args":{"refuted":false,"findings":[],"blocking":"none"}}"#;
+    let script = write(dir.path(), "script.jsonl", &format!("{line1}\n{line2}\n{verdict}\n"));
     let out = std::process::Command::new(REPL)
         .args([
             "run",
@@ -393,7 +396,8 @@ fn t7_failed_mission_exits_nonzero() {
         "{{\"tool\":\"answer.submit\",\"args\":{{\"path\":\"{}\",\"summary\":\"checks deliberately fail\"}}}}",
         answer_abs.display()
     );
-    let script = write(dir.path(), "script.jsonl", &format!("{line1}\n{line2}\n"));
+    let verdict = r#"{"tool":"verdict.submit","args":{"refuted":false,"findings":[],"blocking":"none"}}"#;
+    let script = write(dir.path(), "script.jsonl", &format!("{line1}\n{line2}\n{verdict}\n"));
     let out = std::process::Command::new(REPL)
         .args([
             "run",

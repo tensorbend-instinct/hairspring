@@ -27,20 +27,20 @@ fn load(dir: &std::path::Path) -> hs_loop::repl::ReplSession {
     std::fs::create_dir_all(dir).unwrap();
     std::fs::write(
         dir.join("hairspring.toml"),
-        r#"
+        concat!(r#"
 [[tools]]
 name = "answer.submit"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-answersubmit"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-answersubmit"), r#""]
 subjects = ["*"]
 [[tools]]
 name = "checker.run"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-liechecker"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-liechecker"), r#""]
 subjects = ["*"]
 [[models]]
 name = "scripted"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-scripted"), r#""]
 default = true
-"#,
+"#),
     )
     .unwrap();
     hs_loop::repl::load_session(&dir.join("hairspring.toml"), &dir.join("run"), false, Some(5), None, None)

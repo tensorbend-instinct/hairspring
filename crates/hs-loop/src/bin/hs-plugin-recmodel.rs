@@ -47,7 +47,12 @@ fn main() {
                         .and_then(|d| d.parse().ok())
                 })
                 .unwrap_or(1);
-            let completion = if mode == "small" {
+            let audit = params["tools"].as_array().is_some_and(|t| {
+                t.iter().any(|x| x["function"]["name"] == "verdict__submit" || x["function"]["name"] == "verdict.submit")
+            });
+            let completion = if audit {
+                serde_json::json!({"tool":"verdict.submit","args":{"refuted":false,"findings":[],"blocking":"none"}})
+            } else if mode == "small" {
                 if attempt == 1 {
                     serde_json::json!({"tool":"probe.read","args":{"path":"x"}})
                 } else if prompt.contains("MARKER-777") {

@@ -17,10 +17,10 @@ use hs_loop::repl::load_session;
 
 static SEQMODEL_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-const TERMEXEC: &str = "/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-termexec";
-const ANSWERSUBMIT: &str = "/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-answersubmit";
-const CRITIC: &str = "/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-critic";
-const SCRIPTED: &str = "/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted";
+const TERMEXEC: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-termexec");
+const ANSWERSUBMIT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-answersubmit");
+const CRITIC: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-critic");
+const SCRIPTED: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-scripted");
 
 fn write_rig(dir: &std::path::Path) {
     let toml = format!(

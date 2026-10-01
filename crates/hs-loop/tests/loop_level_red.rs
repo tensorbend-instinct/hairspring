@@ -101,6 +101,7 @@ default = true
 /// at 13 steps with edit.apply/answer.write fully usable.
 #[test]
 fn dead_non_answer_tool_degrades_and_mission_continues() {
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     let _g = SEQMODEL_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
@@ -171,6 +172,7 @@ default = true
 /// counts real spawns: exactly `MAX_STRIKES`, no more).
 #[test]
 fn repeat_calls_to_dead_tool_short_circuit_without_respawn() {
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     let _g = SEQMODEL_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
@@ -518,6 +520,7 @@ default = true
 /// hail-mary submission is allowed (better than no answer).
 #[test]
 fn answer_write_rejected_until_the_model_has_verified() {
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     let _g = SEQMODEL_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
@@ -631,6 +634,7 @@ default = true
 
 #[test]
 fn answer_write_allowed_untested_on_the_last_step() {
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     let _g = SEQMODEL_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();

@@ -41,20 +41,20 @@ fn m21_mission_result_carries_own_cost() {
     .unwrap();
     std::fs::write(
         dir.join("hairspring.toml"),
-        r#"
+        concat!(r#"
 [[tools]]
 name = "answer.write"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-answer"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-answer"), r#""]
 subjects = ["*"]
 [[tools]]
 name = "checker.run"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-liechecker"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-liechecker"), r#""]
 subjects = ["*"]
 [[models]]
 name = "scripted"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-scripted"), r#""]
 default = true
-"#,
+"#),
     )
     .unwrap();
     unsafe {

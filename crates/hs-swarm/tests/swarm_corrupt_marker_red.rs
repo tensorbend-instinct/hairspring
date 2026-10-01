@@ -12,7 +12,7 @@ use std::io::Write;
 use std::process::{Command, Stdio};
 
 fn poll_once(dir: &std::path::Path, cid: &str) -> String {
-    let mut p = Command::new("/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-swarm")
+    let mut p = Command::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-swarm"))
         .args(["--as", "agent.spawn_poll"])
         .env("HS_SWARM_LOG_ROOT", dir)
         .stdin(Stdio::piped())
@@ -67,7 +67,7 @@ fn r2_corrupt_marker_does_not_consume_a_concurrency_slot() {
         "{\"child_stream_id\":\"deadbeef-0000-0000-0000-0000000000d2\",\"parent_",
     )
     .unwrap();
-    let mut p = Command::new("/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-swarm")
+    let mut p = Command::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-swarm"))
         .env("HS_SWARM_LOG_ROOT", &dir)
         .env("HS_SWARM_MAX_CHILDREN", "1")
         .env("HS_SWARM_CONFIG", dir.join("hairspring.toml"))

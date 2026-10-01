@@ -49,7 +49,12 @@ fn main() {
             // for the failing-checks gate). Attempt 3 declares .hs/checks and
             // runs them. Attempt 4 submits with a summary.
             let nofix = std::env::var("HS_SWEMODEL_NOFIX").is_ok();
-            let completion = if prompt.contains("term.exec") {
+            // This offline integration model must honor the native audit
+            // contract, rather than accidentally replaying answer.submit.
+            let completion = if params["tools"].as_array().is_some_and(|tools|
+                tools.iter().any(|t| t["function"]["name"] == "verdict__submit" || t["function"]["name"] == "verdict.submit")) {
+                serde_json::json!({"tool":"verdict.submit", "args":{"refuted":false,"findings":[],"blocking":"none"}})
+            } else if prompt.contains("term.exec") {
                 match attempt {
                     1 => serde_json::json!({"tool":"answer.submit","args":{"path":path,"summary":""}}),
                     2 => {

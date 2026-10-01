@@ -17,28 +17,28 @@ fn write_fixture(dir: &std::path::Path) {
     // Two scripted models, identical behavior; the kernel's dispatch
     // record in the stream names the serving plugin, so the ledger
     // itself proves which model served each call.
-    let toml = r#"
+    let toml = concat!(r#"
 [[tools]]
 name = "answer.submit"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-answersubmit"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-answersubmit"), r#""]
 subjects = ["*"]
 
 [[tools]]
 name = "checker.run"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-liechecker"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-liechecker"), r#""]
 subjects = ["*"]
 
 [[models]]
 name = "m-alpha"
-command = ["/bin/sh", "-c", "HS_SCRIPTED_NAME=m-alpha exec /mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted"]
+command = ["/bin/sh", "-c", "HS_SCRIPTED_NAME=m-alpha exec "#, env!("CARGO_BIN_EXE_hs-plugin-scripted"), r#""]
 default = true
 subjects = ["*"]
 
 [[models]]
 name = "m-beta"
-command = ["/bin/sh", "-c", "HS_SCRIPTED_NAME=m-beta exec /mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted"]
+command = ["/bin/sh", "-c", "HS_SCRIPTED_NAME=m-beta exec "#, env!("CARGO_BIN_EXE_hs-plugin-scripted"), r#""]
 subjects = ["*"]
-"#;
+"#);
     std::fs::write(dir.join("hairspring.toml"), toml).unwrap();
     std::fs::write(dir.join("script.jsonl"), "reading the code\n").unwrap();
 }

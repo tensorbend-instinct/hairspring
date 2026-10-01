@@ -17,10 +17,10 @@ use hs_loop::repl::load_session;
 
 static SEQMODEL_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-const REPEXEC: &str = "/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-repoexec";
-const ANSWERSUBMIT: &str = "/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-answersubmit";
-const SELFCHECK: &str = "/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-selfcheck";
-const SCRIPTED: &str = "/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted";
+const REPEXEC: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-repoexec");
+const ANSWERSUBMIT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-answersubmit");
+const SELFCHECK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-selfcheck");
+const SCRIPTED: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-scripted");
 
 fn rig(dir: &std::path::Path, script_lines: &[&str]) -> std::path::PathBuf {
     let _ = std::fs::remove_dir_all(dir);

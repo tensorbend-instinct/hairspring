@@ -201,7 +201,7 @@ impl Ledger {
                 }
             }
             "repo.exec" => {
-                if result["applied"].as_bool() == Some(true) {
+                if result["applied"].as_bool() == Some(true) || (result["scratch"].as_bool() == Some(true) && result["exit_code"].as_i64().is_some_and(|code| code >= 0) && result["error"].is_null() && result["$error"].is_null()) {
                     let cmd = args["command"]
                         .as_str()
                         .unwrap_or("")

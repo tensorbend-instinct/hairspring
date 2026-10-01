@@ -113,6 +113,7 @@ fn t1_tb_runner_registers_mcp_tools() {
 // advertises it, so a real model can find it.
 #[test]
 fn t2_repl_mcp_tool_callable_and_advertised() {
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();

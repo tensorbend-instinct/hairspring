@@ -88,6 +88,7 @@ fn scratch_shell_enforces_timeout() {
 /// writes the answer, so the mission passes. Asserts on the event stream.
 #[test]
 fn mission_model_may_use_repoexec_as_general_shell() {
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     // FIXME: Audit that the environment access only happens in single-threaded code.
     unsafe { std::env::remove_var("HS_SWE_ANSWER") };
     let dir = tempfile::tempdir().unwrap();
@@ -153,7 +154,7 @@ default = true
     let events = reader.events().unwrap();
     let mut exec_results = events.iter().filter_map(|e| {
         let p = String::from_utf8_lossy(&reader.resolve_payload(e).unwrap()).to_string();
-        p.contains("\"plugin\":\"repo.exec\"").then_some(p)
+        (e.kind == hs_core::EventKind::ToolCall && p.contains("\"plugin\":\"repo.exec\"")).then_some(p)
     });
     let scratch_call = exec_results
         .next()

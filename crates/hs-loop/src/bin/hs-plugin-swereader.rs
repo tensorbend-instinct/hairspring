@@ -32,7 +32,7 @@ fn main() {
                 .ok()
                 .and_then(|f| std::fs::read_to_string(f).ok())
                 .unwrap_or_default();
-            let completion = if attempt == 1 {
+            let scripted_completion = if attempt == 1 {
                 serde_json::json!({"tool":"repo.read","args":{"path":"code.txt"}})
             } else if attempt == 2 {
                 serde_json::json!({"tool":"repo.exec","args":{"command":"sh check.sh","diff":gold}})
@@ -42,6 +42,12 @@ fn main() {
             } else {
                 serde_json::json!({"tool":"answer.submit","args":{"path":path}})
             };
+            let audit = params["tools"].as_array().is_some_and(|t| {
+                t.iter().any(|x| x["function"]["name"] == "verdict__submit" || x["function"]["name"] == "verdict.submit")
+            });
+            let completion = if audit {
+                serde_json::json!({"tool":"verdict.submit","args":{"refuted":false,"findings":[],"blocking":"none"}})
+            } else { scripted_completion };
             serde_json::json!({
                 "completion": completion.to_string(),
                 "input_tokens": prompt.len() / 4 + 1,

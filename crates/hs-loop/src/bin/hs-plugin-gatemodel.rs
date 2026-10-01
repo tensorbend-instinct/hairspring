@@ -29,8 +29,14 @@ fn main() {
             } else {
                 "blind-wrong".to_string()
             };
-            let completion =
+            let scripted_completion =
                 serde_json::json!({"tool":"answer.write","args":{"path":path,"content":content}});
+            let audit = params["tools"].as_array().is_some_and(|t| {
+                t.iter().any(|x| x["function"]["name"] == "verdict__submit" || x["function"]["name"] == "verdict.submit")
+            });
+            let completion = if audit {
+                serde_json::json!({"tool":"verdict.submit","args":{"refuted":false,"findings":[],"blocking":"none"}})
+            } else { scripted_completion };
             serde_json::json!({
                 "completion": completion.to_string(),
                 "input_tokens": prompt.len() / 4 + 1,

@@ -10,9 +10,9 @@
 use hs_core::EventKind;
 use hs_memory::MemoryStore;
 
-const ANSWER: &str = "/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-answer";
-const CHECKER: &str = "/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-checker";
-const SCRIPTED: &str = "/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted";
+const ANSWER: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-answer");
+const CHECKER: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-checker");
+const SCRIPTED: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-scripted");
 
 const MARKER: &str = "PARENT-K-MARKER-ALPHA-SEP";
 
@@ -87,7 +87,7 @@ subjects = ["*"]
 
 [[models]]
 name = "child"
-command = ["/bin/sh", "-c", "HS_SCRIPTED_NAME=child HS_SEQMODEL_SCRIPT={} exec {SCRIPTED}"]
+command = ["/bin/sh", "-c", "HS_SCRIPTED_PROMPT_AWARE=1 HS_SCRIPTED_NAME=child HS_SEQMODEL_SCRIPT={} exec {SCRIPTED}"]
 default = true
 subjects = ["*"]
 "#,

@@ -256,6 +256,7 @@ fn prompt_steers_edits_only_via_edit_apply() {
 /// mission must still pass - the guardrail steers, it does not doom.
 #[test]
 fn mission_git_apply_payload_is_steered_not_executed() {
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     // FIXME: Audit that the environment access only happens in single-threaded code.
     unsafe { std::env::remove_var("HS_SWE_ANSWER") };
     let dir = tempfile::tempdir().unwrap();
@@ -268,7 +269,7 @@ fn mission_git_apply_payload_is_steered_not_executed() {
     std::fs::write(
         &script,
         format!(
-            "{{\"tool\":\"repo.exec\",\"args\":{{\"command\":\"cd /ws && git apply --check /tmp/candidate.diff && git apply /tmp/candidate.diff\"}}}}\n{{\"tool\":\"repo.exec\",\"args\":{{\"command\":\"git log --oneline | head -1\"}}}}\n{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"TOKEN-0-SECRET\"}}}}",
+            "{{\"tool\":\"repo.exec\",\"args\":{{\"command\":\"cd /ws && git apply --check /tmp/candidate.diff && git apply /tmp/candidate.diff\"}}}}\n{{\"tool\":\"repo.exec\",\"args\":{{\"command\":\"git log --oneline | head -1; test -f code.txt\"}}}}\n{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"TOKEN-0-SECRET\"}}}}",
             answer.display()
         ),
     )
@@ -311,18 +312,12 @@ default = true
         "guardrail steers without dooming the mission: {r:?}"
     );
 
-    let streams = log.path().join("streams");
-    let sid = std::fs::read_dir(&streams)
-        .unwrap()
-        .next()
-        .unwrap()
-        .unwrap();
-    let sid = uuid::Uuid::parse_str(sid.file_name().to_str().unwrap()).unwrap();
+    let sid = r.stream_id;
     let reader = hs_log::StreamReader::open(log.path(), sid).unwrap();
     let events = reader.events().unwrap();
     let mut exec_results = events.iter().filter_map(|e| {
         let p = String::from_utf8_lossy(&reader.resolve_payload(e).unwrap()).to_string();
-        p.contains("\"plugin\":\"repo.exec\"").then_some(p)
+        (e.kind == hs_core::EventKind::ToolCall && p.contains("\"plugin\":\"repo.exec\"")).then_some(p)
     });
     let forbidden = exec_results
         .next()

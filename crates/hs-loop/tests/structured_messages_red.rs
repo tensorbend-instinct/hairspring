@@ -51,6 +51,7 @@ fn operator_message_payloads(ev: &[(EventKind, String)]) -> Vec<Vec<serde_json::
 /// step - never a hand-rendered text blob.
 #[test]
 fn operator_call_is_a_native_messages_array() {
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     let _g = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
@@ -218,6 +219,7 @@ default = true
 #[test]
 fn assemble_messages_pairs_and_compaction() {
     let _g = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let answer = log.path().join("work").join("task-0").join("answer.txt");
@@ -410,6 +412,7 @@ default = true
 #[test]
 fn verifier_prose_reply_is_an_error_not_a_verdict() {
     let _g = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "0") };
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
     let answer = log.path().join("work").join("task-22").join("answer.txt");
@@ -448,8 +451,8 @@ default = true
     let mut l = InnerLoop::new(kernel, log.path(), true, 4).unwrap();
     let r = l.run_mission("task-22").unwrap();
     assert!(
-        r.passed,
-        "a malformed verdict never blocks the mission: {r:?}"
+        !r.passed && r.outcome == "verifier_malfunction",
+        "a malformed verdict never banks a pass (fail closed): {r:?}"
     );
     assert_eq!(r.steps, 1, "no refuted round burns steps: {r:?}");
     let ev = events_of(log.path(), r.stream_id);

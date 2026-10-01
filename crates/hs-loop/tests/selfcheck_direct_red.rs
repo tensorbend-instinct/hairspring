@@ -16,10 +16,10 @@ use hs_loop::repl::load_session;
 
 static SEQMODEL_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-const APPLYPATCH: &str = "/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-applypatch";
-const ANSWERSUBMIT: &str = "/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-answersubmit";
-const SELFCHECK: &str = "/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-selfcheck";
-const SCRIPTED: &str = "/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted";
+const APPLYPATCH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-applypatch");
+const ANSWERSUBMIT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-answersubmit");
+const SELFCHECK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-selfcheck");
+const SCRIPTED: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-scripted");
 
 #[test]
 fn d10_candidate_surface_checker_sees_declared_checks() {

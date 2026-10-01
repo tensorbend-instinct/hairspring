@@ -93,6 +93,7 @@ fn feedback_payloads(log_root: &std::path::Path, stream_id: uuid::Uuid) -> Vec<s
 /// the same goal - same mission id, same work dir, counters cumulative.
 #[test]
 fn dead_mission_same_goal_continues_same_mission() {
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     let _guard = ENV_LOCK
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -172,6 +173,7 @@ fn dead_mission_same_goal_continues_same_mission() {
 /// A PASSED mission re-run is new work: fresh id, fresh counters.
 #[test]
 fn passed_mission_same_goal_starts_fresh() {
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     let _guard = ENV_LOCK
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -241,6 +243,7 @@ fn different_goal_same_slug_starts_fresh() {
 /// 2 adopts the stream via load_resume and continues the same mission.
 #[test]
 fn dead_mission_continues_after_session_resume() {
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     let _guard = ENV_LOCK
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);

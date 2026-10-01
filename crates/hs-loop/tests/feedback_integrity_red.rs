@@ -389,10 +389,10 @@ fn malfunction_pass_is_labeled_verifier_malfunction() {
     let kernel = hs_kernel::Kernel::load(&config).unwrap();
     let mut l = InnerLoop::new(kernel, log.path(), true, 4).unwrap();
     let r = l.run_mission("task-13").unwrap();
-    assert!(r.passed, "a broken verifier cannot block good work: {r:?}");
+    assert!(!r.passed, "a broken verifier cannot bank an audited pass: {r:?}");
     assert_eq!(
         r.outcome, "verifier_malfunction",
-        "a malfunction pass is labeled, never silent: {r:?}"
+        "a malfunction failure is labeled, never silent: {r:?}"
     );
 }
 

@@ -20,33 +20,33 @@ use std::sync::{Arc, Mutex};
 
 fn write_fixture(dir: &std::path::Path) {
     std::fs::create_dir_all(dir).unwrap();
-    let toml = r#"
+    let toml = concat!(r#"
 [[tools]]
 name = "answer.submit"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-answersubmit"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-answersubmit"), r#""]
 subjects = ["*"]
 
 [[tools]]
 name = "checker.run"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-liechecker"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-liechecker"), r#""]
 subjects = ["*"]
 
 [[tools]]
 name = "agent.spawn"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-swarm"]
+command = [""#, env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-swarm", r#""]
 subjects = ["*"]
 
 [[tools]]
 name = "agent.spawn_poll"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-swarm", "--as", "agent.spawn_poll"]
+command = [""#, env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-swarm", r#"", "--as", "agent.spawn_poll"]
 subjects = ["*"]
 
 [[models]]
 name = "scripted"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-scripted"), r#""]
 default = true
 subjects = ["*"]
-"#;
+"#);
     std::fs::write(dir.join("hairspring.toml"), toml).unwrap();
     // Call 1: delegate. Everything after: prompt-aware fallback.
     std::fs::write(

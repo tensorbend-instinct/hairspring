@@ -33,10 +33,10 @@ fn main() {
                 .map(std::string::ToString::to_string);
             let content =
                 feedback_fix.unwrap_or_else(|| BLIND[(attempt - 1) % BLIND.len()].to_string());
-            let completion = serde_json::json!({
+            let completion = if params["tools"].as_array().is_some_and(|t| t.iter().any(|x| x["function"]["name"] == "verdict.submit" || x["function"]["name"] == "verdict__submit")) { serde_json::json!({"tool":"verdict.submit","args":{"refuted":false,"findings":[],"blocking":"none"}}) } else { serde_json::json!({
                 "tool": "answer.write",
                 "args": {"path": path, "content": content}
-            });
+            }) };
             serde_json::json!({
                 "completion": completion.to_string(),
                 "input_tokens": prompt.len() / 4 + 1,

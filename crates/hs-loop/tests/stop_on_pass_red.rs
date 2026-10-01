@@ -44,6 +44,7 @@ fn mk_ws() -> tempfile::TempDir {
 
 #[test]
 fn checker_pass_terminates_even_when_goal_evaluator_is_red() {
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     // FIXME: Audit that the environment access only happens in single-threaded code.
     unsafe { std::env::remove_var("HS_SWE_ANSWER") };
     let dir = tempfile::tempdir().unwrap();

@@ -96,6 +96,7 @@ pub struct RefuteOutcome {
     pub output_tokens: u64,
     pub cost_micros: u64,
     pub trace: Vec<Value>,
+    pub elapsed_ms: u64,
 }
 
 /// Lenient verdict parse: first JSON object in the text carrying a bool
@@ -155,6 +156,7 @@ pub fn refute(
                 output_tokens: o,
                 cost_micros: c,
                 trace,
+                elapsed_ms: started.elapsed().as_millis() as u64,
             };
         }};
     }
@@ -177,7 +179,22 @@ pub fn refute(
             }));
         }
         steps += 1;
-        let reply = match model.step(&messages) {
+        let call_id = uuid::Uuid::new_v4();
+        let call_started = Instant::now();
+        let before = model.usage();
+        trace.push(json!({"kind":"model_start", "call_id":call_id, "step":steps,
+            "ts_wall_ms": std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64}));
+        let result = model.step(&messages);
+        let after = model.usage();
+        trace.push(json!({"kind":"model_end", "call_id":call_id, "step":steps,
+            "latency_ms":call_started.elapsed().as_millis() as u64,
+            "input_tokens":after.0.saturating_sub(before.0),
+            "output_tokens":after.1.saturating_sub(before.1),
+            "cost_micros":after.2.saturating_sub(before.2),
+            "status":if result.is_ok() {"ok"} else {"error"},
+            "error":result.as_ref().err(),
+        }));
+        let reply = match result {
             Ok(r) => r,
             Err(e) => out!(false, format!("critic model error: {e} - fail-closed")),
         };
@@ -236,7 +253,13 @@ pub fn refute(
                 messages.push(json!({"role": "assistant", "content": null, "tool_calls": tcs}));
                 for (id, cmd) in &calls {
                     trace.push(json!({"kind": "term_exec", "command": cmd}));
+                    let tool_call_id = uuid::Uuid::new_v4();
+                    let tool_started = Instant::now();
+                    trace.push(json!({"kind":"tool_start", "call_id":tool_call_id, "parent_call_id":call_id, "command":cmd}));
                     let o = crate::termexec::run_readonly(workdir, cmd, cfg.cmd_timeout_secs);
+                    trace.push(json!({"kind":"tool_end", "call_id":tool_call_id, "parent_call_id":call_id,
+                        "latency_ms":tool_started.elapsed().as_millis() as u64,
+                        "status":if o["exit_code"].as_i64() == Some(0) {"ok"} else {"error"}}));
                     let result_text = tail(
                         &format!(
                             "exit {}\nstdout:\n{}\nstderr:\n{}",
@@ -306,10 +329,11 @@ pub fn checker_gate(ws: &Path) -> Value {
     if outcome.passed {
         json!({
             "passed": true, "error": "",
-            "critic": {"steps": outcome.steps, "cost_micros": outcome.cost_micros, "reason": outcome.reason},
+            "critic": {"steps": outcome.steps, "cost_micros": outcome.cost_micros, "reason": outcome.reason, "elapsed_ms": outcome.elapsed_ms, "trace": outcome.trace},
         })
     } else {
-        json!({"passed": false, "error": format!("independent critic: {}", outcome.reason)})
+        json!({"passed": false, "error": format!("independent critic: {}", outcome.reason),
+            "critic": {"steps":outcome.steps, "cost_micros":outcome.cost_micros, "elapsed_ms":outcome.elapsed_ms, "trace":outcome.trace}})
     }
 }
 

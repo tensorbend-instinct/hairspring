@@ -43,7 +43,7 @@ fn scripted_session(
 
 const SCRIPTED_MODEL: &str = concat!(
     "[[models]]\nname = \"scripted\"\n",
-    "command = [\"/home/sandbox/recovery/hairspring/target/debug/hs-plugin-scripted\"]\ndefault = true\n",
+    "command = [\"", env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-scripted\"]\ndefault = true\n",
 );
 
 /// The bug Eric hit: /caps budget 100 on one session, $10 kill on the
@@ -67,7 +67,7 @@ fn whole_dollar_budget_survives_restart() {
     // wrote before this fix) reads back too.
     let s2 = scripted_session(
         &dir2,
-        "[run]\nbudget_usd = 100\n\n[[models]]\nname = \"scripted\"\ncommand = [\"/home/sandbox/recovery/hairspring/target/debug/hs-plugin-scripted\"]\ndefault = true\n",
+        concat!("[run]\nbudget_usd = 100\n\n[[models]]\nname = \"scripted\"\ncommand = [\"", env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-scripted\"]\ndefault = true\n"),
         None,
     );
     assert_eq!(

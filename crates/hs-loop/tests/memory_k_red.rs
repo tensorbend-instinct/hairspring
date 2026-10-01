@@ -115,6 +115,7 @@ fn run(rig_dir: &std::path::Path, log: &std::path::Path, db: Option<&std::path::
 
 #[test]
 fn k1_memory_recall_serves_k_records_to_the_model() {
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
@@ -157,6 +158,7 @@ fn k1_memory_recall_serves_k_records_to_the_model() {
 
 #[test]
 fn k1b_memory_recall_without_store_is_a_clean_error() {
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
@@ -183,6 +185,7 @@ fn k1b_memory_recall_without_store_is_a_clean_error() {
 
 #[test]
 fn k2_prefetch_booked_with_hit_and_token_cost() {
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
@@ -214,6 +217,7 @@ fn k2_prefetch_booked_with_hit_and_token_cost() {
 
 #[test]
 fn k3_predictor_retires_below_the_cost_crossover() {
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
@@ -276,6 +280,7 @@ fn k4_memory_recall_schema_shape() {
 
 #[test]
 fn k6_within_session_distillation_is_mission_scoped() {
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     // B1 close-distillation defect (live TUI proof, 2026-09-09): extraction
     // read the WHOLE shared session stream, so mission N's record

@@ -50,6 +50,7 @@ default = true
         ),
     )
     .unwrap();
+    unsafe {std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1")};
     let kernel = hs_kernel::Kernel::load(&config).unwrap();
     InnerLoop::new(kernel, log, true, max_steps).unwrap()
 }
@@ -61,8 +62,8 @@ fn write_script(dir: &std::path::Path, lines: &[serde_json::Value]) -> std::path
         lines
             .iter()
             .map(std::string::ToString::to_string)
-            .collect::<Vec<_>>()
-            .join("\n"),
+            .chain(std::iter::once(r#"{"tool":"verdict.submit","args":{"refuted":false,"findings":[],"blocking":"none"}}"#.to_string()))
+            .collect::<Vec<_>>().join("\n"),
     )
     .unwrap();
     p

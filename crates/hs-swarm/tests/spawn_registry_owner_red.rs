@@ -16,7 +16,7 @@ use std::io::Write;
 use std::process::{Command, Stdio};
 
 fn poll_once(dir: &std::path::Path, cid: &str) -> String {
-    let mut p = Command::new("/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-swarm")
+    let mut p = Command::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-swarm"))
         .args(["--as", "agent.spawn_poll"])
         .env("HS_SWARM_LOG_ROOT", dir)
         .stdin(Stdio::piped())

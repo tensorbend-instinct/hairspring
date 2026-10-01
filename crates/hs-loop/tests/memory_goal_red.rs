@@ -81,6 +81,7 @@ fn model_prompts(log: &std::path::Path, stream: uuid::Uuid) -> Vec<String> {
 
 #[test]
 fn t6_memory_roundtrip_across_missions() {
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     // B1/v5 contract (cut #10): K is consulted by the model through the
     // memory.recall tool - the loop NEVER pre-passes top-k records into
     // prompts - and EVERY mission close distills its trajectory into K
@@ -195,6 +196,7 @@ fn mk_ws(dir: &std::path::Path) -> std::path::PathBuf {
 
 #[test]
 fn t7_goal_evaluator_stops_green_refuses_red() {
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let ws = mk_ws(dir.path());

@@ -15,33 +15,33 @@ fn r1_shipped_tb_rig_passes_a_mission_end_to_end() {
     std::fs::create_dir_all(&dir).unwrap();
     // Mirror of hairspring.example.toml with debug-binary paths (the
     // shipped file's @PREFIX@ becomes the install prefix at install).
-    let toml = r#"
+    let toml = concat!(r#"
 [[tools]]
 name = "term.exec"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-termexec"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-termexec"), r#""]
 subjects = ["*"]
 
 [[tools]]
 name = "notes.scratch"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-notescratch"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-notescratch"), r#""]
 subjects = ["*"]
 
 [[tools]]
 name = "answer.submit"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-answersubmit"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-answersubmit"), r#""]
 subjects = ["*"]
 
 [[tools]]
 name = "checker.run"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-selfcheck"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-selfcheck"), r#""]
 subjects = ["*"]
 
 [[models]]
 name = "scripted"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-scripted"), r#""]
 default = true
 subjects = ["*"]
-"#;
+"#);
     std::fs::write(dir.join("hairspring.toml"), toml).unwrap();
     // The agent declares its own check on the live machine (direct
     // mode: .hs/checks in the workdir), then submits.

@@ -15,28 +15,28 @@ use hs_loop::repl::{load_session, ReplSession};
 
 fn write_fixture(dir: &std::path::Path) {
     std::fs::create_dir_all(dir).unwrap();
-    let toml = r#"
+    let toml = concat!(r#"
 [[tools]]
 name = "answer.submit"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-answersubmit"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-answersubmit"), r#""]
 subjects = ["*"]
 
 [[tools]]
 name = "checker.run"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-liechecker"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-liechecker"), r#""]
 subjects = ["*"]
 
 [[models]]
 name = "scripted"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-scripted"), r#""]
 default = true
 subjects = ["*"]
 
 [[models]]
 name = "scripted-b"
-command = ["/bin/sh", "-c", "HS_SCRIPTED_NAME=scripted-b exec /mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted"]
+command = ["/bin/sh", "-c", "HS_SCRIPTED_NAME=scripted-b exec "#, env!("CARGO_BIN_EXE_hs-plugin-scripted"), r#""]
 subjects = ["*"]
-"#;
+"#);
     std::fs::write(dir.join("hairspring.toml"), toml).unwrap();
     // One sacrificial line: the kernel probes the model plugin at load.
     std::fs::write(

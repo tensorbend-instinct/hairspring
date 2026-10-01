@@ -58,7 +58,7 @@ fn model_pick_persists_and_arms_on_load() {
         &cfg,
         concat!(
             "[[models]]\nname = \"other\"\ncommand = [\"/bin/nope\"]\n\n",
-            "[[models]]\nname = \"scripted\"\ncommand = [\"/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted\"]\ndefault = true\n",
+            "[[models]]\nname = \"scripted\"\ncommand = [\"", env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-scripted\"]\ndefault = true\n",
         ),
     )
     .unwrap();

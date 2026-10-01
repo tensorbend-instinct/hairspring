@@ -150,6 +150,7 @@ fn g2_close_distills_into_world_as_validated_not_installed() {
 /// model and world.observe books reuse and reports reuse_count.
 #[test]
 fn g3_dispatch_carries_parent_version_and_reuse_count() {
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     let dir = std::env::temp_dir().join(format!("hsplanes-g3-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     let log = dir.join("log");

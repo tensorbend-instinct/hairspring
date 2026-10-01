@@ -403,3 +403,17 @@ fn critic_parse_retry_twice_unparseable_fails_closed() {
     assert!(!r.passed, "two consecutive unparseable verdicts must still fail closed");
     assert!(r.reason.contains("unparseable"), "honest reason: {}", r.reason);
 }
+
+#[test]
+fn critic_records_paired_model_scopes_even_on_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut m = hs_loop::critic::ScriptedCritic::failing("test transport error");
+    let r = hs_loop::critic::refute(dir.path(), "x", "true", &Default::default(), &mut m);
+    let starts: Vec<_> = r.trace.iter().filter(|v| v["kind"] == "model_start").collect();
+    let ends: Vec<_> = r.trace.iter().filter(|v| v["kind"] == "model_end").collect();
+    assert_eq!(starts.len(),1);
+    assert_eq!(ends.len(),1);
+    assert_eq!(starts[0]["call_id"], ends[0]["call_id"]);
+    assert_eq!(ends[0]["status"], "error");
+    assert!(ends[0]["latency_ms"].is_number());
+}

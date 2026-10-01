@@ -13,7 +13,7 @@ const CID: &str = "00000000-0000-0000-0000-000000000042";
 const PID: &str = "00000000-0000-0000-0000-000000000001";
 
 fn spawn_once(dir: &std::path::Path) -> String {
-    let mut p = Command::new("/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-swarm")
+    let mut p = Command::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-swarm"))
         .env("HS_SWARM_LOG_ROOT", dir)
         .env("HS_SWARM_MAX_CHILDREN", "1")
         .env("HS_SWARM_CONFIG", dir.join("hairspring.toml"))

@@ -74,7 +74,7 @@ fn persisted_session(
             "[run]\nmax_steps = 70\nwall_secs = 900\nbudget_usd = 2.5\n\n",
             "[critic]\nmax_steps = 24\nwall_secs = 300\nbudget_micros = 250000\n\n",
             "[[models]]\nname = \"scripted\"\n",
-            "command = [\"/home/sandbox/recovery/hairspring/target/debug/hs-plugin-scripted\"]\ndefault = true\n",
+            "command = [\"", env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-scripted\"]\ndefault = true\n",
         ),
     )
     .unwrap();

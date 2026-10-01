@@ -25,43 +25,43 @@ static SERIAL: Mutex<()> = Mutex::new(());
 
 fn write_fixture(dir: &std::path::Path) {
     std::fs::create_dir_all(dir).unwrap();
-    let toml = r#"
+    let toml = concat!(r#"
 [[tools]]
 name = "answer.submit"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-answersubmit"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-answersubmit"), r#""]
 subjects = ["*"]
 
 [[tools]]
 name = "checker.run"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-liechecker"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-liechecker"), r#""]
 subjects = ["*"]
 
 [[tools]]
 name = "agent.spawn"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-swarm"]
+command = [""#, env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-swarm", r#""]
 subjects = ["*"]
 
 [[tools]]
 name = "agent.spawn_poll"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-swarm", "--as", "agent.spawn_poll"]
+command = [""#, env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-swarm", r#"", "--as", "agent.spawn_poll"]
 subjects = ["*"]
 
 [[models]]
 name = "scripted-parent"
-command = ["/bin/sh", "-c", "HS_SCRIPTED_NAME=scripted-parent HS_SEQMODEL_DELAY_MS=2000 exec /mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted"]
+command = ["/bin/sh", "-c", "HS_SCRIPTED_NAME=scripted-parent HS_SEQMODEL_DELAY_MS=2000 exec "#, env!("CARGO_BIN_EXE_hs-plugin-scripted"), r#""]
 default = true
 subjects = ["*"]
 
 [[models]]
 name = "scripted-fast"
-command = ["/bin/sh", "-c", "HS_SCRIPTED_NAME=scripted-fast HS_SEQMODEL_DELAY_MS=300 exec /mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted"]
+command = ["/bin/sh", "-c", "HS_SCRIPTED_NAME=scripted-fast HS_SEQMODEL_DELAY_MS=300 exec "#, env!("CARGO_BIN_EXE_hs-plugin-scripted"), r#""]
 subjects = ["*"]
 
 [[models]]
 name = "scripted-slow"
-command = ["/bin/sh", "-c", "HS_SCRIPTED_NAME=scripted-slow HS_SEQMODEL_DELAY_MS=2000 exec /mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted"]
+command = ["/bin/sh", "-c", "HS_SCRIPTED_NAME=scripted-slow HS_SEQMODEL_DELAY_MS=2000 exec "#, env!("CARGO_BIN_EXE_hs-plugin-scripted"), r#""]
 subjects = ["*"]
-"#;
+"#);
     std::fs::write(dir.join("hairspring.toml"), toml).unwrap();
     // Parent (2s/call pacing): spawn slow, spawn fast, one poll on a
     // bogus id that just buys a step, then prompt-aware submit.
@@ -222,38 +222,38 @@ fn r2_wedged_child_cannot_hang_the_join_past_the_wall() {
     let dir = std::env::temp_dir().join("swarm-async-r2");
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
-    let toml = r#"
+    let toml = concat!(r#"
 [[tools]]
 name = "answer.submit"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-answersubmit"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-answersubmit"), r#""]
 subjects = ["*"]
 
 [[tools]]
 name = "checker.run"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-liechecker"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-liechecker"), r#""]
 subjects = ["*"]
 
 [[tools]]
 name = "agent.spawn"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-swarm"]
+command = [""#, env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-swarm", r#""]
 subjects = ["*"]
 
 [[tools]]
 name = "agent.spawn_poll"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-swarm", "--as", "agent.spawn_poll"]
+command = [""#, env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-swarm", r#"", "--as", "agent.spawn_poll"]
 subjects = ["*"]
 
 [[models]]
 name = "scripted"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-scripted"), r#""]
 default = true
 subjects = ["*"]
 
 [[models]]
 name = "wedged"
-command = ["/bin/sh", "-c", "HS_SCRIPTED_NAME=wedged HS_SEQMODEL_DELAY_MS=30000 exec /mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted"]
+command = ["/bin/sh", "-c", "HS_SCRIPTED_NAME=wedged HS_SEQMODEL_DELAY_MS=30000 exec "#, env!("CARGO_BIN_EXE_hs-plugin-scripted"), r#""]
 subjects = ["*"]
-"#;
+"#);
     std::fs::write(dir.join("hairspring.toml"), toml).unwrap();
     // The wedge is a scripted plugin with a 30s per-call delay: it
     // handshakes at kernel load like any model, then hangs INSIDE
@@ -329,38 +329,38 @@ fn r3_lost_child_is_consumed_not_wall_ground() {
     let dir = std::env::temp_dir().join("swarm-async-r3");
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
-    let toml = r#"
+    let toml = concat!(r#"
 [[tools]]
 name = "answer.submit"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-answersubmit"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-answersubmit"), r#""]
 subjects = ["*"]
 
 [[tools]]
 name = "checker.run"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-liechecker"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-liechecker"), r#""]
 subjects = ["*"]
 
 [[tools]]
 name = "agent.spawn"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-swarm"]
+command = [""#, env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-swarm", r#""]
 subjects = ["*"]
 
 [[tools]]
 name = "agent.spawn_poll"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-swarm", "--as", "agent.spawn_poll"]
+command = [""#, env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-swarm", r#"", "--as", "agent.spawn_poll"]
 subjects = ["*"]
 
 [[models]]
 name = "scripted"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-scripted"), r#""]
 default = true
 subjects = ["*"]
 
 [[models]]
 name = "slow"
-command = ["/bin/sh", "-c", "HS_SCRIPTED_NAME=slow HS_SEQMODEL_DELAY_MS=15000 exec /mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted"]
+command = ["/bin/sh", "-c", "HS_SCRIPTED_NAME=slow HS_SEQMODEL_DELAY_MS=15000 exec "#, env!("CARGO_BIN_EXE_hs-plugin-scripted"), r#""]
 subjects = ["*"]
-"#;
+"#);
     std::fs::write(dir.join("hairspring.toml"), toml).unwrap();
     std::fs::write(
         dir.join("script.jsonl"),

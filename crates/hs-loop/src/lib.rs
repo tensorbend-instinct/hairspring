@@ -106,7 +106,7 @@ pub struct MissionResult {
     /// (checker green but the verifier refuted every round - NOT a pass:
     /// the close is continuable and the same goal resumes the mission),
     /// "`verifier_malfunction`" (checker green, the audit itself errored
-    /// and never blocked), "`budget_killed`",
+    /// and fails closed), "`budget_killed`",
     /// "`steps_exhausted`", "`harness_error`". A capped or malfunction
     /// close is never byte-identical to an audited one.
     pub outcome: String,
@@ -477,6 +477,8 @@ impl InnerLoop {
     ) -> Result<Self, LoopError> {
         let stream_id = uuid::Uuid::new_v4();
         let writer = StreamWriter::create(log_root, stream_id)?;
+        let mut kernel = kernel;
+        kernel.ensure_trace_log(log_root);
         Ok(InnerLoop {
             kernel,
             writer,
@@ -541,6 +543,8 @@ impl InnerLoop {
         max_steps: u32,
     ) -> Result<Self, LoopError> {
         let outcome = StreamWriter::resume(log_root, stream_id)?;
+        let mut kernel = kernel;
+        kernel.ensure_trace_log(log_root);
         // B1: a resumed/forked stream already holds the parent's mission
         // events; without this floor the first close here would re-distill
         // them into THIS mission's record (same overlap defect class).
@@ -1133,6 +1137,7 @@ impl InnerLoop {
         let started = std::time::Instant::now();
         let done = |output: serde_json::Value| {
             Some(ToolCallOutcome {
+                call_id: uuid::Uuid::new_v4(), start_event_id: uuid::Uuid::nil(),
                 resolved: None,
                 output,
                 latency_ms: u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX),
@@ -1283,6 +1288,7 @@ impl InnerLoop {
                 if let Some(checks) = args["checks"].as_str() {
                     let refused = |e: String| {
                         Some(ToolCallOutcome {
+                call_id: uuid::Uuid::new_v4(), start_event_id: uuid::Uuid::nil(),
                             resolved: None,
                             output: serde_json::json!({"$error": e}),
                             latency_ms: u32::try_from(started.elapsed().as_millis())
@@ -1337,6 +1343,7 @@ impl InnerLoop {
             },
         };
         Some(ToolCallOutcome {
+                call_id: uuid::Uuid::new_v4(), start_event_id: uuid::Uuid::nil(),
             resolved: None,
             output,
             latency_ms: u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX),
@@ -1348,14 +1355,20 @@ impl InnerLoop {
         tool: &str,
         args: &serde_json::Value,
     ) -> Result<ToolCallOutcome, KernelError> {
-        if tool == "memory.recall" {
-            return Ok(self.memory_recall(args));
-        }
-        if let Some(out) = self.world_dispatch(tool, args) {
-            return Ok(out);
-        }
-        if let Some(out) = self.world_artifact_write(tool, args) {
-            return Ok(out);
+        if tool == "memory.recall" || tool.starts_with("world.") || tool == "answer.write" || tool == "answer.submit" {
+            let (call_id, start_event_id) = self.kernel.start_internal_tool(tool, args)?;
+            let internal = if tool == "memory.recall" { Some(self.memory_recall(args)) }
+                else { self.world_dispatch(tool, args).or_else(|| self.world_artifact_write(tool, args)) };
+            if let Some(mut out) = internal {
+                out.call_id = call_id;
+                out.start_event_id = start_event_id;
+                self.kernel.end_internal_tool(tool, args, &out)?;
+                return Ok(out);
+            }
+            // Not an internal route: close this attempted scope before fallback.
+            let out = ToolCallOutcome {call_id, start_event_id, resolved: None, latency_ms: 0,
+                output: serde_json::json!({"error":"not an internal tool route"})};
+            self.kernel.end_internal_tool(tool, args, &out)?;
         }
         self.kernel.call_tool("operator", tool, args.clone())
     }
@@ -1372,6 +1385,7 @@ impl InnerLoop {
         let started = std::time::Instant::now();
         if self.memory_store.is_none() {
             return ToolCallOutcome {
+                call_id: uuid::Uuid::new_v4(), start_event_id: uuid::Uuid::nil(),
                 resolved: None,
                 output: serde_json::json!({
                     "error": "memory.recall: no memory store attached to this session"
@@ -1429,6 +1443,7 @@ impl InnerLoop {
             });
         }
         ToolCallOutcome {
+                call_id: uuid::Uuid::new_v4(), start_event_id: uuid::Uuid::nil(),
             resolved: None,
             output,
             latency_ms: u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX),
@@ -1828,6 +1843,11 @@ impl InnerLoop {
         // tool.call in this mission carries the mission's run dir, so
         // policy.propose_prompt records into <log>/work/<mission>/ with no
         // env var on the live path.
+        let trace_root = self.writer.append(EventBuilder::new(EventKind::Observation)
+            .payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({
+                "record_type": "mission_start", "mission": mission,
+            })).expect("json serializes"))))?;
+        self.kernel.set_trace_parent(trace_root.event_id);
         self.kernel
             .set_tool_run_dir(Some(self.log_root.join("work").join(mission)));
         self.mission_started = Some(std::time::Instant::now());
@@ -1905,6 +1925,7 @@ impl InnerLoop {
         // display and pacing decision below still sees the Option.
         let step_range_cap = self.max_steps.unwrap_or(u32::MAX);
         for step in (steps + 1)..=step_range_cap {
+            self.kernel.set_trace_parent(trace_root.event_id);
             if let Some(sink) = self.ui_sink.as_mut() {
                 sink(uipaint::UiEvent::Step {
                     step,
@@ -2094,7 +2115,7 @@ impl InnerLoop {
                                         EventBuilder::new(EventKind::ModelCall)
                                             .payload(Payload::Inline(
                                                 serde_json::to_vec(&serde_json::json!({
-                                                    "model": out.model, "why": "distill",
+                                                    "call_id": out.call_id, "record_type": "mirror", "model": out.model, "why": "distill",
                                                     "prompt": distill_prompt, "completion": out.completion,
                                                     "input_tokens": out.input_tokens,
                                                     "output_tokens": out.output_tokens,
@@ -2106,7 +2127,7 @@ impl InnerLoop {
                                                 }))
                                                 .expect("json! values serialize"),
                                             ))
-                                            .latency_ms(out.latency_ms)
+                                            .parent(out.start_event_id).latency_ms(out.latency_ms)
                                             .cost_usd_micros(out.cost_usd_micros),
                                     );
                                 distilled = Some(out.completion);
@@ -2275,7 +2296,7 @@ impl InnerLoop {
                 EventBuilder::new(EventKind::ModelCall)
                     .payload(Payload::Inline(
                         serde_json::to_vec(&serde_json::json!({
-                            "model": out.model, "messages": messages, "completion": out.completion,
+                            "call_id": out.call_id, "record_type": "mirror", "model": out.model, "messages": messages, "completion": out.completion,
                             "input_tokens": out.input_tokens, "output_tokens": out.output_tokens,
                             "reasoning_tokens": out.reasoning_tokens,
                             "reasoning_content": out.reasoning_content,
@@ -2286,7 +2307,7 @@ impl InnerLoop {
                         }))
                         .expect("json! values serialize"),
                     ))
-                    .latency_ms(out.latency_ms)
+                    .parent(out.start_event_id).latency_ms(out.latency_ms)
                     .cost_usd_micros(out.cost_usd_micros),
             )?;
             if injected {
@@ -2455,6 +2476,7 @@ impl InnerLoop {
                             args_summary: uipaint::summarize_args(&args),
                         });
                     }
+                    self.kernel.set_trace_parent(out.start_event_id);
                     match self.dispatch_tool(&tool, &args) {
                     Ok(tool_out) => {
                         if let Some(sink) = self.ui_sink.as_mut() {
@@ -2528,7 +2550,7 @@ impl InnerLoop {
                         // term.exec / term_exec shapes).
                         let effective = tool_out.resolved.clone().unwrap_or_else(|| tool.clone());
                         let mut rec = serde_json::json!({
-                            "plugin": effective, "args": args, "result": tool_out.output,
+                            "call_id": tool_out.call_id, "record_type": "mirror", "plugin": effective, "args": args, "result": tool_out.output,
                         });
                         if effective != tool {
                             rec["requested_as"] = serde_json::json!(tool);
@@ -2538,7 +2560,7 @@ impl InnerLoop {
                                 .payload(Payload::Inline(
                                     serde_json::to_vec(&rec).expect("json! values serialize"),
                                 ))
-                                .latency_ms(tool_out.latency_ms),
+                                .parent(tool_out.start_event_id).latency_ms(tool_out.latency_ms),
                         )?;
                         // D2: exact duplicate (tool, args) calls get flagged
                         // with the prior seq - an explicit, correctable
@@ -2775,7 +2797,7 @@ impl InnerLoop {
                 // Item 3: adversarial verifier veto (the verifier design).
                 // The checker is the ground-truth floor; the verifier runs
                 // after green and can only send the work back - never pass
-                // on its own authority. Capped rounds; malfunction never blocks.
+                // on its own authority. Capped rounds; malfunction fails closed.
                 const VERIFIER_MAX_ROUNDS: u32 = 3;
                 // Feedback integrity F2/F3: how this green resolves is
                 // decided per branch and labeled on the result - a capped
@@ -2829,7 +2851,7 @@ impl InnerLoop {
                             self.writer.append(
                                 EventBuilder::new(EventKind::ModelCall).payload(Payload::Inline(
                                     serde_json::to_vec(&serde_json::json!({
-                                        "role": "verifier", "round": round,
+                                        "call_id": vout.call_id, "record_type": "mirror", "role": "verifier", "round": round, "model": vout.model,
                                         "prompt": vprompt, "tools": verdict_tools,
                                         "completion": vout.completion,
                                         "reasoning_tokens": vout.reasoning_tokens,
@@ -2846,7 +2868,7 @@ impl InnerLoop {
                                         "conservative_cost_usd_micros": vout.conservative_cost_usd_micros,
                                     }))
                                     .expect("json! values serialize"),
-                                )),
+                                )).parent(vout.start_event_id).latency_ms(vout.latency_ms).cost_usd_micros(vout.cost_usd_micros),
                             )?;
                             // Native verdict (user directive 2026-09-05):
                             // the completion is a verdict.submit tool call;
@@ -2974,6 +2996,20 @@ impl InnerLoop {
                 .saturating_sub(self.mission_conservative_start),
                         harness_error: None,
                         outcome: "ratchet_capped".to_string(),
+                    });
+                }
+                // A green exact checker is necessary, not sufficient. A failed
+                // audit cannot mint completion, including malformed tool replies.
+                if outcome == "verifier_malfunction" {
+                    self.close_goal(mission, false, outcome, steps, model_calls)?;
+                    self.checkpoint(steps, model_calls);
+                    return Ok(MissionResult {
+                        passed: false, steps, model_calls, stream_id: self.stream_id,
+                        answer_path, budget_killed: false,
+                        cost_micros: self.cost_total_micros.saturating_sub(self.mission_cost_start),
+                        conservative_cost_micros: self.conservative_cost_total_micros
+                            .saturating_sub(self.mission_conservative_start),
+                        harness_error: None, outcome: outcome.to_string(),
                     });
                 }
                 // Async delegation: join every running child before

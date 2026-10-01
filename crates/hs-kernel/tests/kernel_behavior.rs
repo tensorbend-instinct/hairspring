@@ -372,3 +372,26 @@ fn child_pids() -> Vec<u32> {
         (ppid == me).then_some(pid)
     }).collect()
 }
+
+#[test]
+fn lifecycle_pairs_have_ids_parents_and_error_ends() {
+    let _guard = TEST_LOCK.lock().unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let log = tempfile::tempdir().unwrap();
+    let path = write_config(dir.path(), &base_config());
+    let k = Kernel::load_with_log(&path, log.path()).unwrap();
+    k.call_model("anyone", None, "trace me").unwrap();
+    k.call_tool("anyone", "echo", serde_json::json!({"text":"x"})).unwrap();
+    let events = read_only_stream(log.path());
+    let starts: Vec<_> = events.iter().filter(|e| {
+        let v: serde_json::Value = serde_json::from_slice(&match &e.payload {hs_core::Payload::Inline(b)=>b.clone(), _=>vec![]}).unwrap();
+        v["stage"] == "dispatch"
+    }).collect();
+    assert_eq!(starts.len(), 2);
+    for start in starts {
+        let v: serde_json::Value = serde_json::from_slice(match &start.payload {hs_core::Payload::Inline(b)=>b, _=>panic!()}).unwrap();
+        assert!(v["call_id"].is_string(), "durable start needs identity");
+        let ends: Vec<_> = events.iter().filter(|e| e.parent_event_id == Some(start.event_id)).collect();
+        assert_eq!(ends.len(), 1, "one terminal record per dispatch");
+    }
+}

@@ -133,20 +133,20 @@ fn mission_emits_step_and_reasoning_events() {
     .unwrap();
     std::fs::write(
         dir.join("hairspring.toml"),
-        r#"
+        concat!(r#"
 [[tools]]
 name = "answer.write"
-command = ["/home/sandbox/recovery/hairspring/target/debug/hs-plugin-answer"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-answer"), r#""]
 subjects = ["*"]
 [[tools]]
 name = "checker.run"
-command = ["/home/sandbox/recovery/hairspring/target/debug/hs-plugin-liechecker"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-liechecker"), r#""]
 subjects = ["*"]
 [[models]]
 name = "scripted"
-command = ["/home/sandbox/recovery/hairspring/target/debug/hs-plugin-scripted"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-scripted"), r#""]
 default = true
-"#,
+"#),
     )
     .unwrap();
     unsafe {

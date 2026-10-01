@@ -16,23 +16,23 @@ use hs_loop::repl::load_session;
 
 fn write_fixture(dir: &std::path::Path) {
     std::fs::create_dir_all(dir).unwrap();
-    let toml = r#"
+    let toml = concat!(r#"
 [[tools]]
 name = "answer.submit"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-answersubmit"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-answersubmit"), r#""]
 subjects = ["*"]
 
 [[tools]]
 name = "checker.run"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-liechecker"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-liechecker"), r#""]
 subjects = ["*"]
 
 [[models]]
 name = "scripted"
-command = ["/bin/sh", "-c", "HS_SEQMODEL_DELAY_MS=300 exec /mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted"]
+command = ["/bin/sh", "-c", "HS_SEQMODEL_DELAY_MS=300 exec "#, env!("CARGO_BIN_EXE_hs-plugin-scripted"), r#""]
 default = true
 subjects = ["*"]
-"#;
+"#);
     std::fs::write(dir.join("hairspring.toml"), toml).unwrap();
     // task-1: wrong answer first (mission A keeps running, inbox drains
     // mid-mission), then the secret; verifier sacrificials after each

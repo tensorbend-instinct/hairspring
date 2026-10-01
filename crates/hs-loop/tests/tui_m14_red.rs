@@ -124,20 +124,20 @@ fn r3_model_call_payload_records_cost() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(dir.join("script.jsonl"), "alpha\nbeta\n").unwrap();
-    std::fs::write(dir.join("hairspring.toml"), r#"
+    std::fs::write(dir.join("hairspring.toml"), concat!(r#"
 [[tools]]
 name = "answer.write"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-answer"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-answer"), r#""]
 subjects = ["*"]
 [[tools]]
 name = "checker.run"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-liechecker"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-liechecker"), r#""]
 subjects = ["*"]
 [[models]]
 name = "scripted"
-command = ["/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted"]
+command = [""#, env!("CARGO_BIN_EXE_hs-plugin-scripted"), r#""]
 default = true
-"#).unwrap();
+"#)).unwrap();
     unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", dir.join("script.jsonl")); }
     let mut s = hs_loop::repl::load_session(
         &dir.join("hairspring.toml"), &dir.join("run"), false, Some(2), None, None,

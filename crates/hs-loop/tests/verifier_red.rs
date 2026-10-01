@@ -1,6 +1,6 @@
 //! Item 3 (Eric's verifier slate, the verifier design): the
 //! adversarial verifier - a post-checker-green veto, one model.call, capped
-//! rounds, malfunction never blocks. Parent bar: dishonest fixtures
+//! rounds, malfunction fails closed. Parent bar: dishonest fixtures
 //! (fabricated claim, hacked test evidence, unverified submission) must all
 //! be refuted; honest work must pass; the ratchet cap must hold.
 
@@ -382,10 +382,9 @@ fn lying_checker_green_is_vetoed_when_the_answer_is_wrong() {
     assert_eq!(std::fs::read_to_string(&answer).unwrap(), "TOKEN-23-SECRET");
 }
 
-/// A malfunctioning verifier never blocks: an unparseable verdict books
-/// `verifier_error` and the checker verdict stands.
+/// A malfunctioning verifier books an error and fails closed.
 #[test]
-fn malformed_verdict_books_error_and_the_checker_stands() {
+fn malformed_verdict_books_error_and_never_banks_a_pass() {
     let _g = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().unwrap();
     let log = tempfile::tempdir().unwrap();
@@ -400,7 +399,7 @@ fn malformed_verdict_books_error_and_the_checker_stands() {
     let kernel = hs_kernel::Kernel::load(&config).unwrap();
     let mut l = InnerLoop::new(kernel, log.path(), true, 4).unwrap();
     let r = l.run_mission("task-20").unwrap();
-    assert!(r.passed, "a broken verifier cannot block good work: {r:?}");
+    assert!(!r.passed, "a broken verifier cannot bank an audited pass: {r:?}");
     let ev = events_of(log.path(), r.stream_id);
     assert!(
         ev.iter()

@@ -107,6 +107,8 @@ struct ConfigFile {
 
 #[derive(Debug)]
 pub struct ToolCallOutcome {
+    pub call_id: uuid::Uuid,
+    pub start_event_id: uuid::Uuid,
     pub output: serde_json::Value,
     pub latency_ms: u32,
     /// D2 (dance #94): Some(canonical) when the caller's name was a
@@ -116,6 +118,8 @@ pub struct ToolCallOutcome {
 }
 #[derive(Debug)]
 pub struct ModelOutcome {
+    pub call_id: uuid::Uuid,
+    pub start_event_id: uuid::Uuid,
     /// Provider-reported prompt-cache hits (0 when the provider/fixture
     /// does not report any); observability for the KV-cache design.
     pub completion: String,
@@ -415,6 +419,7 @@ pub struct Kernel {
     /// into the mission's own directory). Additive on the wire - plugins
     /// that read only "args" are unaffected. None outside a mission.
     tool_run_dir: RefCell<Option<PathBuf>>,
+    trace_parent: RefCell<Option<uuid::Uuid>>,
 }
 
 impl Kernel {
@@ -459,6 +464,7 @@ impl Kernel {
             stream_id: RefCell::new(None),
             delta_sink: RefCell::new(None),
             tool_run_dir: RefCell::new(None),
+            trace_parent: RefCell::new(None),
             lenient_preflight,
         };
         k.apply_config(parsed)?;
@@ -669,9 +675,12 @@ impl Kernel {
         // Dispatch-side record: the stream must name the in-flight plugin
         // BEFORE the call is awaited, so a wedged call is diagnosable while
         // it is wedged (conan-17302 read as total silence for 19 min).
-        self.record(
+        let call_id = uuid::Uuid::new_v4();
+        let start_event_id = self.record(
             EventKind::Observation,
             serde_json::json!({
+                "call_id": call_id, "record_type": "start",
+                "parent_event_id": *self.trace_parent.borrow(),
                 "plugin": name, "stage": "dispatch", "method": "tool.call", "args": args.clone(),
             }),
             0,
@@ -698,6 +707,7 @@ impl Kernel {
                 self.record(
                     EventKind::ToolCall,
                     serde_json::json!({
+                        "call_id": call_id, "parent_event_id": start_event_id, "record_type": "end", "status": "ok",
                         "plugin": name, "args": args, "result": r,
                     }),
                     latency_ms,
@@ -705,6 +715,7 @@ impl Kernel {
                 )?;
                 self.fire_rails("call.post_tool", subject, name, &r);
                 Ok(ToolCallOutcome {
+                    call_id, start_event_id,
                     output: r,
                     latency_ms,
                     resolved: (resolved != orig_name).then_some(resolved.clone()),
@@ -714,6 +725,7 @@ impl Kernel {
                 self.record(
                     EventKind::Observation,
                     serde_json::json!({
+                        "call_id": call_id, "parent_event_id": start_event_id, "record_type": "end", "status": "error",
                         "plugin": name, "error": e.to_string(), "stage": "tool.call",
                     }),
                     latency_ms,
@@ -816,9 +828,12 @@ impl Kernel {
             &name,
             &serde_json::json!({"prompt": prompt}),
         );
-        self.record(
+        let call_id = uuid::Uuid::new_v4();
+        let start_event_id = self.record(
             EventKind::Observation,
             serde_json::json!({
+                "call_id": call_id, "record_type": "start",
+                "parent_event_id": *self.trace_parent.borrow(),
                 "plugin": name, "stage": "dispatch", "method": "model.call", "prompt": prompt,
             }),
             0,
@@ -844,8 +859,19 @@ impl Kernel {
                 .call("model.call", params, &mut sink_opt)
         };
         let latency_ms = t0.elapsed().as_millis() as u32;
-        let r = result?;
+        let r = match result {
+            Ok(r) => r,
+            Err(e) => {
+                self.record(EventKind::Observation, serde_json::json!({
+                    "call_id": call_id, "parent_event_id": start_event_id,
+                    "record_type": "end", "status": "error", "method": "model.call",
+                    "plugin": name, "error": e.to_string(),
+                }), latency_ms, 0)?;
+                return Err(e);
+            }
+        };
         let out = ModelOutcome {
+            call_id, start_event_id,
             completion: r["completion"].as_str().unwrap_or("").to_string(),
             input_tokens: r["input_tokens"].as_u64().unwrap_or(0),
             output_tokens: r["output_tokens"].as_u64().unwrap_or(0),
@@ -862,6 +888,7 @@ impl Kernel {
         self.record(
             EventKind::ModelCall,
             serde_json::json!({
+                "call_id": call_id, "parent_event_id": start_event_id, "record_type": "end", "status": "ok",
                 "model": name, "prompt": prompt, "completion": out.completion,
                 "input_tokens": out.input_tokens, "output_tokens": out.output_tokens,
                 "reasoning_tokens": out.reasoning_tokens,
@@ -936,9 +963,12 @@ impl Kernel {
             &name,
             &serde_json::json!({"messages": messages}),
         );
-        self.record(
+        let call_id = uuid::Uuid::new_v4();
+        let start_event_id = self.record(
             EventKind::Observation,
             serde_json::json!({
+                "call_id": call_id, "record_type": "start",
+                "parent_event_id": *self.trace_parent.borrow(),
                 "plugin": name, "stage": "dispatch", "method": "model.call", "messages": messages,
             }),
             0,
@@ -964,8 +994,19 @@ impl Kernel {
                 .call("model.call", params, &mut sink_opt)
         };
         let latency_ms = t0.elapsed().as_millis() as u32;
-        let r = result?;
+        let r = match result {
+            Ok(r) => r,
+            Err(e) => {
+                self.record(EventKind::Observation, serde_json::json!({
+                    "call_id": call_id, "parent_event_id": start_event_id,
+                    "record_type": "end", "status": "error", "method": "model.call",
+                    "plugin": name, "error": e.to_string(),
+                }), latency_ms, 0)?;
+                return Err(e);
+            }
+        };
         let out = ModelOutcome {
+            call_id, start_event_id,
             completion: r["completion"].as_str().unwrap_or("").to_string(),
             input_tokens: r["input_tokens"].as_u64().unwrap_or(0),
             output_tokens: r["output_tokens"].as_u64().unwrap_or(0),
@@ -982,6 +1023,7 @@ impl Kernel {
         self.record(
             EventKind::ModelCall,
             serde_json::json!({
+                "call_id": call_id, "parent_event_id": start_event_id, "record_type": "end", "status": "ok",
                 "model": name, "messages": messages, "completion": out.completion,
                 "input_tokens": out.input_tokens, "output_tokens": out.output_tokens,
                 "reasoning_tokens": out.reasoning_tokens,
@@ -1040,9 +1082,9 @@ impl Kernel {
         body: serde_json::Value,
         latency_ms: u32,
         cost: i64,
-    ) -> Result<(), KernelError> {
+    ) -> Result<uuid::Uuid, KernelError> {
         if self.log_root.is_none() {
-            return Ok(());
+            return Ok(uuid::Uuid::new_v4());
         }
         let mut log = self.log.borrow_mut();
         if log.is_none() {
@@ -1054,15 +1096,49 @@ impl Kernel {
             *self.stream_id.borrow_mut() = Some(sid);
         }
         let w = log.as_mut().expect("assigned above");
-        w.append(
-            EventBuilder::new(kind)
+        let mut builder = EventBuilder::new(kind);
+        if let Some(parent) = body["parent_event_id"].as_str().and_then(|s| uuid::Uuid::parse_str(s).ok()) {
+            builder = builder.parent(parent);
+        }
+        let event = w.append(
+            builder
                 .payload(Payload::Inline(
                     serde_json::to_vec(&body).expect("event bodies serialize"),
                 ))
                 .latency_ms(latency_ms)
                 .cost_usd_micros(cost),
         )?;
+        Ok(event.event_id)
+    }
+
+    /// Attach a durable dispatch stream when adopted by a mission loop.
+    pub fn ensure_trace_log(&mut self, root: &Path) {
+        if self.log_root.is_none() { self.log_root = Some(root.to_path_buf()); }
+    }
+
+    pub fn start_internal_tool(&self, name: &str, args: &serde_json::Value)
+        -> Result<(uuid::Uuid, uuid::Uuid), KernelError> {
+        let id = uuid::Uuid::new_v4();
+        let start = self.record(EventKind::Observation, serde_json::json!({
+            "call_id": id, "record_type": "start", "stage": "dispatch",
+            "method": "tool.call", "plugin": name, "args": args,
+            "parent_event_id": *self.trace_parent.borrow(),
+        }), 0, 0)?;
+        Ok((id, start))
+    }
+
+    pub fn end_internal_tool(&self, name: &str, args: &serde_json::Value, out: &ToolCallOutcome)
+        -> Result<(), KernelError> {
+        self.record(EventKind::ToolCall, serde_json::json!({
+            "call_id": out.call_id, "parent_event_id": out.start_event_id,
+            "record_type": "end", "plugin": name, "args": args, "result": out.output,
+            "status": if out.output["error"].is_string() {"error"} else {"ok"},
+        }), out.latency_ms, out.output["cost_usd_micros"].as_i64().unwrap_or(0))?;
         Ok(())
+    }
+
+    pub fn set_trace_parent(&self, parent: uuid::Uuid) {
+        *self.trace_parent.borrow_mut() = Some(parent);
     }
 
     pub fn stream_id(&self) -> Option<uuid::Uuid> {

@@ -30,6 +30,7 @@ fn payloads(log: &std::path::Path, stream: uuid::Uuid, kind: EventKind) -> Vec<S
 
 #[test]
 fn recall_citations_score_the_ledger_at_close() {
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     let _g = ENV_LOCK.lock().unwrap();
     let dir = std::env::temp_dir().join(format!("hsrmm-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);

@@ -36,7 +36,7 @@ fn main() {
                 .ok()
                 .and_then(|f| std::fs::read_to_string(f).ok())
                 .unwrap_or_default();
-            let completion = match attempt {
+            let scripted_completion = match attempt {
                 1 => serde_json::json!({"tool":"repo.exec","args":{"command":"sh check.sh",
                     "diff":"--- a/code.txt\n+++ b/code.txt\n@@ -1 +1 @@\n-WRONGCONTEXT\n+fixed\n"}}),
                 2 => serde_json::json!({"tool":"repo.exec","args":{"command":"sh check.sh",
@@ -45,6 +45,12 @@ fn main() {
                     "*** Begin Patch\n*** Update File: code.txt\n@@\n-broken\n+fixed\n*** End Patch\n"}}),
                 _ => serde_json::json!({"tool":"answer.submit","args":{"path":path}}),
             };
+            let audit = params["tools"].as_array().is_some_and(|t| {
+                t.iter().any(|x| x["function"]["name"] == "verdict__submit" || x["function"]["name"] == "verdict.submit")
+            });
+            let completion = if audit {
+                serde_json::json!({"tool":"verdict.submit","args":{"refuted":false,"findings":[],"blocking":"none"}})
+            } else { scripted_completion };
             serde_json::json!({
                 "completion": completion.to_string(),
                 "input_tokens": prompt.len() / 4 + 1,

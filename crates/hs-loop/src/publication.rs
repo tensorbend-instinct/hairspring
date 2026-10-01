@@ -53,7 +53,6 @@ pub const OPERATIONALIZATION: &str = r#"Gate 8 operationalization (agreed defaul
   restarts, stuck repeats, priced model cost), never wall microseconds;
 - the full decomposition is published per run, win or lose."#;
 
-const PLUGIN_DIR_DEFAULT: &str = "/mnt/instinct-nvme/hairspring/target/debug";
 
 /// The verify-then-submit diff used by every honest attempt (the
 /// mechanical verifier requires a recorded candidate test run).
@@ -223,7 +222,17 @@ fn sum_into(acc: &mut Decomposition, d: &Decomposition) {
 /// the dev-box target dir.
 fn plugin_dir() -> PathBuf {
     std::env::var("HS_PUBLICATION_PLUGIN_DIR")
-        .map_or_else(|_| PathBuf::from(PLUGIN_DIR_DEFAULT), PathBuf::from)
+        .map_or_else(
+            |_| {
+                // Sibling of the running binary (the cargo target dir).
+                std::env::current_exe()
+                    .ok()
+                    .and_then(|e| e.parent().map(PathBuf::from))
+                    .map(|d| if d.ends_with("deps") {d.parent().unwrap().to_path_buf()} else {d})
+                    .unwrap_or_else(|| PathBuf::from("target/debug"))
+            },
+            PathBuf::from,
+        )
 }
 
 /// The git workspace `repo.exec` verifies candidates against (scratch

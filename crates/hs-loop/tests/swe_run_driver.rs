@@ -209,6 +209,7 @@ fn all_payloads(run_dir: &std::path::Path) -> Vec<String> {
 
 #[test]
 fn driver_mission_preflights_with_repoexec() {
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     let dir = tempfile::tempdir().unwrap();
     let run_dir = dir.path().join("run");
     let ws = run_dir.join("ws");
@@ -313,6 +314,7 @@ fn driver_mission_preflights_with_repoexec() {
 /// and the scripted swemcp model calls it. Asserts on the event stream.
 #[test]
 fn driver_mission_calls_mcp_tool() {
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     let dir = tempfile::tempdir().unwrap();
     let run_dir = dir.path().join("run");
     let ws = run_dir.join("ws");
@@ -469,6 +471,7 @@ fn driver_mission_calls_mcp_tool() {
 /// the real kernel/loop, with notes persisted at `log_root/work`/<iid>/.
 #[test]
 fn driver_mission_uses_d5_tools() {
+    unsafe { std::env::set_var("HS_SCRIPTED_PROMPT_AWARE", "1") };
     let dir = tempfile::tempdir().unwrap();
     let run_dir = dir.path().join("run");
     let ws = run_dir.join("ws");

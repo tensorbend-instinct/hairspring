@@ -27,7 +27,7 @@ fn write_fixture(dir: &std::path::Path) {
         concat!(
             "#!/bin/sh\n",
             "export HS_SCRIPTED_NAME='weird\\gen'\n",
-            "exec /mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted\n",
+            "exec ", env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-scripted\n",
         ),
     )
     .unwrap();
@@ -37,7 +37,7 @@ fn write_fixture(dir: &std::path::Path) {
         concat!(
             "[[models]]\n",
             "name = \"scripted\"\n",
-            "command = [\"/mnt/instinct-nvme/hairspring/target/debug/hs-plugin-scripted\"]\n",
+            "command = [\"", env!("CARGO_MANIFEST_DIR"), "/../../target/debug/hs-plugin-scripted\"]\n",
             "default = true\n",
             "subjects = [\"*\"]\n",
             "\n",
