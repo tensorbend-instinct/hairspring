@@ -2740,7 +2740,7 @@ impl InnerLoop {
                 .latency_ms(verdict.latency_ms).cost_usd_micros(checker_cost as i64)
                 .payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({
                     "record_type":"mirror", "call_id":verdict.call_id,
-                    "plugin":"checker.run", "result":verdict.output,
+                    "plugin":"checker.run", "role":"checker", "result":verdict.output,
                     "cost_usd_micros":checker_cost,
                     "conservative_cost_usd_micros":checker_cost,
                 })).expect("json serializes"))))?;

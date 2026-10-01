@@ -39,6 +39,7 @@ pub fn assemble(
         // to blob refs on append; skipping them drops big tool outputs
         if let Ok(bytes) = reader.resolve_payload(e)
             && let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+                if v["role"] == "checker" {continue;}
                 let mut line = format!(
                     "{}({}) => {}",
                     v["plugin"].as_str().unwrap_or("?"),
@@ -170,6 +171,8 @@ pub fn assemble_messages(
         // resolve Inline AND BlobRef payloads, same as assemble()
         if let Ok(bytes) = reader.resolve_payload(e)
             && let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+                // Harness checker activity is not a model-issued tool call.
+                if v["role"] == "checker" {continue;}
                 let plugin = v["plugin"].as_str().unwrap_or("?").to_string();
                 let args = v["args"].clone();
                 let mut content = if !v["result"].is_null() {

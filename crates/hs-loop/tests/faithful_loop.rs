@@ -99,6 +99,11 @@ fn tool_results_reach_the_next_step_and_checker_runs_only_after_write() {
     let probe_calls = evs
         .iter()
         .filter(|e| e.kind == hs_core::EventKind::ToolCall)
+        .filter(|e| {
+            let reader=hs_log::StreamReader::open(log.path(),sid).unwrap();
+            let v:serde_json::Value=serde_json::from_slice(&reader.resolve_payload(e).unwrap()).unwrap();
+            v["plugin"] != "checker.run"
+        })
         .count();
     assert_eq!(probe_calls, 3, "probe.read x2 + answer.write");
 }
