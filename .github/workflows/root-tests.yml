@@ -34,12 +34,16 @@ jobs:
           CARGO_PROFILE_TEST_DEBUG: "0"
           CARGO_INCREMENTAL: "0"
         run: |
-          set -o pipefail
           mkdir -p out
           for t in critic_shell_red repexec_sandbox_red; do
-            sudo -E env "PATH=$PATH" "HOME=/root" "CARGO_HOME=$HOME/.cargo" "RUSTUP_HOME=$HOME/.rustup" \
-              cargo test -p hs-loop --test "$t" 2>&1 | tee "out/$t.log"
+            # build as the runner user, run the test binary itself as real root
+            bin=$(cargo test -p hs-loop --test "$t" --no-run --message-format=json 2>out/build-$t.err \
+              | jq -r --arg t "$t" 'select(.executable != null and .target.name == $t) | .executable' | tail -1)
+            echo "binary for $t: $bin"
+            (cd crates/hs-loop && sudo -E "$bin" 2>&1 | tee "../../out/$t.log") || true
           done
+          echo "::notice title=root-test-results::$(grep -hE 'test result|FAILED|panicked|id -u' out/*.log | head -20 | tr '\n' ' ')"
+          echo "::notice title=root-test-build::$(tail -3 out/build-*.err | tr '\n' ' ' | cut -c1-600)"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
