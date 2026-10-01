@@ -430,6 +430,9 @@ pub fn mission_span(
                 }
             }
             hs_core::EventKind::ToolCall => {
+                let charge = v["cost_usd_micros"].as_u64().unwrap_or(0);
+                span.cost_micros = span.cost_micros.saturating_add(charge);
+                span.conservative_cost_micros = span.conservative_cost_micros.saturating_add(charge);
                 // Only successful dispatches feed the ledger live
                 // (rejections and errors never reached apply_tool_call).
                 if let (Some(p), Some(a), Some(res)) =
@@ -562,7 +565,7 @@ impl InnerLoop {
             if let Ok(ev) = r.events() {
                 distill_floor = ev.last().map(|e| e.seq).unwrap_or(0);
                 for e in &ev {
-                    if e.kind != hs_core::EventKind::ModelCall {
+                    if e.kind != hs_core::EventKind::ModelCall && e.kind != hs_core::EventKind::ToolCall {
                         continue;
                     }
                     let Ok(b) = r.resolve_payload(e) else { continue };
@@ -2727,6 +2730,20 @@ impl InnerLoop {
                 "checker.run",
                 serde_json::json!({"task_id": mission, "path": answer_path}),
             )?;
+            // The independent critic lives inside checker.run. Book its
+            // reported charge once in the mission projection and the HUD.
+            let checker_cost = verdict.output["cost_usd_micros"].as_u64().unwrap_or(0);
+            self.cost_total_micros = self.cost_total_micros.saturating_add(checker_cost);
+            self.conservative_cost_total_micros = self.conservative_cost_total_micros.saturating_add(checker_cost);
+            self.writer.append(EventBuilder::new(EventKind::ToolCall)
+                .parent(verdict.start_event_id)
+                .latency_ms(verdict.latency_ms).cost_usd_micros(checker_cost as i64)
+                .payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({
+                    "record_type":"mirror", "call_id":verdict.call_id,
+                    "plugin":"checker.run", "result":verdict.output,
+                    "cost_usd_micros":checker_cost,
+                    "conservative_cost_usd_micros":checker_cost,
+                })).expect("json serializes"))))?;
             let passed = verdict.output["passed"].as_bool().unwrap_or(false);
             let error = verdict.output["error"].as_str().unwrap_or("").to_string();
             // DISC accounting (arXiv 2606.21724 transplant, burn-down 2026-09-09):

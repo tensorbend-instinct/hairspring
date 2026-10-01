@@ -188,6 +188,7 @@ pub fn refute(
         let after = model.usage();
         trace.push(json!({"kind":"model_end", "call_id":call_id, "step":steps,
             "latency_ms":call_started.elapsed().as_millis() as u64,
+            "ts_wall_ms":std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64,
             "input_tokens":after.0.saturating_sub(before.0),
             "output_tokens":after.1.saturating_sub(before.1),
             "cost_micros":after.2.saturating_sub(before.2),
@@ -255,10 +256,11 @@ pub fn refute(
                     trace.push(json!({"kind": "term_exec", "command": cmd}));
                     let tool_call_id = uuid::Uuid::new_v4();
                     let tool_started = Instant::now();
-                    trace.push(json!({"kind":"tool_start", "call_id":tool_call_id, "parent_call_id":call_id, "command":cmd}));
+                    trace.push(json!({"kind":"tool_start", "call_id":tool_call_id, "parent_call_id":call_id, "command":cmd, "ts_wall_ms":std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64}));
                     let o = crate::termexec::run_readonly(workdir, cmd, cfg.cmd_timeout_secs);
                     trace.push(json!({"kind":"tool_end", "call_id":tool_call_id, "parent_call_id":call_id,
                         "latency_ms":tool_started.elapsed().as_millis() as u64,
+                        "ts_wall_ms":std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64,
                         "status":if o["exit_code"].as_i64() == Some(0) {"ok"} else {"error"}}));
                     let result_text = tail(
                         &format!(
@@ -328,12 +330,12 @@ pub fn checker_gate(ws: &Path) -> Value {
     }
     if outcome.passed {
         json!({
-            "passed": true, "error": "",
-            "critic": {"steps": outcome.steps, "cost_micros": outcome.cost_micros, "reason": outcome.reason, "elapsed_ms": outcome.elapsed_ms, "trace": outcome.trace},
+            "passed": true, "error": "", "cost_usd_micros":outcome.cost_micros,
+            "critic": {"steps": outcome.steps, "cost_micros": outcome.cost_micros, "reason": outcome.reason, "elapsed_ms": outcome.elapsed_ms, "input_tokens": outcome.input_tokens, "output_tokens": outcome.output_tokens, "trace": outcome.trace},
         })
     } else {
-        json!({"passed": false, "error": format!("independent critic: {}", outcome.reason),
-            "critic": {"steps":outcome.steps, "cost_micros":outcome.cost_micros, "elapsed_ms":outcome.elapsed_ms, "trace":outcome.trace}})
+        json!({"passed": false, "error": format!("independent critic: {}", outcome.reason), "cost_usd_micros":outcome.cost_micros,
+            "critic": {"steps":outcome.steps, "cost_micros":outcome.cost_micros, "elapsed_ms":outcome.elapsed_ms, "input_tokens":outcome.input_tokens, "output_tokens":outcome.output_tokens, "trace":outcome.trace}})
     }
 }
 

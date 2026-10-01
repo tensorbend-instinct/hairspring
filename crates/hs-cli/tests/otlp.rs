@@ -47,3 +47,34 @@ fn unmatched_start_and_legacy_call_are_not_success() {
     assert_eq!(a["legacy_unidentifiable_calls"],1);
     assert!(p["resourceSpans"][0]["scopeSpans"][0]["spans"].as_array().unwrap().is_empty());
 }
+
+#[test]
+fn nested_critic_rounds_export_without_double_counting_checker_cost() {
+ let d=tempfile::tempdir().unwrap();let sid=uuid::Uuid::new_v4();
+ let mut w=hs_log::StreamWriter::create(d.path(),sid).unwrap();
+ let id=uuid::Uuid::new_v4();let cid=uuid::Uuid::new_v4();
+ let sv=json!({"record_type":"start","call_id":id,"method":"tool.call","plugin":"checker.run"});
+ let start=w.append(EventBuilder::new(EventKind::Observation).payload(Payload::Inline(serde_json::to_vec(&sv).unwrap()))).unwrap();
+ let ev=json!({"record_type":"end","call_id":id,"status":"ok","result":{"cost_usd_micros":900,"critic":{"trace":[
+  {"kind":"model_start","call_id":cid,"ts_wall_ms":1234},
+  {"kind":"model_end","call_id":cid,"ts_wall_ms":1235,"status":"ok","input_tokens":20,"output_tokens":7,"cost_micros":900}
+ ]}}});
+ let end=w.append(EventBuilder::new(EventKind::ToolCall).parent(start.event_id).cost_usd_micros(900).payload(Payload::Inline(serde_json::to_vec(&ev).unwrap()))).unwrap();
+ let (p,a)=hs_cli::otlp::export(&[(start,sv),(end,ev)]);
+ assert_eq!(a["logical_model_calls"],1);assert_eq!(a["cost_usd_micros"],900);
+ assert_eq!(a["critic_model_calls"],1);
+ let spans=p["resourceSpans"][0]["scopeSpans"][0]["spans"].as_array().unwrap();
+ assert_eq!(spans.len(),2);
+ assert!(spans.iter().any(|s|s["name"]=="critic model.call"));
+}
+
+#[test]
+fn duplicate_identity_is_reported_not_arbitrarily_priced() {
+ let d=tempfile::tempdir().unwrap();let mut w=hs_log::StreamWriter::create(d.path(),uuid::Uuid::new_v4()).unwrap();let id=uuid::Uuid::new_v4();
+ let sv=json!({"record_type":"start","call_id":id,"method":"model.call"});
+ let start=w.append(EventBuilder::new(EventKind::Observation)).unwrap();
+ let ev=json!({"record_type":"end","call_id":id,"status":"ok"});
+ let end=w.append(EventBuilder::new(EventKind::ModelCall).parent(start.event_id).cost_usd_micros(800)).unwrap();
+ let (_,a)=hs_cli::otlp::export(&[(start.clone(),sv.clone()),(start,sv),(end,ev)]);
+ assert_eq!(a["duplicate_identity_conflicts"],1);assert_eq!(a["logical_model_calls"],0);
+}
