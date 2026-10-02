@@ -1,0 +1,90 @@
+name: ab-regrade
+# No secrets, no model calls. Re-grades HAIRSPRING candidates (tracked diff only) from an earlier
+# ab-run run, then prints the per-arm result table as annotations. Run id lives in benchmarks/paired15/regrade-run.txt.
+on:
+  push:
+    branches: [ab-regrade]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+      run_id: ${{ steps.m.outputs.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: m
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          c=json.load(open('benchmarks/paired15/ab-config.json'))
+          env={x['id']:x['python_env'] for x in json.load(open('benchmarks/paired15/controls-final.json'))['cases']}
+          print("matrix="+json.dumps({'include':[{'id':i,'genv':env[i]} for i in c['ids']]}))
+          print("run_id="+open('benchmarks/paired15/regrade-run.txt').read().strip())
+          PY
+  regrade:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    name: regrade ${{ matrix.id }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: 'ab-r*-${{ matrix.id }}-*'
+          path: arts
+          run-id: ${{ needs.plan.outputs.run_id }}
+          github-token: ${{ github.token }}
+      - run: |
+          pip install --break-system-packages -q uv pandas pyarrow
+          cd benchmarks/paired15
+          ./ci_setup.sh "$RUNNER_TEMP/abenv" grade "${{ matrix.genv }}"
+          python3 preflight.py --id "${{ matrix.id }}" --out probe-run
+          python3 regrade.py "$GITHUB_WORKSPACE/arts" probe-run "$RUNNER_TEMP/abenv/${{ matrix.genv }}-env/bin/python" "$GITHUB_WORKSPACE/out" | tee "$GITHUB_WORKSPACE/out.txt"
+          cp "$GITHUB_WORKSPACE/out.txt" "$GITHUB_WORKSPACE/out/" 
+      - name: collect OpenHands records
+        if: always()
+        run: |
+          mkdir -p out
+          for f in arts/*/runs/*/OpenHands/record.json; do [ -f "$f" ] && python3 - "$f" >> out/openhands.jsonl <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1]));print(json.dumps({k:r.get(k) for k in ('instance_id','harness','state','resolved','steps','wall_secs')}))
+          PY
+          done
+          true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: regrade-${{ matrix.id }}
+          path: |
+            out/regrade.json
+            out/openhands.jsonl
+  table:
+    needs: regrade
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { pattern: 'regrade-*', path: rg }
+      - run: |
+          python3 - <<'PY'
+          import glob,json,collections
+          per=collections.defaultdict(list)
+          for f in glob.glob('rg/*/regrade.json'):
+              for r in json.load(open(f)): per['HAIRSPRING'].append(r)
+          for f in glob.glob('rg/*/openhands.jsonl'):
+              for l in open(f):
+                  if l.strip(): per['OpenHands'].append(json.loads(l))
+          for h,rows in sorted(per.items()):
+              n=len(rows);res=sum(1 for r in rows if r.get('resolved'));unf=sum(1 for r in rows if r.get('state') in ('unfinished','grade_failed','regrade_failed','regrade_patch_failed','started','agent_finished'))
+              st=[r['steps'] for r in rows if r.get('steps') is not None];wl=[r['wall_secs'] for r in rows if r.get('wall_secs') is not None]
+              print(f"::notice title=AB {h}::runs={n} resolved={res} unresolved_or_unfinished={n-res} (unfinished/ungradable={unf}) median_steps={sorted(st)[len(st)//2] if st else None} median_wall_s={sorted(wl)[len(wl)//2] if wl else None}")
+              byid=collections.defaultdict(list)
+              for r in rows: byid[r['instance_id']].append(1 if r.get('resolved') else 0)
+              print(f"::notice title=AB {h} per-instance::"+' '.join(f"{k.split('__')[-1]}={sum(v)}/{len(v)}" for k,v in sorted(byid.items())))
+          PY
