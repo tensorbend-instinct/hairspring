@@ -1,6 +1,6 @@
 name: ab-diagnose
 # Read-only: pulls artifacts of an earlier ab-run run (same repo, GITHUB_TOKEN) and prints
-# the grader failure reasons as annotations. No secrets, no model calls, no spend.
+# per-run failure reasons as annotations. No secrets, no model calls, no spend.
 on:
   push:
     branches: [ab-diag]
@@ -10,20 +10,38 @@ permissions:
 jobs:
   diag:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { h: HAIRSPRING, r: 1 }
+          - { h: HAIRSPRING, r: 2 }
+          - { h: HAIRSPRING, r: 3 }
+          - { h: OpenHands, r: 1 }
+          - { h: OpenHands, r: 2 }
+          - { h: OpenHands, r: 3 }
+    name: diag ${{ matrix.h }} r${{ matrix.r }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          pattern: 'ab-r1-*-HAIRSPRING'
+          pattern: 'ab-r${{ matrix.r }}-*-${{ matrix.h }}'
           path: arts
           run-id: 36965627460
           github-token: ${{ github.token }}
       - run: |
           python3 - <<'PY'
-          import glob,json
-          for f in sorted(glob.glob('arts/*/runs/*/HAIRSPRING/record.json')):
-              r=json.load(open(f)); d=f.rsplit('/',1)[0]
-              try: g=open(d+'/grade.log').read()[-400:].replace('\n',' | ')
-              except Exception as e: g='no grade.log'
-              print(f"::notice title=diag {r['instance_id']}::state={r['state']} rc={r.get('grade_returncode')} outcome={r.get('outcome')} untracked={r.get('untracked')} grade={g}")
+          import glob,json,os
+          def tail(p,n):
+              try: return open(p,errors='replace').read()[-n:].replace('\n',' | ')
+              except Exception: return ''
+          for f in sorted(glob.glob('arts/*/runs/*/*/record.json')):
+              r=json.load(open(f)); d=os.path.dirname(f)
+              if r.get('resolved'): continue
+              sc=r.get('score') or {}
+              msg=(f"state={r['state']} rc={r.get('returncode')} outcome={r.get('outcome')} err={r.get('harness_error')} status={r.get('status')} errors={r.get('errors')} "
+                   f"steps={r.get('steps')} calls={r.get('model_calls')} wall={r.get('wall_secs')} spent_delta={((r.get('ledger_after') or {}).get('spent_micros',0)-((r.get('ledger_before') or {}).get('spent_micros',0)))} "
+                   f"patch_bytes={os.path.getsize(d+'/candidate.patch') if os.path.exists(d+'/candidate.patch') else None} f2p={sc.get('fail_to_pass_ok')}/{sc.get('fail_to_pass_total')} p2p={sc.get('pass_to_pass_ok')}/{sc.get('pass_to_pass_total')} not_run={sc.get('not_run')} "
+                   f"STDERR: {tail(d+'/stderr.log',500)} STDOUT: {tail(d+'/stdout.log',600)}")
+              print(f"::notice title=D {r['instance_id'].split('__')[-1]} {r['harness']}::{msg[:3500]}")
           PY
