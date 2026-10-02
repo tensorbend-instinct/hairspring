@@ -1,0 +1,50 @@
+name: root-suite
+# Whole workspace test suite, every test binary executed as real root on a
+# GitHub-hosted runner. No secrets, read-only token, logs as artifacts.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ci-root-tests]
+permissions:
+  contents: read
+jobs:
+  suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain and system deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bubblewrap python3 python3-venv git build-essential pkg-config libssl-dev jq
+          sudo python3 -m pip install --break-system-packages uv
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+      - name: Build bins and test binaries (as runner user)
+        env:
+          CARGO_PROFILE_DEV_DEBUG: "0"
+          CARGO_PROFILE_TEST_DEBUG: "0"
+          CARGO_INCREMENTAL: "0"
+        run: |
+          cargo build --workspace --bins
+          mkdir -p out
+          cargo test --workspace --no-run --message-format=json 2>out/build.err \
+            | jq -r 'select(.executable != null and .profile.test == true) | [.manifest_path, .executable, .target.name] | @tsv' > out/bins.tsv
+          wc -l out/bins.tsv
+      - name: Run every test binary as real root
+        run: |
+          : > out/summary.txt
+          while IFS=$'\t' read -r mf bin name; do
+            d=$(dirname "$mf")
+            (cd "$d" && sudo -E env "PATH=$PATH" "$bin" > "$GITHUB_WORKSPACE/out/$name.log" 2>&1); rc=$?
+            line=$(grep -h '^test result' "out/$name.log" | tail -1)
+            echo "$name rc=$rc $line" >> out/summary.txt
+          done < out/bins.tsv
+          cat out/summary.txt
+          awk '{for(i=1;i<=NF;i++){if($i=="passed;")p+=$(i-1); if($i=="failed;")f+=$(i-1); if($i=="ignored;")g+=$(i-1)}} END{print "TOTAL passed="p" failed="f" ignored="g}' out/summary.txt | tee out/total.txt
+          echo "::notice title=suite-total::$(cat out/total.txt) nonzero_rc=$(grep -vc 'rc=0' out/summary.txt)"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: suite-logs
+          path: out/
