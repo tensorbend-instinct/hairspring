@@ -35,10 +35,15 @@ jobs:
           print(f"$X of $150: {total/1e6:.2f} (carry 19.93 + {spent/1e6:.2f} this run); worst-case after next wave {worst/1e6:.2f}",file=sys.stderr)
           PY
           cat "$GITHUB_OUTPUT"
+          echo "::notice title=ab-budget-wave${{ inputs.wave }}::$(tr '\n' ' ' < "$GITHUB_OUTPUT")"
       - name: summary table
         run: |
           python3 - <<'PY'
           import glob,json
           for f in sorted(glob.glob('arts/*/runs/*/*/record.json')):
               r=json.load(open(f)); print(r['instance_id'],r['harness'],r['state'],'resolved=',r.get('resolved'),'steps=',r.get('steps'),'wall=',r.get('wall_secs'))
+          rows=[json.load(open(f)) for f in sorted(glob.glob('arts/*/runs/*/*/record.json'))]
+          for h in ('HAIRSPRING','OpenHands'):
+              x=[r for r in rows if r['harness']==h]
+              print(f"::notice title=ab-{h}-wave{{{{ inputs.wave }}}}::runs={len(x)} resolved={sum(1 for r in x if r.get('resolved'))} unfinished={sum(1 for r in x if r['state']=='unfinished')} graded={sum(1 for r in x if r['state']=='graded')}")
           PY
