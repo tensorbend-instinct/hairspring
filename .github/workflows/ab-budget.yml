@@ -8,7 +8,6 @@ on:
       proceed: { value: "${{ jobs.sum.outputs.proceed }}" }
 permissions:
   contents: read
-  actions: read
 jobs:
   sum:
     runs-on: ubuntu-latest
