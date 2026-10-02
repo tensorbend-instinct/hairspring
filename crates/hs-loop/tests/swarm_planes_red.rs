@@ -238,3 +238,53 @@ fn g3_dispatch_carries_parent_version_and_reuse_count() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Gate wired into mission close: with a gate armed, the distilled skill is
+/// evaluated by the gate's own runner. A held-out verifier that passes with
+/// the skill installs it; one that fails leaves it VALIDATED.
+fn close_with_gate(tag: &str, heldout_cmd: &str) -> hs_world::ArtifactStatus {
+    let dir = std::env::temp_dir().join(format!("hsplanes-gate-{tag}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let log = dir.join("log");
+    std::fs::create_dir_all(&log).unwrap();
+    let db = log.join("memory.db");
+    let mission = "task-3";
+    let answer = log.join("work").join(mission).join("answer.txt");
+    let script = write_script(
+        &dir,
+        &[serde_json::json!({"tool":"answer.write","args":{"path": answer.display().to_string(), "content":"WRONG-TOKEN"}})],
+    );
+    let config = config_with_scripted(&dir, "scripted", &script);
+    let kernel = hs_kernel::Kernel::load(&config).unwrap();
+    let mut l = hs_loop::InnerLoop::new(kernel, &log, true, 4).unwrap();
+    l.set_memory_db(&db);
+    l.attach_world();
+    l.set_skill_gate(
+        "cmd",
+        hs_world::Trial::new(heldout_cmd, &dir),
+        hs_world::Trial::new("true", &dir),
+    );
+    let r = l.run_mission(mission).unwrap();
+    assert!(!r.passed);
+    let world = hs_world::World::open(&log).unwrap();
+    let skills = world.observe("/skills/task-3").unwrap();
+    skills
+        .iter()
+        .find(|a| a.kind == hs_world::ArtifactKind::Skill)
+        .expect("distiller proposed a skill")
+        .status
+}
+
+#[test]
+fn g2b_close_gate_installs_only_a_skill_whose_heldout_verifier_passes() {
+    // verifier passes only when the skill file is supplied and non-empty
+    assert_eq!(
+        close_with_gate("pass", r#"test -n "$HS_SKILL_PATH" && test -s "$HS_SKILL_PATH""#),
+        hs_world::ArtifactStatus::Installed
+    );
+    // verifier that fails with the skill: refused, stays VALIDATED
+    assert_eq!(
+        close_with_gate("fail", "false"),
+        hs_world::ArtifactStatus::Validated
+    );
+}

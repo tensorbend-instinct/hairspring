@@ -267,6 +267,9 @@ pub struct InnerLoop {
     /// slices above it, so each mission's K record carries only its own
     /// edits and provenance on the shared session stream.
     distill_floor: u64,
+    /// Mission-close skill gate: (verifier name, held-out trial, control
+    /// trial). Unset = distilled skills stay VALIDATED (never auto-installed).
+    skill_gate: Option<(String, hs_world::Trial, hs_world::Trial)>,
     /// B2 (v5 gate 6): the shared world plane, one world stream inside
     /// this session's substrate log root. Attached via `attach_world`
     /// (REPL sessions always); world.* tools dispatch natively below.
@@ -535,6 +538,7 @@ impl InnerLoop {
             prefetch_min_samples: PREFETCH_MIN_SAMPLES,
             prefetch_cost_crossover: PREFETCH_COST_CROSSOVER,
             distill_floor: 0,
+            skill_gate: None,
             world: None,
         })
     }
@@ -638,6 +642,7 @@ impl InnerLoop {
             prefetch_min_samples: PREFETCH_MIN_SAMPLES,
             prefetch_cost_crossover: PREFETCH_COST_CROSSOVER,
             distill_floor,
+            skill_gate: None,
             world: None,
         })
     }
@@ -1116,6 +1121,20 @@ impl InnerLoop {
     /// B2 (v5 gate 6): join the shared world plane (one world stream in
     /// this substrate). Called by every REPL session; missions then reach
     /// the world through the world.* tools below.
+    /// Arm the mission-close skill gate. With a gate, each skill the
+    /// distiller proposes at close is evaluated by running the held-out and
+    /// control verifiers with and without it (`World::install_skill_evaluated`)
+    /// and installed only when the gate admits it. Without one, distilled
+    /// skills stay VALIDATED.
+    pub fn set_skill_gate(
+        &mut self,
+        verifier: impl Into<String>,
+        heldout: hs_world::Trial,
+        control: hs_world::Trial,
+    ) {
+        self.skill_gate = Some((verifier.into(), heldout, control));
+    }
+
     pub fn attach_world(&mut self) {
         self.world = Some(
             hs_world::World::open(&self.log_root).expect("world open at the session log root"),
@@ -1555,6 +1574,7 @@ impl InnerLoop {
             // decision (the assay gate; spec promotion machinery is
             // future work).
             let mut world_proposed = 0usize;
+            let mut world_installed = 0usize;
             if let Some(world) = &self.world {
                 use sha2::Digest as _;
                 let slug: String = mission
@@ -1584,8 +1604,20 @@ impl InnerLoop {
                         parent_version: None,
                         status: hs_world::ArtifactStatus::Proposed,
                     };
+                    let is_skill = kind == hs_world::ArtifactKind::Skill;
+                    let id = artifact.artifact_id;
                     if world.propose(artifact, content.as_bytes()).is_ok() {
                         world_proposed += 1;
+                        if is_skill {
+                            if let Some((verifier, heldout, control)) = &self.skill_gate {
+                                if world
+                                    .install_skill_evaluated(id, verifier, heldout, control)
+                                    .is_ok()
+                                {
+                                    world_installed += 1;
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1675,6 +1707,7 @@ impl InnerLoop {
                         "memory_distilled": written, "mission": mission,
                         "outcome": outcome,
                         "world_proposed": world_proposed,
+                        "world_installed": world_installed,
                         "memory_ledger": ledger_json,
                     }))
                     .expect("json! values serialize"),
