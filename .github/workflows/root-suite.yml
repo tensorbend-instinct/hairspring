@@ -45,6 +45,7 @@ jobs:
           awk '{for(i=1;i<=NF;i++){if($i=="passed;")p+=$(i-1); if($i=="failed;")f+=$(i-1); if($i=="ignored;")g+=$(i-1)}} END{print "TOTAL passed="p" failed="f" ignored="g}' out/summary.txt | tee out/total.txt
           echo "::notice title=suite-failed-targets::$(grep -v 'rc=0' out/summary.txt | cut -c1-120 | head -25 | tr '\n' ';')"
           echo "::notice title=suite-failed-tests::$(grep -h '^test .* FAILED$' out/*.log | head -30 | tr '\n' ';' | cut -c1-1500)"
+          echo "::notice title=suite-failure-detail::git=$(git --version) $(grep -h -A3 'trace error must reproduce' out/replay_red.log | head -12 | tr '\n' '|' | cut -c1-1500)"
           echo "::notice title=suite-total::$(cat out/total.txt) nonzero_rc=$(grep -vc 'rc=0' out/summary.txt)"
       - uses: actions/upload-artifact@v4
         if: always()
