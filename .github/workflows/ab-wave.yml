@@ -31,7 +31,7 @@ jobs:
         run: |
           cd benchmarks/paired15
           ./ci_setup.sh "$RUNNER_TEMP/abenv" grade "${{ matrix.genv }}"
-          if [ "${{ matrix.harness }}" = OpenHands ]; then ./ci_setup.sh "$RUNNER_TEMP/abenv" oh; fi
+          ./ci_setup.sh "$RUNNER_TEMP/abenv" oh   # runner asserts the OpenHands runtime exists for both arms
           python3 preflight.py --id "${{ matrix.id }}" --out "probe-run"
       - name: place key file (secret visible to this step only)
         env:

@@ -1,1 +1,1 @@
-{"note":"pilot: one instance, one repeat, both harnesses","ids":["django__django-11133"],"repeats":1,"harnesses":["HAIRSPRING","OpenHands"]}
+{"note":"pilot 2: HAIRSPRING arm only (first pilot: OpenHands arm resolved django-11133 in 20 steps; HAIRSPRING arm failed on a setup assertion, fixed)","ids":["django__django-11133"],"repeats":1,"harnesses":["HAIRSPRING"]}
