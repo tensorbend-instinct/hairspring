@@ -44,6 +44,25 @@ fn old_path_apply_error(ws: &std::path::Path, raw: &str) -> String {
     String::from_utf8_lossy(&o.stderr).trim().to_string()
 }
 
+/// git <= 2.4x words this "corrupt patch at line N"; git 2.5x words it
+/// "corrupt patch at <file>:N". Same fact, same line number: accept both
+/// spellings, never less than the original claim.
+fn corrupt_at_line(err: &str, n: Option<u32>) -> bool {
+    if !err.contains("corrupt patch at") {
+        return false;
+    }
+    match n {
+        Some(n) => {
+            err.contains(&format!("corrupt patch at line {n}"))
+                || err.contains(&format!("replay.patch:{n}"))
+        }
+        None => {
+            err.contains("corrupt patch at line")
+                || err.contains("replay.patch:")
+        }
+    }
+}
+
 #[test]
 fn replay_8619_old_path_reproduces_corrupt_at_line_19() {
     let raw = include_str!("fixtures/replay/haystack8619_corrupt_hunk.txt");
@@ -54,7 +73,7 @@ fn replay_8619_old_path_reproduces_corrupt_at_line_19() {
     // later. The load-bearing property: the historical corrupt fixture
     // still dies LOUD, never silently applies.
     assert!(
-        err.contains("corrupt patch at line"),
+        corrupt_at_line(&err, None),
         "trace error must reproduce: {err}"
     );
 }
@@ -65,7 +84,7 @@ fn replay_3314_old_path_reproduces_corrupt_at_line_44() {
     let ws = empty_repo();
     let err = old_path_apply_error(&ws, raw);
     assert!(
-        err.contains("corrupt patch at line 44"),
+        corrupt_at_line(&err, Some(44)),
         "trace error must reproduce: {err}"
     );
 }
