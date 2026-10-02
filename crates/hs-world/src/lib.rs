@@ -789,6 +789,9 @@ impl World {
     }
 }
 
+pub mod skillgate;
+pub use skillgate::Trial;
+
 /// Verifier outcomes that gate a skill install (see `install_skill_gated`).
 #[derive(Debug, Clone)]
 pub struct SkillGateEvidence {
@@ -872,6 +875,37 @@ impl World {
             )));
         }
         self.install_skill_unchecked(artifact_id)
+    }
+
+    /// Evaluate the candidate skill with the gate's own runner, then apply
+    /// the gate. Runs the held-out and control verifiers with and without
+    /// the skill; the four outcomes are measured here, not supplied.
+    pub fn install_skill_evaluated(
+        &self,
+        artifact_id: uuid::Uuid,
+        verifier: &str,
+        heldout: &Trial,
+        control: &Trial,
+    ) -> Result<SkillGateEvidence, WorldError> {
+        let a = self.latest(artifact_id)?;
+        if a.kind != ArtifactKind::Skill {
+            return Err(WorldError::Rejected("install_skill: not a skill artifact".into()));
+        }
+        let body = self.content_of(&a)?;
+        let dir = std::env::temp_dir().join(format!("hs-skillgate-{}-{}", std::process::id(), artifact_id));
+        std::fs::create_dir_all(&dir).map_err(|e| WorldError::Rejected(format!("skill gate tmp: {e}")))?;
+        let path = dir.join("SKILL.md");
+        std::fs::write(&path, &body).map_err(|e| WorldError::Rejected(format!("skill gate tmp: {e}")))?;
+        let ev = SkillGateEvidence {
+            verifier: verifier.to_string(),
+            heldout_with_skill_passed: heldout.run(Some(&path)),
+            heldout_baseline_passed: heldout.run(None),
+            control_with_skill_passed: control.run(Some(&path)),
+            control_baseline_passed: control.run(None),
+        };
+        let _ = std::fs::remove_dir_all(&dir);
+        self.install_skill_gated(artifact_id, &ev)?;
+        Ok(ev)
     }
 
     fn install_skill_unchecked(&self, artifact_id: uuid::Uuid) -> Result<(), WorldError> {

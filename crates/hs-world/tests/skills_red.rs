@@ -137,3 +137,34 @@ fn usage_ledger_counts_uses_across_reopen_and_archive_hides_but_keeps() {
     assert_eq!(w(&log).skill_use_count(id), 2, "history kept after archive");
     assert!(world.archive_skill(id).is_err(), "only installed skills archive");
 }
+
+#[test]
+fn evaluated_gate_runs_the_verifiers_itself() {
+    use hs_world::Trial;
+    let dir = std::env::temp_dir().join(format!("hsskill4-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let log = dir.join("log");
+    std::fs::create_dir_all(&log).unwrap();
+    let author = uuid::Uuid::new_v4();
+    hs_log::StreamWriter::create(&log, author).unwrap();
+    let work = dir.join("work");
+    std::fs::create_dir_all(&work).unwrap();
+
+    // held-out verifier: passes only when the skill tells the agent the magic word
+    let heldout = Trial::new(r#"test -n "$HS_SKILL_PATH" && grep -q magic-word "$HS_SKILL_PATH""#, &work);
+    // control verifier: passes with or without a skill unless the skill says BREAK
+    let control = Trial::new(r#"test -z "$HS_SKILL_PATH" || ! grep -q BREAK "$HS_SKILL_PATH""#, &work);
+
+    let helpful = mk(&log, author, "/skills/helpful", "---\nname: helpful\ndescription: knows the magic-word\n---\nmagic-word\n");
+    let ev = w(&log).install_skill_evaluated(helpful, "cmd", &heldout, &control).unwrap();
+    assert!(ev.heldout_with_skill_passed && !ev.heldout_baseline_passed, "measured, not supplied: {ev:?}");
+    assert!(ev.control_with_skill_passed && ev.control_baseline_passed);
+    assert_eq!(w(&log).skill_index().len(), 1);
+
+    let useless = mk(&log, author, "/skills/useless", "---\nname: useless\ndescription: no help\n---\nnothing\n");
+    assert!(w(&log).install_skill_evaluated(useless, "cmd", &heldout, &control).is_err(), "held-out fails with skill -> refused");
+
+    let harmful = mk(&log, author, "/skills/harmful", "---\nname: harmful\ndescription: helps then breaks\n---\nmagic-word BREAK\n");
+    assert!(w(&log).install_skill_evaluated(harmful, "cmd", &heldout, &control).is_err(), "control regression -> refused");
+    assert_eq!(w(&log).skill_index().len(), 1, "only the helpful skill is installed");
+}
