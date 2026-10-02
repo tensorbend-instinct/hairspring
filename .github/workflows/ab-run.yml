@@ -67,7 +67,7 @@ jobs:
       - run: |
           cd benchmarks/paired15
           python3 -m pytest -q test_spend_proxy.py test_spend_proxy_v2.py test_proxy_*.py test_balance_passthrough.py test_openhands_telemetry_compat.py 2>&1 | tail -15 || true
-          python3 test_runner_fake.py > /tmp/fake.out 2>&1; rc=$?
+          rc=0; python3 test_runner_fake.py > /tmp/fake.out 2>&1 || rc=$?
           echo "::notice title=fake-rc::rc=$rc $(tail -c 1500 /tmp/fake.out | tr '\n' '|')"
           exit $rc
   wave1:
