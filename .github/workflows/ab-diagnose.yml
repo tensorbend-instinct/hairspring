@@ -17,9 +17,6 @@ jobs:
           - { h: HAIRSPRING, r: 1 }
           - { h: HAIRSPRING, r: 2 }
           - { h: HAIRSPRING, r: 3 }
-          - { h: OpenHands, r: 1 }
-          - { h: OpenHands, r: 2 }
-          - { h: OpenHands, r: 3 }
     name: diag ${{ matrix.h }} r${{ matrix.r }}
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +24,7 @@ jobs:
         with:
           pattern: 'ab-r${{ matrix.r }}-*-${{ matrix.h }}'
           path: arts
-          run-id: 36965627460
+          run-id: 37027388576
           github-token: ${{ github.token }}
       - run: |
           python3 - <<'PY'
