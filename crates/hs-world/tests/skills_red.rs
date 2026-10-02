@@ -2,6 +2,12 @@
 //! progressive disclosure: a compact name+description index in the prompt,
 //! full SKILL.md body only on skill.view).
 
+/// The world stream is process-exclusive; tests in this file take turns.
+static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
+fn serial() -> std::sync::MutexGuard<'static, ()> {
+    SERIAL.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 fn mk(log: &std::path::Path, author: uuid::Uuid, path: &str, content: &str) -> uuid::Uuid {
     use sha2::Digest;
     let a = hs_world::Artifact {
@@ -25,6 +31,7 @@ fn w(log: &std::path::Path) -> hs_world::World {
 
 #[test]
 fn index_lists_only_installed_skills_with_frontmatter() {
+    let _serial = serial();
     let dir = std::env::temp_dir().join(format!("hsskill-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     let log = dir.join("log");
@@ -59,6 +66,7 @@ fn index_lists_only_installed_skills_with_frontmatter() {
 
 #[test]
 fn install_skill_rejects_non_skill_and_unvalidated() {
+    let _serial = serial();
     let dir = std::env::temp_dir().join(format!("hsskill2-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     let log = dir.join("log");
@@ -79,6 +87,7 @@ fn pass() -> hs_world::SkillGateEvidence {
 
 #[test]
 fn gate_refuses_failing_heldout_or_control_regression_and_books_evidence() {
+    let _serial = serial();
     let dir = std::env::temp_dir().join(format!("hsskill3-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     let log = dir.join("log");
@@ -116,6 +125,7 @@ fn gate_refuses_failing_heldout_or_control_regression_and_books_evidence() {
 
 #[test]
 fn usage_ledger_counts_uses_across_reopen_and_archive_hides_but_keeps() {
+    let _serial = serial();
     let dir = std::env::temp_dir().join(format!("hsskill4-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     let log = dir.join("log");
@@ -140,6 +150,7 @@ fn usage_ledger_counts_uses_across_reopen_and_archive_hides_but_keeps() {
 
 #[test]
 fn evaluated_gate_runs_the_verifiers_itself() {
+    let _serial = serial();
     use hs_world::Trial;
     let dir = std::env::temp_dir().join(format!("hsskill4-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
