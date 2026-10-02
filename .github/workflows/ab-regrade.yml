@@ -22,7 +22,7 @@ jobs:
           c=json.load(open('benchmarks/paired15/ab-config.json'))
           env={x['id']:x['python_env'] for x in json.load(open('benchmarks/paired15/controls-final.json'))['cases']}
           print("matrix="+json.dumps({'include':[{'id':i,'genv':env[i]} for i in c['ids']]}))
-          print("run_id="+open('benchmarks/paired15/regrade-run.txt').read().strip())
+          print("run_id="+open("benchmarks/paired15/regrade-run.txt").read().split()[0])
           PY
   regrade:
     needs: plan
