@@ -68,7 +68,7 @@ try:
    with socket.create_connection(('127.0.0.1',18748),timeout=.1):break
   except OSError:time.sleep(.02)
  else:raise RuntimeError('proxy socket did not accept connections')
- env={**os.environ,'PATH':'/opt/hs:/usr/bin:/bin','HOME':'/workspace','HS_DEEPSEEK_API_KEY':'local-placeholder','HS_DEEPSEEK_BASE_URL':'http://127.0.0.1:18748/chat/completions','HS_DEEPSEEK_MODEL':'deepseek-flash','HS_CRITIC_MODEL':'deepseek','HS_POLICY_TOML':'/runstate/policy.toml','HS_TUI':'off',**({'HS_RETRACE':'1'} if json.loads((pathlib.Path(__file__).parent/'ab-config.json').read_text()).get('retrace') else {})}
+ env={**os.environ,'PATH':'/opt/hs:/usr/bin:/bin','HOME':'/workspace','HS_DEEPSEEK_API_KEY':'local-placeholder','HS_DEEPSEEK_BASE_URL':'http://127.0.0.1:18748/chat/completions','HS_DEEPSEEK_MODEL':'deepseek-flash','HS_CRITIC_MODEL':'deepseek','HS_POLICY_TOML':'/runstate/policy.toml','HS_TUI':'off',**({'HS_RETRACE':'1'} if pathlib.Path('/runstate/retrace').exists() else {})}
  if pathlib.Path('/runstate/smoke').exists():env['HS_CRITIC_SCRIPT']='tool:git status --short|clean'
  cmd=['/opt/hs/hs-repl','run','--goal',pathlib.Path('/runstate/problem.txt').read_text(),'--config','/runstate/rig.toml','--dir','/runstate/mission','--project-dir','/workspace']
  if pathlib.Path('/runstate/smoke').exists():cmd+=['--max-steps','3']
@@ -110,6 +110,7 @@ def run_one(id,harness,out,port,ledger_path,bridge,fake=False,grade_smoke=False)
  if harness=='HAIRSPRING':
   (state/'policy.toml').write_text('[prompts]\ntui-mission = """{goal}\n\nExecution constraints: Network access is unavailable inside this sandbox. Work with the checked-out repository and installed local tools only. Do not modify, add, or delete test files; only change implementation files. Keep any scratch, check, stub or helper files outside the repository (for example under /tmp); the grader rejects untracked files inside the repository. Hidden grading happens after you finish.\n"""\n')
  if grade_smoke:(state/'smoke').write_text('test-only bounded fake model')
+ if harness=='HAIRSPRING' and json.loads((R/'ab-config.json').read_text()).get('retrace'):(state/'retrace').write_text('1')
  if harness=='HAIRSPRING':(state/'rig.toml').write_text((R/'rig.template.toml').read_text().replace('__BIN_DIR__','/opt/hs'))
  status={'instance_id':id,'harness':harness,'state':'started','started_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'ledger_before':ledger(ledger_path)};atom(out/'record.json',status)
  binds=['bwrap','--unshare-net','--ro-bind','/usr','/usr','--ro-bind','/bin','/bin','--ro-bind','/lib','/lib','--ro-bind','/lib64','/lib64','--ro-bind','/etc','/etc','--proc','/proc','--dev','/dev','--tmpfs','/tmp','--dir','/workspace','--bind',str(work),'/workspace','--dir','/runstate','--bind',str(state),'/runstate','--dir','/bridge','--bind',str(bridge),'/bridge','--chdir','/workspace']
