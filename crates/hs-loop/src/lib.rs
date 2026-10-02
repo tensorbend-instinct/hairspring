@@ -20,6 +20,7 @@ pub mod publication;
 pub mod projectroot;
 pub mod msgfmt;
 pub mod realmodel;
+pub mod retrace;
 pub mod repexec;
 pub mod repl;
 pub mod repotools;
@@ -270,6 +271,8 @@ pub struct InnerLoop {
     /// Mission-close skill gate: (verifier name, held-out trial, control
     /// trial). Unset = distilled skills stay VALIDATED (never auto-installed).
     skill_gate: Option<(String, hs_world::Trial, hs_world::Trial)>,
+    /// RETRACE review already used this mission (one review only).
+    retrace_done: bool,
     /// B2 (v5 gate 6): the shared world plane, one world stream inside
     /// this session's substrate log root. Attached via `attach_world`
     /// (REPL sessions always); world.* tools dispatch natively below.
@@ -539,6 +542,7 @@ impl InnerLoop {
             prefetch_cost_crossover: PREFETCH_COST_CROSSOVER,
             distill_floor: 0,
             skill_gate: None,
+            retrace_done: false,
             world: None,
         })
     }
@@ -643,6 +647,7 @@ impl InnerLoop {
             prefetch_cost_crossover: PREFETCH_COST_CROSSOVER,
             distill_floor,
             skill_gate: None,
+            retrace_done: false,
             world: None,
         })
     }
@@ -2414,6 +2419,41 @@ impl InnerLoop {
 
             // submit (tool errors are feedback too: models produce bad args)
             let mut wrote_answer = false;
+            // RETRACE (exploratory, HS_RETRACE=1): one independent
+            // patch-only review of the first verified submission.
+            let retrace_msg: Option<String> = match &validated {
+                Some((t, _))
+                    if t == "answer.submit"
+                        && !self.retrace_done
+                        && std::env::var("HS_RETRACE").is_ok_and(|v| v == "1")
+                        && self.ledger.model_verified() =>
+                {
+                    self.retrace_done = true;
+                    let ws = std::env::var("HS_SWE_WORKSPACE").ok();
+                    let diff = ws.and_then(|w| {
+                        crate::editapply::answer_diff_text(std::path::Path::new(&w)).ok()
+                    });
+                    diff.and_then(|d| {
+                        let mut spent: (u32, u64, u64) = (0, 0, 0);
+                        let r = crate::retrace::review(prompt, &d, |q| {
+                            self.kernel
+                                .call_model("operator", self.model_override.as_deref(), q)
+                                .ok()
+                                .map(|o| {
+                                    spent.0 += 1;
+                                    spent.1 += o.cost_usd_micros.max(0) as u64;
+                                    spent.2 += o.conservative_cost_usd_micros.max(0) as u64;
+                                    o.completion
+                                })
+                        });
+                        model_calls += spent.0;
+                        self.cost_total_micros += spent.1;
+                        self.conservative_cost_total_micros += spent.2;
+                        r
+                    })
+                }
+                _ => None,
+            };
             let tool_feedback = match validated {
                 None => Some("your reply carried no tool call; call exactly one of the provided tools (the answer path is answer.submit with the ANSWER_PATH) - no prose".to_string()),
                 Some((tool, args)) if self.dead_tools.contains(&tool) => {
@@ -2421,6 +2461,18 @@ impl InnerLoop {
                     let msg = format!(
                         "tool {tool} is dead for the rest of this mission - pick another tool (the answer path, edit.patch/answer.submit, is intact)"
                     );
+                    self.writer.append(
+                        EventBuilder::new(EventKind::ToolCall).payload(Payload::Inline(
+                            serde_json::to_vec(&serde_json::json!({
+                                "plugin": tool, "args": args, "error": msg,
+                            }))
+                            .expect("json! values serialize"),
+                        )),
+                    )?;
+                    Some(msg)
+                }
+                Some((tool, args)) if tool == "answer.submit" && retrace_msg.is_some() => {
+                    let msg = retrace_msg.clone().unwrap_or_default();
                     self.writer.append(
                         EventBuilder::new(EventKind::ToolCall).payload(Payload::Inline(
                             serde_json::to_vec(&serde_json::json!({

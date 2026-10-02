@@ -68,7 +68,7 @@ try:
    with socket.create_connection(('127.0.0.1',18748),timeout=.1):break
   except OSError:time.sleep(.02)
  else:raise RuntimeError('proxy socket did not accept connections')
- env={**os.environ,'PATH':'/opt/hs:/usr/bin:/bin','HOME':'/workspace','HS_DEEPSEEK_API_KEY':'local-placeholder','HS_DEEPSEEK_BASE_URL':'http://127.0.0.1:18748/chat/completions','HS_DEEPSEEK_MODEL':'deepseek-flash','HS_CRITIC_MODEL':'deepseek','HS_POLICY_TOML':'/runstate/policy.toml','HS_TUI':'off'}
+ env={**os.environ,'PATH':'/opt/hs:/usr/bin:/bin','HOME':'/workspace','HS_DEEPSEEK_API_KEY':'local-placeholder','HS_DEEPSEEK_BASE_URL':'http://127.0.0.1:18748/chat/completions','HS_DEEPSEEK_MODEL':'deepseek-flash','HS_CRITIC_MODEL':'deepseek','HS_POLICY_TOML':'/runstate/policy.toml','HS_TUI':'off',**({'HS_RETRACE':'1'} if json.loads((pathlib.Path(__file__).parent/'ab-config.json').read_text()).get('retrace') else {})}
  if pathlib.Path('/runstate/smoke').exists():env['HS_CRITIC_SCRIPT']='tool:git status --short|clean'
  cmd=['/opt/hs/hs-repl','run','--goal',pathlib.Path('/runstate/problem.txt').read_text(),'--config','/runstate/rig.toml','--dir','/runstate/mission','--project-dir','/workspace']
  if pathlib.Path('/runstate/smoke').exists():cmd+=['--max-steps','3']
