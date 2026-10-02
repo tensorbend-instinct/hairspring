@@ -18,6 +18,33 @@ fn tail(bytes: &[u8]) -> String {
     crate::msgfmt::tail_bytes_safe(&s, OUT_TAIL)
 }
 
+/// Keep the tail inline; when the stream was longer, also write the FULL
+/// bytes to a file outside the repository and return its path, so nothing is
+/// silently lost. Returns (tail, optional full-output path).
+pub fn tail_with_spill(bytes: &[u8], label: &str) -> (String, Option<String>) {
+    let t = tail(bytes);
+    if bytes.len() <= OUT_TAIL {
+        return (t, None);
+    }
+    let dir = std::env::temp_dir().join("hs-exec-out");
+    if std::fs::create_dir_all(&dir).is_err() {
+        return (t, None);
+    }
+    let f = dir.join(format!("{}-{label}.txt", unique_tag("out")));
+    match std::fs::write(&f, bytes) {
+        Ok(()) => (t, Some(f.display().to_string())),
+        Err(_) => (t, None),
+    }
+}
+
+fn with_spill(mut v: Value, label: &str, full: Option<String>, total: usize) -> Value {
+    if let (Some(p), Some(o)) = (full, v.as_object_mut()) {
+        o.insert(format!("{label}_full_path"), json!(p));
+        o.insert(format!("{label}_total_bytes"), json!(total));
+    }
+    v
+}
+
 /// The sandbox command line, as an argv vector (pure, unit-testable).
 /// Workspace floor (Eric 2026-09-10): the mission sees the real box but can
 /// only WRITE to its workspace - system roots are read-only binds, scratch
@@ -530,8 +557,10 @@ fn run_with_prep(
             }
         }
     };
-    let stdout = tail(&std::fs::read(&out_f).unwrap_or_default());
-    let stderr = tail(&std::fs::read(&err_f).unwrap_or_default());
+    let out_raw = std::fs::read(&out_f).unwrap_or_default();
+    let err_raw = std::fs::read(&err_f).unwrap_or_default();
+    let (stdout, out_full) = tail_with_spill(&out_raw, "stdout");
+    let (stderr, err_full) = tail_with_spill(&err_raw, "stderr");
     cleanup_scratch(ws, &scratch, patch_mode);
     if timed_out {
         return json!({"applied": patch_mode, "scratch": !patch_mode, "timed_out": true, "timeout_secs": timeout_secs,
@@ -540,6 +569,7 @@ fn run_with_prep(
     json!({"applied": patch_mode, "scratch": !patch_mode, "timed_out": false,
            "exit_code": status.and_then(|s| s.code()).unwrap_or(-1),
            "stdout": stdout, "stderr": stderr})
+    .pipe_spill(out_full, out_raw.len(), err_full, err_raw.len())
 }
 
 /// Host-side exec for harness-generated acceptance commands (the goal
@@ -618,8 +648,10 @@ pub fn run_host(ws: &Path, answer_path: &Path, command: &str, timeout_secs: u64)
             }
         }
     };
-    let stdout = tail(&std::fs::read(&out_f).unwrap_or_default());
-    let stderr = tail(&std::fs::read(&err_f).unwrap_or_default());
+    let out_raw = std::fs::read(&out_f).unwrap_or_default();
+    let err_raw = std::fs::read(&err_f).unwrap_or_default();
+    let (stdout, out_full) = tail_with_spill(&out_raw, "stdout");
+    let (stderr, err_full) = tail_with_spill(&err_raw, "stderr");
     cleanup_scratch(ws, &scratch, true);
     if timed_out {
         return json!({"applied": true, "timed_out": true, "timeout_secs": timeout_secs,
@@ -628,6 +660,7 @@ pub fn run_host(ws: &Path, answer_path: &Path, command: &str, timeout_secs: u64)
     json!({"applied": true, "timed_out": false,
            "exit_code": status.and_then(|s| s.code()).unwrap_or(-1),
            "stdout": stdout, "stderr": stderr})
+    .pipe_spill(out_full, out_raw.len(), err_full, err_raw.len())
 }
 
 /// Map a guardrail reason to its stable violation class - escalation and
@@ -685,5 +718,15 @@ impl GuardrailEscalator {
         Some(format!(
             "GUARDRAIL ESCALATION: {n} rejected edit-path attempts of class {class}. Repeating a rejected bypass cannot ever succeed - the CLASS is forbidden outright, not the specific command. Make the edit with edit.apply (search/replace blocks) and use repo.exec ONLY to build and test."
         ))
+    }
+}
+
+trait PipeSpill {
+    fn pipe_spill(self, o: Option<String>, ol: usize, e: Option<String>, el: usize) -> Value;
+}
+impl PipeSpill for Value {
+    fn pipe_spill(self, o: Option<String>, ol: usize, e: Option<String>, el: usize) -> Value {
+        let v = with_spill(self, "stdout", o, ol);
+        with_spill(v, "stderr", e, el)
     }
 }
