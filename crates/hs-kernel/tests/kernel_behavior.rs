@@ -395,3 +395,22 @@ fn lifecycle_pairs_have_ids_parents_and_error_ends() {
         assert_eq!(ends.len(), 1, "one terminal record per dispatch");
     }
 }
+
+#[test]
+fn unknown_tool_error_suggests_the_closest_valid_name() {
+    let _guard = TEST_LOCK.lock().unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let path = write_config(dir.path(), &base_config());
+    let k = Kernel::load(&path).unwrap();
+    let err = k
+        .call_tool("anyone", "ecoh", serde_json::json!({}))
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("Did you mean `echo`?"), "{err}");
+    assert!(err.contains("Valid tools for you"), "{err}");
+    let far = k
+        .call_tool("anyone", "zzzzzzzzzz", serde_json::json!({}))
+        .unwrap_err()
+        .to_string();
+    assert!(!far.contains("Did you mean"), "{far}");
+}

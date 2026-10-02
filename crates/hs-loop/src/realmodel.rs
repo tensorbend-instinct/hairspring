@@ -548,7 +548,53 @@ fn provider_error_detail(body: &mut ureq::Body) -> String {
     trimmed.chars().take(300).collect()
 }
 
+/// Strip markup so an HTML error page reads as its message, not as
+/// `<!DOCTYPE HTML>...` noise.
+fn plain_error_text(raw: &str) -> String {
+    if !raw.trim_start().starts_with('<') {
+        return raw.to_string();
+    }
+    let mut out = String::new();
+    let mut in_tag = false;
+    for ch in raw.chars() {
+        match ch {
+            '<' => in_tag = true,
+            '>' => {
+                in_tag = false;
+                out.push(' ');
+            }
+            c if !in_tag => out.push(c),
+            _ => {}
+        }
+    }
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// 429 (except a spend ceiling, which waiting never clears) and 5xx retry.
+pub fn is_retryable_status(code: u16, msg: &str) -> bool {
+    (code == 429 && !msg.contains("spend ceiling")) || (500..=599).contains(&code)
+}
+
+/// A spend-ceiling 429 is not a transient rate limit: retrying cannot help.
+/// Say so plainly, so the loop and the agent finish with the work in hand.
+pub fn provider_error_message(name: &str, code: u16, detail: &str) -> String {
+    let text = plain_error_text(detail);
+    if code == 429 && text.to_lowercase().contains("spend ceiling") {
+        return format!(
+            "{name}: HTTP 429 mission spend ceiling reached. This budget is exhausted and retrying will not help (not a rate limit). Stop calling the model; finish with the current working-tree changes and report what is done and what is left."
+        );
+    }
+    if text.is_empty() {
+        format!("{name}: HTTP {code} from provider")
+    } else {
+        format!("{name}: HTTP {code} from provider: {}", text.chars().take(300).collect::<String>())
+    }
+}
+
 fn provider_error_msg(p: &Provider, code: u16, detail: &str) -> String {
+    if code == 429 {
+        return provider_error_message(&p.name, code, detail);
+    }
     if detail.is_empty() {
         format!("{}: HTTP {code} from provider", p.name)
     } else {
@@ -644,7 +690,8 @@ impl AttemptError {
     /// rather than burning the attempt budget on a request that never changes.
     fn retryable(&self) -> bool {
         match self {
-            AttemptError::Status { code, .. } => *code == 429 || (500..=599).contains(code),
+            // A spend-ceiling 429 never clears by waiting: fail fast.
+            AttemptError::Status { code, msg, .. } => is_retryable_status(*code, msg),
             AttemptError::Other(_) => true,
         }
     }

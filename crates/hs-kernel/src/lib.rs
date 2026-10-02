@@ -656,8 +656,11 @@ impl Kernel {
                 .filter(|s| Self::visible(&s.entry, subject))
                 .map(|s| s.entry.name.clone())
                 .collect();
+            let hint = closest_tool(name, &valid)
+                .map(|c| format!(" Did you mean `{c}`?"))
+                .unwrap_or_default();
             return Err(KernelError::UnknownTool(format!(
-                "{name}. Valid tools for you: {} - call them by these exact names",
+                "{name}.{hint} Valid tools for you: {} - call them by these exact names",
                 valid.join(", ")
             )));
         }
@@ -1194,4 +1197,39 @@ impl Drop for PluginProc {
         let _ = self.child.kill();
         let _ = self.child.wait();
     }
+}
+
+/// Closest valid tool name for an unknown call: a name that contains (or is
+/// contained in) the attempt, else the smallest edit distance within 3.
+#[must_use]
+pub fn closest_tool(name: &str, valid: &[String]) -> Option<String> {
+    let n = name.to_lowercase();
+    if n.is_empty() {
+        return None;
+    }
+    if let Some(v) = valid.iter().find(|v| {
+        let l = v.to_lowercase();
+        l.contains(&n) || (n.len() >= 4 && n.contains(&l))
+    }) {
+        return Some(v.clone());
+    }
+    let dist = |a: &str, b: &str| -> usize {
+        let (a, b): (Vec<char>, Vec<char>) = (a.chars().collect(), b.chars().collect());
+        let mut prev: Vec<usize> = (0..=b.len()).collect();
+        for i in 1..=a.len() {
+            let mut cur = vec![i];
+            for j in 1..=b.len() {
+                let sub = prev[j - 1] + usize::from(a[i - 1] != b[j - 1]);
+                cur.push(sub.min(prev[j] + 1).min(cur[j - 1] + 1));
+            }
+            prev = cur;
+        }
+        prev[b.len()]
+    };
+    valid
+        .iter()
+        .map(|v| (dist(&n, &v.to_lowercase()), v))
+        .filter(|(d, _)| *d <= 3)
+        .min_by_key(|(d, _)| *d)
+        .map(|(_, v)| v.clone())
 }
