@@ -9,7 +9,9 @@ model response or proxy accounting, only optional SDK telemetry.
 import pathlib
 
 root=pathlib.Path(__file__).resolve().parent
-path=root/'openhands-env12/lib/python3.12/site-packages/openhands/sdk/llm/utils/telemetry.py'
+import os
+venv=pathlib.Path(os.environ['HS_AB_OH_VENV']) if os.environ.get('HS_AB_OH_VENV') else root/'openhands-env12'
+path=venv/'lib/python3.12/site-packages/openhands/sdk/llm/utils/telemetry.py'
 s=path.read_text()
 old='int(prompt_details.cache_creation_tokens or 0)'
 new='int(getattr(prompt_details, "cache_creation_tokens", None) or 0)'

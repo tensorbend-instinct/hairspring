@@ -36,12 +36,15 @@ jobs:
           : > out/summary.txt
           while IFS=$'\t' read -r mf bin name; do
             d=$(dirname "$mf")
-            (cd "$d" && sudo -E env "PATH=$PATH" "$bin" > "$GITHUB_WORKSPACE/out/$name.log" 2>&1); rc=$?
+            rc=0
+            (cd "$d" && sudo -E env "PATH=$PATH" "$bin" > "$GITHUB_WORKSPACE/out/$name.log" 2>&1) || rc=$?
             line=$(grep -h '^test result' "out/$name.log" | tail -1)
             echo "$name rc=$rc $line" >> out/summary.txt
           done < out/bins.tsv
           cat out/summary.txt
           awk '{for(i=1;i<=NF;i++){if($i=="passed;")p+=$(i-1); if($i=="failed;")f+=$(i-1); if($i=="ignored;")g+=$(i-1)}} END{print "TOTAL passed="p" failed="f" ignored="g}' out/summary.txt | tee out/total.txt
+          echo "::notice title=suite-failed-targets::$(grep -v 'rc=0' out/summary.txt | cut -c1-120 | head -25 | tr '\n' ';')"
+          echo "::notice title=suite-failed-tests::$(grep -h '^test .* FAILED$' out/*.log | head -30 | tr '\n' ';' | cut -c1-1500)"
           echo "::notice title=suite-total::$(cat out/total.txt) nonzero_rc=$(grep -vc 'rc=0' out/summary.txt)"
       - uses: actions/upload-artifact@v4
         if: always()

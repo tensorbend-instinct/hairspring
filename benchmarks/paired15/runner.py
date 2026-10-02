@@ -2,23 +2,27 @@
 """Sequential, resumable paired runner. Private hidden tests never enter either agent mount."""
 import argparse,datetime,hashlib,json,os,pathlib,shutil,socket,subprocess,sys,time
 R=pathlib.Path(__file__).resolve().parent
-P=pathlib.Path('/home/sandbox/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu')
-V=R/'openhands-env12'; BIN=pathlib.Path(__file__).resolve().parents[2]/'target/debug'
+# Paths default to the original local layout; CI overrides them from the environment.
+ENVROOT=pathlib.Path(os.environ.get('HS_AB_ENVROOT',str(R)))
+P=pathlib.Path(os.environ.get('HS_AB_PY312','/home/sandbox/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu'))
+V=pathlib.Path(os.environ['HS_AB_OH_VENV']) if os.environ.get('HS_AB_OH_VENV') else R/'openhands-env12'
+BIN=pathlib.Path(os.environ['HS_AB_BIN']) if os.environ.get('HS_AB_BIN') else pathlib.Path(__file__).resolve().parents[2]/'target/debug'
 GRADE={
- 'django__django-15103':str(R/'django41-env/bin/python'),
- 'django__django-16877':str(R/'django50-env/bin/python'),
- 'django__django-14608':str(R/'django40-env/bin/python'),
- 'django__django-13343':str(R/'django32-env/bin/python'),
- 'django__django-13590':str(R/'django32-env/bin/python'),
- 'django__django-13821':str(R/'django32-env/bin/python'),
- 'django__django-11141':str(R/'django31-env/bin/python'),
- 'django__django-11133':str(R/'django38-env/bin/python'),
- 'django__django-11490':str(R/'django38-env/bin/python'),
- 'pylint-dev__':str(R/'pylint38-env/bin/python'),
- 'pytest-dev__':str(R/'pytest38-env/bin/python'),
- 'scikit-learn__':str(R/'sklearn38-env/bin/python'),
- 'sphinx-doc__':str(R/'sphinx38-env/bin/python'),
- 'sympy__':str(R/'sympy310-env/bin/python'),
+ 'django__django-15103':str(ENVROOT/'django41-env/bin/python'),
+ 'django__django-16315':str(ENVROOT/'django50-env/bin/python'),
+ 'django__django-16877':str(ENVROOT/'django50-env/bin/python'),
+ 'django__django-14608':str(ENVROOT/'django40-env/bin/python'),
+ 'django__django-13343':str(ENVROOT/'django32-env/bin/python'),
+ 'django__django-13590':str(ENVROOT/'django32-env/bin/python'),
+ 'django__django-13821':str(ENVROOT/'django32-env/bin/python'),
+ 'django__django-11141':str(ENVROOT/'django31-env/bin/python'),
+ 'django__django-11133':str(ENVROOT/'django38-env/bin/python'),
+ 'django__django-11490':str(ENVROOT/'django38-env/bin/python'),
+ 'pylint-dev__':str(ENVROOT/'pylint38-env/bin/python'),
+ 'pytest-dev__':str(ENVROOT/'pytest38-env/bin/python'),
+ 'scikit-learn__':str(ENVROOT/'sklearn38-env/bin/python'),
+ 'sphinx-doc__':str(ENVROOT/'sphinx38-env/bin/python'),
+ 'sympy__':str(ENVROOT/'sympy310-env/bin/python'),
 }
 OH_SCRIPT='''
 import json,pathlib,socket,subprocess,time,traceback
@@ -91,7 +95,7 @@ def prepare(case,harness,out):
 def grade_python(id):
  for prefix,path in GRADE.items():
   if id.startswith(prefix):return path
- return str(R/'django38-env/bin/python')
+ return str(ENVROOT/'django38-env/bin/python')
 def run_one(id,harness,out,port,ledger_path,bridge,fake=False,grade_smoke=False):
  candidates=list(R.glob('probe-*'))
  case=next((c for c in candidates if (c/'public.json').exists() and json.loads((c/'public.json').read_text())['instance_id']==id),None)

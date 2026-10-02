@@ -1,0 +1,103 @@
+name: ab-run
+# Paired HAIRSPRING vs OpenHands run, direct to DeepSeek. Triggers ONLY on pushes to
+# the dedicated ab-run branch. No pull_request / pull_request_target. The API key is a
+# temporary Actions secret, written to a 0600 tmpfs file in its own step (never echoed,
+# never in the agent sandbox), and deleted after each run. Results are artifacts only.
+on:
+  push:
+    branches: [ab-run]
+permissions:
+  contents: read
+concurrency:
+  group: ab-run
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          rustup toolchain install stable --profile minimal && rustup default stable
+          CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0 cargo build --workspace --bins
+          mkdir -p hsbin && for f in target/debug/hs-repl target/debug/hs-plugin-*; do case "$f" in *.d) ;; *) [ -f "$f" ] && [ -x "$f" ] && cp "$f" hsbin/ ;; esac; done
+          ls hsbin; tar czf hsbin.tgz -C hsbin .
+      - uses: actions/upload-artifact@v4
+        with: { name: hsbin, path: hsbin.tgz, retention-days: 7 }
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix1: ${{ steps.m.outputs.matrix1 }}
+      matrix2: ${{ steps.m.outputs.matrix2 }}
+      matrix3: ${{ steps.m.outputs.matrix3 }}
+      repeats: ${{ steps.m.outputs.repeats }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: m
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          c=json.load(open('benchmarks/paired15/ab-config.json'))
+          env={x['id']:x['python_env'] for x in json.load(open('benchmarks/paired15/controls-final.json'))['cases']}
+          for r in (1,2,3):
+              inc=[{'id':i,'harness':h,'repeat':r,'genv':env[i]} for i in c['ids'] for h in c['harnesses']] if r<=c['repeats'] else []
+              print(f"matrix{r}="+json.dumps({'include':inc}))
+          print(f"repeats={c['repeats']}")
+          PY
+  gate:
+    # Offline gate: the complete runner against a FAKE metered model. No key, no spend.
+    runs-on: ubuntu-latest
+    needs: [build]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: hsbin, path: dl }
+      - run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq bubblewrap socat
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          pip install --break-system-packages -q uv pandas pyarrow -r benchmarks/paired15/proxy-requirements.txt
+          mkdir -p "$RUNNER_TEMP/hsbin" && tar xzf dl/hsbin.tgz -C "$RUNNER_TEMP/hsbin"
+          echo "HS_AB_BIN=$RUNNER_TEMP/hsbin" >> "$GITHUB_ENV"
+      - run: |
+          cd benchmarks/paired15
+          ./ci_setup.sh "$RUNNER_TEMP/abenv" oh
+          ./ci_setup.sh "$RUNNER_TEMP/abenv" grade django38
+          python3 preflight.py --id django__django-11133 --out probe-django11133
+      - run: |
+          cd benchmarks/paired15
+          python3 -m pytest -q test_spend_proxy.py test_spend_proxy_v2.py test_proxy_*.py test_balance_passthrough.py test_openhands_telemetry_compat.py 2>&1 | tail -15 || true
+          python3 test_runner_fake.py
+  wave1:
+    needs: [build, plan, gate]
+    if: needs.plan.outputs.repeats >= 1
+    uses: ./.github/workflows/ab-wave.yml
+    with: { repeat: 1, matrix: "${{ needs.plan.outputs.matrix1 }}" }
+    secrets: inherit
+  check1:
+    needs: [plan, wave1]
+    if: always() && needs.wave1.result != 'skipped'
+    uses: ./.github/workflows/ab-budget.yml
+    with: { wave: 1, next_runs: 30 }
+  wave2:
+    needs: [plan, check1]
+    if: needs.plan.outputs.repeats >= 2 && needs.check1.outputs.proceed == 'true'
+    uses: ./.github/workflows/ab-wave.yml
+    with: { repeat: 2, matrix: "${{ needs.plan.outputs.matrix2 }}" }
+    secrets: inherit
+  check2:
+    needs: [plan, wave2]
+    if: always() && needs.wave2.result != 'skipped'
+    uses: ./.github/workflows/ab-budget.yml
+    with: { wave: 2, next_runs: 30 }
+  wave3:
+    needs: [plan, check2]
+    if: needs.plan.outputs.repeats >= 3 && needs.check2.outputs.proceed == 'true'
+    uses: ./.github/workflows/ab-wave.yml
+    with: { repeat: 3, matrix: "${{ needs.plan.outputs.matrix3 }}" }
+    secrets: inherit
+  summary:
+    needs: [plan, wave3, check1, check2]
+    if: always()
+    uses: ./.github/workflows/ab-budget.yml
+    with: { wave: 3, next_runs: 0 }

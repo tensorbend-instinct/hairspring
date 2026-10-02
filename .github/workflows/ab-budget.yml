@@ -1,0 +1,45 @@
+name: ab-budget
+on:
+  workflow_call:
+    inputs:
+      wave: { required: true, type: number }
+      next_runs: { required: true, type: number }
+    outputs:
+      proceed: { value: "${{ jobs.sum.outputs.proceed }}" }
+permissions:
+  contents: read
+  actions: read
+jobs:
+  sum:
+    runs-on: ubuntu-latest
+    outputs:
+      proceed: ${{ steps.s.outputs.proceed }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { pattern: 'ab-r*', path: arts }
+        continue-on-error: true
+      - id: s
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import glob,json
+          base=6052157; carry=19933875  # conservative carried spend before this experiment
+          spent=0; rows=[]
+          for f in glob.glob('arts/*/ledger.final'):
+              try: spent+=json.load(open(f))['spent_micros']-base
+              except Exception: spent+=2500000   # unreadable ledger: book the per-run cap
+          total=carry+spent
+          worst=total+int(${{ inputs.next_runs }})*2500000
+          print(f"spent_this_experiment_usd={spent/1e6:.2f}")
+          print(f"total_with_carry_usd={total/1e6:.2f}")
+          print(f"proceed={'true' if worst<=150_000_000 else 'false'}")
+          import sys
+          print(f"$X of $150: {total/1e6:.2f} (carry 19.93 + {spent/1e6:.2f} this run); worst-case after next wave {worst/1e6:.2f}",file=sys.stderr)
+          PY
+          cat "$GITHUB_OUTPUT"
+      - name: summary table
+        run: |
+          python3 - <<'PY'
+          import glob,json
+          for f in sorted(glob.glob('arts/*/runs/*/*/record.json')):
+              r=json.load(open(f)); print(r['instance_id'],r['harness'],r['state'],'resolved=',r.get('resolved'),'steps=',r.get('steps'),'wall=',r.get('wall_secs'))
+          PY

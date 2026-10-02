@@ -1,0 +1,73 @@
+name: ab-wave
+on:
+  workflow_call:
+    inputs:
+      repeat: { required: true, type: number }
+      matrix: { required: true, type: string }
+    secrets:
+      DEEPSEEK_API_KEY: { required: false }
+permissions:
+  contents: read
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(inputs.matrix) }}
+    name: ${{ matrix.id }} ${{ matrix.harness }} r${{ matrix.repeat }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: hsbin, path: dl }
+      - name: deps
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq bubblewrap socat
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          pip install --break-system-packages -q uv pandas pyarrow -r benchmarks/paired15/proxy-requirements.txt
+          mkdir -p "$RUNNER_TEMP/hsbin" && tar xzf dl/hsbin.tgz -C "$RUNNER_TEMP/hsbin"
+          echo "HS_AB_BIN=$RUNNER_TEMP/hsbin" >> "$GITHUB_ENV"
+      - name: environments and preflight
+        run: |
+          cd benchmarks/paired15
+          ./ci_setup.sh "$RUNNER_TEMP/abenv" grade "${{ matrix.genv }}"
+          if [ "${{ matrix.harness }}" = OpenHands ]; then ./ci_setup.sh "$RUNNER_TEMP/abenv" oh; fi
+          python3 preflight.py --id "${{ matrix.id }}" --out "probe-run"
+      - name: place key file (secret visible to this step only)
+        env:
+          K: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          set +x
+          test -n "$K" || { echo "no key secret present"; exit 1; }
+          umask 077; printf '%s' "$K" > /dev/shm/dskey
+      - name: run (no secret in env)
+        run: |
+          set +x
+          cd benchmarks/paired15
+          T="$RUNNER_TEMP/ab"; mkdir -p "$T/bridge"
+          # per-run ledger starts at the recovered baseline; ceiling = baseline + $2.50 per run
+          printf '{"spent_micros":6052157,"reserved_micros":0,"blocked":false}\n' > "$T/ledger"
+          nohup python3 spend_proxy.py --key-file /dev/shm/dskey --ledger "$T/ledger" --port 18749 --ceiling-micros 8552157 > "$T/proxy.log" 2>&1 &
+          for i in $(seq 50); do grep -q reserve_micros "$T/proxy.log" && break; sleep .2; done
+          nohup socat UNIX-LISTEN:"$T/bridge/proxy.sock",fork TCP:127.0.0.1:18749 >/dev/null 2>&1 &
+          for i in $(seq 50); do [ -S "$T/bridge/proxy.sock" ] && break; sleep .2; done
+          python3 runner.py --out "$T/runs" --id "${{ matrix.id }}" --harness "${{ matrix.harness }}" --port 18749 --ledger "$T/ledger" --bridge "$T/bridge" 2>&1 | tee "$T/runner.out" || true
+          cp "$T/ledger" "$T/ledger.final"
+      - name: scrub check and collect
+        if: always()
+        run: |
+          T="$RUNNER_TEMP/ab"; rm -f /dev/shm/dskey
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          cp -r "$T/runs" "$GITHUB_WORKSPACE/out/runs" 2>/dev/null || true
+          cp "$T/ledger.final" "$T/runner.out" "$GITHUB_WORKSPACE/out/" 2>/dev/null || true
+          # proxy log kept, but fail the collection if anything key-shaped is present
+          cp "$T/proxy.log" "$GITHUB_WORKSPACE/out/" 2>/dev/null || true
+          if grep -rIlE 'sk-[A-Za-z0-9]{20,}' "$GITHUB_WORKSPACE/out"; then echo "key-shaped string in output, dropping"; rm -rf "$GITHUB_WORKSPACE/out"; mkdir "$GITHUB_WORKSPACE/out"; fi
+          # drop bulky private material: the hidden test patch never enters out/
+          find "$GITHUB_WORKSPACE/out" -name 'test.patch' -delete
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ab-r${{ matrix.repeat }}-${{ matrix.id }}-${{ matrix.harness }}
+          path: out/
+          retention-days: 30
