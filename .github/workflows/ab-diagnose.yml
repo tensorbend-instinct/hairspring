@@ -1,0 +1,29 @@
+name: ab-diagnose
+# Read-only: pulls artifacts of an earlier ab-run run (same repo, GITHUB_TOKEN) and prints
+# the grader failure reasons as annotations. No secrets, no model calls, no spend.
+on:
+  push:
+    branches: [ab-diag]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: 'ab-r1-*-HAIRSPRING'
+          path: arts
+          run-id: 36965627460
+          github-token: ${{ github.token }}
+      - run: |
+          python3 - <<'PY'
+          import glob,json
+          for f in sorted(glob.glob('arts/*/runs/*/HAIRSPRING/record.json')):
+              r=json.load(open(f)); d=f.rsplit('/',1)[0]
+              try: g=open(d+'/grade.log').read()[-400:].replace('\n',' | ')
+              except Exception as e: g='no grade.log'
+              print(f"::notice title=diag {r['instance_id']}::state={r['state']} rc={r.get('grade_returncode')} outcome={r.get('outcome')} untracked={r.get('untracked')} grade={g}")
+          PY
