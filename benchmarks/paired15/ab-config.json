@@ -1,1 +1,24 @@
-{"note":"full: 15 locked instances x 2 harnesses x 3 repeats = 90 runs; pilots (django-11133) resolved by both arms at ~$0.10 each","ids":["django__django-11133","django__django-11141","django__django-11490","django__django-13343","django__django-13590","django__django-13821","django__django-14608","django__django-15103","django__django-16315","django__django-16877","pylint-dev__pylint-4551","pytest-dev__pytest-6202","scikit-learn__scikit-learn-14053","sphinx-doc__sphinx-7440","sympy__sympy-23262"],"repeats":3,"harnesses":["HAIRSPRING","OpenHands"]}
+{
+ "note": "rerun: HAIRSPRING only, 15x3=45 runs, original grader rule; HAIRSPRING prompt gains a scratch-outside-repo line (post-hoc, disclosed). OpenHands original-rule results from run 36965627460 stand.",
+ "ids": [
+  "django__django-11133",
+  "django__django-11141",
+  "django__django-11490",
+  "django__django-13343",
+  "django__django-13590",
+  "django__django-13821",
+  "django__django-14608",
+  "django__django-15103",
+  "django__django-16315",
+  "django__django-16877",
+  "pylint-dev__pylint-4551",
+  "pytest-dev__pytest-6202",
+  "scikit-learn__scikit-learn-14053",
+  "sphinx-doc__sphinx-7440",
+  "sympy__sympy-23262"
+ ],
+ "repeats": 3,
+ "harnesses": [
+  "HAIRSPRING"
+ ]
+}
