@@ -667,6 +667,8 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
                                         "usage: /caps [steps|wall|budget|critic-steps|critic-wall|critic-budget VALUE]",
                                     ),
                                 }
+                            } else if st.handle_reasoning_command(&t) {
+                                // folded/expanded reasoning toggle
                             } else if t == "/help" {
                                 // M26: the surface's OWN help - the
                                 // line-mode REPL_HELP advertised

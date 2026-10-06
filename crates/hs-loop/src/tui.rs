@@ -88,6 +88,7 @@ pub const TUI_HELP: &str = "hairspring - full-screen surface
   /history  goals you have submitted this session
   /last     the latest mission's answer artifact
   /resume   pick a prior session to continue
+  /reasoning  fold or expand model reasoning (/reasoning show prints the last in full)
   /caps     view or change the live caps (steps, wall, budget, critic)
   /models   pick the operator model (next mission onward); the picker's '+ Add provider...' (or /models add [name]) declares a new provider
   /theme    pick the surface theme
@@ -1639,6 +1640,9 @@ pub struct TuiState {
     pub call_started: Option<std::time::Instant>,
     pub last_tok_per_s: Option<u64>,
     pub cache_hit_pct: Option<u8>,
+    pub tool_running: Option<(String, std::time::Instant)>,
+    pub reasoning_expanded: bool,
+    pub last_reasoning: String,
 }
 
 fn fmt_elapsed(secs: u64) -> String {
@@ -1707,6 +1711,9 @@ impl Default for TuiState {
             call_started: None,
             last_tok_per_s: None,
             cache_hit_pct: None,
+            tool_running: None,
+            reasoning_expanded: false,
+            last_reasoning: String::new(),
         }
     }
 }
@@ -1809,12 +1816,24 @@ impl TuiState {
             U::ModelReasoning { text } => {
                 // The provider's own reasoning, rendered dim so it
                 // never reads as the model's answer; emitted only when
-                // real text arrived (never fabricated).
+                // real text arrived (never fabricated). Folded to the
+                // first line plus a count by default; the full text is
+                // kept and `set_reasoning_expanded(true)` shows it.
                 self.flush_inflight();
+                self.last_reasoning = text.clone();
                 let dim = Style::default().add_modifier(Modifier::DIM);
-                for line in text.lines().take(8) {
+                let lines: Vec<&str> = text.lines().collect();
+                if self.reasoning_expanded || lines.len() <= 1 {
+                    for line in lines.iter().take(if self.reasoning_expanded { 200 } else { 8 }) {
+                        self.push_transcript_spans(vec![Span::styled(
+                            format!("  \u{2546} {line}"),
+                            dim,
+                        )]);
+                    }
+                } else {
+                    let first: String = lines[0].chars().take(100).collect();
                     self.push_transcript_spans(vec![Span::styled(
-                        format!("  \u{2546} {line}"),
+                        format!("  \u{2546} {first}  (+{} more lines)", lines.len() - 1),
                         dim,
                     )]);
                 }
@@ -1883,6 +1902,7 @@ impl TuiState {
                 // M19: the held text is this call's raw JSON envelope;
                 // the beat below narrates it - never scrollback.
                 self.answer_inflight.clear();
+                self.tool_running = Some((plugin.clone(), now));
                 self.cur_action = if args_summary.is_empty() {
                     plugin.clone()
                 } else {
@@ -1924,23 +1944,30 @@ impl TuiState {
                 self.flush_inflight();
                 self.phase = LoopPhase::Observe;
                 self.push_ticker(EventKind::Observation);
-                let (code, mark) = if *ok {
-                    (sgr_style(&self.theme.ok), "\u{2713} ok")
+                self.tool_running = None;
+                let (code, label) = if *ok {
+                    (sgr_style(&self.theme.ok), "\u{2713} Completed")
                 } else {
-                    (sgr_style(&self.theme.fail), "\u{2717} fail")
+                    (sgr_style(&self.theme.fail), "\u{2717} Failed")
                 };
                 let dim = sgr_style(&self.theme.dim);
+                let took = if *elapsed_ms >= 1000 {
+                    format!("{:.1}s", *elapsed_ms as f64 / 1000.0)
+                } else {
+                    format!("{elapsed_ms}ms")
+                };
                 let mut spans = vec![
                     Span::raw("  "),
-                    Span::styled(mark, code),
-                    Span::styled(format!("  {elapsed_ms}ms"), dim),
+                    Span::styled(format!("{label} in {took}"), code),
                 ];
                 if !output_summary.is_empty() {
                     let trimmed = output_summary.trim();
                     let looks_structured = (trimmed.starts_with('{') && trimmed.ends_with('}'))
                         || (trimmed.starts_with('[') && trimmed.ends_with(']'));
                     if !looks_structured {
-                        spans.push(Span::styled(format!("  {output_summary}"), dim));
+                        let short: String = trimmed.chars().take(80).collect();
+                        let ell = if trimmed.chars().count() > 80 { "\u{2026}" } else { "" };
+                        spans.push(Span::styled(format!("  {short}{ell}"), dim));
                     }
                 }
                 self.push_transcript_spans(spans);
@@ -2351,9 +2378,46 @@ impl TuiState {
             .collect()
     }
 
+    /// `/reasoning` toggles folded/expanded; `/reasoning show` prints the
+    /// last call's full reasoning. Returns false when `t` is not this command.
+    pub fn handle_reasoning_command(&mut self, t: &str) -> bool {
+        match t.trim() {
+            "/reasoning" => {
+                self.reasoning_expanded = !self.reasoning_expanded;
+                let m = if self.reasoning_expanded {
+                    "reasoning: expanded"
+                } else {
+                    "reasoning: folded"
+                };
+                self.push_transcript_line(m);
+                true
+            }
+            "/reasoning show" => {
+                let full = self.last_reasoning.clone();
+                if full.is_empty() {
+                    self.push_transcript_line("(no reasoning captured yet)");
+                }
+                for l in full.lines() {
+                    self.push_transcript_line(&format!("  \u{2546} {l}"));
+                }
+                true
+            }
+            _ => false,
+        }
+    }
+
+    pub fn set_reasoning_expanded(&mut self, on: bool) {
+        self.reasoning_expanded = on;
+    }
+
+    #[must_use]
+    pub fn last_reasoning(&self) -> &str {
+        &self.last_reasoning
+    }
+
     /// Always-on footer vitals: turn clock (while a turn runs), step,
-    /// calls, tok/s of the last call and cache hit. Anything unknown is
-    /// omitted, never invented.
+    /// running-tool ticker, calls, tok/s of the last call and cache hit.
+    /// Anything unknown is omitted, never invented.
     #[must_use]
     pub fn footer_stats(&self, now: std::time::Instant) -> String {
         let mut parts: Vec<String> = Vec::new();
@@ -2362,6 +2426,12 @@ impl TuiState {
             if self.cur_step > 0 {
                 parts.push(format!("step {}", self.cur_step));
             }
+        }
+        if let Some((tool, t0)) = &self.tool_running {
+            parts.push(format!(
+                "{tool} {}s",
+                now.saturating_duration_since(*t0).as_secs()
+            ));
         }
         if self.total_model_calls > 0 {
             parts.push(format!(
