@@ -1,31 +1,26 @@
-# HAIRSPRING desktop app (Tauri v2) - design
+# HAIRSPRING desktop app (Tauri v2)
 
-Status: scaffold only (apps/desktop). Not yet a faithful dsh-parity app.
+apps/desktop. The Rust backend links `hs_loop::engine::Engine` in-process: missions run inside the
+app, UI events stream to the webview as JSON (`hs-event`, `hs-done`, `hs-queue`, `hs-scheduled`).
+Nothing shells out to the CLI.
 
-## Principle
-The app is a thin shell over the `hairspring` binary. The loop, checker, critic,
-held-out promotion and log stay in the CLI; the UI never reimplements them.
+## What the app does
+- First run: setup screen saves a provider key owner-only under ~/.config/hairspring/keys/.
+- Chat: user bubbles, folded reasoning, tool rows "Completed in Ns", live footer (elapsed, steps, calls, tokens, cache hit).
+- Sidebar: sessions grouped by workspace, title from the goal, age. Double-click exports a session ZIP.
+- Trajectory tab: Duration / Model / Tools bars and Turns / Calls / Events / Cost for the selected session.
+- Slash menu as you type: /goal /plan /feedback /compact /permission /model /export /add-file /mode /queue.
+- Queue-while-busy: a goal submitted during a mission queues and drains in order.
+- Question card: `ask_user_question` calls show options in the app and the click answers the tool.
+- Plugins tab: tools and models configured in the rig. Settings tab: mode, permission, max steps.
+- Schedule firing loop: every 30s, if idle, due scheduled prompts run as goals.
 
-## Fresh install (Codex / Claude Code style)
-1. First launch runs `hairspring setup --check`. Exit 0 = a provider is ready.
-2. Otherwise show a setup screen: pick provider, paste key, app runs
-   `hairspring setup` (validates, saves owner-only under ~/.config/hairspring/keys/).
-3. Pick a project folder (missions are confined to it). Then the main view.
-4. Bundle: `hairspring` and its sibling plugin binaries ship as Tauri sidecars.
-
-## Main view (parity targets from the CLI/TUI already built)
-- Transcript with folded reasoning (`/reasoning`), tool rows "Completed in Ns".
-- Always-on footer: elapsed, steps, calls, tok/s, cache %, context remaining %,
-  running-tool ticker, doom-loop / REPEAT n signal.
-- Session switcher grouped by workspace (SessionInfo.workspace).
-- Lineage and evidence panels (selfmod_view, evidence_view).
-- Resume / fork sessions (`--resume`, `--fork`).
-
-## Not built yet
-Setup screen, project picker, sidecar bundling, event-structured mission output
-(the scaffold streams raw stdout lines), session list/switcher UI, footer vitals,
-fold toggles, lineage/evidence panels, packaging and signing, fresh-machine regression.
+## Known limits
+- `permission` is stored but not enforced by the loop.
+- No Voice plugin. No packaging or signing. Not rebuilt from a fresh clone.
+- Verified with a scripted model under Xvfb, not a live-model run.
 
 ## Build notes (sandbox)
-Needs webkit2gtk-4.1 + gtk3 dev packages. Sandbox has no root: dev packages were
-unpacked with dpkg -x into a sysroot and linked via PKG_CONFIG_SYSROOT_DIR.
+Needs webkit2gtk-4.1 + gtk3 dev packages. The sandbox has no root, so headers and libs came from a
+user-space sysroot (PKG_CONFIG_SYSROOT_DIR, RUSTFLAGS -L, and a bundled libsqlite3.a link arg).
+These are sandbox-only workarounds; a normal machine needs none of them.

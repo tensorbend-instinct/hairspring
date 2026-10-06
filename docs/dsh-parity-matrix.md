@@ -23,7 +23,7 @@ rebuilt task, different model runs).
 | subagent_fork | agent.fork rewritten to agent.spawn with ledger context (fork_red 2/2: live child spawned and finished; context formatter unit-tested) | proven |
 | create_goal, get_goal, update_goal | `goal` tool | proven (tests) |
 | exit_plan_mode (plan mode) | `plan` tool + dispatcher gate | proven (tests) |
-| ask_user_question | ask_user_question (file protocol; UI side not built) | partial |
+| ask_user_question | ask_user_question tool + appback pending/answer + app question card (appback_red a1; live in app: card shown, click answered, tool returned) | proven |
 | present | present tool (tools2_red; records .hs/presented.jsonl) | proven (tests) |
 | job_kill, job_list, job_output (background jobs) | `jobs` tool: start/list/output/kill, confined like term.exec | proven (tests) |
 | schedule_create/delete/list/update | schedule tool + Engine::fire_due_schedules firing loop (tools2_red 5/5, engine_red e5: due fires once, advances, refires next period) | proven |
@@ -32,18 +32,18 @@ rebuilt task, different model runs).
 ## Surface
 | dsh feature | HAIRSPRING | Status |
 |---|---|---|
-| Workspaces sidebar, per-workspace sessions | TUI /sessions grouped by workspace | partial (TUI only) |
-| Session auto-titles, spinner, age | /name, titles partial | partial |
+| Workspaces sidebar, per-workspace sessions | Engine::sessions + app sidebar grouped by workspace (engine_red e2; app screenshot) | proven |
+| Session auto-titles, spinner, age | titles from the goal, age_secs, footer working ticker (appback_red a3; app screenshot) | proven |
 | Live footer: steps, tok/s, tok, cache hit, context % | built (8ba58bd, 05e5fdc) | proven (tests) |
 | "Completed in Ns" folding, working ticker | built (b011d21) | proven (tests) |
 | Folded reasoning | built | proven (tests) |
-| Trajectory tab (Duration/Turns/Calls bars) | hash-chained log + hs-log-cli; no view | partial |
-| Slash menu: Goal, Plan, Feedback, Compact, Permission, Model, Export, Add File | /caps /history /name /reasoning /models; no goal/plan/compact/export/permission | partial |
-| Queue-while-busy | queue_goal in TUI | partial |
+| Trajectory tab (Duration/Turns/Calls bars) | Engine::trajectory + app tab with Duration/Model/Tools bars and Turns/Calls/Cost (appback_red a2; app screenshot) | proven |
+| Slash menu: Goal, Plan, Feedback, Compact, Permission, Model, Export, Add File | appback slash_commands/filter/run_slash, app menu as you type (appback_red a4; app screenshot of /co) | proven |
+| Queue-while-busy | app submit queues behind a running mission and drains in order (appback_red a5; app screenshot: B and C queued while A ran) | proven |
 | Modes Standard / PTC / Minimal / Creator | hs_loop::modes + InnerLoop/Engine::set_mode narrowing the offered tools, answer.submit always kept (engine_red e7) | proven |
-| Plugins (Agent Teams, Auth Review, Dev Tools, Voice, Shell limits, loop dispatch, subagent limits, Web search) | plugin system exists (hs-plugin-*); those plugins do not | partial |
-| Settings UI (loopback only) | config file + `setup` | partial |
-| Desktop/web app | wrapper scaffold only | missing |
+| Plugins (Agent Teams, Auth Review, Dev Tools, Voice, Shell limits, loop dispatch, subagent limits, Web search) | app Plugins panel lists configured tools and models (appback_red a6); no Voice plugin exists | partial (Voice missing) |
+| Settings UI (loopback only) | app Settings: mode (applied live), max_steps (applied at open), permission ask/auto (stored, not enforced by the loop) | partial (permission not enforced) |
+| Desktop/web app | Tauri v2 app on the in-process Engine (apps/desktop): setup, chat with fold rows, sessions, trajectory, slash menu, queue, question card, plugins, settings; release build run under Xvfb with a scripted model; not rebuilt from a fresh clone | proven (scripted model; no live-model run) |
 | Compact older history | /compact + auto budget distillation | proven (command, budget fn); model distillation after /compact not run live |
 | Export session log ZIP | hs_loop::export::export_zip + Engine::export_session (export_red 2/2, engine_red e4; python zipfile testzip verified) | proven |
 

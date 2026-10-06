@@ -64,6 +64,7 @@ fn a3_sessions_carry_title_and_age() {
     let s = eng.sessions();
     let one = &s["groups"][0]["sessions"][0];
     assert!(one["title"].as_str().unwrap().contains("a goal that becomes"), "{s}");
+    assert!(!one["title"].as_str().unwrap().contains("ENVIRONMENT"), "{s}");
     assert!(one["age_secs"].as_u64().unwrap() < 120, "{s}");
 }
 

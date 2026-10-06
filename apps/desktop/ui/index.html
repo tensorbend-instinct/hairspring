@@ -1,20 +1,2 @@
 <!doctype html><meta charset="utf-8"><title>HAIRSPRING</title>
-<style>body{font:14px ui-monospace,monospace;background:#0e1116;color:#d6dbe3;margin:0;display:flex;flex-direction:column;height:100vh}
-#log{flex:1;overflow:auto;padding:12px;white-space:pre-wrap}#bar{display:flex;gap:8px;padding:8px;border-top:1px solid #222}
-input{flex:1;background:#161b22;color:inherit;border:1px solid #30363d;padding:8px}button{padding:8px 14px}
-#foot{padding:4px 12px;color:#7d8590;border-top:1px solid #222}</style>
-<div id="log">HAIRSPRING desktop. Checking setup...</div>
-<div id="bar"><input id="goal" placeholder="Describe the goal"><button id="go">Run</button></div>
-<div id="foot">idle</div>
-<script>
-const {invoke}=window.__TAURI__.core,{listen}=window.__TAURI__.event;
-const log=document.getElementById('log'),foot=document.getElementById('foot');
-const add=t=>{log.textContent+="\n"+t;log.scrollTop=log.scrollHeight};
-let t0=0,timer;
-invoke('setup_check').then(r=>{log.textContent=r||'ready'}).catch(e=>{log.textContent='Setup needed: '+e});
-listen('mission-line',e=>add(e.payload));
-listen('mission-done',e=>{clearInterval(timer);foot.textContent='done, exit '+e.payload});
-document.getElementById('go').onclick=()=>{const goal=document.getElementById('goal').value;
- t0=Date.now();timer=setInterval(()=>foot.textContent='working '+Math.round((Date.now()-t0)/1000)+'s',500);
- invoke('run_goal',{goal,config:'',dir:'',project:''}).catch(e=>add('error: '+e))};
-</script>
+<link rel="stylesheet" href="app.css"><div id="app"></div><script src="app.js"></script>

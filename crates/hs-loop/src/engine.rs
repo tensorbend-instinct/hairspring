@@ -55,7 +55,7 @@ impl Engine {
             .into_iter()
             .map(|(ws, v)| {
                 json!({"workspace": ws, "sessions": v.iter().map(|i| json!({
-                    "id": i.id.to_string(), "events": i.events, "title": i.preview,
+                    "id": i.id.to_string(), "events": i.events, "title": i.preview.split(" ENVIRONMENT").next().unwrap_or("").trim(),
                     "age_secs": i.modified.elapsed().map_or(0, |d| d.as_secs())})).collect::<Vec<_>>()})
             })
             .collect();
@@ -135,6 +135,11 @@ impl Engine {
     /// Queue-while-busy: goals wait here and run in order via `run_next`.
     pub fn queue_goal(&mut self, goal: &str) {
         self.queue.push_back(goal.to_string());
+    }
+
+    /// Take the newest queued goal (the app starts it immediately when idle).
+    pub fn take_queued(&mut self) -> Option<String> {
+        self.queue.pop_back()
     }
 
     #[must_use]
