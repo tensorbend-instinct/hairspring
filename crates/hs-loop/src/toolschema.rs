@@ -162,6 +162,13 @@ pub fn tb_tools() -> Vec<Value> {
                 "max_lines":{"type":"integer","description":"optional, default 400"}},"required":["path"]}),
         ),
         f(
+            "ask_user_question",
+            "Ask the user one question and wait for the answer. Use only when a decision is genuinely theirs and you cannot proceed safely on a stated assumption. Optional options lists suggested answers. If no answer arrives you get an error: continue on your best assumption and say so.",
+            json!({"type":"object","properties":{
+                "question":{"type":"string"},
+                "options":{"type":"array","items":{"type":"string"},"description":"optional suggested answers"}},"required":["question"]}),
+        ),
+        f(
             "jobs",
             "Background jobs in the same confined shell as term.exec. op=start {command} returns at once with an id; op=list shows status and exit codes; op=output {id, tail_bytes?} reads the log while it runs; op=kill {id} ends it. Use for servers, watchers and long builds instead of blocking a step.",
             json!({"type":"object","properties":{
