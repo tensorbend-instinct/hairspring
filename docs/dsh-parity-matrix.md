@@ -27,7 +27,7 @@ rebuilt task, different model runs).
 | present | present tool (tools2_red; records .hs/presented.jsonl) | proven (tests) |
 | job_kill, job_list, job_output (background jobs) | `jobs` tool: start/list/output/kill, confined like term.exec | proven (tests) |
 | schedule_create/delete/list/update | schedule tool + Engine::fire_due_schedules firing loop (tools2_red 5/5, engine_red e5: due fires once, advances, refires next period) | proven |
-| workflow | none | missing |
+| workflow | workflow tool (define/get/list/delete) + Engine::run_workflow (tools2_red t6, engine_red e6) | proven |
 
 ## Surface
 | dsh feature | HAIRSPRING | Status |

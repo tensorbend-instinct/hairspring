@@ -92,6 +92,35 @@ impl Engine {
         out
     }
 
+    /// Run a defined workflow: each step as a goal in order; stops at the first
+    /// step that does not pass. Returns `{ok, ran, results[]}`.
+    pub fn run_workflow(&mut self, wd: &Path, name: &str) -> Value {
+        let w = crate::tools2::workflow(wd, &json!({"op": "get", "name": name}));
+        let Some(steps) = w["steps"].as_array().cloned() else {
+            return json!({"ok": false, "error": "no such workflow", "ran": 0, "results": []});
+        };
+        let mut results = vec![];
+        let mut ok = true;
+        for st in steps {
+            match self.run_goal(st.as_str().unwrap_or(""), |_| {}) {
+                Ok(r) => {
+                    let pass = r["passed"] == true;
+                    results.push(r);
+                    if !pass {
+                        ok = false;
+                        break;
+                    }
+                }
+                Err(e) => {
+                    results.push(json!({"error": e.to_string()}));
+                    ok = false;
+                    break;
+                }
+            }
+        }
+        json!({"ok": ok, "ran": results.len(), "results": results})
+    }
+
     pub fn compact(&mut self) {
         self.session.request_compact();
     }

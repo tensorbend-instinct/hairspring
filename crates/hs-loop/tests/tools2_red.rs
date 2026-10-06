@@ -62,9 +62,22 @@ fn t5_wired() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let ins = std::fs::read_to_string(root.join("install.sh")).unwrap();
     let ex = std::fs::read_to_string(root.join("hairspring.example.toml")).unwrap();
-    for (t, b) in [("todo", "hs-plugin-todo"), ("present", "hs-plugin-present"), ("read_image", "hs-plugin-readimage"), ("schedule", "hs-plugin-schedule")] {
+    for (t, b) in [("todo", "hs-plugin-todo"), ("present", "hs-plugin-present"), ("read_image", "hs-plugin-readimage"), ("schedule", "hs-plugin-schedule"), ("workflow", "hs-plugin-workflow")] {
         assert!(hs_loop::toolschema::schema_for(t, "apply").is_some(), "schema {t}");
         assert!(ins.contains(b), "install {b}");
         assert!(ex.contains(&format!("name = \"{t}\"")), "example {t}");
     }
+}
+
+#[test]
+fn t6_workflow_store() {
+    let d = tempfile::tempdir().unwrap();
+    use serde_json::json;
+    let w = |a| hs_loop::tools2::workflow(d.path(), &a);
+    assert!(w(json!({"op":"define","name":"x","steps":[]}))["$error"].is_string());
+    assert_eq!(w(json!({"op":"define","name":"rel","steps":["build","test"," "]}))["steps"].as_array().unwrap().len(), 2);
+    assert_eq!(w(json!({"op":"list"}))["workflows"][0], "rel");
+    assert_eq!(w(json!({"op":"get","name":"rel"}))["steps"][1], "test");
+    assert_eq!(w(json!({"op":"delete","name":"rel"}))["deleted"], true);
+    assert!(w(json!({"op":"get","name":"rel"}))["$error"].is_string());
 }

@@ -128,3 +128,21 @@ fn e5_schedule_firing_loop_runs_due_prompts_once() {
     assert_eq!(eng.fire_due_schedules(wd.path(), 1125).len(), 1);
     assert_eq!(eng.vitals()["missions"], 2);
 }
+
+#[test]
+fn e6_run_workflow_runs_steps_in_order() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let (d, log, wd) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let cfg = config(d.path());
+    let ans = d.path().join("a.txt");
+    let script = d.path().join("script.jsonl");
+    std::fs::write(&script, format!("{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"X\"}}}}\n", ans.display())).unwrap();
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
+    let mut eng = Engine::open(&cfg, log.path(), Some(3)).unwrap();
+    let none = eng.run_workflow(wd.path(), "ghost");
+    assert_eq!(none["ok"], false);
+    hs_loop::tools2::workflow(wd.path(), &serde_json::json!({"op":"define","name":"two","steps":["step one","step two"]}));
+    let r = eng.run_workflow(wd.path(), "two");
+    assert!(r["ran"].as_u64().unwrap() >= 1, "{r}");
+    assert_eq!(eng.vitals()["missions"], r["ran"], "{r}");
+}

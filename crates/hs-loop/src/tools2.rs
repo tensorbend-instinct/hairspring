@@ -220,6 +220,40 @@ pub fn schedule(wd: &Path, args: &Value) -> Value {
     }
 }
 
+/// Named multi-step workflows: an ordered list of goal prompts the harness runs
+/// back to back (`Engine::run_workflow`). ops: define {name, steps[]}, list, get, delete.
+#[must_use]
+pub fn workflow(wd: &Path, args: &Value) -> Value {
+    let file = hs_dir(wd).join("workflows.json");
+    let mut m = rw_json(&file).as_object().cloned().unwrap_or_default();
+    let save = |m: &serde_json::Map<String, Value>| write_json(wd, "workflows.json", &Value::Object(m.clone()));
+    let name = args["name"].as_str().unwrap_or("");
+    match args["op"].as_str().unwrap_or("list") {
+        "define" => {
+            let steps: Vec<Value> = args["steps"].as_array().cloned().unwrap_or_default().into_iter()
+                .filter(|s| s.as_str().is_some_and(|t| !t.trim().is_empty())).collect();
+            if name.trim().is_empty() || steps.is_empty() {
+                return json!({"$error": "define needs name and at least one non-empty step"});
+            }
+            m.insert(name.to_string(), Value::Array(steps));
+            if !save(&m) {
+                return json!({"$error": "cannot save"});
+            }
+            json!({"ok": true, "name": name, "steps": m[name]})
+        }
+        "get" => m.get(name).map_or_else(|| json!({"$error": "no such workflow"}), |v| json!({"ok": true, "name": name, "steps": v})),
+        "list" => json!({"ok": true, "workflows": m.keys().collect::<Vec<_>>()}),
+        "delete" => {
+            let removed = m.remove(name).is_some();
+            if removed && !save(&m) {
+                return json!({"$error": "cannot save"});
+            }
+            json!({"ok": true, "deleted": removed})
+        }
+        other => json!({"$error": format!("unknown op '{other}'")}),
+    }
+}
+
 /// File search by glob (dsh glob): gitignore-aware, sorted, capped.
 #[must_use]
 pub fn glob(wd: &Path, args: &Value) -> Value {

@@ -223,6 +223,11 @@ pub fn tb_tools() -> Vec<Value> {
             json!({"type":"object","properties":{"op":{"type":"string","enum":["create","list","update","delete","due"]},"id":{"type":"string"},"prompt":{"type":"string"},"every_secs":{"type":"integer"}},"required":["op"]}),
         ),
         f(
+            "workflow",
+            "Named multi-step workflows. op=define {name, steps: [prompt,...]}, get {name}, list, delete {name}. The harness runs a workflow's steps as goals back to back.",
+            json!({"type":"object","properties":{"op":{"type":"string","enum":["define","get","list","delete"]},"name":{"type":"string"},"steps":{"type":"array","items":{"type":"string"}}},"required":["op"]}),
+        ),
+        f(
             "goal",
             "Track the long-running goal of this session. op=create {objective, acceptance?} (one active goal at a time), op=get, op=update {status: active|done|blocked, note?}. This is your own tracker; the mission still closes only through the checker.",
             json!({"type":"object","properties":{

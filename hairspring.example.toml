@@ -81,6 +81,11 @@ command = ["@PREFIX@/bin/hs-plugin-schedule"]
 subjects = ["*"]
 
 [[tools]]
+name = "workflow"
+command = ["@PREFIX@/bin/hs-plugin-workflow"]
+subjects = ["*"]
+
+[[tools]]
 name = "goal"
 command = ["@PREFIX@/bin/hs-plugin-goaltool"]
 subjects = ["*"]
