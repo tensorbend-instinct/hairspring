@@ -162,6 +162,13 @@ pub fn tb_tools() -> Vec<Value> {
                 "max_lines":{"type":"integer","description":"optional, default 400"}},"required":["path"]}),
         ),
         f(
+            "web.fetch",
+            "Fetch an http(s) URL as text (HTML is reduced to readable text). Private, loopback and non-http targets are refused. Use for docs and API references; returns status, content_type, text, truncated.",
+            json!({"type":"object","properties":{
+                "url":{"type":"string","description":"http(s) URL"},
+                "max_bytes":{"type":"integer","description":"optional cap, default 200000"}},"required":["url"]}),
+        ),
+        f(
             "notes.scratch",
             "Persistent notes that survive context truncation. Record hypotheses, commands that worked, and values you will need later; read them back instead of re-discovering.",
             json!({"type":"object","properties":{
