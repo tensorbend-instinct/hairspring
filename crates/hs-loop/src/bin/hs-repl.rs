@@ -667,6 +667,17 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
                                         "usage: /caps [steps|wall|budget|critic-steps|critic-wall|critic-budget VALUE]",
                                     ),
                                 }
+                            } else if t == "/sessions" {
+                                let infos = hs_loop::repl::list_sessions(&opts.dir);
+                                if infos.is_empty() {
+                                    st.push_transcript_line("no sessions in this dir yet");
+                                }
+                                for line in hs_loop::repl::sessions_overview(&infos) {
+                                    st.push_transcript_line(&line);
+                                }
+                                st.push_transcript_line(
+                                    "resume one with /resume; a session from another workspace resumes in a hairspring started with that --project-dir",
+                                );
                             } else if st.handle_reasoning_command(&t) {
                                 // folded/expanded reasoning toggle
                             } else if t == "/help" {

@@ -87,7 +87,8 @@ pub const TUI_HELP: &str = "hairspring - full-screen surface
   /status   model, missions, steps, calls, cost, stream of this session
   /history  goals you have submitted this session
   /last     the latest mission's answer artifact
-  /resume   pick a prior session to continue
+  /resume   pick a prior session to continue (lines show the workspace)
+  /sessions list sessions grouped by workspace
   /reasoning  fold or expand model reasoning (/reasoning show prints the last in full)
   /caps     view or change the live caps (steps, wall, budget, critic)
   /models   pick the operator model (next mission onward); the picker's '+ Add provider...' (or /models add [name]) declares a new provider

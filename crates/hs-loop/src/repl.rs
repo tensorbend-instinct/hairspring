@@ -935,6 +935,10 @@ pub fn load(
         std::fs::create_dir_all(&hs_dir)?;
         std::fs::write(hs_dir.join("instruction.txt"), &prompt)?;
         let r = self.inner.run_mission_resuming(&id, &prompt)?;
+        // Tag the session with the project root it ran in (workspace
+        // switcher: /sessions groups by this).
+        let ws_root = crate::projectroot::project_root().unwrap_or_else(|| self.work_dir.clone());
+        record_session_workspace(&self.log_root, r.stream_id, &ws_root);
         self.missions_run += 1;
         self.total_steps += u64::from(r.steps);
         self.total_model_calls += u64::from(r.model_calls);
@@ -1347,6 +1351,8 @@ pub struct SessionInfo {
     pub events: u64,
     pub preview: String,
     pub modified: std::time::SystemTime,
+    /// Project root the session ran in; empty when never recorded.
+    pub workspace: String,
 }
 
 fn truncate60(s: &str) -> String {
@@ -1427,11 +1433,17 @@ pub fn list_sessions(log_root: &Path) -> Vec<SessionInfo> {
                     }
             }
         }
+        let workspace = std::fs::read_to_string(
+            log_root.join("session_workspace").join(id.to_string()),
+        )
+        .map(|t| t.trim().to_string())
+        .unwrap_or_default();
         out.push(SessionInfo {
             id,
             events: events.len() as u64,
             preview: truncate60(&preview),
             modified,
+            workspace,
         });
     }
     out.sort_by(|a, b| b.modified.cmp(&a.modified).then_with(|| a.id.cmp(&b.id)));
@@ -1523,11 +1535,64 @@ pub fn pick_session(infos: &[SessionInfo], input: &str) -> Option<uuid::Uuid> {
     Some(infos[n - 1].id)
 }
 
-/// One numbered picker line: short id, event count, mission preview.
+/// One numbered picker line: short id, workspace, event count, mission preview.
 #[must_use]
 pub fn session_line(i: usize, info: &SessionInfo) -> String {
     let short: String = info.id.to_string().chars().take(8).collect();
-    format!("{i}) {short}  {} events  {}", info.events, info.preview)
+    let ws = std::path::Path::new(&info.workspace)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .filter(|n| !info.workspace.is_empty() && !n.is_empty());
+    match ws {
+        Some(w) => format!("{i}) {short}  [{w}]  {} events  {}", info.events, info.preview),
+        None => format!("{i}) {short}  {} events  {}", info.events, info.preview),
+    }
+}
+
+/// Remember which project root a session ran in (sidecar next to the
+/// streams; best effort, never blocks a mission).
+pub fn record_session_workspace(log_root: &Path, id: uuid::Uuid, root: &Path) {
+    let d = log_root.join("session_workspace");
+    if std::fs::create_dir_all(&d).is_ok() {
+        let _ = std::fs::write(d.join(id.to_string()), root.display().to_string());
+    }
+}
+
+/// Sessions grouped by workspace: the group holding the newest session
+/// first, newest first inside each group. Unrecorded roots share one group.
+#[must_use]
+pub fn group_sessions_by_workspace(infos: &[SessionInfo]) -> Vec<(String, Vec<&SessionInfo>)> {
+    let mut groups: Vec<(String, Vec<&SessionInfo>)> = Vec::new();
+    for i in infos {
+        let key = if i.workspace.is_empty() {
+            "(unrecorded workspace)".to_string()
+        } else {
+            i.workspace.clone()
+        };
+        match groups.iter_mut().find(|(k, _)| *k == key) {
+            Some((_, v)) => v.push(i),
+            None => groups.push((key, vec![i])),
+        }
+    }
+    for (_, v) in &mut groups {
+        v.sort_by(|a, b| b.modified.cmp(&a.modified).then_with(|| a.id.cmp(&b.id)));
+    }
+    groups.sort_by(|a, b| b.1[0].modified.cmp(&a.1[0].modified));
+    groups
+}
+
+/// `/sessions` text: every session under its workspace.
+#[must_use]
+pub fn sessions_overview(infos: &[SessionInfo]) -> Vec<String> {
+    let mut out = Vec::new();
+    for (ws, v) in group_sessions_by_workspace(infos) {
+        out.push(format!("{ws}  ({} session{})", v.len(), if v.len() == 1 { "" } else { "s" }));
+        for i in v {
+            let short: String = i.id.to_string().chars().take(8).collect();
+            out.push(format!("  {short}  {} events  {}", i.events, i.preview));
+        }
+    }
+    out
 }
 
 /// UI gap #6: tab completion for the REPL's :commands (pi/omp

@@ -49,6 +49,7 @@ fn fake_info(id: &str, events: u64, preview: &str) -> SessionInfo {
         events,
         preview: preview.to_string(),
         modified: std::time::SystemTime::UNIX_EPOCH,
+        workspace: String::new(),
     }
 }
 
@@ -149,4 +150,30 @@ fn r4_load_session_resume_adopts_stream() {
 
     // resume and fork are exclusive
     assert!(hs_loop::repl::load_session(&config, log.path(), false, Some(2), Some(r.stream_id), Some(r.stream_id)).is_err());
+}
+
+// R5 (workspace switcher): a real mission tags its session with the
+// project root it ran in, and the listing carries it.
+#[test]
+fn r5_mission_records_its_workspace() {
+    let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let dir = tempfile::tempdir().unwrap();
+    let log = tempfile::tempdir().unwrap();
+    let config = scripted_config(dir.path());
+    let script = dir.path().join("s.jsonl");
+    let a1 = log.path().join("work").join(hs_loop::repl::goal_slug("ws goal")).join("answer.txt");
+    std::fs::write(
+        &script,
+        format!("{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"A\"}}}}", a1.display()),
+    )
+    .unwrap();
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
+    let r = run_one_shot(&config, log.path(), "ws goal", false, Some(2)).unwrap();
+    let s = list_sessions(log.path());
+    let got = s.iter().find(|i| i.id == r.stream_id).expect("session listed");
+    assert!(
+        got.workspace.ends_with("work") && !got.workspace.is_empty(),
+        "workspace recorded: {:?}",
+        got.workspace
+    );
 }
