@@ -26,6 +26,7 @@ pub mod repl;
 pub mod repotools;
 pub mod selfcheck;
 pub mod termexec;
+pub mod jobs;
 pub mod sweprompt;
 pub mod argcoerce;
 pub mod toolschema;

@@ -15,7 +15,8 @@ rebuilt task, different model runs).
 | grep, glob | repo.search (one tool; glob not separate - verify) | partial |
 | write, edit | edit.anchor, edit.patch | proven |
 | read_image | none | missing |
-| web_fetch, web_search | MCP bridge exists; no shipped web tools | missing |
+| web_fetch | web.fetch (SSRF-guarded, tested) | proven (tests) |
+| web_search | none (needs a search provider/key) | missing |
 | todo_write | notes.scratch (notes, not a task list UI) | partial |
 | skill | skill.list, skill.view | proven (tests) |
 | subagent, list_agents, send_message, interrupt_agent | agent.spawn, agent.spawn_poll only | partial |
@@ -24,7 +25,7 @@ rebuilt task, different model runs).
 | exit_plan_mode (plan mode) | none | missing |
 | ask_user_question | none | missing |
 | present | none | missing |
-| job_kill, job_list, job_output (background jobs) | none | missing |
+| job_kill, job_list, job_output (background jobs) | `jobs` tool: start/list/output/kill, confined like term.exec | proven (tests) |
 | schedule_create/delete/list/update | none | missing |
 | workflow | none | missing |
 

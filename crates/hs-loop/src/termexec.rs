@@ -466,3 +466,43 @@ pub fn run_readonly(workdir: &std::path::Path, command: &str, timeout_secs: u64)
     };
     collect(child, timeout_secs)
 }
+
+/// Start `command` detached from the caller's pipes with the SAME confinement
+/// discipline as `run` (bwrap under a project root, plain bash otherwise).
+/// Output goes to `out`, the exit code to `exit_file`. Returns the process-
+/// group id (pid of the leader). The child is not waited on; callers poll.
+pub fn spawn_background(
+    workdir: &std::path::Path,
+    command: &str,
+    out: &std::path::Path,
+    exit_file: &std::path::Path,
+) -> Result<u32, Value> {
+    if command.trim().is_empty() {
+        return Err(serde_json::json!({"$error": "pass command: a bash command line"}));
+    }
+    let wrapped = format!(
+        "exec >'{}' 2>&1; ( {command}\n ); echo $? > '{}'",
+        out.display(),
+        exit_file.display()
+    );
+    let child = if let Some(root) = crate::projectroot::project_root() {
+        let workdir = crate::projectroot::confine_existing(workdir, "job workdir")?;
+        spawn_confined(&root, &workdir, &wrapped, None)?
+    } else {
+        std::process::Command::new("bash")
+            .args(["-c", &wrapped])
+            .current_dir(workdir)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .process_group(0)
+            .spawn()
+            .map_err(|e| serde_json::json!({"$error": format!("spawn: {e}")}))?
+    };
+    let pid = child.id();
+    // Reap in the background so a finished job never lingers as a zombie.
+    std::thread::spawn(move || {
+        let mut c = child;
+        let _ = c.wait();
+    });
+    Ok(pid)
+}

@@ -31,7 +31,7 @@ echo "Building HAIRSPRING (release, locked)..."
 BINS="hs-repl hs-log-cli \
 hs-plugin-answer hs-plugin-answersubmit hs-plugin-selfcheck hs-plugin-critic \
 hs-plugin-fileread hs-plugin-reposearch hs-plugin-repoexec \
-hs-plugin-editapply hs-plugin-notescratch hs-plugin-webfetch hs-plugin-termexec \
+hs-plugin-editapply hs-plugin-notescratch hs-plugin-webfetch hs-plugin-jobs hs-plugin-termexec \
 hs-plugin-swarm hs-plugin-policy hs-plugin-scripted hs-plugin-deepseek hs-plugin-provmodel hs-promote hs-plugin-gatemodel hs-plugin-checker"
 
 mkdir -p "$PREFIX" "$BINLINK_DIR" "$CONFIG_DIR"

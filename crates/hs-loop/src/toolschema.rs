@@ -162,6 +162,15 @@ pub fn tb_tools() -> Vec<Value> {
                 "max_lines":{"type":"integer","description":"optional, default 400"}},"required":["path"]}),
         ),
         f(
+            "jobs",
+            "Background jobs in the same confined shell as term.exec. op=start {command} returns at once with an id; op=list shows status and exit codes; op=output {id, tail_bytes?} reads the log while it runs; op=kill {id} ends it. Use for servers, watchers and long builds instead of blocking a step.",
+            json!({"type":"object","properties":{
+                "op":{"type":"string","enum":["start","list","output","kill"]},
+                "command":{"type":"string","description":"bash command line, for start"},
+                "id":{"type":"string","description":"job id, for output/kill"},
+                "tail_bytes":{"type":"integer","description":"output tail cap, default 20000"}},"required":["op"]}),
+        ),
+        f(
             "web.fetch",
             "Fetch an http(s) URL as text (HTML is reduced to readable text). Private, loopback and non-http targets are refused. Use for docs and API references; returns status, content_type, text, truncated.",
             json!({"type":"object","properties":{

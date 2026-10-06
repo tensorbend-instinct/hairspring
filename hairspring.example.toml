@@ -46,6 +46,11 @@ command = ["@PREFIX@/bin/hs-plugin-notescratch"]
 subjects = ["*"]
 
 [[tools]]
+name = "jobs"
+command = ["@PREFIX@/bin/hs-plugin-jobs"]
+subjects = ["*"]
+
+[[tools]]
 name = "web.fetch"
 command = ["@PREFIX@/bin/hs-plugin-webfetch"]
 subjects = ["*"]
