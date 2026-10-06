@@ -121,6 +121,15 @@ impl Engine {
         json!({"ok": ok, "ran": results.len(), "results": results})
     }
 
+    pub fn set_mode(&mut self, mode: &str) -> Result<(), String> {
+        self.session.set_mode(mode)
+    }
+
+    #[must_use]
+    pub fn tool_names(&self) -> Vec<String> {
+        self.session.native_tool_names()
+    }
+
     pub fn compact(&mut self) {
         self.session.request_compact();
     }

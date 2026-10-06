@@ -1001,6 +1001,10 @@ pub fn load(
         self.inner.snapshot_workdir()
     }
     /// `/compact`.
+    pub fn set_mode(&mut self, mode: &str) -> Result<(), String> {
+        self.inner.set_mode(mode)
+    }
+
     pub fn request_compact(&mut self) {
         self.inner.request_compact();
     }

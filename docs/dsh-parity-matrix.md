@@ -40,7 +40,7 @@ rebuilt task, different model runs).
 | Trajectory tab (Duration/Turns/Calls bars) | hash-chained log + hs-log-cli; no view | partial |
 | Slash menu: Goal, Plan, Feedback, Compact, Permission, Model, Export, Add File | /caps /history /name /reasoning /models; no goal/plan/compact/export/permission | partial |
 | Queue-while-busy | queue_goal in TUI | partial |
-| Modes Standard / PTC / Minimal / Creator | none | missing |
+| Modes Standard / PTC / Minimal / Creator | hs_loop::modes + InnerLoop/Engine::set_mode narrowing the offered tools, answer.submit always kept (engine_red e7) | proven |
 | Plugins (Agent Teams, Auth Review, Dev Tools, Voice, Shell limits, loop dispatch, subagent limits, Web search) | plugin system exists (hs-plugin-*); those plugins do not | partial |
 | Settings UI (loopback only) | config file + `setup` | partial |
 | Desktop/web app | wrapper scaffold only | missing |

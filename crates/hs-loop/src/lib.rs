@@ -30,6 +30,7 @@ pub mod jobs;
 pub mod engine;
 pub mod agentctl;
 pub mod export;
+pub mod modes;
 pub mod tools2;
 pub mod goal_state;
 pub mod plan_mode;
@@ -251,6 +252,8 @@ pub struct InnerLoop {
     /// the operator call (native tool calling; Eric 2026-09-05). None = the
     /// model gets no tools param (legacy/text missions, unit fixtures).
     tools: Option<serde_json::Value>,
+    /// The full tool surface, kept so a mode switch can widen again.
+    all_tools: Option<serde_json::Value>,
     arg_coercions: u64,
     /// Eric's five #4: operator model override (None = config
     /// default). Applies to every operator-subject call: mission
@@ -516,6 +519,7 @@ impl InnerLoop {
             budget_micros: None,
             budget_guard_mode: BudgetGuardMode::Conservative,
             tools: None,
+            all_tools: None,
             arg_coercions: 0,
             model_override: None,
             pending_children: Vec::new(),
@@ -623,6 +627,7 @@ impl InnerLoop {
             budget_micros: None,
             budget_guard_mode: BudgetGuardMode::Conservative,
             tools: None,
+            all_tools: None,
             arg_coercions: 0,
             model_override: None,
             pending_children: Vec::new(),
@@ -869,7 +874,18 @@ impl InnerLoop {
     }
 
     pub fn set_tools(&mut self, tools: serde_json::Value) {
+        self.all_tools = Some(tools.clone());
         self.tools = Some(tools);
+    }
+
+    /// Switch operating mode (standard|ptc|minimal|creator): narrows or widens
+    /// the offered tools from the next model call. Unknown mode is an error.
+    pub fn set_mode(&mut self, mode: &str) -> Result<(), String> {
+        let all = self.all_tools.clone().or_else(|| self.tools.clone()).ok_or("no tools set")?;
+        let f = modes::filter(mode, &all).ok_or_else(|| format!("unknown mode '{mode}' (standard|ptc|minimal|creator)"))?;
+        self.all_tools = Some(all);
+        self.tools = Some(f);
+        Ok(())
     }
 
     /// Eric's five #4: override which configured model serves

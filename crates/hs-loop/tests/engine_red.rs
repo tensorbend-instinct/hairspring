@@ -146,3 +146,25 @@ fn e6_run_workflow_runs_steps_in_order() {
     assert!(r["ran"].as_u64().unwrap() >= 1, "{r}");
     assert_eq!(eng.vitals()["missions"], r["ran"], "{r}");
 }
+
+#[test]
+fn e7_modes_narrow_and_restore_the_tool_surface() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let (d, log) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let cfg = config(d.path());
+    let mut eng = Engine::open(&cfg, log.path(), Some(3)).unwrap();
+    let std_names = eng.tool_names();
+    assert!(std_names.iter().any(|n| n == "agent.spawn")  && std_names.iter().any(|n| n == "web.search" || n == "memory.recall"), "{std_names:?}");
+    eng.set_mode("minimal").unwrap();
+    let min = eng.tool_names();
+    assert!(!min.iter().any(|n| n == "agent.spawn" || n == "web.search"), "{min:?}");
+    assert_eq!(hs_loop::modes::allows("minimal", "answer.submit"), Some(true));
+    eng.set_mode("ptc").unwrap();
+    let ptc = eng.tool_names();
+    assert!(ptc.iter().any(|n| n == "agent.spawn") && ptc.len() > min.len(), "{ptc:?}");
+    eng.set_mode("creator").unwrap();
+    assert!(!eng.tool_names().iter().any(|n| n == "agent.spawn"));
+    eng.set_mode("standard").unwrap();
+    assert_eq!(eng.tool_names(), std_names);
+    assert!(eng.set_mode("turbo").unwrap_err().contains("unknown mode"));
+}
