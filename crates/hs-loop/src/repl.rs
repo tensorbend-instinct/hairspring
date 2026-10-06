@@ -630,6 +630,7 @@ pub fn load(
         // Eric's five #5: the interactive surface offers delegation.
         offer_unique(&mut native_tools, crate::toolschema::agent_spawn_tool());
         offer_unique(&mut native_tools, crate::toolschema::agent_spawn_poll_tool());
+        offer_unique(&mut native_tools, crate::toolschema::agent_fork_tool());
         offer_unique(&mut native_tools, crate::toolschema::agent_list_tool());
         offer_unique(&mut native_tools, crate::toolschema::agent_send_tool());
         offer_unique(&mut native_tools, crate::toolschema::agent_interrupt_tool());
@@ -764,6 +765,7 @@ pub fn load(
         // Eric's five #5: the interactive surface offers delegation.
         offer_unique(&mut native_tools, crate::toolschema::agent_spawn_tool());
         offer_unique(&mut native_tools, crate::toolschema::agent_spawn_poll_tool());
+        offer_unique(&mut native_tools, crate::toolschema::agent_fork_tool());
         offer_unique(&mut native_tools, crate::toolschema::agent_list_tool());
         offer_unique(&mut native_tools, crate::toolschema::agent_send_tool());
         offer_unique(&mut native_tools, crate::toolschema::agent_interrupt_tool());

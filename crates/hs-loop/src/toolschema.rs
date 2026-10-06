@@ -130,6 +130,11 @@ pub fn agent_spawn_tool() -> Value {
 }
 
 #[must_use]
+pub fn agent_fork_tool() -> Value {
+    f("agent.fork", "Like agent.spawn, but the child starts with your working context (files you read, edits, checks so far) so it continues from where you are instead of from scratch. Use for a branch of the same work.", json!({"type":"object","properties":{"mission":{"type":"string"},"model":{"type":"string"}},"required":["mission"]}))
+}
+
+#[must_use]
 pub fn agent_list_tool() -> Value {
     f("agent.list", "List the sub-agents you delegated: child id, mission, state (running|done|lost), passed, steps.", json!({"type":"object","properties":{}}))
 }

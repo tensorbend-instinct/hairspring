@@ -2571,6 +2571,17 @@ impl InnerLoop {
                     Some(msg)
                 }
                 Some((tool, mut args)) => {
+                    // agent.fork: a spawn whose child inherits the
+                    // parent's working context (the resident ledger).
+                    let (tool, mut args) = if tool == "agent.fork" {
+                        args["mission"] = serde_json::json!(fork_mission(
+                            args["mission"].as_str().unwrap_or(""),
+                            &self.ledger.summary()
+                        ));
+                        ("agent.spawn".to_string(), args)
+                    } else {
+                        (tool, args)
+                    };
                     // Eric's five #5: the loop injects its own stream id
                     // so a spawned child links to THIS mission. The model
                     // never fabricates delegation provenance.
@@ -3432,4 +3443,14 @@ pub const DEFAULT_MISSION_MAX_STEPS: u32 = 50;
 #[must_use]
 pub fn compact_budget(budget_chars: usize, forced: bool) -> usize {
     if forced { (budget_chars / 8).max(2_000).min(budget_chars) } else { budget_chars }
+}
+
+/// Mission text for a forked child: the task plus what the parent already
+/// learned, so the child does not repeat the parent's reads.
+#[must_use]
+pub fn fork_mission(mission: &str, ledger_summary: &str) -> String {
+    if ledger_summary.trim().is_empty() {
+        return mission.to_string();
+    }
+    format!("{mission}\n\nFORKED CONTEXT (what the parent already did; do not repeat it):\n{ledger_summary}")
 }
