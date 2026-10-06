@@ -56,6 +56,11 @@ command = ["@PREFIX@/bin/hs-plugin-jobs"]
 subjects = ["*"]
 
 [[tools]]
+name = "glob"
+command = ["@PREFIX@/bin/hs-plugin-glob"]
+subjects = ["*"]
+
+[[tools]]
 name = "todo"
 command = ["@PREFIX@/bin/hs-plugin-todo"]
 subjects = ["*"]

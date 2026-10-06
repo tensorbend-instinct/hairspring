@@ -219,3 +219,39 @@ pub fn schedule(wd: &Path, args: &Value) -> Value {
         other => json!({"$error": format!("unknown op '{other}'")}),
     }
 }
+
+/// File search by glob (dsh glob): gitignore-aware, sorted, capped.
+#[must_use]
+pub fn glob(wd: &Path, args: &Value) -> Value {
+    let Some(pat) = args["pattern"].as_str().filter(|s| !s.is_empty()) else {
+        return json!({"$error": "pattern is required"});
+    };
+    let base = match args["path"].as_str().filter(|s| !s.is_empty()) {
+        Some(p) => match inside(wd, p) {
+            Ok(b) => b,
+            Err(e) => return json!({"$error": e}),
+        },
+        None => match wd.canonicalize() {
+            Ok(b) => b,
+            Err(e) => return json!({"$error": e.to_string()}),
+        },
+    };
+    let limit = args["limit"].as_u64().unwrap_or(200).clamp(1, 1000) as usize;
+    let mut ob = ignore::overrides::OverrideBuilder::new(&base);
+    if let Err(e) = ob.add(pat) {
+        return json!({"$error": format!("bad pattern: {e}")});
+    }
+    let Ok(ov) = ob.build() else { return json!({"$error": "bad pattern"}) };
+    let mut files: Vec<String> = ignore::WalkBuilder::new(&base)
+        .overrides(ov)
+        .require_git(false)
+        .build()
+        .flatten()
+        .filter(|e| e.file_type().is_some_and(|t| t.is_file()))
+        .filter_map(|e| e.path().strip_prefix(&base).ok().map(|p| p.display().to_string()))
+        .collect();
+    files.sort();
+    let truncated = files.len() > limit;
+    files.truncate(limit);
+    json!({"ok": true, "files": files, "truncated": truncated})
+}

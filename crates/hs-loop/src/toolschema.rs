@@ -178,6 +178,11 @@ pub fn tb_tools() -> Vec<Value> {
                 "tail_bytes":{"type":"integer","description":"output tail cap, default 20000"}},"required":["op"]}),
         ),
         f(
+            "glob",
+            "Find files by glob pattern (e.g. **/*.rs), relative to the workspace or an optional subpath. Honors .gitignore; sorted; limit default 200.",
+            json!({"type":"object","properties":{"pattern":{"type":"string"},"path":{"type":"string"},"limit":{"type":"integer"}},"required":["pattern"]}),
+        ),
+        f(
             "todo",
             "Your task list for multi-step work (todo_write). Pass todos=[{content, status: pending|in_progress|completed}] to replace the list (at most one in_progress); call with no todos to read it back.",
             json!({"type":"object","properties":{"todos":{"type":"array","items":{"type":"object","properties":{"content":{"type":"string"},"status":{"type":"string","enum":["pending","in_progress","completed"]}},"required":["content","status"]}}}}),
