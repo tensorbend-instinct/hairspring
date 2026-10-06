@@ -139,9 +139,23 @@ pub fn plugins(config: &Path) -> Result<Value, String> {
     Ok(json!({"tools": list("tools"), "models": list("models")}))
 }
 
-const SETTING_KEYS: [&str; 4] = ["mode", "max_steps", "permission", "theme"];
+const SETTING_KEYS: [&str; 5] = ["mode", "max_steps", "permission", "theme", "project_dir"];
 
 #[must_use]
+/// Is the project folder missions are confined to empty? An empty folder is
+/// the common "model cannot find my file" cause, so the app warns up front.
+/// Dot-entries (the harness's own .hs scaffolding) do not count.
+#[must_use]
+pub fn project_status(root: &Path) -> Value {
+    let canon = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+    let mut entries: Vec<String> = std::fs::read_dir(&canon)
+        .map(|rd| rd.flatten().map(|e| e.file_name().to_string_lossy().to_string()).filter(|n| !n.starts_with('.')).collect())
+        .unwrap_or_default();
+    entries.sort();
+    entries.truncate(40);
+    json!({"root": canon.display().to_string(), "empty": entries.is_empty(), "entries": entries})
+}
+
 pub fn settings_get(dir: &Path) -> Value {
     let mut s = json!({"mode": "standard", "max_steps": 30, "permission": "auto", "theme": "dark"});
     if let Some(saved) = std::fs::read_to_string(dir.join("settings.json")).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()) {
@@ -165,6 +179,7 @@ pub fn settings_set(dir: &Path, patch: &Value) -> Result<(), String> {
             "mode" if !v.as_str().is_some_and(|m| crate::modes::MODES.contains(&m)) => return Err("mode must be standard|ptc|minimal|creator".into()),
             "permission" if !matches!(v.as_str(), Some("ask" | "auto")) => return Err("permission must be ask|auto".into()),
             "max_steps" if !v.as_u64().is_some_and(|n| (1..=1000).contains(&n)) => return Err("max_steps must be 1..1000".into()),
+            "project_dir" if !v.as_str().is_some_and(|p| std::path::Path::new(p).is_absolute() && std::path::Path::new(p).is_dir()) => return Err("project_dir must be an existing absolute folder".into()),
             _ => {}
         }
         s[k] = v.clone();
@@ -173,4 +188,65 @@ pub fn settings_set(dir: &Path, patch: &Value) -> Result<(), String> {
     // the dispatcher reads this file (HS_PERMISSION_FILE) on every mutating call
     std::fs::write(dir.join("permission"), s["permission"].as_str().unwrap_or("auto")).map_err(|e| e.to_string())?;
     std::fs::write(dir.join("settings.json"), s.to_string()).map_err(|e| e.to_string())
+}
+
+// ---- workspaces (dsh parity): registered real folders, browse dialog, switch ----
+
+fn ws_file(dir: &Path) -> std::path::PathBuf { dir.join("workspaces.json") }
+
+fn ws_read(dir: &Path) -> Vec<String> {
+    std::fs::read_to_string(ws_file(dir)).ok().and_then(|t| serde_json::from_str::<Vec<String>>(&t).ok()).unwrap_or_default()
+}
+
+fn ws_write(dir: &Path, v: &[String]) -> Result<(), String> {
+    std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    std::fs::write(ws_file(dir), serde_json::to_string(v).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
+}
+
+fn ws_entry(p: &str) -> Value {
+    json!({"path": p, "name": Path::new(p).file_name().map_or_else(|| p.to_string(), |n| n.to_string_lossy().to_string())})
+}
+
+/// Registered workspaces: real folders, in the order they were added.
+#[must_use]
+pub fn workspaces_list(dir: &Path) -> Value {
+    Value::Array(ws_read(dir).iter().map(|p| ws_entry(p)).collect())
+}
+
+/// Register a real folder as a workspace (canonical path, deduped). A
+/// relative or missing path is refused: a workspace is always a real folder.
+pub fn workspace_add(dir: &Path, path: &str) -> Result<Value, String> {
+    let p = Path::new(path);
+    if !p.is_absolute() { return Err("workspace must be an absolute folder path".into()); }
+    let canon = p.canonicalize().map_err(|_| format!("no such folder: {path}"))?;
+    if !canon.is_dir() { return Err(format!("not a folder: {path}")); }
+    let c = canon.display().to_string();
+    let mut v = ws_read(dir);
+    if !v.contains(&c) { v.push(c.clone()); ws_write(dir, &v)?; }
+    Ok(ws_entry(&c))
+}
+
+pub fn workspace_remove(dir: &Path, path: &str) -> Result<(), String> {
+    let mut v = ws_read(dir);
+    v.retain(|p| p != path);
+    ws_write(dir, &v)
+}
+
+/// Make a registered workspace the project folder: new missions run with it
+/// as their root and cwd (the app reopens its engine on it).
+pub fn workspace_switch(dir: &Path, path: &str) -> Result<(), String> {
+    if !ws_read(dir).iter().any(|p| p == path) { return Err(format!("not a registered workspace: {path}")); }
+    settings_set(dir, &json!({"project_dir": path}))
+}
+
+/// The in-app folder browser (dsh's "-browse" picker): visible subfolders of
+/// `path`, sorted, plus the parent for going up.
+pub fn browse_dir(path: &str) -> Result<Value, String> {
+    let canon = Path::new(path).canonicalize().map_err(|_| format!("no such folder: {path}"))?;
+    if !canon.is_dir() { return Err(format!("not a folder: {path}")); }
+    let mut dirs: Vec<String> = std::fs::read_dir(&canon).map_err(|e| e.to_string())?
+        .flatten().filter(|e| e.path().is_dir()).map(|e| e.file_name().to_string_lossy().to_string())
+        .filter(|n| !n.starts_with('.')).collect();
+    dirs.sort();
+    Ok(json!({"path": canon.display().to_string(), "parent": canon.parent().map(|p| p.display().to_string()), "dirs": dirs}))
 }

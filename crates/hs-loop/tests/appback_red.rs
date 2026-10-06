@@ -126,3 +126,68 @@ fn a6_plugins_list_from_config_and_settings_roundtrip() {
     assert!(appback::settings_set(d.path(), &json!({"mode":"turbo"})).is_err());
     assert!(appback::settings_set(d.path(), &json!({"evil_key":1})).is_err());
 }
+
+#[test]
+fn project_status_flags_an_empty_folder_and_lists_a_populated_one() {
+    let d = tempfile::tempdir().unwrap();
+    let s = appback::project_status(d.path());
+    assert_eq!(s["empty"], true, "{s}");
+    assert!(s["root"].as_str().unwrap().contains(d.path().file_name().unwrap().to_str().unwrap()));
+    std::fs::create_dir_all(d.path().join(".hs")).unwrap(); // harness scaffolding does not count
+    assert_eq!(appback::project_status(d.path())["empty"], true);
+    std::fs::write(d.path().join("a.txt"), "x").unwrap();
+    let s = appback::project_status(d.path());
+    assert_eq!(s["empty"], false);
+    assert_eq!(s["entries"], json!(["a.txt"]));
+}
+
+#[test]
+fn project_dir_setting_validates_and_persists() {
+    let home = tempfile::tempdir().unwrap();
+    let proj = tempfile::tempdir().unwrap();
+    assert!(appback::settings_set(home.path(), &json!({"project_dir": "/no/such/dir/xyz"})).is_err());
+    assert!(appback::settings_set(home.path(), &json!({"project_dir": "relative/path"})).is_err());
+    appback::settings_set(home.path(), &json!({"project_dir": proj.path().to_str().unwrap()})).unwrap();
+    assert_eq!(appback::settings_get(home.path())["project_dir"], proj.path().to_str().unwrap());
+}
+
+// ---- dsh-style workspaces: registered real folders, a browse dialog, switching ----
+
+#[test]
+fn workspaces_register_real_folders_dedupe_and_remove() {
+    let home = tempfile::tempdir().unwrap();
+    let a = tempfile::tempdir().unwrap();
+    assert!(appback::workspace_add(home.path(), "/no/such/folder").is_err());
+    assert!(appback::workspace_add(home.path(), "rel/path").is_err());
+    let w = appback::workspace_add(home.path(), a.path().to_str().unwrap()).unwrap();
+    assert_eq!(w["path"], a.path().canonicalize().unwrap().to_str().unwrap());
+    assert_eq!(w["name"], a.path().file_name().unwrap().to_str().unwrap());
+    // same folder via a trailing-slash alias is the same workspace
+    appback::workspace_add(home.path(), &format!("{}/", a.path().display())).unwrap();
+    assert_eq!(appback::workspaces_list(home.path()).as_array().unwrap().len(), 1);
+    appback::workspace_remove(home.path(), w["path"].as_str().unwrap()).unwrap();
+    assert!(appback::workspaces_list(home.path()).as_array().unwrap().is_empty());
+}
+
+#[test]
+fn browse_lists_only_visible_subfolders_sorted() {
+    let d = tempfile::tempdir().unwrap();
+    for n in ["zeta", "alpha", ".hidden"] { std::fs::create_dir(d.path().join(n)).unwrap(); }
+    std::fs::write(d.path().join("file.txt"), "x").unwrap();
+    let b = appback::browse_dir(d.path().to_str().unwrap()).unwrap();
+    assert_eq!(b["dirs"], json!(["alpha", "zeta"]));
+    assert_eq!(b["path"], d.path().canonicalize().unwrap().to_str().unwrap());
+    assert!(b["parent"].is_string());
+    assert!(appback::browse_dir("/no/such/folder").is_err());
+}
+
+#[test]
+fn switching_workspace_sets_the_project_folder_only_for_registered_ones() {
+    let home = tempfile::tempdir().unwrap();
+    let a = tempfile::tempdir().unwrap();
+    let ap = a.path().canonicalize().unwrap();
+    assert!(appback::workspace_switch(home.path(), ap.to_str().unwrap()).is_err(), "unregistered");
+    appback::workspace_add(home.path(), ap.to_str().unwrap()).unwrap();
+    appback::workspace_switch(home.path(), ap.to_str().unwrap()).unwrap();
+    assert_eq!(appback::settings_get(home.path())["project_dir"], ap.to_str().unwrap());
+}

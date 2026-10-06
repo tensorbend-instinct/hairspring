@@ -8,7 +8,14 @@ async function boot() {
   const s = await invoke('setup_status');
   if (!s.ready) return setup(s);
   await invoke('open_engine').catch((e) => alert(e));
-  shell(); refresh();
+  shell(); refresh(); projectWarn(); wsBar(true);
+}
+
+async function projectWarn() {
+  const p = await invoke('project_status').catch(() => null), el = document.getElementById('pwarn');
+  if (!el || !p) return;
+  el.style.display = p.empty ? 'block' : 'none';
+  el.textContent = p.empty ? 'Project folder is empty (' + p.root + '). Missions can only see this folder. Set one in Settings > Project folder.' : '';
 }
 
 function setup(s) {
@@ -25,9 +32,9 @@ function setup(s) {
 }
 
 function shell() {
-  app.innerHTML = `<div id="side"><button class="new" id="new">New session</button><div id="list"></div></div>
+  app.innerHTML = `<div id="side"><div id="wsbar"></div><button class="new" id="new">New session</button><div id="list"></div></div>
   <div id="main"><div id="tabs"><span class="on" data-t="chat">Chat</span><span data-t="traj">Trajectory</span><span data-t="plug">Plugins</span><span data-t="set">Settings</span></div>
-  <div id="chat"></div><div id="traj"></div><div id="plug"></div><div id="set"></div><div id="qcard"></div><div id="queue"></div>
+  <div id="pwarn"></div><div id="chat"></div><div id="traj"></div><div id="plug"></div><div id="set"></div><div id="qcard"></div><div id="queue"></div>
   <div id="comp"><div id="menu"></div><textarea id="in" rows="2" placeholder="Message or run a task, / commands"></textarea></div>
   <div id="foot"><span id="f1">idle</span><span id="f2"></span><span id="f3"></span></div></div>`;
   document.querySelectorAll('#tabs span').forEach((s) => s.onclick = () => {
@@ -84,11 +91,13 @@ async function showSettings() {
   const el = document.getElementById('set'), s = await invoke('settings');
   el.innerHTML = `<h3>Settings</h3><label>Mode <select id="s-mode">${['standard', 'ptc', 'minimal', 'creator'].map((m) => `<option ${m === s.mode ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
     <label>Permission <select id="s-perm">${['ask', 'auto'].map((m) => `<option ${m === s.permission ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
-    <label>Max steps <input id="s-steps" type="number" value="${s.max_steps}"></label><button id="s-save">Save</button><small id="s-msg"></small>`;
+    <label>Max steps <input id="s-steps" type="number" value="${s.max_steps}"></label>
+    <label>Project folder <input id="s-proj" placeholder="/path/to/your/project" value="${s.project_dir || ''}"></label><button id="s-save">Save</button><small id="s-msg"></small>`;
   document.getElementById('s-save').onclick = async () => {
-    const r = await invoke('save_settings', { patch: { mode: document.getElementById('s-mode').value, permission: document.getElementById('s-perm').value, max_steps: +document.getElementById('s-steps').value } }).catch((e) => ({ error: '' + e }));
+    const r = await invoke('save_settings', { patch: { mode: document.getElementById('s-mode').value, permission: document.getElementById('s-perm').value, max_steps: +document.getElementById('s-steps').value, ...(document.getElementById('s-proj').value ? { project_dir: document.getElementById('s-proj').value } : {}) } }).catch((e) => ({ error: '' + e }));
     if (!r.error) await invoke('slash', { line: '/mode ' + r.mode });
     document.getElementById('s-msg').textContent = r.error ? r.error : ' saved';
+    if (!r.error) { await invoke('open_engine').catch(() => {}); projectWarn(); }
   };
 }
 
@@ -149,3 +158,40 @@ listen('hs-queue', (e) => { const q = document.getElementById('queue'); if (q) {
 listen('hs-scheduled', (e) => addDone('scheduled run: ' + e.payload.map((x) => x.prompt).join(', ')));
 listen('hs-done', (e) => { clearInterval(ticker); const r = e.payload; addDone(`${r.passed ? 'Verified' : 'Not verified'} - ${r.outcome || ''} - ${((Date.now() - t0) / 1000).toFixed(0)}s`); foot(); refresh(); });
 boot();
+
+
+// dsh-style workspaces: registered real folders, an in-app folder browser, click to switch.
+async function wsBar(first) {
+  const w = await invoke('workspaces'), el = document.getElementById('wsbar');
+  if (!el) return;
+  el.innerHTML = '<div class="wsh">Workspaces <button id="wsadd">+ Add workspace</button></div>';
+  for (const x of w.list) {
+    const r = $(`<div class="wsr${x.path === w.active ? ' on' : ''}"><span class="wn"></span><small></small><button class="wsx" title="Remove from list">x</button></div>`);
+    r.querySelector('.wn').textContent = x.name; r.querySelector('small').textContent = x.path; r.title = x.path;
+    r.onclick = async () => { const e = await invoke('workspace_switch', { path: x.path }).then(() => null).catch((e) => '' + e); if (e) return alert(e); await invoke('open_engine').catch(() => {}); wsBar(); projectWarn(); refresh(); };
+    r.querySelector('.wsx').onclick = async (ev) => { ev.stopPropagation(); await invoke('workspace_remove', { path: x.path }); wsBar(); };
+    el.append(r);
+  }
+  document.getElementById('wsadd').onclick = () => browseDialog();
+  if (first && !w.active) browseDialog();
+}
+
+async function browseDialog(path) {
+  const home = path || (await invoke('workspaces').then((w) => w.active || w.home).catch(() => '/')) || '/';
+  let b = await invoke('browse', { path: home }).catch(() => invoke('browse', { path: '/' }));
+  let dlg = document.getElementById('browse');
+  if (!dlg) { dlg = $('<div id="browse"></div>'); document.body.append(dlg); }
+  dlg.innerHTML = '<div class="bx"><h3>Choose a project folder</h3><div id="bpath"></div><div id="blist"></div><div class="bbtn"><button id="bup">Up</button><button id="bsel">Use this folder</button><button id="bcan">Cancel</button></div><small id="bmsg"></small></div>';
+  dlg.querySelector('#bpath').textContent = b.path;
+  const l = dlg.querySelector('#blist');
+  for (const d of b.dirs) { const r = $('<div class="bd"></div>'); r.textContent = d + '/'; r.onclick = () => browseDialog(b.path.replace(/\/$/, '') + '/' + d); l.append(r); }
+  dlg.querySelector('#bup').onclick = () => b.parent && browseDialog(b.parent);
+  dlg.querySelector('#bcan').onclick = () => dlg.remove();
+  dlg.querySelector('#bsel').onclick = async () => {
+    const w = await invoke('workspace_add', { path: b.path }).catch((e) => ({ error: '' + e }));
+    if (w.error) return (dlg.querySelector('#bmsg').textContent = w.error);
+    await invoke('workspace_switch', { path: w.path }).catch((e) => alert(e));
+    await invoke('open_engine').catch(() => {});
+    dlg.remove(); wsBar(); projectWarn(); refresh();
+  };
+}

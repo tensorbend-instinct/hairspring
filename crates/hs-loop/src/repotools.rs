@@ -41,7 +41,7 @@ fn resolve_inside(ws: &Path, rel: &str) -> Result<PathBuf, String> {
     // Canonicalize to defeat symlinks; the result must stay under ws.
     let canon = clean
         .canonicalize()
-        .map_err(|_| format!("not found: {rel}"))?;
+        .map_err(|_| not_found(ws, rel))?;
     let ws_canon = ws
         .canonicalize()
         .map_err(|e| format!("workspace broken: {e}"))?;
@@ -49,6 +49,32 @@ fn resolve_inside(ws: &Path, rel: &str) -> Result<PathBuf, String> {
         return Err(format!("escape: {rel} resolves outside the workspace"));
     }
     Ok(canon)
+}
+
+/// A not-found error that tells the model where it is: the project root and
+/// its top-level entries, so it corrects the path instead of searching the
+/// filesystem or the web for a file that is not in this project.
+fn not_found(ws: &Path, rel: &str) -> String {
+    let root = ws.canonicalize().unwrap_or_else(|_| ws.to_path_buf());
+    let mut names: Vec<String> = std::fs::read_dir(&root)
+        .map(|rd| {
+            rd.flatten()
+                .map(|e| {
+                    let n = e.file_name().to_string_lossy().to_string();
+                    if e.path().is_dir() { format!("{n}/") } else { n }
+                })
+                .filter(|n| !n.starts_with('.'))
+                .collect()
+        })
+        .unwrap_or_default();
+    names.sort();
+    if names.is_empty() {
+        return format!("not found: {rel} (project root {}; the project folder is empty - tell the user to open the right project folder)", root.display());
+    }
+    let more = names.len().saturating_sub(40);
+    names.truncate(40);
+    let tail = if more > 0 { format!(" ... +{more} more") } else { String::new() };
+    format!("not found: {rel} (project root {}; top-level: {}{tail})", root.display(), names.join(", "))
 }
 
 pub fn read_repo_file(ws: &Path, rel: &str) -> Result<serde_json::Value, String> {
@@ -68,7 +94,7 @@ pub fn read_repo_window(
     max_lines: Option<u64>,
 ) -> Result<serde_json::Value, String> {
     let canon = resolve_inside(ws, rel)?;
-    let meta = std::fs::metadata(&canon).map_err(|_| format!("not found: {rel}"))?;
+    let meta = std::fs::metadata(&canon).map_err(|_| not_found(ws, rel))?;
     if meta.is_dir() {
         return Err(format!("is a directory: {rel}"));
     }

@@ -148,3 +148,19 @@ fn windowed_read_last_page_is_not_truncated() {
     assert_eq!(v["end_line"], 200);
     assert_eq!(v["truncated"], false, "no content beyond the file end");
 }
+
+#[test]
+fn not_found_names_the_project_root_and_lists_top_level() {
+    let d = ws();
+    let e = hs_loop::repotools::read_repo_file(d.path(), "crates/nope.rs").unwrap_err();
+    assert!(e.starts_with("not found: crates/nope.rs"), "{e}");
+    assert!(e.contains(&d.path().canonicalize().unwrap().display().to_string()), "root named: {e}");
+    assert!(e.contains("src") && e.contains("README.md"), "top-level listed: {e}");
+}
+
+#[test]
+fn not_found_in_an_empty_project_says_it_is_empty() {
+    let d = tempfile::tempdir().unwrap();
+    let e = hs_loop::repotools::read_repo_file(d.path(), "crates/x.rs").unwrap_err();
+    assert!(e.contains("project folder is empty"), "{e}");
+}

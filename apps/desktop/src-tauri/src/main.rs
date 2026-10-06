@@ -53,6 +53,10 @@ fn open_engine(app: State<Arc<App>>) -> Result<(), String> {
     let mut g = app.engine.lock().map_err(|e| e.to_string())?;
     if g.is_none() {
         std::fs::create_dir_all(&app.log_root).map_err(|e| e.to_string())?;
+        // the project folder chosen in Settings confines missions (HS_PROJECT_ROOT)
+        if let Some(p) = hs_loop::appback::settings_get(&home())["project_dir"].as_str() {
+            if std::path::Path::new(p).is_dir() { std::env::set_var("HS_PROJECT_ROOT", p); }
+        }
         *g = Some(Engine::open(&app.config, &app.log_root, hs_loop::appback::settings_get(&home())["max_steps"].as_u64().map(|n| n as u32)).map_err(|e| format!("{e:?}"))?);
     }
     Ok(())
@@ -160,8 +164,47 @@ fn settings() -> serde_json::Value {
 }
 
 #[tauri::command]
-fn save_settings(patch: serde_json::Value) -> Result<serde_json::Value, String> {
+fn workspaces() -> serde_json::Value {
+    serde_json::json!({"list": hs_loop::appback::workspaces_list(&home()), "active": hs_loop::appback::settings_get(&home())["project_dir"], "home": std::env::var("HOME").unwrap_or_else(|_| "/".into())})
+}
+
+#[tauri::command]
+fn workspace_add(path: String) -> Result<serde_json::Value, String> {
+    hs_loop::appback::workspace_add(&home(), &path)
+}
+
+#[tauri::command]
+fn workspace_remove(path: String) -> Result<(), String> {
+    hs_loop::appback::workspace_remove(&home(), &path)
+}
+
+#[tauri::command]
+fn workspace_switch(app: State<'_, Arc<App>>, path: String) -> Result<(), String> {
+    if app.busy.load(Ordering::SeqCst) { return Err("a mission is running; switch workspace after it ends".into()); }
+    hs_loop::appback::workspace_switch(&home(), &path)?;
+    if let Ok(mut g) = app.engine.lock() { *g = None; }
+    Ok(())
+}
+
+#[tauri::command]
+fn browse(path: String) -> Result<serde_json::Value, String> {
+    hs_loop::appback::browse_dir(&path)
+}
+
+#[tauri::command]
+fn project_status(app: State<'_, Arc<App>>) -> serde_json::Value {
+    let root = std::env::var("HS_PROJECT_ROOT").map(PathBuf::from).unwrap_or_else(|_| app.log_root.join("work"));
+    hs_loop::appback::project_status(&root)
+}
+
+#[tauri::command]
+fn save_settings(app: State<'_, Arc<App>>, patch: serde_json::Value) -> Result<serde_json::Value, String> {
     hs_loop::appback::settings_set(&home(), &patch)?;
+    if patch.get("project_dir").is_some() {
+        if app.busy.load(Ordering::SeqCst) { return Err("a mission is running; change the project folder after it ends".into()); }
+        // reopen the engine on the new project folder
+        if let Ok(mut g) = app.engine.lock() { *g = None; }
+    }
     Ok(hs_loop::appback::settings_get(&home()))
 }
 
@@ -212,7 +255,7 @@ fn main() {
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![setup_status, save_key, open_engine, submit, sessions, vitals, compact, slash_menu, slash, questions, answer, trajectory, plugins, settings, save_settings, export_session])
+        .invoke_handler(tauri::generate_handler![setup_status, save_key, open_engine, submit, sessions, vitals, compact, slash_menu, slash, questions, answer, trajectory, plugins, settings, save_settings, export_session, project_status, workspaces, workspace_add, workspace_remove, workspace_switch, browse])
         .run(tauri::generate_context!())
         .expect("error while running HAIRSPRING desktop");
 }
