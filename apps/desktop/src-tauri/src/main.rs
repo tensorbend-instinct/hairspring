@@ -193,6 +193,7 @@ fn compact(app: State<Arc<App>>) {
 fn main() {
     let h = home();
     std::env::set_var("HS_ASK_DIR", h.join("ask"));
+    std::env::set_var("HS_PERMISSION_FILE", h.join("permission"));
     let app = Arc::new(App { engine: Mutex::new(None), busy: AtomicBool::new(false), queue: Mutex::new(Default::default()), log_root: h.join("desktop-sessions"), config: h.join("hairspring.toml") });
     let ticker = Arc::clone(&app);
     tauri::Builder::default()

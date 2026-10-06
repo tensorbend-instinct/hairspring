@@ -34,6 +34,7 @@ pub mod appback;
 pub mod modes;
 pub mod tools2;
 pub mod goal_state;
+pub mod permission;
 pub mod plan_mode;
 pub mod sweprompt;
 pub mod argcoerce;
@@ -1474,6 +1475,12 @@ impl InnerLoop {
             let out = ToolCallOutcome {call_id, start_event_id, resolved: None, latency_ms: 0,
                 output: serde_json::json!({"error":"not an internal tool route"})};
             self.kernel.end_internal_tool(tool, args, &out)?;
+        }
+        if let Some(output) = permission::gate(tool, args) {
+            return Ok(ToolCallOutcome {
+                call_id: uuid::Uuid::new_v4(), start_event_id: uuid::Uuid::nil(),
+                resolved: None, output, latency_ms: 0,
+            });
         }
         if let Ok(wd) = std::env::var("HS_TERM_WORKDIR") {
             if let Some(output) = plan_mode::gate(std::path::Path::new(&wd), tool, args) {

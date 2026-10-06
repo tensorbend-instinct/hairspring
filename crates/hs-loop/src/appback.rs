@@ -143,7 +143,7 @@ const SETTING_KEYS: [&str; 4] = ["mode", "max_steps", "permission", "theme"];
 
 #[must_use]
 pub fn settings_get(dir: &Path) -> Value {
-    let mut s = json!({"mode": "standard", "max_steps": 30, "permission": "ask", "theme": "dark"});
+    let mut s = json!({"mode": "standard", "max_steps": 30, "permission": "auto", "theme": "dark"});
     if let Some(saved) = std::fs::read_to_string(dir.join("settings.json")).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()) {
         for k in SETTING_KEYS {
             if !saved[k].is_null() {
@@ -170,5 +170,7 @@ pub fn settings_set(dir: &Path, patch: &Value) -> Result<(), String> {
         s[k] = v.clone();
     }
     std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    // the dispatcher reads this file (HS_PERMISSION_FILE) on every mutating call
+    std::fs::write(dir.join("permission"), s["permission"].as_str().unwrap_or("auto")).map_err(|e| e.to_string())?;
     std::fs::write(dir.join("settings.json"), s.to_string()).map_err(|e| e.to_string())
 }
