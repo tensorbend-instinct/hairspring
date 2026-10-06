@@ -26,7 +26,7 @@ rebuilt task, different model runs).
 | ask_user_question | ask_user_question (file protocol; UI side not built) | partial |
 | present | present tool (tools2_red; records .hs/presented.jsonl) | proven (tests) |
 | job_kill, job_list, job_output (background jobs) | `jobs` tool: start/list/output/kill, confined like term.exec | proven (tests) |
-| schedule_create/delete/list/update | schedule tool: create/list/update/delete/due (tools2_red; the harness must poll `due`) | partial (store proven; harness firing loop missing) |
+| schedule_create/delete/list/update | schedule tool + Engine::fire_due_schedules firing loop (tools2_red 5/5, engine_red e5: due fires once, advances, refires next period) | proven |
 | workflow | none | missing |
 
 ## Surface

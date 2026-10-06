@@ -103,3 +103,28 @@ fn e4_export_session_zip() {
     assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
     assert!(eng.export_session("not-a-uuid", &out).is_err());
 }
+
+#[test]
+fn e5_schedule_firing_loop_runs_due_prompts_once() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let (d, log, wd) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let cfg = config(d.path());
+    let ans = d.path().join("a.txt");
+    let script = d.path().join("script.jsonl");
+    std::fs::write(&script, format!("{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"X\"}}}}\n", ans.display())).unwrap();
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
+    let mut eng = Engine::open(&cfg, log.path(), Some(3)).unwrap();
+    let c = hs_loop::tools2::schedule(wd.path(), &serde_json::json!({"op":"create","prompt":"nightly check","every_secs":60,"now":1000}));
+    assert_eq!(c["ok"], true, "{c}");
+    // not due yet
+    assert!(eng.fire_due_schedules(wd.path(), 1030).is_empty());
+    // due: fires exactly once and runs a real mission
+    let fired = eng.fire_due_schedules(wd.path(), 1061);
+    assert_eq!(fired.len(), 1, "{fired:?}");
+    assert_eq!(fired[0]["prompt"], "nightly check");
+    assert!(fired[0]["result"]["stream_id"].is_string(), "{:?}", fired[0]);
+    // advanced: same instant does not refire; next period does
+    assert!(eng.fire_due_schedules(wd.path(), 1062).is_empty());
+    assert_eq!(eng.fire_due_schedules(wd.path(), 1125).len(), 1);
+    assert_eq!(eng.vitals()["missions"], 2);
+}

@@ -75,6 +75,23 @@ impl Engine {
         crate::export::export_zip(&dir, out).map_err(|e| e.to_string())
     }
 
+    /// The schedule firing loop body: run every schedule in `wd` that is due at
+    /// `now` (unix secs) as a goal, in order. Returns one result per fired schedule:
+    /// `{id, prompt, result|error}`. Call it on a timer (the app does, every 30s).
+    pub fn fire_due_schedules(&mut self, wd: &Path, now: u64) -> Vec<Value> {
+        let due = crate::tools2::schedule(wd, &json!({"op": "due", "now": now}));
+        let mut out = vec![];
+        for s in due["due"].as_array().cloned().unwrap_or_default() {
+            let prompt = s["prompt"].as_str().unwrap_or("").to_string();
+            let entry = match self.run_goal(&prompt, |_| {}) {
+                Ok(r) => json!({"id": s["id"], "prompt": prompt, "result": r}),
+                Err(e) => json!({"id": s["id"], "prompt": prompt, "error": e.to_string()}),
+            };
+            out.push(entry);
+        }
+        out
+    }
+
     pub fn compact(&mut self) {
         self.session.request_compact();
     }
