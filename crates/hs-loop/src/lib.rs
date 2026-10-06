@@ -194,6 +194,9 @@ pub struct InnerLoop {
     progress_path: Option<PathBuf>,
     ledger: ledger::Ledger,
     context_budget_chars: usize,
+    /// `/compact`: shrink the NEXT history assembly so older exchanges are
+    /// distilled now instead of when the window fills. One-shot.
+    compact_next: bool,
     memory_store: Option<Box<dyn hs_memory::MemoryStore>>,
     goal: Option<goal::GoalSpec>,
     dead_tools: std::collections::HashSet<String>,
@@ -517,6 +520,7 @@ impl InnerLoop {
             progress_path: None,
             ledger: Default::default(),
             context_budget_chars: DEFAULT_CONTEXT_BUDGET_TOKENS * 4,
+            compact_next: false,
             memory_store: None,
             goal: None,
             dead_tools: Default::default(),
@@ -622,6 +626,7 @@ impl InnerLoop {
             progress_path: None,
             ledger: Default::default(),
             context_budget_chars: DEFAULT_CONTEXT_BUDGET_TOKENS * 4,
+            compact_next: false,
             memory_store: None,
             goal: None,
             dead_tools: Default::default(),
@@ -955,6 +960,16 @@ impl InnerLoop {
     }
 
     /// D1: size the transcript projection in tokens (4 chars/token proxy).
+    /// `/compact`: distill older history on the next model call.
+    pub fn request_compact(&mut self) {
+        self.compact_next = true;
+    }
+
+    #[must_use]
+    pub fn compact_pending(&self) -> bool {
+        self.compact_next
+    }
+
     pub fn set_context_budget_tokens(&mut self, tokens: usize) {
         self.context_budget_chars = tokens.saturating_mul(4);
     }
@@ -2166,10 +2181,12 @@ impl InnerLoop {
                     && let Ok(events) = reader.events() {
                         volatile.push_str("LEDGER (your work so far, always current):\n");
                         volatile.push_str(&self.ledger.summary());
+                        let budget = compact_budget(self.context_budget_chars, self.compact_next);
+                        self.compact_next = false;
                         let mut asm = assembler::assemble_messages(
                             &reader,
                             &events,
-                            self.context_budget_chars,
+                            budget,
                         );
                         if let Some(c) = &asm.compressed {
                             // D1: distill the oldest events into the Codex
@@ -3393,3 +3410,11 @@ pub fn artifact_section(answer_path: &std::path::Path, artifact: &str) -> String
 /// constant remains for the bench binaries and as the loop-internal
 /// placeholder before config application.
 pub const DEFAULT_MISSION_MAX_STEPS: u32 = 50;
+
+/// History budget for one assembly. A forced compact keeps only the most
+/// recent eighth of the window (floor 2,000 chars) so the older exchanges
+/// are distilled through the normal handoff path.
+#[must_use]
+pub fn compact_budget(budget_chars: usize, forced: bool) -> usize {
+    if forced { (budget_chars / 8).max(2_000).min(budget_chars) } else { budget_chars }
+}

@@ -22,6 +22,8 @@ pub enum ReplCommand {
     /// Recovery tier B: hash-verified restore from a snapshot id (books
     /// the recovery on the mission stream).
     Restore(String),
+    /// `/compact`: distill older history on the next model call.
+    Compact,
     /// Print the input history (preloaded + this session's lines).
     History,
     /// Print the latest mission's answer artifact.
@@ -51,6 +53,7 @@ pub fn parse_command(line: &str) -> ReplCommand {
         t if t.starts_with(":restore") => ReplCommand::Restore(
             t.trim_start_matches(":restore").trim().to_string(),
         ),
+        ":compact" => ReplCommand::Compact,
         ":history" => ReplCommand::History,
         ":last" => ReplCommand::LastAnswer,
         _ if t.starts_with(':') => ReplCommand::Unknown(t.to_string()),
@@ -989,6 +992,10 @@ pub fn load(
     pub fn snapshot_workdir(&mut self) -> Result<hs_world::SnapshotReport, LoopError> {
         self.inner.snapshot_workdir()
     }
+    /// `/compact`.
+    pub fn request_compact(&mut self) {
+        self.inner.request_compact();
+    }
     /// Recovery tier B: hash-verified, byte-exact workdir restore,
     /// booked and measured on the mission stream.
     pub fn restore_workdir(
@@ -1600,7 +1607,7 @@ pub fn sessions_overview(infos: &[SessionInfo]) -> Vec<String> {
 /// type them from memory). Pure prefix function so it is testable
 /// without a TTY; `CommandCompleter` adapts it to rustyline.
 pub const REPL_COMMANDS: &[&str] =
-    &[":help", ":history", ":last", ":quit", ":restore", ":snapshot", ":status"];
+    &[":compact", ":help", ":history", ":last", ":quit", ":restore", ":snapshot", ":status"];
 
 /// Completions for a command prefix. Sigil-prefixed input completes
 /// ("/" canonical, ":" the backward-compatible alias); goal text
@@ -1878,6 +1885,10 @@ pub fn run_interactive<E: Editor + ?Sized>(
                 Some(a) => println!("{a}"),
                 None => eprintln!("no mission has run yet"),
             },
+            ReplCommand::Compact => {
+                session.request_compact();
+                println!("compacting: older history is distilled on the next model call");
+            }
             ReplCommand::Snapshot => match session.snapshot_workdir() {
                 Ok(r) => println!(
                     "{}",
