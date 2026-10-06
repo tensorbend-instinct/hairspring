@@ -1635,6 +1635,22 @@ pub struct TuiState {
     pub stream_short: String,
 }
 
+/// Context window (tokens) for models whose published window is known;
+/// `HS_CONTEXT_WINDOW` overrides. DeepSeek-V4 (Pro/Flash): one million
+/// (model card, huggingface.co/deepseek-ai/DeepSeek-V4-Pro).
+#[must_use]
+pub fn context_window_tokens(model: &str) -> Option<u64> {
+    if let Some(n) = std::env::var("HS_CONTEXT_WINDOW")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .filter(|n| *n > 0)
+    {
+        return Some(n);
+    }
+    let m = model.to_ascii_lowercase();
+    m.contains("deepseek-v4").then_some(1_000_000)
+}
+
 impl Default for TuiState {
     fn default() -> Self {
         TuiState {
@@ -1790,8 +1806,17 @@ impl TuiState {
                 };
             }
             U::ModelCallEnd {
-                cost_usd_micros, ..
+                cost_usd_micros,
+                model,
+                input_tokens,
+                ..
             } => {
+                // Context readout: the last call's prompt vs the model's
+                // known window. Unknown model -> unchanged (no guess).
+                if let Some(win) = context_window_tokens(model) {
+                    let used = (*input_tokens).min(win) * 100 / win;
+                    self.context_remaining_pct = Some((100 - used) as u8);
+                }
                 // M17: the END of a call is not a phase - the rail keeps
                 // whatever the call start lit (Plan, or Reflect after an
                 // observation). Pre-M17 this forced Reflect every time.
