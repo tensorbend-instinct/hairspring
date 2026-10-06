@@ -78,6 +78,7 @@ fn loop_emits_typed_ui_events_for_a_mission() {
             UiEvent::SubAgentFinished { .. } => "agent_finish",
             UiEvent::Step { .. } => "step",
             UiEvent::ModelReasoning { .. } => "reasoning",
+            UiEvent::ModelCallCache { .. } => "model_cache",
         })
         .collect();
     assert!(

@@ -27,6 +27,7 @@ fn kind(e: &UiEvent) -> &'static str {
         UiEvent::SubAgentFinished { .. } => "SubAgentFinished",
         UiEvent::Step { .. } => "Step",
         UiEvent::ModelReasoning { .. } => "ModelReasoning",
+        UiEvent::ModelCallCache { .. } => "ModelCallCache",
     }
 }
 
