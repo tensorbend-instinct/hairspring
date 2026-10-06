@@ -178,6 +178,13 @@ pub fn tb_tools() -> Vec<Value> {
                 "tail_bytes":{"type":"integer","description":"output tail cap, default 20000"}},"required":["op"]}),
         ),
         f(
+            "web.search",
+            "Search the web (Brave Search API; needs HS_BRAVE_API_KEY). Returns title, url, snippet per result. Follow up with web.fetch to read a page.",
+            json!({"type":"object","properties":{
+                "query":{"type":"string"},
+                "count":{"type":"integer","description":"results, 1-20, default 5"}},"required":["query"]}),
+        ),
+        f(
             "web.fetch",
             "Fetch an http(s) URL as text (HTML is reduced to readable text). Private, loopback and non-http targets are refused. Use for docs and API references; returns status, content_type, text, truncated.",
             json!({"type":"object","properties":{
