@@ -178,6 +178,15 @@ pub fn tb_tools() -> Vec<Value> {
                 "tail_bytes":{"type":"integer","description":"output tail cap, default 20000"}},"required":["op"]}),
         ),
         f(
+            "goal",
+            "Track the long-running goal of this session. op=create {objective, acceptance?} (one active goal at a time), op=get, op=update {status: active|done|blocked, note?}. This is your own tracker; the mission still closes only through the checker.",
+            json!({"type":"object","properties":{
+                "op":{"type":"string","enum":["create","get","update"]},
+                "objective":{"type":"string"},"acceptance":{"type":"string"},
+                "status":{"type":"string","enum":["active","done","blocked"]},
+                "note":{"type":"string"}},"required":["op"]}),
+        ),
+        f(
             "plan",
             "Plan mode. op=enter: mutating tools (term.exec, edits, jobs start, agent.spawn, answer.submit) are blocked while you research. op=exit {plan}: save your plan and leave plan mode so work can start. op=status reads the saved plan.",
             json!({"type":"object","properties":{

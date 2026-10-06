@@ -38,7 +38,7 @@ cat > "$CARGO_HOME/bin/cargo" <<'CARGO'
 #!/bin/sh
 set -eu
 mkdir -p "$CARGO_TARGET_DIR/release"
-for b in hs-repl hs-log-cli hs-plugin-answer hs-plugin-answersubmit hs-plugin-selfcheck hs-plugin-critic hs-plugin-fileread hs-plugin-reposearch hs-plugin-repoexec hs-plugin-editapply hs-plugin-notescratch hs-plugin-webfetch hs-plugin-jobs hs-plugin-askuser hs-plugin-websearch hs-plugin-plan hs-plugin-termexec hs-plugin-swarm hs-plugin-policy hs-plugin-scripted hs-plugin-deepseek hs-plugin-provmodel hs-promote hs-plugin-gatemodel hs-plugin-checker; do
+for b in hs-repl hs-log-cli hs-plugin-answer hs-plugin-answersubmit hs-plugin-selfcheck hs-plugin-critic hs-plugin-fileread hs-plugin-reposearch hs-plugin-repoexec hs-plugin-editapply hs-plugin-notescratch hs-plugin-webfetch hs-plugin-jobs hs-plugin-askuser hs-plugin-websearch hs-plugin-plan hs-plugin-goaltool hs-plugin-termexec hs-plugin-swarm hs-plugin-policy hs-plugin-scripted hs-plugin-deepseek hs-plugin-provmodel hs-promote hs-plugin-gatemodel hs-plugin-checker; do
   printf '#!/bin/sh\n' > "$CARGO_TARGET_DIR/release/$b"
   chmod +x "$CARGO_TARGET_DIR/release/$b"
 done
