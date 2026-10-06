@@ -11,6 +11,7 @@ use std::sync::{Arc, Mutex};
 pub struct Engine {
     session: ReplSession,
     log_root: PathBuf,
+    queue: std::collections::VecDeque<String>,
 }
 
 impl Engine {
@@ -19,7 +20,7 @@ impl Engine {
     /// show its setup screen instead of failing at launch.
     pub fn open(config: &Path, log_root: &Path, max_steps: Option<u32>) -> Result<Self, LoopError> {
         let session = ReplSession::load_lenient(config, log_root, true, max_steps)?;
-        Ok(Self { session, log_root: log_root.to_path_buf() })
+        Ok(Self { session, log_root: log_root.to_path_buf(), queue: std::collections::VecDeque::new() })
     }
 
     /// Run one goal to completion. `emit` receives every UI event as JSON
@@ -54,7 +55,8 @@ impl Engine {
             .into_iter()
             .map(|(ws, v)| {
                 json!({"workspace": ws, "sessions": v.iter().map(|i| json!({
-                    "id": i.id.to_string(), "events": i.events, "title": i.preview})).collect::<Vec<_>>()})
+                    "id": i.id.to_string(), "events": i.events, "title": i.preview,
+                    "age_secs": i.modified.elapsed().map_or(0, |d| d.as_secs())})).collect::<Vec<_>>()})
             })
             .collect();
         json!({"groups": groups})
@@ -128,6 +130,43 @@ impl Engine {
     #[must_use]
     pub fn tool_names(&self) -> Vec<String> {
         self.session.native_tool_names()
+    }
+
+    /// Queue-while-busy: goals wait here and run in order via `run_next`.
+    pub fn queue_goal(&mut self, goal: &str) {
+        self.queue.push_back(goal.to_string());
+    }
+
+    #[must_use]
+    pub fn queued(&self) -> Vec<String> {
+        self.queue.iter().cloned().collect()
+    }
+
+    /// Run the oldest queued goal; `Ok(None)` when the queue is empty.
+    pub fn run_next(&mut self, emit: impl FnMut(Value) + Send + 'static) -> Result<Option<Value>, LoopError> {
+        let Some(g) = self.queue.pop_front() else { return Ok(None) };
+        self.run_goal(&g, emit).map(Some)
+    }
+
+    pub fn set_model(&mut self, name: &str) -> Result<(), String> {
+        self.session.set_model_override(Some(name.to_string())).map_err(|e| e.to_string())
+    }
+
+    /// Trajectory of one session: turns (model calls), tool calls, events, wall time.
+    pub fn trajectory(&self, id: &str) -> Result<Value, String> {
+        let uid = uuid::Uuid::parse_str(id).map_err(|e| e.to_string())?;
+        let reader = hs_log::StreamReader::open(&self.log_root, uid).map_err(|e| e.to_string())?;
+        let evs = reader.events().map_err(|e| e.to_string())?;
+        let count = |k: hs_core::EventKind| evs.iter().filter(|e| e.kind == k).count() as u64;
+        let (first, last) = (evs.first().map_or(0, |e| e.ts_wall_ms), evs.last().map_or(0, |e| e.ts_wall_ms));
+        let model_ms: u64 = evs.iter().filter(|e| e.kind == hs_core::EventKind::ModelCall).map(|e| u64::from(e.latency_ms)).sum();
+        let tool_ms: u64 = evs.iter().filter(|e| e.kind == hs_core::EventKind::ToolCall).map(|e| u64::from(e.latency_ms)).sum();
+        Ok(json!({
+            "turns": count(hs_core::EventKind::ModelCall), "calls": count(hs_core::EventKind::ToolCall),
+            "events": evs.len() as u64, "duration_ms": u64::try_from((last - first).max(0)).unwrap_or(0),
+            "model_ms": model_ms, "tool_ms": tool_ms,
+            "cost_micros": evs.iter().map(|e| e.cost_usd_micros.max(0)).sum::<i64>(),
+        }))
     }
 
     pub fn compact(&mut self) {

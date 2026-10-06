@@ -30,6 +30,7 @@ pub mod jobs;
 pub mod engine;
 pub mod agentctl;
 pub mod export;
+pub mod appback;
 pub mod modes;
 pub mod tools2;
 pub mod goal_state;
