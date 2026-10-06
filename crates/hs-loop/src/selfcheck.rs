@@ -42,6 +42,15 @@ pub fn declare_checks(root: &std::path::Path, content: &str) -> Result<u32, Stri
     Ok(cmds as u32)
 }
 
+/// Exit 127/126 means the command could not be run at all: the cause is
+/// the environment (PATH/permissions), not the code under test.
+fn env_hint(code: Option<i64>) -> &'static str {
+    match code {
+        Some(127 | 126) => "\n[ENVIRONMENT, not your code: the command was not found or not executable in the checker's environment, which is the same PATH/HOME as your shell. Run `command -v <tool>` in your shell, then install it or declare the check with a full path.]",
+        _ => "",
+    }
+}
+
 /// Hang guard for one declared command, the same mechanism term.exec uses.
 const CHECK_TIMEOUT_SECS: u64 = 3600;
 
@@ -108,7 +117,11 @@ pub fn check(ws: &std::path::Path) -> serde_json::Value {
                 } else {
                     format!("exited Some({})", r["exit_code"].as_i64().unwrap_or(-1))
                 };
-                failures.push(format!("`{c}` {code}\n{}", tail.trim()));
+                failures.push(format!(
+                    "`{c}` {code}\n{}{}",
+                    tail.trim(),
+                    env_hint(r["exit_code"].as_i64())
+                ));
             }
             continue;
         }
@@ -125,20 +138,47 @@ pub fn check(ws: &std::path::Path) -> serde_json::Value {
                     tail = crate::msgfmt::tail_bytes_safe(&tail, 2000);
                 }
                 failures.push(format!(
-                    "`{c}` exited {:?}\n{}",
+                    "`{c}` exited {:?}\n{}{}",
                     o.status.code(),
-                    tail.trim()
+                    tail.trim(),
+                    env_hint(o.status.code().map(i64::from))
                 ));
             }
             Err(e) => failures.push(format!("`{c}` spawn failed: {e}")),
         }
     }
+    let state = cand.join(".hs/.check_repeat");
     if failures.is_empty() {
+        let _ = std::fs::remove_file(&state);
         serde_json::json!({"passed": true, "error": ""})
     } else {
-        serde_json::json!({
-            "passed": false,
-            "error": format!("{}/{} declared checks failed:\n{}", failures.len(), cmds.len(), failures.join("\n---\n")),
-        })
+        let mut error = format!(
+            "{}/{} declared checks failed:\n{}",
+            failures.len(),
+            cmds.len(),
+            failures.join("\n---\n")
+        );
+        // Doom-loop signal: the same failure returned again is information
+        // the model needs ("nothing you changed touched the cause"). The
+        // verdict is unchanged; this only annotates the feedback.
+        let sig = {
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            std::hash::Hasher::write(&mut h, error.as_bytes());
+            std::hash::Hasher::finish(&h)
+        };
+        let n = match std::fs::read_to_string(&state)
+            .ok()
+            .and_then(|t| t.split_once(' ').map(|(a, b)| (a.to_string(), b.to_string())))
+        {
+            Some((prev, cnt)) if prev == sig.to_string() => cnt.trim().parse::<u32>().unwrap_or(1) + 1,
+            _ => 1,
+        };
+        let _ = std::fs::write(&state, format!("{sig} {n}"));
+        if n >= 2 {
+            error.push_str(&format!(
+                "\n---\nREPEAT {n}: this exact failure was returned {n} times in a row. Resubmitting without changing what the failing command depends on cannot pass. Run the failing command yourself in your shell, read its output, and fix that cause before submitting again."
+            ));
+        }
+        serde_json::json!({"passed": false, "error": error})
     }
 }
