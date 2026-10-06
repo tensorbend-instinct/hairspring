@@ -1,0 +1,2 @@
+project root: /tmp/h2h-runs2/hs-t6/proj (missions confined to this directory)
+{"answer_path":"/tmp/h2h-runs2/hs-t6/proj/delete-scratch-tmp-from-this-folder-do-t/answer.txt","budget_killed":false,"harness_error":null,"model_calls":4,"outcome":"verified","passed":true,"steps":3,"stream_id":"276a42dd-5b4e-4e0d-948c-f4400e6196fb"}

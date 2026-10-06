@@ -1,0 +1,2 @@
+ESTAB 0      0               169.254.0.21:52468         3.173.21.63:443  
+	 cubic wscale:10,7 rto:204 rtt:0.316/0.157 ato:40 mss:1448 pmtu:1500 rcvmss:1448 advmss:1448 cwnd:19 bytes_sent:10504 bytes_acked:10505 bytes_received:4983 segs_out:15 segs_in:8 data_segs_out:11 data_segs_in:3 send 696506329bps lastsnd:493568 lastrcv:493560 lastack:493560 pacing_rate 1392461840bps delivery_rate 329924048bps delivered:12 app_limited rcv_space:14480 rcv_ssthresh:64088 minrtt:0.217

@@ -1,0 +1,38 @@
+  … 
+I'll read the file and answer.{"path": "crates/hs-loop/src/export.rs"}
+  ↑4154 ↓54
+▶ repo.read  {"path":"crates/hs-loop/src/export.rs"}
+  ✓ ok  0ms
+  {"content":"//! Export a session directory as a ZIP (dsh \"Export\"): stored entries, standard format.\nuse std::io::Write;\nuse std::path::Path;\n\nfn crc32(data: &[u8]) -> u32 {\n    let mut c = 0x…
+  … deepseek
+{"command": "cd /tmp/h2h-runs/hs-t1/proj/read-crates-hs-loop-src-export-rs-and-an 2>/dev/null || true; pwd; ls; mkdir -p \"$(dirname /tmp/h2h-runs/hs-t1/proj/read-crates-hs-loop-src-export-rs-and-an/answer.txt)\"; printf '%s\\n' 'export_zip writes every file under the source directory into a ZIP archive at the output path using stored (uncompressed) entries with standard local-file, central-directory and end-of-central-directory records, and returns the number of files it packed.' > /tmp/h2h-runs/hs-t1/proj/read-crates-hs-loop-src-export-rs-and-an/answer.txt; cat /tmp/h2h-runs/hs-t1/proj/read-crates-hs-loop-src-export-rs-and-an/answer.txt"}
+  ↑5524 ↓524
+  ╆ The task: answer in one sentence what export_zip does, write to ANSWER_PATH, and submit with checks.
+  ╆ 
+  ╆ I have the file content. Write the answer to the answer file and submit.
+  ╆ 
+  ╆ I need checks — verification commands. E.g., check the answer file exists and contains one sentence.
+  ╆ 
+  ╆ Let me write the answer file first via term.exec, then submit with checks.
+  ╆ 
+▶ term.exec  cd /tmp/h2h-runs/hs-t1/proj/read-crates-hs-loop-src-export-rs-and-an 2>/dev/null || true; pwd; ls; mkdir -p "$(dirname …
+  ✓ ok  50ms
+  /tmp/h2h-runs/hs-t1/proj/read-crates-hs-loop-src-export-rs-and-an export_zip writes every file under the source directory into a ZIP archive at the output path using stored (uncompressed) entries wit…
+  … deepseek
+{"path": "/tmp/h2h-runs/hs-t1/proj/read-crates-hs-loop-src-export-rs-and-an/answer.txt", "summary": "export_zip writes every file under the source directory into a ZIP archive at the output path using stored (uncompressed) entries with standard local-file, central-directory and end-of-central-directory records, and returns the number of files it packed.\n\nVerified by reading crates/hs-loop/src/export.rs: walk() recursively collects (relative-name, path) pairs, sorts them, and for each file emits a method-0 local header + data plus a matching central-directory entry (CRC-32, sizes, name, offset), then appends the central directory and end-of-central-directory record and writes the buffer to out, returning files.len().", "checks": "test -s /tmp/h2h-runs/hs-t1/proj/read-crates-hs-loop-src-export-rs-and-an/answer.txt\ngrep -q \"export_zip\" /tmp/h2h-runs/hs-t1/proj/read-crates-hs-loop-src-export-rs-and-an/answer.txt\ngrep -q \"ZIP\" /tmp/h2h-runs/hs-t1/proj/read-crates-hs-loop-src-export-rs-and-an/answer.txt\ngrep -q \"pub fn export_zip(src: &Path, out: &Path) -> std::io::Result<usize>\" crates/hs-loop/src/export.rs\ngrep -q \"Ok(files.len())\" crates/hs-loop/src/export.rs"}
+  ↑6317 ↓424
+  ╆ Submit with checks verifying the answer file content and the source fact.
+▶ answer.submit  {"checks":"test -s /tmp/h2h-runs/hs-t1/proj/read-crates-hs-loop-src-export-rs-and-an/answer.txt\ngrep -q \"export_zip\"…
+  ✓ ok  3ms
+  {"bytes":628,"path":"/tmp/h2h-runs/hs-t1/proj/read-crates-hs-loop-src-export-rs-and-an/answer.txt","written":true}
+  … deepseek
+{"refuted": false, "blocking": "none", "findings": []}
+  ↑1571 ↓1404
+  ╆ Let me audit the recorded evidence. The objective: read crates/hs-loop/src/export.rs and answer what export_zip does.
+  ╆ 
+  ╆ Recorded evidence: reads crates/hs-loop/src/export.rs:L1-400; read-evidence showing the file content (2323B, truncated but key parts shown). The ledger shows the file content including walk(), crc32, local header, central directory, EOCD, returning files.len().
+  ╆ 
+  ╆ Tests: a test command with PASS@seq4 exit=0, stdout containing the answer.
+  ╆ 
+  ╆ Hmm, the test stdout shows the answer sentence. Let me consider whether the evidence supports the claim. The answer claims details: sorted, method-0 local header, CRC-32, sizes, name, offset, central directory, EOCD, returning files.len(). The read-evidence shows parts but truncated ([+1723 chars]...). We see crc32 implementation with 0xEDB8_8320 constant, use std::io::Write, use std::path::Path, and the tail showing central directory records: append (files.len() as u16).to_le_bytes() twice, cd_len, cd_off, [0,0], File::create(out).write_all(&buf), Ok(files.len()).
+  ╆ 

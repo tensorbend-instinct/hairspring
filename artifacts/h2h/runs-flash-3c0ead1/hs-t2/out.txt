@@ -1,0 +1,2 @@
+project root: /tmp/h2h-runs2/hs-t2/proj (missions confined to this directory)
+{"answer_path":"/tmp/h2h-runs2/hs-t2/proj/the-tests-in-this-folder-fail-fix-the-co/answer.txt","budget_killed":false,"harness_error":null,"model_calls":8,"outcome":"verified","passed":true,"steps":7,"stream_id":"3d7e777f-9f3a-48c8-82a0-f8041a3779cf"}
