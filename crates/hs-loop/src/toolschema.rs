@@ -178,6 +178,26 @@ pub fn tb_tools() -> Vec<Value> {
                 "tail_bytes":{"type":"integer","description":"output tail cap, default 20000"}},"required":["op"]}),
         ),
         f(
+            "todo",
+            "Your task list for multi-step work (todo_write). Pass todos=[{content, status: pending|in_progress|completed}] to replace the list (at most one in_progress); call with no todos to read it back.",
+            json!({"type":"object","properties":{"todos":{"type":"array","items":{"type":"object","properties":{"content":{"type":"string"},"status":{"type":"string","enum":["pending","in_progress","completed"]}},"required":["content","status"]}}}}),
+        ),
+        f(
+            "present",
+            "Show a finished file from the workspace to the user (report, image, document). path is relative to the workspace; optional title.",
+            json!({"type":"object","properties":{"path":{"type":"string"},"title":{"type":"string"}},"required":["path"]}),
+        ),
+        f(
+            "read_image",
+            "Read a PNG, JPEG or GIF from the workspace: returns mime, width, height and base64 data (max 5 MB).",
+            json!({"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}),
+        ),
+        f(
+            "schedule",
+            "Recurring prompts. op=create {prompt, every_secs>=60}, list, update {id, prompt?, every_secs?}, delete {id}, due (entries now due; advances them).",
+            json!({"type":"object","properties":{"op":{"type":"string","enum":["create","list","update","delete","due"]},"id":{"type":"string"},"prompt":{"type":"string"},"every_secs":{"type":"integer"}},"required":["op"]}),
+        ),
+        f(
             "goal",
             "Track the long-running goal of this session. op=create {objective, acceptance?} (one active goal at a time), op=get, op=update {status: active|done|blocked, note?}. This is your own tracker; the mission still closes only through the checker.",
             json!({"type":"object","properties":{

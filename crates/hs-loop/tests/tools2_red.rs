@@ -1,0 +1,70 @@
+use hs_loop::tools2::{present, read_image, schedule, todo};
+use serde_json::json;
+
+#[test]
+fn t1_todo_write_replaces_list_and_reads_back() {
+    let d = tempfile::tempdir().unwrap();
+    let r = todo(d.path(), &json!({"todos":[{"content":"a","status":"in_progress"},{"content":"b","status":"pending"}]}));
+    assert_eq!(r["counts"]["in_progress"], 1, "{r}");
+    let g = todo(d.path(), &json!({}));
+    assert_eq!(g["todos"].as_array().unwrap().len(), 2);
+    assert!(todo(d.path(), &json!({"todos":[{"content":"x","status":"bogus"}]}))["$error"].is_string());
+    assert!(todo(d.path(), &json!({"todos":[{"content":"a","status":"in_progress"},{"content":"b","status":"in_progress"}]}))["$error"].is_string(), "only one in_progress");
+}
+
+#[test]
+fn t2_present_publishes_file_and_refuses_escape() {
+    let d = tempfile::tempdir().unwrap();
+    std::fs::write(d.path().join("r.md"), "# hi").unwrap();
+    let r = present(d.path(), &json!({"path":"r.md","title":"Report"}));
+    assert_eq!(r["presented"]["mime"], "text/markdown", "{r}");
+    assert_eq!(r["presented"]["bytes"], 4);
+    assert!(present(d.path(), &json!({"path":"../etc/passwd"}))["$error"].is_string());
+    assert!(present(d.path(), &json!({"path":"missing.md"}))["$error"].is_string());
+    assert!(d.path().join(".hs/presented.jsonl").exists());
+}
+
+#[test]
+fn t3_read_image_reports_dims_and_base64() {
+    let d = tempfile::tempdir().unwrap();
+    // 1x1 PNG
+    let png: Vec<u8> = vec![137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,1,0,0,0,1,8,6,0,0,0,31,21,196,137,0,0,0,10,73,68,65,84,120,156,99,0,1,0,0,5,0,1,13,10,45,180,0,0,0,0,73,69,78,68,174,66,96,130];
+    std::fs::write(d.path().join("p.png"), &png).unwrap();
+    let r = read_image(d.path(), &json!({"path":"p.png"}));
+    assert_eq!((r["width"].as_u64(), r["height"].as_u64()), (Some(1), Some(1)), "{r}");
+    assert_eq!(r["mime"], "image/png");
+    assert!(r["data_base64"].as_str().unwrap().starts_with("iVBOR"));
+    std::fs::write(d.path().join("t.txt"), "x").unwrap();
+    assert!(read_image(d.path(), &json!({"path":"t.txt"}))["$error"].is_string());
+}
+
+#[test]
+fn t4_schedule_crud_and_due() {
+    let d = tempfile::tempdir().unwrap();
+    let c = schedule(d.path(), &json!({"op":"create","prompt":"check build","every_secs":60,"now":1000}));
+    let id = c["schedule"]["id"].as_str().unwrap().to_string();
+    assert_eq!(c["schedule"]["next_at"], 1060, "{c}");
+    assert_eq!(schedule(d.path(), &json!({"op":"list"}))["schedules"].as_array().unwrap().len(), 1);
+    assert_eq!(schedule(d.path(), &json!({"op":"due","now":1059}))["due"].as_array().unwrap().len(), 0);
+    let due = schedule(d.path(), &json!({"op":"due","now":1060}));
+    assert_eq!(due["due"][0]["prompt"], "check build");
+    // due advances the next fire
+    assert_eq!(schedule(d.path(), &json!({"op":"list"}))["schedules"][0]["next_at"], 1120);
+    let u = schedule(d.path(), &json!({"op":"update","id":id,"every_secs":120,"now":1100}));
+    assert_eq!(u["schedule"]["next_at"], 1220, "{u}");
+    assert_eq!(schedule(d.path(), &json!({"op":"delete","id":id}))["deleted"], true);
+    assert_eq!(schedule(d.path(), &json!({"op":"list"}))["schedules"].as_array().unwrap().len(), 0);
+    assert!(schedule(d.path(), &json!({"op":"create","prompt":"x","every_secs":1}))["$error"].is_string(), "min interval");
+}
+
+#[test]
+fn t5_wired() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let ins = std::fs::read_to_string(root.join("install.sh")).unwrap();
+    let ex = std::fs::read_to_string(root.join("hairspring.example.toml")).unwrap();
+    for (t, b) in [("todo", "hs-plugin-todo"), ("present", "hs-plugin-present"), ("read_image", "hs-plugin-readimage"), ("schedule", "hs-plugin-schedule")] {
+        assert!(hs_loop::toolschema::schema_for(t, "apply").is_some(), "schema {t}");
+        assert!(ins.contains(b), "install {b}");
+        assert!(ex.contains(&format!("name = \"{t}\"")), "example {t}");
+    }
+}

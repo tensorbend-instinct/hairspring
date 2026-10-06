@@ -28,6 +28,7 @@ pub mod selfcheck;
 pub mod termexec;
 pub mod jobs;
 pub mod engine;
+pub mod tools2;
 pub mod goal_state;
 pub mod plan_mode;
 pub mod sweprompt;

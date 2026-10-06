@@ -56,6 +56,26 @@ command = ["@PREFIX@/bin/hs-plugin-jobs"]
 subjects = ["*"]
 
 [[tools]]
+name = "todo"
+command = ["@PREFIX@/bin/hs-plugin-todo"]
+subjects = ["*"]
+
+[[tools]]
+name = "present"
+command = ["@PREFIX@/bin/hs-plugin-present"]
+subjects = ["*"]
+
+[[tools]]
+name = "read_image"
+command = ["@PREFIX@/bin/hs-plugin-readimage"]
+subjects = ["*"]
+
+[[tools]]
+name = "schedule"
+command = ["@PREFIX@/bin/hs-plugin-schedule"]
+subjects = ["*"]
+
+[[tools]]
 name = "goal"
 command = ["@PREFIX@/bin/hs-plugin-goaltool"]
 subjects = ["*"]
