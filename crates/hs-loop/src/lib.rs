@@ -27,6 +27,7 @@ pub mod repotools;
 pub mod selfcheck;
 pub mod termexec;
 pub mod jobs;
+pub mod plan_mode;
 pub mod sweprompt;
 pub mod argcoerce;
 pub mod toolschema;
@@ -1426,7 +1427,25 @@ impl InnerLoop {
                 output: serde_json::json!({"error":"not an internal tool route"})};
             self.kernel.end_internal_tool(tool, args, &out)?;
         }
+        if let Ok(wd) = std::env::var("HS_TERM_WORKDIR") {
+            if let Some(output) = plan_mode::gate(std::path::Path::new(&wd), tool, args) {
+                return Ok(ToolCallOutcome {
+                    call_id: uuid::Uuid::new_v4(), start_event_id: uuid::Uuid::nil(),
+                    resolved: None, output, latency_ms: 0,
+                });
+            }
+        }
         self.kernel.call_tool("operator", tool, args.clone())
+    }
+
+    /// Test seam for the dispatcher's gates (plan mode).
+    #[doc(hidden)]
+    pub fn dispatch_tool_for_test(
+        &mut self,
+        tool: &str,
+        args: &serde_json::Value,
+    ) -> Result<ToolCallOutcome, KernelError> {
+        self.dispatch_tool(tool, args)
     }
 
     /// B1: serve one `memory.recall`. Resolution order: evaluate the

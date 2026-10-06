@@ -178,6 +178,13 @@ pub fn tb_tools() -> Vec<Value> {
                 "tail_bytes":{"type":"integer","description":"output tail cap, default 20000"}},"required":["op"]}),
         ),
         f(
+            "plan",
+            "Plan mode. op=enter: mutating tools (term.exec, edits, jobs start, agent.spawn, answer.submit) are blocked while you research. op=exit {plan}: save your plan and leave plan mode so work can start. op=status reads the saved plan.",
+            json!({"type":"object","properties":{
+                "op":{"type":"string","enum":["enter","exit","status"]},
+                "plan":{"type":"string","description":"the plan text, for exit"}},"required":["op"]}),
+        ),
+        f(
             "web.search",
             "Search the web (Brave Search API; needs HS_BRAVE_API_KEY). Returns title, url, snippet per result. Follow up with web.fetch to read a page.",
             json!({"type":"object","properties":{

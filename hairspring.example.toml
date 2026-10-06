@@ -56,6 +56,11 @@ command = ["@PREFIX@/bin/hs-plugin-jobs"]
 subjects = ["*"]
 
 [[tools]]
+name = "plan"
+command = ["@PREFIX@/bin/hs-plugin-plan"]
+subjects = ["*"]
+
+[[tools]]
 name = "web.search"
 command = ["@PREFIX@/bin/hs-plugin-websearch"]
 subjects = ["*"]
