@@ -28,7 +28,25 @@ impl Drop for RootGuard {
         unsafe {
             std::env::remove_var("HS_PROJECT_ROOT");
         }
+        // The bootstrapped toolchain is ~640MB; never leave it behind (a leak
+        // filled the 29G disk and stalled a suite run, 2026-10-06).
+        if let Some(root) = self.0.parent() {
+            let _ = std::fs::remove_dir_all(root);
+        }
     }
+}
+
+#[test]
+fn root_guard_removes_its_whole_root_on_drop() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let root;
+    {
+        let guard = RootGuard::new("leakcheck");
+        std::fs::write(guard.0.join("big.bin"), b"x").unwrap();
+        root = guard.0.parent().unwrap().to_path_buf();
+        assert!(root.exists());
+    }
+    assert!(!root.exists(), "bootstrap root leaked: {}", root.display());
 }
 
 fn run_ok(task: &std::path::Path, cmd: &str, secs: u64) -> String {
