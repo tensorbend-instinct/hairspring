@@ -19,7 +19,7 @@ rebuilt task, different model runs).
 | web_search | web.search (Brave API) | proven (live call, 3 of 3 results) |
 | todo_write | todo tool (tools2_red) | proven (tests) |
 | skill | skill.list, skill.view | proven (tests) |
-| subagent, list_agents, send_message, interrupt_agent | agent.spawn, agent.spawn_poll only | partial |
+| subagent, list_agents, send_message, interrupt_agent | agent.spawn/spawn_poll + agent.list/send/interrupt over the swarm registry (agentctl_red 4/4, agent_control_red 2/2: interrupt and steering inbox reach a live child) | proven |
 | subagent_fork | agent.fork rewritten to agent.spawn with ledger context (fork_red 2/2: live child spawned and finished; context formatter unit-tested) | proven |
 | create_goal, get_goal, update_goal | `goal` tool | proven (tests) |
 | exit_plan_mode (plan mode) | `plan` tool + dispatcher gate | proven (tests) |

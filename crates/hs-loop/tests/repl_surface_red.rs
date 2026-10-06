@@ -92,9 +92,13 @@ default = true
 /// registered in the kernel): swarm delegation, the world plane, and the
 /// memory plane (present when the session db opens, which a writable log
 /// root guarantees).
-const INTERNALS: [&str; 9] = [
+const INTERNALS: [&str; 13] = [
     "agent.spawn",
     "agent.spawn_poll",
+    "agent.fork",
+    "agent.list",
+    "agent.send",
+    "agent.interrupt",
     "world.propose",
     "world.observe",
     "world.install",
