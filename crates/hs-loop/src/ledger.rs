@@ -21,6 +21,8 @@ const OPEN_SHOWN: usize = 5;
 #[derive(Default)]
 pub struct Ledger {
     files_read: BTreeMap<String, Vec<(u32, u32)>>,
+    /// path -> (bytes, bounded head+tail excerpt of what repo.read returned)
+    read_evidence: BTreeMap<String, (usize, String)>,
     edits: Vec<(u64, String)>,
     test_runs: Vec<(u64, String, bool, String)>,
     /// seq watermark of the last verifier-mandated workspace restore:
@@ -162,6 +164,10 @@ impl Ledger {
                     let n = args["max_lines"].as_u64().unwrap_or(400) as u32;
                     let total = result["total_lines"].as_u64().unwrap_or(0) as u32;
                     let _ = total;
+                    if let Some(c) = result["content"].as_str() {
+                        let (n, body) = head_tail(&collapse(c), 300, 300);
+                        self.read_evidence.insert(path.to_string(), (n, body));
+                    }
                     merge_range(
                         self.files_read.entry(path.to_string()).or_default(),
                         start,
@@ -318,6 +324,9 @@ impl Ledger {
                 s.push_str(&format!("(+{} more files) ", total - shown));
             }
             s.push('\n');
+            for (path, (n, body)) in self.read_evidence.iter().rev().take(4) {
+                s.push_str(&format!("read-evidence {path} [{n}B: {body}]\n"));
+            }
         }
         if !self.edits.is_empty() {
             s.push_str("edits: ");
