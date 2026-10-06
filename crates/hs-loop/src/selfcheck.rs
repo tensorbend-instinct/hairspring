@@ -42,6 +42,9 @@ pub fn declare_checks(root: &std::path::Path, content: &str) -> Result<u32, Stri
     Ok(cmds as u32)
 }
 
+/// Hang guard for one declared command, the same mechanism term.exec uses.
+const CHECK_TIMEOUT_SECS: u64 = 3600;
+
 /// checker.run verdict for the candidate of `ws`: run every declared
 /// command in the candidate, green only when all pass. Feedback names the
 /// failing command with its output tail so the loop can repair.
@@ -77,7 +80,38 @@ pub fn check(ws: &std::path::Path) -> serde_json::Value {
         });
     }
     let mut failures: Vec<String> = vec![];
+    // The model's shell (termexec) runs under a scrubbed env: HOME and PATH
+    // point into the project root, where its user-site installs live. A
+    // declared check must run in THAT env, or an install the model made
+    // (pytest under <root>/.local) is invisible here and a green candidate
+    // reads red (2026-10-06: 9 min of resubmits). When a project root is
+    // configured and the candidate is inside it, run through the same
+    // confined spawn; otherwise (legacy/test surfaces) keep the plain shell.
+    let confined = crate::projectroot::project_root()
+        .filter(|root| cand.canonicalize().map(|c| c.starts_with(root)).unwrap_or(false));
     for c in &cmds {
+        if confined.is_some() {
+            let r = crate::termexec::run(&cand, c, CHECK_TIMEOUT_SECS);
+            if let Some(e) = r["$error"].as_str() {
+                failures.push(format!("`{c}` spawn failed: {e}"));
+            } else if r["exit_code"].as_i64() != Some(0) || r["timed_out"] == true {
+                let mut tail = format!(
+                    "{}{}",
+                    r["stdout"].as_str().unwrap_or(""),
+                    r["stderr"].as_str().unwrap_or("")
+                );
+                if tail.len() > 2000 {
+                    tail = crate::msgfmt::tail_bytes_safe(&tail, 2000);
+                }
+                let code = if r["timed_out"] == true {
+                    format!("timed out after {CHECK_TIMEOUT_SECS}s")
+                } else {
+                    format!("exited Some({})", r["exit_code"].as_i64().unwrap_or(-1))
+                };
+                failures.push(format!("`{c}` {code}\n{}", tail.trim()));
+            }
+            continue;
+        }
         match std::process::Command::new("sh")
             .args(["-c", c])
             .current_dir(&cand)
