@@ -1633,6 +1633,20 @@ pub struct TuiState {
     pub total_model_calls: u64,
     pub total_cost_micros: u64,
     pub stream_short: String,
+    /// Live clocks and provider-reported rates for the footer. Real
+    /// clocks and reported counts only; unknown stays unknown.
+    pub turn_started: Option<std::time::Instant>,
+    pub call_started: Option<std::time::Instant>,
+    pub last_tok_per_s: Option<u64>,
+    pub cache_hit_pct: Option<u8>,
+}
+
+fn fmt_elapsed(secs: u64) -> String {
+    if secs >= 60 {
+        format!("{}m{:02}s", secs / 60, secs % 60)
+    } else {
+        format!("{secs}s")
+    }
 }
 
 /// Context window (tokens) for models whose published window is known;
@@ -1689,6 +1703,10 @@ impl Default for TuiState {
             total_model_calls: 0,
             total_cost_micros: 0,
             stream_short: String::new(),
+            turn_started: None,
+            call_started: None,
+            last_tok_per_s: None,
+            cache_hit_pct: None,
         }
     }
 }
@@ -1716,6 +1734,8 @@ impl TuiState {
         // M17: nothing is in flight once the mission lands - the rail
         // goes Idle instead of glowing a stale phase over the composer.
         self.phase = LoopPhase::Idle;
+        self.turn_started = None;
+        self.call_started = None;
         self.missions_run += 1;
         self.total_steps += u64::from(steps);
         self.total_cost_micros = cost_total_micros;
@@ -1763,9 +1783,25 @@ impl TuiState {
     }
 
     pub fn on_ui_event(&mut self, ev: &crate::uipaint::UiEvent) {
+        self.on_ui_event_at(ev, std::time::Instant::now());
+    }
+
+    /// `on_ui_event` with an injected clock (tests; the footer's turn
+    /// clock and tok/s derive from it).
+    pub fn on_ui_event_at(&mut self, ev: &crate::uipaint::UiEvent, now: std::time::Instant) {
         use crate::uipaint::UiEvent as U;
         match ev {
+            U::ModelCallCache { cached_tokens, input_tokens } => {
+                if *input_tokens > 0 {
+                    self.cache_hit_pct =
+                        Some(((*cached_tokens).min(*input_tokens) * 100 / *input_tokens) as u8);
+                }
+                return;
+            }
             U::Step { step, max_steps } => {
+                if self.turn_started.is_none() {
+                    self.turn_started = Some(now);
+                }
                 self.cur_step = *step;
                 self.cur_max_steps = *max_steps;
                 self.cur_action.clear();
@@ -1784,6 +1820,10 @@ impl TuiState {
                 }
             }
             U::ModelCallStart { model } => {
+                if self.turn_started.is_none() {
+                    self.turn_started = Some(now);
+                }
+                self.call_started = Some(now);
                 // M19: reaching the next call means the held text was
                 // prose (a rejected no-tool-call reply) - commit it.
                 self.flush_inflight();
@@ -1809,10 +1849,17 @@ impl TuiState {
                 cost_usd_micros,
                 model,
                 input_tokens,
+                output_tokens,
                 ..
             } => {
                 // Context readout: the last call's prompt vs the model's
                 // known window. Unknown model -> unchanged (no guess).
+                if let Some(t0) = self.call_started.take() {
+                    let secs = now.saturating_duration_since(t0).as_secs_f64();
+                    if secs > 0.0 && *output_tokens > 0 {
+                        self.last_tok_per_s = Some((*output_tokens as f64 / secs).round() as u64);
+                    }
+                }
                 if let Some(win) = context_window_tokens(model) {
                     let used = (*input_tokens).min(win) * 100 / win;
                     self.context_remaining_pct = Some((100 - used) as u8);
@@ -2304,6 +2351,54 @@ impl TuiState {
             .collect()
     }
 
+    /// Always-on footer vitals: turn clock (while a turn runs), step,
+    /// calls, tok/s of the last call and cache hit. Anything unknown is
+    /// omitted, never invented.
+    #[must_use]
+    pub fn footer_stats(&self, now: std::time::Instant) -> String {
+        let mut parts: Vec<String> = Vec::new();
+        if let Some(t0) = self.turn_started {
+            parts.push(fmt_elapsed(now.saturating_duration_since(t0).as_secs()));
+            if self.cur_step > 0 {
+                parts.push(format!("step {}", self.cur_step));
+            }
+        }
+        if self.total_model_calls > 0 {
+            parts.push(format!(
+                "{} call{}",
+                self.total_model_calls,
+                if self.total_model_calls == 1 { "" } else { "s" }
+            ));
+        }
+        if let Some(r) = self.last_tok_per_s {
+            parts.push(format!("{r} tok/s"));
+        }
+        if let Some(c) = self.cache_hit_pct {
+            parts.push(format!("cache {c}%"));
+        }
+        parts.join(" \u{00b7} ")
+    }
+
+    /// The footer row as plain text (what the HUD paints).
+    #[must_use]
+    pub fn footer_text(&self, now: std::time::Instant) -> String {
+        let mut out = String::new();
+        if !self.cwd_label.is_empty() {
+            out.push_str(&self.cwd_label);
+            out.push_str("  ");
+        }
+        out.push_str(&self.model_label);
+        if let Some(pct) = self.context_remaining_pct {
+            out.push_str(&format!("  {pct}% context"));
+        }
+        let stats = self.footer_stats(now);
+        if !stats.is_empty() {
+            out.push_str("  ");
+            out.push_str(&stats);
+        }
+        out
+    }
+
     pub fn hud_line(&self) -> String {
         format!(
             "{} mission{} \u{00b7} {} step{} \u{00b7} {} calls \u{00b7} {}{}",
@@ -2590,6 +2685,10 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
                 format!("  {pct}% context"),
                 sgr_style(&state.theme.dim),
             ));
+        }
+        let stats = state.footer_stats(std::time::Instant::now());
+        if !stats.is_empty() {
+            footer.push(Span::styled(format!("  {stats}"), sgr_style(&state.theme.dim)));
         }
         if active && state.cur_step > 0 {
             footer.push(Span::raw("  enter queue  esc interrupt"));

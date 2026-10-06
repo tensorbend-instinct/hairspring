@@ -178,6 +178,9 @@ pub enum UiEvent {
         output_tokens: u64,
         cost_usd_micros: i64,
     },
+    /// Prompt-cache accounting for the call that just ended, as reported
+    /// by the provider (emitted only when the provider reported it).
+    ModelCallCache { cached_tokens: u64, input_tokens: u64 },
     /// A tool call is about to execute.
     ToolCallStart {
         plugin: String,
@@ -299,7 +302,7 @@ impl<'a, W: Write> Painter<'a, W> {
                 }
                 let _ = writeln!(self.out);
             }
-            UiEvent::Step { .. } => {}
+            UiEvent::Step { .. } | UiEvent::ModelCallCache { .. } => {}
             UiEvent::ModelReasoning { text } => {
                 let dim = self.theme.dim.clone();
                 for line in text.lines().take(8) {

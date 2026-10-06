@@ -2310,6 +2310,10 @@ impl InnerLoop {
                     output_tokens: out.output_tokens,
                     cost_usd_micros: out.cost_usd_micros,
                 });
+                sink(uipaint::UiEvent::ModelCallCache {
+                    cached_tokens: out.cached_tokens,
+                    input_tokens: out.input_tokens,
+                });
             }
                 if let Some(ev) = uipaint::reasoning_event(&out.reasoning_content) {
                     if let Some(sink) = self.ui_sink.as_mut() {
