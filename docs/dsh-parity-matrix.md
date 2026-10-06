@@ -16,14 +16,14 @@ rebuilt task, different model runs).
 | write, edit | edit.anchor, edit.patch | proven |
 | read_image | none | missing |
 | web_fetch | web.fetch (SSRF-guarded, tested) | proven (tests) |
-| web_search | none (needs a search provider/key) | missing |
+| web_search | web.search (Brave API; needs a key; not run live) | partial |
 | todo_write | notes.scratch (notes, not a task list UI) | partial |
 | skill | skill.list, skill.view | proven (tests) |
 | subagent, list_agents, send_message, interrupt_agent | agent.spawn, agent.spawn_poll only | partial |
 | subagent_fork | none | missing |
-| create_goal, get_goal, update_goal | hs-goal crate; not exposed as model tools | partial |
-| exit_plan_mode (plan mode) | none | missing |
-| ask_user_question | none | missing |
+| create_goal, get_goal, update_goal | `goal` tool | proven (tests) |
+| exit_plan_mode (plan mode) | `plan` tool + dispatcher gate | proven (tests) |
+| ask_user_question | ask_user_question (file protocol; UI side not built) | partial |
 | present | none | missing |
 | job_kill, job_list, job_output (background jobs) | `jobs` tool: start/list/output/kill, confined like term.exec | proven (tests) |
 | schedule_create/delete/list/update | none | missing |
@@ -44,7 +44,7 @@ rebuilt task, different model runs).
 | Plugins (Agent Teams, Auth Review, Dev Tools, Voice, Shell limits, loop dispatch, subagent limits, Web search) | plugin system exists (hs-plugin-*); those plugins do not | partial |
 | Settings UI (loopback only) | config file + `setup` | partial |
 | Desktop/web app | wrapper scaffold only | missing |
-| Compact older history | none | missing |
+| Compact older history | /compact + auto budget distillation | proven (command, budget fn); model distillation after /compact not run live |
 | Export session log ZIP | none | missing |
 
 ## HAIRSPRING-only (not in dsh list)

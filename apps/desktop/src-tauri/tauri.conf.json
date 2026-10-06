@@ -1,0 +1,12 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "HAIRSPRING",
+  "version": "0.1.0",
+  "identifier": "dev.hairspring.desktop",
+  "build": { "frontendDist": "../ui" },
+  "app": {
+    "windows": [{ "title": "HAIRSPRING", "width": 1100, "height": 760 }],
+    "withGlobalTauri": true, "security": { "csp": null }
+  },
+  "bundle": { "active": false, "icon": ["icons/icon.png"] }
+}
