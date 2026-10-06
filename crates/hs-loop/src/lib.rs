@@ -65,8 +65,8 @@ pub enum LoopError {
 /// one is configured (so the checker, which runs there, sees it), else the
 /// legacy `<log_root>/work/<mission>/`.
 #[must_use]
-pub fn mission_answer_path(log_root: &std::path::Path, mission: &str) -> std::path::PathBuf {
-    let base = crate::projectroot::project_root().unwrap_or_else(|| log_root.join("work"));
+pub fn mission_answer_path(log_root: &std::path::Path, root: Option<&std::path::Path>, mission: &str) -> std::path::PathBuf {
+    let base = root.map_or_else(|| log_root.join("work"), std::path::Path::to_path_buf);
     base.join(mission).join("answer.txt")
 }
 
@@ -258,6 +258,8 @@ pub struct InnerLoop {
     interrupt_file: Option<PathBuf>,
     /// Delegated children keep a flag set before their first step (the parent may interrupt early).
     interrupt_sticky: bool,
+    /// Where mission answer dirs live (the session's project folder); None = <log_root>/work.
+    answer_root: Option<std::path::PathBuf>,
     mission_started: Option<std::time::Instant>,
     /// Native tool schemas delivered to the provider's tools parameter on
     /// the operator call (native tool calling; Eric 2026-09-05). None = the
@@ -560,6 +562,7 @@ impl InnerLoop {
             queued_tasks: std::collections::VecDeque::new(),
             interrupt_file: None,
             interrupt_sticky: false,
+            answer_root: None,
             mission_started: None,
             ui_sink: None,
             last_model: None,
@@ -668,6 +671,7 @@ impl InnerLoop {
             queued_tasks: std::collections::VecDeque::new(),
             interrupt_file: None,
             interrupt_sticky: false,
+            answer_root: None,
             mission_started: None,
             ui_sink: None,
             last_model: None,
@@ -1120,6 +1124,11 @@ impl InnerLoop {
     /// sandbox filesystem state recovery tiers B and C restore. The
     /// substrate (streams + blobs) is durable separately and never
     /// snapshotted.
+    /// Point mission answer files at the session's project folder (set once at session load).
+    pub fn set_answer_root(&mut self, root: Option<std::path::PathBuf>) {
+        self.answer_root = root;
+    }
+
     #[must_use]
     pub fn work_dir(&self) -> std::path::PathBuf {
         self.log_root.join("work")
@@ -2026,7 +2035,7 @@ impl InnerLoop {
         if let (Some(p), false) = (&self.interrupt_file, self.interrupt_sticky) {
             let _ = std::fs::remove_file(p);
         }
-        let answer_path = mission_answer_path(&self.log_root, mission);
+        let answer_path = mission_answer_path(&self.log_root, self.answer_root.as_deref(), mission);
         std::fs::create_dir_all(
             answer_path
                 .parent()

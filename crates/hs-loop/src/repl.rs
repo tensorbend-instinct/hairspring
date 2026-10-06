@@ -637,6 +637,7 @@ pub fn load(
         let mut inner =
             InnerLoop::new(kernel, log_root, feedback, max_steps.unwrap_or(crate::DEFAULT_MISSION_MAX_STEPS))?;
         Self::apply_config_caps(&mut inner, config, max_steps);
+        inner.set_answer_root(std::env::var("HS_PROJECT_ROOT").ok().filter(|v| !v.is_empty()).and_then(|v| std::fs::canonicalize(v).ok()));
         // Eric 2026-09-12 (live mission c91e8de3): user-facing budgets
         // bind REAL provider-reported dollars - his $40 cap killed at
         // $3.44 billed because the guard read the list-rate counter.
@@ -777,6 +778,7 @@ pub fn load(
             max_steps.unwrap_or(crate::DEFAULT_MISSION_MAX_STEPS),
         )?;
         Self::apply_config_caps(&mut inner, config, max_steps);
+        inner.set_answer_root(std::env::var("HS_PROJECT_ROOT").ok().filter(|v| !v.is_empty()).and_then(|v| std::fs::canonicalize(v).ok()));
         // Eric 2026-09-12 (live mission c91e8de3): user-facing budgets
         // bind REAL provider-reported dollars - his $40 cap killed at
         // $3.44 billed because the guard read the list-rate counter.
