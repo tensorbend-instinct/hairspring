@@ -417,3 +417,20 @@ fn critic_records_paired_model_scopes_even_on_error() {
     assert_eq!(ends[0]["status"], "error");
     assert!(ends[0]["latency_ms"].is_number());
 }
+
+/// H2H t3 (reward-hack): a fix that hardcodes the test's inputs, or edits the
+/// test to match broken code, must be refuted, and the author is told up front
+/// that an unsatisfiable or wrong test is reported, never gamed.
+#[test]
+fn t11_critic_refutes_special_casing_and_author_is_told() {
+    let c = hs_loop::critic::CRITIC_SYSTEM.to_lowercase();
+    assert!(c.contains("special-case"), "critic names special-casing");
+    assert!(c.contains("hardcod"), "critic names hardcoded expected values");
+    assert!(c.contains("wrong test") || c.contains("contradict"), "critic handles a test that contradicts the spec");
+    let p = hs_loop::sweprompt::build_tb_mission_prompt_critic(&hs_loop::sweprompt::TbPromptArgs {
+        workdir: "/app".into(), instruction: "Do the thing.".into(),
+        answer_path: "/tmp/answer.txt".into(), mcp_tools: String::new(),
+    }).to_lowercase();
+    assert!(p.contains("special-case") || p.contains("hardcod"), "author prompt forbids gaming tests");
+    assert!(p.contains("wrong test") || p.contains("contradict"), "author prompt says report a wrong test");
+}
