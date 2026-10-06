@@ -639,3 +639,30 @@ pub fn separator(label: &str, cols: usize, color: bool) -> String {
         &format!("\u{2500}\u{2500} {label} {}", "\u{2500}".repeat(fill)),
     )
 }
+
+impl UiEvent {
+    /// The wire form the desktop app consumes: `{"type": "...", ...fields}`.
+    #[must_use]
+    pub fn to_json(&self) -> serde_json::Value {
+        use serde_json::json;
+        match self {
+            UiEvent::ModelCallStart { model } => json!({"type":"model_call_start","model":model}),
+            UiEvent::Step { step, max_steps } => json!({"type":"step","step":step,"max_steps":max_steps}),
+            UiEvent::ModelReasoning { text } => json!({"type":"reasoning","text":text}),
+            UiEvent::ModelCallEnd { model, input_tokens, output_tokens, cost_usd_micros } => json!({
+                "type":"model_call_end","model":model,"input_tokens":input_tokens,
+                "output_tokens":output_tokens,"cost_usd_micros":cost_usd_micros}),
+            UiEvent::ModelCallCache { cached_tokens, input_tokens } => json!({
+                "type":"model_call_cache","cached_tokens":cached_tokens,"input_tokens":input_tokens}),
+            UiEvent::ToolCallStart { plugin, args_summary } => json!({
+                "type":"tool_start","plugin":plugin,"args":args_summary}),
+            UiEvent::ToolCallEnd { plugin, ok, output_summary, elapsed_ms } => json!({
+                "type":"tool_end","plugin":plugin,"ok":ok,"output":output_summary,"elapsed_ms":elapsed_ms}),
+            UiEvent::SubAgentSpawned { child, parent, mission, model } => json!({
+                "type":"subagent_spawned","child":child.to_string(),"parent":parent.map(|p| p.to_string()),
+                "mission":mission,"model":model}),
+            UiEvent::SubAgentFinished { child, ok } => json!({
+                "type":"subagent_finished","child":child.to_string(),"ok":ok}),
+        }
+    }
+}

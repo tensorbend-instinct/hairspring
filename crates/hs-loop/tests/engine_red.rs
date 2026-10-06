@@ -1,0 +1,85 @@
+//! In-process engine (desktop app backend): events stream as JSON while a
+//! mission runs, the result and sessions come back as JSON, no CLI shell-out.
+use hs_loop::engine::Engine;
+use serde_json::Value;
+use std::sync::{Arc, Mutex};
+
+const ANSWER: &str = env!("CARGO_BIN_EXE_hs-plugin-answer");
+const CHECKER: &str = env!("CARGO_BIN_EXE_hs-plugin-liechecker");
+const SCRIPTED: &str = env!("CARGO_BIN_EXE_hs-plugin-scripted");
+static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn config(dir: &std::path::Path) -> std::path::PathBuf {
+    let c = dir.join("hairspring.toml");
+    std::fs::write(&c, format!(r#"
+[[tools]]
+name = "answer.write"
+command = ["{ANSWER}"]
+subjects = ["*"]
+
+[[tools]]
+name = "checker.run"
+command = ["{CHECKER}"]
+subjects = ["*"]
+
+[[models]]
+name = "scripted"
+command = ["{SCRIPTED}"]
+default = true
+"#)).unwrap();
+    c
+}
+
+#[test]
+fn e1_mission_streams_json_events_and_returns_json_result() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let (d, log) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let cfg = config(d.path());
+    let ans = d.path().join("a.txt");
+    let script = d.path().join("script.jsonl");
+    std::fs::write(&script, format!("{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"TOKEN\"}}}}\n", ans.display())).unwrap();
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
+    let mut eng = Engine::open(&cfg, log.path(), Some(3)).expect("open");
+    let seen: Arc<Mutex<Vec<Value>>> = Arc::default();
+    let s2 = Arc::clone(&seen);
+    let r = eng.run_goal("write the token", move |ev| s2.lock().unwrap().push(ev)).expect("run");
+    assert!(r["steps"].as_u64().unwrap() >= 1, "{r}");
+    assert!(r["outcome"].is_string() && r["stream_id"].is_string(), "{r}");
+    let evs = seen.lock().unwrap();
+    let types: Vec<&str> = evs.iter().filter_map(|e| e["type"].as_str()).collect();
+    assert!(types.contains(&"step"), "{types:?}");
+    assert!(types.contains(&"tool_start") && types.contains(&"tool_end"), "{types:?}");
+    let ts = evs.iter().find(|e| e["type"] == "tool_start").unwrap();
+    assert_eq!(ts["plugin"], "answer.write");
+}
+
+#[test]
+fn e2_sessions_vitals_models_are_json() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let (d, log) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let cfg = config(d.path());
+    let ans = d.path().join("a.txt");
+    let script = d.path().join("script.jsonl");
+    std::fs::write(&script, format!("{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"X\"}}}}\n", ans.display())).unwrap();
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
+    let mut eng = Engine::open(&cfg, log.path(), Some(3)).unwrap();
+    eng.run_goal("hello goal", |_| {}).unwrap();
+    let s = eng.sessions();
+    assert_eq!(s["groups"][0]["sessions"].as_array().unwrap().len(), 1, "{s}");
+    let v = eng.vitals();
+    assert_eq!(v["missions"], 1, "{v}");
+    assert_eq!(eng.models()[0]["name"], "scripted");
+    eng.compact();
+}
+
+#[test]
+fn e3_ui_event_wire_shapes() {
+    use hs_loop::uipaint::UiEvent;
+    let j = UiEvent::ToolCallEnd { plugin: "term.exec".into(), ok: true, output_summary: "ok".into(), elapsed_ms: 42 }.to_json();
+    assert_eq!(j["type"], "tool_end");
+    assert_eq!(j["elapsed_ms"], 42);
+    let j = UiEvent::Step { step: 2, max_steps: Some(9) }.to_json();
+    assert_eq!((j["step"].as_u64(), j["max_steps"].as_u64()), (Some(2), Some(9)));
+    let j = UiEvent::ModelCallCache { cached_tokens: 5, input_tokens: 10 }.to_json();
+    assert_eq!(j["cached_tokens"], 5);
+}
