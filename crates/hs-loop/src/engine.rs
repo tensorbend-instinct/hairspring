@@ -68,6 +68,13 @@ impl Engine {
             "elapsed_secs": v.elapsed.as_secs(), "stream_id": v.stream_id.to_string()})
     }
 
+    /// Export one session's stream directory as a ZIP; returns the file count.
+    pub fn export_session(&self, id: &str, out: &Path) -> Result<usize, String> {
+        let uid = uuid::Uuid::parse_str(id).map_err(|e| e.to_string())?;
+        let dir = self.log_root.join("streams").join(uid.to_string());
+        crate::export::export_zip(&dir, out).map_err(|e| e.to_string())
+    }
+
     pub fn compact(&mut self) {
         self.session.request_compact();
     }

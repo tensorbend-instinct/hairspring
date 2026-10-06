@@ -45,7 +45,7 @@ rebuilt task, different model runs).
 | Settings UI (loopback only) | config file + `setup` | partial |
 | Desktop/web app | wrapper scaffold only | missing |
 | Compact older history | /compact + auto budget distillation | proven (command, budget fn); model distillation after /compact not run live |
-| Export session log ZIP | none | missing |
+| Export session log ZIP | hs_loop::export::export_zip + Engine::export_session (export_red 2/2, engine_red e4; python zipfile testzip verified) | proven |
 
 ## HAIRSPRING-only (not in dsh list)
 Declared-check closing with independent critic, hash-chained log verify, held-out

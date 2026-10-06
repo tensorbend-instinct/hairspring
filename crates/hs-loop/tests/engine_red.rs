@@ -83,3 +83,23 @@ fn e3_ui_event_wire_shapes() {
     let j = UiEvent::ModelCallCache { cached_tokens: 5, input_tokens: 10 }.to_json();
     assert_eq!(j["cached_tokens"], 5);
 }
+
+#[test]
+fn e4_export_session_zip() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let (d, log) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let cfg = config(d.path());
+    let ans = d.path().join("a.txt");
+    let script = d.path().join("script.jsonl");
+    std::fs::write(&script, format!("{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"X\"}}}}\n", ans.display())).unwrap();
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
+    let mut eng = Engine::open(&cfg, log.path(), Some(3)).unwrap();
+    let r = eng.run_goal("export me", |_| {}).unwrap();
+    let id = r["stream_id"].as_str().unwrap().to_string();
+    let out = d.path().join("s.zip");
+    let n = eng.export_session(&id, &out).unwrap();
+    assert!(n >= 1);
+    let o = std::process::Command::new("python3").args(["-c", "import zipfile,sys;z=zipfile.ZipFile(sys.argv[1]);assert z.testzip() is None;print(len(z.namelist()))", out.to_str().unwrap()]).output().unwrap();
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    assert!(eng.export_session("not-a-uuid", &out).is_err());
+}
