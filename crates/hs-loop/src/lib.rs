@@ -61,6 +61,15 @@ pub enum LoopError {
     /// The world plane (snapshot/restore) refused the operation.
     World(String),
 }
+/// Where a mission's answer.txt lives: under the active project folder when
+/// one is configured (so the checker, which runs there, sees it), else the
+/// legacy `<log_root>/work/<mission>/`.
+#[must_use]
+pub fn mission_answer_path(log_root: &std::path::Path, mission: &str) -> std::path::PathBuf {
+    let base = crate::projectroot::project_root().unwrap_or_else(|| log_root.join("work"));
+    base.join(mission).join("answer.txt")
+}
+
 impl From<std::io::Error> for LoopError {
     fn from(e: std::io::Error) -> Self {
         LoopError::Io(e)
@@ -2017,7 +2026,7 @@ impl InnerLoop {
         if let (Some(p), false) = (&self.interrupt_file, self.interrupt_sticky) {
             let _ = std::fs::remove_file(p);
         }
-        let answer_path = self.log_root.join("work").join(mission).join("answer.txt");
+        let answer_path = mission_answer_path(&self.log_root, mission);
         std::fs::create_dir_all(
             answer_path
                 .parent()

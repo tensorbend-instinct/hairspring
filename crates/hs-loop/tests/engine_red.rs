@@ -168,3 +168,26 @@ fn e7_modes_narrow_and_restore_the_tool_surface() {
     assert_eq!(eng.tool_names(), std_names);
     assert!(eng.set_mode("turbo").unwrap_err().contains("unknown mode"));
 }
+
+#[test]
+fn e_resume_reopens_the_same_stream_and_knows_its_workspace() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let (d, log, proj) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let cfg = config(d.path());
+    let script = d.path().join("script.jsonl");
+    let ans = d.path().join("a.txt");
+    std::fs::write(&script, format!("{{\"tool\":\"answer.write\",\"args\":{{\"path\":\"{}\",\"content\":\"X\"}}}}\n", ans.display())).unwrap();
+    unsafe { std::env::set_var("HS_SEQMODEL_SCRIPT", &script) };
+    unsafe { std::env::set_var("HS_PROJECT_ROOT", proj.path()) };
+    let id = {
+        let mut eng = Engine::open(&cfg, log.path(), Some(3)).unwrap();
+        eng.run_goal("first goal", |_| {}).unwrap();
+        eng.vitals()["stream_id"].as_str().unwrap().to_string()
+    };
+    unsafe { std::env::remove_var("HS_PROJECT_ROOT") };
+    // the session remembers the folder it ran in
+    assert_eq!(hs_loop::appback::session_workspace(log.path(), &id).as_deref(), Some(proj.path().canonicalize().unwrap().to_str().unwrap()));
+    let eng = Engine::open_resume(&cfg, log.path(), Some(3), &id).expect("resume");
+    assert_eq!(eng.vitals()["stream_id"], id.as_str(), "same stream, history kept");
+    assert!(Engine::open_resume(&cfg, log.path(), Some(3), "not-a-uuid").is_err());
+}

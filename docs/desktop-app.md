@@ -15,6 +15,12 @@ Nothing shells out to the CLI.
 - Plugins tab: tools and models configured in the rig. Settings tab: mode, permission, max steps.
 - Schedule firing loop: every 30s, if idle, due scheduled prompts run as goals.
 
+## Workspaces (dsh parity)
+- A workspace is a registered real folder (`~/.config/hairspring/workspaces.json`). The sidebar lists them; click one to switch. Missions run with it as project root and cwd, and answer.txt lands inside it.
+- "+ Add workspace" opens an in-app folder browser (dsh's `-browse` flavour; no native OS picker). First launch with no workspace opens it automatically; an empty project folder shows a warning banner.
+- Sessions are grouped by the folder they ran in; clicking a past session switches to its workspace and resumes its stream.
+- Not done: reorder/rename workspaces, archive, content search, native OS folder picker.
+
 ## Known limits
 - `permission` ask shows an approval card for every mutating tool call (default is auto).
 - Voice is the `speak` tool and needs a piper install and voice model (HS_TTS_MODEL). No packaging or signing. Not rebuilt from a fresh clone.

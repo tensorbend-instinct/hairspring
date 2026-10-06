@@ -250,3 +250,10 @@ pub fn browse_dir(path: &str) -> Result<Value, String> {
     dirs.sort();
     Ok(json!({"path": canon.display().to_string(), "parent": canon.parent().map(|p| p.display().to_string()), "dirs": dirs}))
 }
+
+/// The project folder a session ran in (recorded when its mission ran).
+#[must_use]
+pub fn session_workspace(log_root: &Path, id: &str) -> Option<String> {
+    uuid::Uuid::parse_str(id).ok()?;
+    std::fs::read_to_string(log_root.join("session_workspace").join(id)).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+}

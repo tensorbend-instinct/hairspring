@@ -23,6 +23,15 @@ impl Engine {
         Ok(Self { session, log_root: log_root.to_path_buf(), queue: std::collections::VecDeque::new() })
     }
 
+    /// Reopen an existing session (same stream: its history and missions
+    /// carry on). The caller points HS_PROJECT_ROOT at the session's own
+    /// workspace first (`appback::session_workspace`).
+    pub fn open_resume(config: &Path, log_root: &Path, max_steps: Option<u32>, id: &str) -> Result<Self, LoopError> {
+        let uid = uuid::Uuid::parse_str(id).map_err(|e| LoopError::Visibility(e.to_string()))?;
+        let session = ReplSession::load_resume(config, log_root, true, max_steps, uid)?;
+        Ok(Self { session, log_root: log_root.to_path_buf(), queue: std::collections::VecDeque::new() })
+    }
+
     /// Run one goal to completion. `emit` receives every UI event as JSON
     /// (`{"type": "step"|"tool_start"|"tool_end"|"reasoning"|...}`) while the
     /// mission runs; the return value is the mission result.

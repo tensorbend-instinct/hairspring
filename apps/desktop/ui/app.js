@@ -65,7 +65,7 @@ async function refresh() {
     for (const x of g.sessions) {
       const r = $(`<div class="sess"><span class="t"></span><small>${age(x.age_secs)}</small></div>`);
       r.querySelector('.t').textContent = (x.title || x.id.slice(0, 8)).slice(0, 40);
-      r.onclick = () => { selected = x.id; document.querySelectorAll('.sess').forEach((e) => e.classList.toggle('sel', e === r)); };
+      r.onclick = async () => { selected = x.id; document.querySelectorAll('.sess').forEach((e) => e.classList.toggle('sel', e === r)); const o = await invoke('resume_session', { id: x.id }).catch((e) => ({ error: '' + e })); if (o.error) return addDone('could not open: ' + o.error); addDone('opened in ' + o.workspace); wsBar(); projectWarn(); };
       r.ondblclick = async () => { const p = prompt('Export ZIP to path', '/tmp/' + x.id.slice(0, 8) + '.zip'); if (p) addDone('exported ' + await invoke('export_session', { id: x.id, path: p }).catch((e) => 'error ' + e) + ' files'); };
       list.append(r);
     }

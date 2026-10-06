@@ -186,6 +186,23 @@ fn workspace_switch(app: State<'_, Arc<App>>, path: String) -> Result<(), String
     Ok(())
 }
 
+/// Open a past session in ITS workspace: switch the project folder to the one
+/// it ran in and resume its stream, so history and tools line up.
+#[tauri::command]
+fn resume_session(app: State<'_, Arc<App>>, id: String) -> Result<serde_json::Value, String> {
+    if app.busy.load(Ordering::SeqCst) { return Err("a mission is running; open a session after it ends".into()); }
+    let ws = hs_loop::appback::session_workspace(&app.log_root, &id).ok_or("this session has no recorded workspace")?;
+    let w = hs_loop::appback::workspace_add(&home(), &ws)?;
+    let path = w["path"].as_str().unwrap_or(&ws).to_string();
+    hs_loop::appback::workspace_switch(&home(), &path)?;
+    std::env::set_var("HS_PROJECT_ROOT", &path);
+    let steps = hs_loop::appback::settings_get(&home())["max_steps"].as_u64().map(|n| n as u32);
+    let mut g = app.engine.lock().map_err(|e| e.to_string())?;
+    *g = None;
+    *g = Some(Engine::open_resume(&app.config, &app.log_root, steps, &id).map_err(|e| format!("{e:?}"))?);
+    Ok(serde_json::json!({"workspace": path, "id": id}))
+}
+
 #[tauri::command]
 fn browse(path: String) -> Result<serde_json::Value, String> {
     hs_loop::appback::browse_dir(&path)
@@ -255,7 +272,7 @@ fn main() {
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![setup_status, save_key, open_engine, submit, sessions, vitals, compact, slash_menu, slash, questions, answer, trajectory, plugins, settings, save_settings, export_session, project_status, workspaces, workspace_add, workspace_remove, workspace_switch, browse])
+        .invoke_handler(tauri::generate_handler![setup_status, save_key, open_engine, submit, sessions, vitals, compact, slash_menu, slash, questions, answer, trajectory, plugins, settings, save_settings, export_session, project_status, workspaces, workspace_add, workspace_remove, workspace_switch, browse, resume_session])
         .run(tauri::generate_context!())
         .expect("error while running HAIRSPRING desktop");
 }
