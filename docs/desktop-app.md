@@ -16,8 +16,8 @@ Nothing shells out to the CLI.
 - Schedule firing loop: every 30s, if idle, due scheduled prompts run as goals.
 
 ## Known limits
-- `permission` is stored but not enforced by the loop.
-- No Voice plugin. No packaging or signing. Not rebuilt from a fresh clone.
+- `permission` ask shows an approval card for every mutating tool call (default is auto).
+- Voice is the `speak` tool and needs a piper install and voice model (HS_TTS_MODEL). No packaging or signing. Not rebuilt from a fresh clone.
 - Verified with a scripted model under Xvfb, not a live-model run.
 
 ## Build notes (sandbox)

@@ -223,6 +223,11 @@ pub fn tb_tools() -> Vec<Value> {
             json!({"type":"object","properties":{"op":{"type":"string","enum":["create","list","update","delete","due"]},"id":{"type":"string"},"prompt":{"type":"string"},"every_secs":{"type":"integer"}},"required":["op"]}),
         ),
         f(
+            "speak",
+            "Voice: speak text aloud into a WAV file in the workspace with the configured text-to-speech voice. {text, path?} (relative .wav path, default .hs/voice/<time>.wav). Fails with a clear error when no voice is configured.",
+            json!({"type":"object","properties":{"text":{"type":"string"},"path":{"type":"string"}},"required":["text"]}),
+        ),
+        f(
             "workflow",
             "Named multi-step workflows. op=define {name, steps: [prompt,...]}, get {name}, list, delete {name}. The harness runs a workflow's steps as goals back to back.",
             json!({"type":"object","properties":{"op":{"type":"string","enum":["define","get","list","delete"]},"name":{"type":"string"},"steps":{"type":"array","items":{"type":"string"}}},"required":["op"]}),

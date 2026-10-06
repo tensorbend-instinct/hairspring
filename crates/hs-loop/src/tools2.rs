@@ -254,6 +254,51 @@ pub fn workflow(wd: &Path, args: &Value) -> Value {
     }
 }
 
+/// Voice: speak text to a WAV file with a stock TTS command. `HS_TTS_CMD` is the
+/// executable (default `piper`); `HS_TTS_MODEL` its voice model. The command gets
+/// `--model <m> --output_file <out>` and the text on stdin. Output stays inside `wd`.
+#[must_use]
+pub fn speak(wd: &Path, args: &Value) -> Value {
+    let Some(text) = args["text"].as_str().filter(|t| !t.trim().is_empty()) else {
+        return json!({"$error": "speak needs text"});
+    };
+    if text.chars().count() > 2000 {
+        return json!({"$error": "text over 2000 characters"});
+    }
+    let rel = args["path"].as_str().map_or_else(|| format!(".hs/voice/{}.wav", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis())), str::to_string);
+    let rp = Path::new(&rel);
+    if rp.is_absolute() || rp.components().any(|c| matches!(c, std::path::Component::ParentDir)) || rp.extension().is_none_or(|e| e != "wav") {
+        return json!({"$error": "path must be a relative .wav path inside the workspace"});
+    }
+    let out = wd.join(rp);
+    if let Some(dir) = out.parent() {
+        if std::fs::create_dir_all(dir).is_err() {
+            return json!({"$error": "cannot create output dir"});
+        }
+    }
+    let cmd = std::env::var("HS_TTS_CMD").unwrap_or_else(|_| "piper".into());
+    let Ok(model) = std::env::var("HS_TTS_MODEL") else {
+        return json!({"$error": "no voice configured: set HS_TTS_MODEL (and HS_TTS_CMD if not piper)"});
+    };
+    let child = std::process::Command::new(&cmd).args(["--model", &model, "--output_file"]).arg(&out)
+        .stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::piped()).spawn();
+    let Ok(mut child) = child else {
+        return json!({"$error": format!("cannot start TTS command '{cmd}'")});
+    };
+    if let Some(mut si) = child.stdin.take() {
+        use std::io::Write;
+        let _ = si.write_all(text.as_bytes());
+    }
+    let Ok(o) = child.wait_with_output() else {
+        return json!({"$error": "TTS command failed to finish"});
+    };
+    let bytes = std::fs::metadata(&out).map_or(0, |m| m.len());
+    if !o.status.success() || bytes < 44 {
+        return json!({"$error": format!("TTS failed: {}", String::from_utf8_lossy(&o.stderr).chars().take(200).collect::<String>())});
+    }
+    json!({"ok": true, "path": rel, "bytes": bytes})
+}
+
 /// File search by glob (dsh glob): gitignore-aware, sorted, capped.
 #[must_use]
 pub fn glob(wd: &Path, args: &Value) -> Value {
