@@ -12,21 +12,21 @@ rebuilt task, different model runs).
 |---|---|---|
 | bash | term.exec (confined, model-shell env) | proven |
 | read | repo.read | proven |
-| grep, glob | repo.search (one tool; glob not separate - verify) | partial |
+| grep, glob | repo.search (grep) + glob tool (glob_red 3/3) | proven (tests) |
 | write, edit | edit.anchor, edit.patch | proven |
-| read_image | none | missing |
+| read_image | read_image tool (tools2_red; PNG/JPEG/GIF dims + base64) | proven (tests) |
 | web_fetch | web.fetch (SSRF-guarded, tested) | proven (tests) |
-| web_search | web.search (Brave API; needs a key; not run live) | partial |
-| todo_write | notes.scratch (notes, not a task list UI) | partial |
+| web_search | web.search (Brave API) | proven (live call, 3 of 3 results) |
+| todo_write | todo tool (tools2_red) | proven (tests) |
 | skill | skill.list, skill.view | proven (tests) |
 | subagent, list_agents, send_message, interrupt_agent | agent.spawn, agent.spawn_poll only | partial |
 | subagent_fork | none | missing |
 | create_goal, get_goal, update_goal | `goal` tool | proven (tests) |
 | exit_plan_mode (plan mode) | `plan` tool + dispatcher gate | proven (tests) |
 | ask_user_question | ask_user_question (file protocol; UI side not built) | partial |
-| present | none | missing |
+| present | present tool (tools2_red; records .hs/presented.jsonl) | proven (tests) |
 | job_kill, job_list, job_output (background jobs) | `jobs` tool: start/list/output/kill, confined like term.exec | proven (tests) |
-| schedule_create/delete/list/update | none | missing |
+| schedule_create/delete/list/update | schedule tool: create/list/update/delete/due (tools2_red; the harness must poll `due`) | partial (store proven; harness firing loop missing) |
 | workflow | none | missing |
 
 ## Surface
