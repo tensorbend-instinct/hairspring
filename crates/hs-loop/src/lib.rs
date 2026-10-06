@@ -28,6 +28,7 @@ pub mod selfcheck;
 pub mod termexec;
 pub mod jobs;
 pub mod engine;
+pub mod agentctl;
 pub mod tools2;
 pub mod goal_state;
 pub mod plan_mode;
@@ -242,6 +243,8 @@ pub struct InnerLoop {
     /// Gap #2: operator interrupt flag - when this file exists at a step
     /// boundary the mission stops cleanly with outcome "interrupted".
     interrupt_file: Option<PathBuf>,
+    /// Delegated children keep a flag set before their first step (the parent may interrupt early).
+    interrupt_sticky: bool,
     mission_started: Option<std::time::Instant>,
     /// Native tool schemas delivered to the provider's tools parameter on
     /// the operator call (native tool calling; Eric 2026-09-05). None = the
@@ -540,6 +543,7 @@ impl InnerLoop {
             task_inbox: None,
             queued_tasks: std::collections::VecDeque::new(),
             interrupt_file: None,
+            interrupt_sticky: false,
             mission_started: None,
             ui_sink: None,
             last_model: None,
@@ -646,6 +650,7 @@ impl InnerLoop {
             task_inbox: None,
             queued_tasks: std::collections::VecDeque::new(),
             interrupt_file: None,
+            interrupt_sticky: false,
             mission_started: None,
             ui_sink: None,
             last_model: None,
@@ -821,6 +826,13 @@ impl InnerLoop {
     /// "interrupted" - artifacts and ledger booked, not an error.
     pub fn set_interrupt_file(&mut self, path: &Path) {
         self.interrupt_file = Some(path.to_path_buf());
+    }
+
+    /// For delegated children: like `set_interrupt_file`, but a flag already present at mission
+    /// start is honored (the parent interrupted before the child's first step).
+    pub fn set_child_interrupt_file(&mut self, path: &Path) {
+        self.interrupt_file = Some(path.to_path_buf());
+        self.interrupt_sticky = true;
     }
 
     fn drain_steering(&mut self) -> Vec<String> {
@@ -1977,7 +1989,7 @@ impl InnerLoop {
         // A stale interrupt flag from a previous mission must not abort
         // THIS one: the flag applies to the mission that was running
         // when it was set. Clear it once at mission start.
-        if let Some(p) = &self.interrupt_file {
+        if let (Some(p), false) = (&self.interrupt_file, self.interrupt_sticky) {
             let _ = std::fs::remove_file(p);
         }
         let answer_path = self.log_root.join("work").join(mission).join("answer.txt");

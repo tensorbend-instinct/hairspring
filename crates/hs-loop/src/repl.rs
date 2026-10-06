@@ -630,6 +630,9 @@ pub fn load(
         // Eric's five #5: the interactive surface offers delegation.
         offer_unique(&mut native_tools, crate::toolschema::agent_spawn_tool());
         offer_unique(&mut native_tools, crate::toolschema::agent_spawn_poll_tool());
+        offer_unique(&mut native_tools, crate::toolschema::agent_list_tool());
+        offer_unique(&mut native_tools, crate::toolschema::agent_send_tool());
+        offer_unique(&mut native_tools, crate::toolschema::agent_interrupt_tool());
         let mut inner =
             InnerLoop::new(kernel, log_root, feedback, max_steps.unwrap_or(crate::DEFAULT_MISSION_MAX_STEPS))?;
         Self::apply_config_caps(&mut inner, config, max_steps);
@@ -761,6 +764,9 @@ pub fn load(
         // Eric's five #5: the interactive surface offers delegation.
         offer_unique(&mut native_tools, crate::toolschema::agent_spawn_tool());
         offer_unique(&mut native_tools, crate::toolschema::agent_spawn_poll_tool());
+        offer_unique(&mut native_tools, crate::toolschema::agent_list_tool());
+        offer_unique(&mut native_tools, crate::toolschema::agent_send_tool());
+        offer_unique(&mut native_tools, crate::toolschema::agent_interrupt_tool());
         let mut inner = InnerLoop::with_stream(
             kernel,
             log_root,

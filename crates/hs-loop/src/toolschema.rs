@@ -130,6 +130,21 @@ pub fn agent_spawn_tool() -> Value {
 }
 
 #[must_use]
+pub fn agent_list_tool() -> Value {
+    f("agent.list", "List the sub-agents you delegated: child id, mission, state (running|done|lost), passed, steps.", json!({"type":"object","properties":{}}))
+}
+
+#[must_use]
+pub fn agent_send_tool() -> Value {
+    f("agent.send", "Send a message to a running sub-agent by child id; it sees it at its next step as operator steering.", json!({"type":"object","properties":{"child":{"type":"string"},"message":{"type":"string"}},"required":["child","message"]}))
+}
+
+#[must_use]
+pub fn agent_interrupt_tool() -> Value {
+    f("agent.interrupt", "Ask a running sub-agent to stop at its next step boundary (booked as interrupted, not a failure of the harness).", json!({"type":"object","properties":{"child":{"type":"string"}},"required":["child"]}))
+}
+
+#[must_use]
 pub fn agent_spawn_poll_tool() -> Value {
     f(
         "agent.spawn_poll",

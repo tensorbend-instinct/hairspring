@@ -32,7 +32,7 @@ BINS="hs-repl hs-log-cli \
 hs-plugin-answer hs-plugin-answersubmit hs-plugin-selfcheck hs-plugin-critic \
 hs-plugin-fileread hs-plugin-reposearch hs-plugin-repoexec \
 hs-plugin-editapply hs-plugin-notescratch hs-plugin-webfetch hs-plugin-jobs hs-plugin-askuser hs-plugin-websearch hs-plugin-plan hs-plugin-goaltool hs-plugin-glob hs-plugin-todo hs-plugin-present hs-plugin-readimage hs-plugin-schedule hs-plugin-termexec \
-hs-plugin-swarm hs-plugin-policy hs-plugin-scripted hs-plugin-deepseek hs-plugin-provmodel hs-promote hs-plugin-gatemodel hs-plugin-checker"
+hs-plugin-swarm hs-plugin-agentlist hs-plugin-agentsend hs-plugin-agentstop hs-plugin-policy hs-plugin-scripted hs-plugin-deepseek hs-plugin-provmodel hs-promote hs-plugin-gatemodel hs-plugin-checker"
 
 mkdir -p "$PREFIX" "$BINLINK_DIR" "$CONFIG_DIR"
 # A managed upgrade is a clean replacement, not copies over an old tree:

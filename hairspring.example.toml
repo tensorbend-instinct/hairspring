@@ -131,6 +131,21 @@ name = "agent.spawn_poll"
 command = ["@PREFIX@/bin/hs-plugin-swarm", "--as", "agent.spawn_poll"]
 subjects = ["*"]
 
+[[tools]]
+name = "agent.list"
+command = ["@PREFIX@/bin/hs-plugin-agentlist"]
+subjects = ["*"]
+
+[[tools]]
+name = "agent.send"
+command = ["@PREFIX@/bin/hs-plugin-agentsend"]
+subjects = ["*"]
+
+[[tools]]
+name = "agent.interrupt"
+command = ["@PREFIX@/bin/hs-plugin-agentstop"]
+subjects = ["*"]
+
 [[models]]
 name = "deepseek"
 command = ["@PREFIX@/bin/hs-plugin-deepseek"]

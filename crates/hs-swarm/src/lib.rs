@@ -215,12 +215,19 @@ impl Spawner {
         tools.push(hs_loop::toolschema::skill_list_tool());
         tools.push(hs_loop::toolschema::skill_view_tool());
         tools.push(hs_loop::toolschema::agent_spawn_tool());
+        tools.push(hs_loop::toolschema::agent_list_tool());
+        tools.push(hs_loop::toolschema::agent_send_tool());
+        tools.push(hs_loop::toolschema::agent_interrupt_tool());
         l.set_tools(serde_json::Value::Array(tools));
         l.set_model_override(child.model.clone())?;
         // The child loop knows its own depth explicitly - env is
         // process-global and this loop shares the parent's plugin
         // process with concurrent sibling threads.
         l.set_swarm_depth(child.depth);
+        // Control files written by agent.send / agent.interrupt (hs_loop::agentctl).
+        let ctl = self.log_root.join("swarm");
+        l.set_steering_inbox(&ctl.join(format!("{}.inbox", child.stream_id)));
+        l.set_child_interrupt_file(&ctl.join(format!("{}.interrupt", child.stream_id)));
         let r = l.run_mission(&child.mission)?;
         Ok(ChildReport {
             stream_id: child.stream_id,
