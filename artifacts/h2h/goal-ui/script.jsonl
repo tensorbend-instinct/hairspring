@@ -1,0 +1,2 @@
+{"tool":"create_goal","args":{"objective":"Inspect parser and verify tests","max_goal_rounds":1}}
+{"tool":"get_goal","args":{}}

@@ -1,0 +1,36 @@
+┌ HAIRSPRING: Inspect parser and verify tests · fa3fa9e9 ──────────────────────────────────────────────────────────────┐
+│› Inspect parser/andpverifyotestss, /quit to exit)                                                                    │
+│▣ ▶ create_goal  {"max_goal_rounds":1,"objective":"Inspect parser and verify tests"}                                  │
+│Goal [active; armed] Inspect parser and verify tests (round 0/1, revision 1)                                          │
+│  ✓ Completed in 0ms                                                                                                  │
+│── done: 1 steps, 1 calls, $0.0007 (steps_exhausted)                                                                  │
+│  · not passed (steps_exhausted) - re-run the same goal to continue this mission at step 2                            │
+│Goal [active; armed] Inspect parser and verify tests (round 1/1, revision 1)                                          │
+│▣ ▶ get_goal  {}                                                                                                      │
+│  ✓ Completed in 0ms                                                                                                  │
+│── done: 1 steps, 1 calls, $0.0007 (steps_exhausted)                                                                  │
+│  · not passed (steps_exhausted) - re-run the same goal to continue this mission at step 2                            │
+│Goal [blocked; disarmed] Inspect parser and verify tests (round 1/1, revision 2)                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+                                                                                                                        
+  ┌ message or /command ─────────────────────────────────────────────────────────────────────────────────────────────┐  
+  │Agent  Message HAIRSPRING...                                                                                      │  
+  │scripted  @ files  shift+enter new line  tab modes                                                                │  
+  └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘  
+/tmp/hs  scripted  2 calls · cache 7%  shift+enter new line  tab modes                                                  

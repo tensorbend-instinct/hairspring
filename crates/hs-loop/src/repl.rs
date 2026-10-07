@@ -674,7 +674,7 @@ pub fn load(
             crate::toolschema::skill_view_tool(),
         ]);
         // Exact dsh file contracts backed by session-owned native execution.
-        for name in ["read","write","edit","bash","job_list","job_output","job_kill","glob","grep","todo_write"] {
+        for name in ["read","write","edit","bash","job_list","job_output","job_kill","glob","grep","todo_write","create_goal","get_goal","update_goal"] {
             let t=crate::dshtools::schema(name).expect("captured dsh file schema");
             offer_unique(&mut native_tools,serde_json::json!({"type":"function","function":{"name":name,"description":t["description"],"parameters":t["input_schema"]}}));
         }
@@ -822,7 +822,7 @@ pub fn load(
             crate::toolschema::skill_view_tool(),
         ]);
         // Exact dsh file contracts backed by session-owned native execution.
-        for name in ["read","write","edit","bash","job_list","job_output","job_kill","glob","grep","todo_write"] {
+        for name in ["read","write","edit","bash","job_list","job_output","job_kill","glob","grep","todo_write","create_goal","get_goal","update_goal"] {
             let t=crate::dshtools::schema(name).expect("captured dsh file schema");
             offer_unique(&mut native_tools,serde_json::json!({"type":"function","function":{"name":name,"description":t["description"],"parameters":t["input_schema"]}}));
         }
@@ -940,7 +940,9 @@ pub fn load(
 
     /// Run one goal end-to-end: mission id names the work dir, the goal
     /// text itself is the prompt the model sees.
-    pub fn run_goal(&mut self, goal: &str) -> Result<MissionResult, LoopError> {
+    pub fn run_goal(&mut self,goal:&str)->Result<MissionResult,LoopError>{self.run_goal_sourced(goal,!self.inner.is_child_session())}
+    pub fn run_external_goal(&mut self,goal:&str)->Result<MissionResult,LoopError>{self.run_goal_sourced(goal,false)}
+    fn run_goal_sourced(&mut self, goal: &str, human:bool) -> Result<MissionResult, LoopError> {
         // Dance #95: production missions always run with mission memory
         // armed - the feedback flag belongs to the experiment binaries
         // (baseline arm), never to an operator's TUI mission.
@@ -961,7 +963,7 @@ pub fn load(
         let hs_dir = self.work_dir.join(".hs");
         std::fs::create_dir_all(&hs_dir)?;
         std::fs::write(hs_dir.join("instruction.txt"), &prompt)?;
-        let r = self.inner.run_mission_resuming(&id, &prompt)?;
+        let r = if human {self.inner.run_root_human_mission(&id,&prompt)}else{self.inner.run_mission_resuming(&id, &prompt)}?;
         // Tag the session with the project root it ran in (workspace
         // switcher: /sessions groups by this).
         let ws_root = crate::projectroot::project_root().unwrap_or_else(|| self.work_dir.clone());
@@ -1298,6 +1300,15 @@ pub fn load(
     }
 
     /// Goals injected mid-run via the gateway task inbox, drained.
+    pub fn run_next_goal_round(&mut self)->Result<Option<MissionResult>,LoopError>{
+        let Some(source)=self.inner.admit_goal_round()?else{return Ok(None)};
+        let prompt=format!("<goal_round>\nObjective: {}\nRound: {}/{}\n\nContinue working toward the objective in this same session. Treat the current workspace, tool results, and durable session state as authoritative; inspect them instead of assuming earlier narration is still current. Make concrete progress and verify the result. Before claiming completion, gather evidence that the whole objective is achieved, read the current goal, and mark it complete. If work remains, leave the goal active for the next round. Follow the configured goal-tool policy before reporting a blocker.\n</goal_round>",source["objective"],source["round"],source["maxGoalRounds"]);
+        let id=format!("{}-round-{}",source["goalId"].as_str().unwrap_or("goal"),source["round"]);
+        let hs_dir=self.work_dir.join(".hs");std::fs::create_dir_all(&hs_dir)?;std::fs::write(hs_dir.join("instruction.txt"),&prompt)?;
+        let r=self.inner.run_admitted_goal_round(&id,&prompt,&source)?;
+        self.missions_run+=1;self.total_steps+=u64::from(r.steps);self.total_model_calls+=u64::from(r.model_calls);self.last_answer_path=Some(r.answer_path.clone());Ok(Some(r))
+    }
+    pub fn session_goal_view(&self)->serde_json::Value{self.inner.session_goal_view()}
     pub fn has_unsettled_jobs(&self)->bool{self.inner.has_unsettled_jobs()}
     pub fn take_job_followups(&mut self)->Result<Vec<String>,LoopError>{self.inner.take_job_followups()}
     pub fn take_queued_goals(&mut self) -> Vec<String> {
@@ -1892,7 +1903,7 @@ pub fn run_interactive<E: Editor + ?Sized>(
         }
         let line = match editor.poll_line(prompt)? {
             InputPoll::Eof => break,
-            InputPoll::Idle => {for followup in session.take_job_followups()? {eprintln!("background job followup: {followup}");let result=session.run_goal(&followup)?;print_result(&result);paint_status(session);}continue;}
+            InputPoll::Idle => {for followup in session.take_job_followups()? {eprintln!("background job followup: {followup}");let result=session.run_external_goal(&followup)?;print_result(&result);paint_status(session);}if let Some(result)=session.run_next_goal_round()?{print_result(&result);paint_status(session);}continue;}
             InputPoll::Line(l) => l.trim().to_string(),
         };
         if color {
@@ -1958,7 +1969,7 @@ pub fn run_interactive<E: Editor + ?Sized>(
                 }
                 // B3: gateway adds queued mid-run execute after the close.
                 for queued in session.take_queued_goals() {
-                    match session.run_goal(&queued) {
+                    match session.run_external_goal(&queued) {
                         Ok(r) => print_result(&r),
                         Err(e) => eprintln!("queued mission failed: {e}"),
                     }

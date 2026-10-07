@@ -40,6 +40,9 @@ impl Engine {
         goal: &str,
         emit: impl FnMut(Value) + Send + 'static,
     ) -> Result<Value, LoopError> {
+        self.run_sourced(goal,emit,true)
+    }
+    fn run_sourced(&mut self,goal:&str,emit:impl FnMut(Value)+Send+'static,human:bool)->Result<Value,LoopError>{
         let emit = Arc::new(Mutex::new(emit));
         let e2 = Arc::clone(&emit);
         self.session.set_ui_sink(Box::new(move |ev| {
@@ -47,7 +50,7 @@ impl Engine {
                 f(ev.to_json());
             }
         }));
-        let r = self.session.run_goal(goal)?;
+        let r = if human{self.session.run_goal(goal)}else{self.session.run_external_goal(goal)}?;
         Ok(json!({
             "passed": r.passed, "outcome": r.outcome, "steps": r.steps,
             "model_calls": r.model_calls, "cost_micros": r.cost_micros,
@@ -56,6 +59,10 @@ impl Engine {
         }))
     }
 
+    pub fn run_goal_round(&mut self,emit:impl FnMut(Value)+Send+'static)->Result<Option<Value>,LoopError>{
+        self.session.set_ui_sink(Box::new({let mut emit=emit;move|ev|emit(ev.to_json())}));
+        self.session.run_next_goal_round().map(|r|r.map(|r|json!({"passed":r.passed,"outcome":r.outcome,"steps":r.steps,"model_calls":r.model_calls,"cost_micros":r.cost_micros,"budget_killed":r.budget_killed,"harness_error":r.harness_error,"stream_id":r.stream_id.to_string()})))
+    }
     /// Sessions grouped by workspace, newest first (the sidebar).
     #[must_use]
     pub fn sessions(&self) -> Value {
@@ -94,7 +101,7 @@ impl Engine {
         let mut out = vec![];
         for s in due["due"].as_array().cloned().unwrap_or_default() {
             let prompt = s["prompt"].as_str().unwrap_or("").to_string();
-            let entry = match self.run_goal(&prompt, |_| {}) {
+            let entry = match self.run_sourced(&prompt, |_| {},false) {
                 Ok(r) => json!({"id": s["id"], "prompt": prompt, "result": r}),
                 Err(e) => json!({"id": s["id"], "prompt": prompt, "error": e.to_string()}),
             };
@@ -113,7 +120,7 @@ impl Engine {
         let mut results = vec![];
         let mut ok = true;
         for st in steps {
-            match self.run_goal(st.as_str().unwrap_or(""), |_| {}) {
+            match self.run_sourced(st.as_str().unwrap_or(""), |_| {},false) {
                 Ok(r) => {
                     let pass = r["passed"] == true;
                     results.push(r);

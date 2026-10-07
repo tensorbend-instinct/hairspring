@@ -280,7 +280,7 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
             let cmd=match goal_rx.recv_timeout(Duration::from_millis(100)){
                 Ok(cmd)=>cmd,
                 Err(mpsc::RecvTimeoutError::Disconnected)=>break,
-                Err(mpsc::RecvTimeoutError::Timeout)=>{let followups=match session.take_job_followups(){Ok(v)=>v,Err(e)=>{let _=tx.send(TuiMsg::Done(Err(format!("job followup delivery failed: {e}"))));continue;}};for followup in followups{let _=tx.send(TuiMsg::JobFollowupStarted(followup.clone()));let r=session.run_goal(&followup).map(|m|(m,session.total_cost_micros())).map_err(|e|e.to_string());let _=tx.send(TuiMsg::Done(r));}continue;}
+                Err(mpsc::RecvTimeoutError::Timeout)=>{let followups=match session.take_job_followups(){Ok(v)=>v,Err(e)=>{let _=tx.send(TuiMsg::Done(Err(format!("job followup delivery failed: {e}"))));continue;}};for followup in followups{let _=tx.send(TuiMsg::JobFollowupStarted(followup.clone()));let r=session.run_external_goal(&followup).map(|m|(m,session.total_cost_micros())).map_err(|e|e.to_string());let _=tx.send(TuiMsg::Done(r));}match session.run_next_goal_round(){Ok(Some(m))=>{let _=tx.send(TuiMsg::Done(Ok((m,session.total_cost_micros()))));},Ok(None)=>{},Err(e)=>{let _=tx.send(TuiMsg::Done(Err(format!("goal round failed: {e}"))));}}continue;}
             };
             match cmd {
                 UiCmd::Goal(goal) => {
@@ -292,7 +292,7 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
                     // B3: run gateway adds queued during that mission.
                     for queued in session.take_queued_goals() {
                         let r = session
-                            .run_goal(&queued)
+                            .run_external_goal(&queued)
                             .map(|m| (m, session.total_cost_micros()))
                             .map_err(|e| e.to_string());
                         let _ = tx.send(TuiMsg::Done(r));
@@ -976,7 +976,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         // B3: gateway adds queued mid-run execute after the close.
         for queued in session.take_queued_goals() {
             let r = session
-                .run_goal(&queued)
+                .run_external_goal(&queued)
                 .map_err(|e| format!("queued mission: {e}"))?;
             hs_loop::repl::print_result(&r);
             all_passed &= r.passed;
@@ -988,10 +988,13 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 std::thread::sleep(std::time::Duration::from_millis(100));
             }
             let followups = session.take_job_followups()?;
-            if followups.is_empty() { break; }
+            if followups.is_empty() {
+                if let Some(result)=session.run_next_goal_round()? {hs_loop::repl::print_result(&result);all_passed &= result.passed;continue;}
+                break;
+            }
             for followup in followups {
                 eprintln!("background job followup: {followup}");
-                let result = session.run_goal(&followup)?;
+                let result = session.run_external_goal(&followup)?;
                 hs_loop::repl::print_result(&result);
                 all_passed &= result.passed;
             }

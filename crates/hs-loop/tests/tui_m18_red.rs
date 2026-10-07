@@ -23,6 +23,7 @@ fn kind(e: &UiEvent) -> &'static str {
         UiEvent::ModelCallEnd { .. } => "ModelCallEnd",
         UiEvent::ToolCallStart { .. } => "ToolCallStart",
         UiEvent::TodoList { .. } => "todo_list",
+            UiEvent::SessionGoal { .. } => "session_goal",
             UiEvent::SearchResult { .. } => "search_result",
             UiEvent::ToolCallEnd { .. } => "ToolCallEnd",
         UiEvent::SubAgentSpawned { .. } => "SubAgentSpawned",

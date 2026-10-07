@@ -1938,6 +1938,7 @@ impl TuiState {
                 self.agents.note_done(*child, *ok);
                 self.push_ticker(EventKind::Consequence);
             }
+            U::SessionGoal { value } => {self.push_transcript_spans(vec![Span::raw(crate::dshgoal::card_text(value))]);}
             U::TodoList { todos } => {if !todos.is_null(){for line in crate::dshtodo::card_text(todos).lines(){self.push_transcript_spans(vec![Span::raw(line.to_string())]);}}}
             U::SearchResult { meta, .. } => { for line in crate::dshsearch::card_text(meta).lines(){self.push_transcript_spans(vec![Span::raw(format!("  {line}"))]);} }
             U::ToolCallEnd {

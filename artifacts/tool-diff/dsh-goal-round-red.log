@@ -1,0 +1,41 @@
+warning: unused attribute
+   --> crates/hs-loop/src/appback.rs:148:1
+    |
+148 | #[must_use]
+    | ^^^^^^^^^^^ help: remove this attribute
+    |
+note: attribute also specified here
+   --> crates/hs-loop/src/appback.rs:144:1
+    |
+144 | #[must_use]
+    | ^^^^^^^^^^^
+    = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+    = note: `#[warn(unused_attributes)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> crates/hs-loop/src/repexec.rs:239:10
+    |
+239 |         .fetch_update(
+    |          ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+239 -         .fetch_update(
+239 +         .try_update(
+    |
+
+error[E0599]: no method named `run_next_goal_round` found for struct `ReplSession` in the current scope
+ --> crates/hs-loop/tests/dsh_goal_session_red.rs:5:639
+  |
+5 | ...goal("Start work").unwrap();assert!(s.run_next_goal_round().unwrap().is_some());assert_eq!(s.session_goal_view()["goal"]["roundsSt...
+  |                                          ^^^^^^^^^^^^^^^^^^^ method not found in `ReplSession`
+
+error[E0599]: no method named `run_next_goal_round` found for struct `ReplSession` in the current scope
+ --> crates/hs-loop/tests/dsh_goal_session_red.rs:5:752
+  |
+5 | ..."goal"]["roundsStarted"],1);assert!(s.run_next_goal_round().unwrap().is_none());assert_eq!(s.session_goal_view()["goal"]["blockedR...
+  |                                          ^^^^^^^^^^^^^^^^^^^ method not found in `ReplSession`
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `hs-loop` (test "dsh_goal_session_red") due to 2 previous errors

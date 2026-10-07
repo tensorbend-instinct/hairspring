@@ -1,0 +1,291 @@
+warning: /tmp/hs/crates/hs-loop/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: /tmp/hs/crates/hs-loop/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: /tmp/hs/crates/hs-loop/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: /tmp/hs/crates/hs-loop/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: /tmp/hs/crates/hs-loop/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: /tmp/hs/crates/hs-loop/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: /tmp/hs/crates/hs-loop/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: /tmp/hs/crates/hs-loop/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: /tmp/hs/crates/hs-loop/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: /tmp/hs/crates/hs-loop/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: /tmp/hs/crates/hs-loop/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: /tmp/hs/crates/hs-loop/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: /tmp/hs/crates/hs-loop/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: /tmp/hs/crates/hs-loop/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: /tmp/hs/crates/hs-loop/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: /tmp/hs/crates/hs-loop/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: /tmp/hs/crates/hs-loop/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: /tmp/hs/crates/hs-loop/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: /tmp/hs/crates/hs-loop/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: /tmp/hs/crates/hs-loop/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: /tmp/hs/crates/hs-loop/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: /tmp/hs/crates/hs-loop/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: /tmp/hs/crates/hs-loop/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-loop` (manifest) generated 23 warnings
+    Updating crates.io index
+     Locking 3 packages to highest compatible versions
+      Adding futures_codec v0.5.0
+      Adding sse-codec v0.3.3
+      Adding tempfile v3.27.0
+ Downloading crates ...
+  Downloaded byteorder v1.5.0
+  Downloaded cairo-sys-rs v0.18.2
+  Downloaded cargo_metadata v0.19.2
+  Downloaded cargo-platform v0.1.9
+  Downloaded bit-set v0.8.0
+  Downloaded camino v1.2.6
+  Downloaded atk-sys v0.18.2
+  Downloaded bs58 v0.5.1
+  Downloaded cargo_toml v1.0.1
+  Downloaded atk v0.18.2
+  Downloaded bit-vec v0.8.0
+  Downloaded cairo-rs v0.18.5
+  Downloaded bitflags v2.13.2
+  Downloaded crossbeam-epoch v0.9.21
+  Downloaded crossbeam-utils v0.8.23
+  Downloaded cfg-expr v0.15.8
+  Downloaded crossbeam-deque v0.8.8
+  Downloaded cssparser-macros v0.7.1
+  Downloaded ctor v1.0.13
+  Downloaded cssparser v0.37.0
+  Downloaded cfb v0.14.0
+  Downloaded defmt-parser v1.0.0
+  Downloaded crossbeam-channel v0.5.17
+  Downloaded cc v1.6.0
+  Downloaded defmt v1.1.1
+  Downloaded defmt-macros v1.1.1
+  Downloaded dirs v7.0.0
+  Downloaded dirs-sys v0.5.0
+  Downloaded dbus v0.9.12
+  Downloaded dirs v5.0.1
+  Downloaded dlopen2_derive v0.4.3
+  Downloaded dlopen2 v0.8.2
+  Downloaded dirs-sys v0.4.1
+  Downloaded dpi v0.1.2
+  Downloaded dtoa-short v0.3.5
+  Downloaded either v1.19.0
+  Downloaded embed-resource v3.0.12
+  Downloaded erased-serde v0.4.10
+  Downloaded dom_query v0.28.0
+  Downloaded dtoa v1.0.11
+  Downloaded field-offset v0.3.6
+  Downloaded find-msvc-tools v0.1.14
+  Downloaded fdeflate v0.3.7
+  Downloaded finl_unicode v1.5.0
+  Downloaded gdkwayland-sys v0.18.2
+  Downloaded gdkx11-sys v0.18.2
+  Downloaded gdk-pixbuf-sys v0.18.0
+  Downloaded gdk v0.18.2
+  Downloaded gdkx11 v0.18.2
+  Downloaded gdk-pixbuf v0.18.5
+  Downloaded gdk-sys v0.18.2
+  Downloaded gio-sys v0.18.1
+  Downloaded glib-sys v0.18.1
+  Downloaded gtk3-macros v0.18.2
+  Downloaded glib-macros v0.18.5
+  Downloaded gobject-sys v0.18.0
+  Downloaded hashbrown v0.12.3
+  Downloaded glob v0.3.4
+  Downloaded heck v0.4.1
+  Downloaded gio v0.18.4
+  Downloaded glib v0.18.5
+  Downloaded gtk-sys v0.18.2
+  Downloaded gtk v0.18.2
+  Downloaded html5ever v0.39.0
+  Downloaded ico v0.5.0
+  Downloaded indexmap v1.9.3
+  Downloaded infer v0.22.0
+  Downloaded instability v0.3.14
+  Downloaded jsonptr v0.7.1
+  Downloaded json-patch v4.2.0
+  Downloaded indexmap v2.14.2
+  Downloaded javascriptcore-rs v1.1.2
+  Downloaded javascriptcore-rs-sys v1.1.1
+  Downloaded lazy_static v1.5.1
+  Downloaded libappindicator v0.9.0
+  Downloaded jiff v0.2.37
+  Downloaded keyboard-types v0.8.3
+  Downloaded libloading v0.7.4
+  Downloaded jiff-core v0.1.1
+  Downloaded libappindicator-sys v0.9.0
+  Downloaded lru v0.18.5
+  Downloaded mac_address v1.2.0
+  Downloaded markup5ever v0.39.0
+  Downloaded libdbus-sys v0.2.7
+  Downloaded mime v0.3.17
+  Downloaded miniz_oxide v0.8.9
+  Downloaded new_debug_unreachable v1.0.6
+  Downloaded mio v1.2.4
+  Downloaded muda v0.20.0
+  Downloaded option-ext v0.2.0
+  Downloaded pango v0.18.3
+  Downloaded pango-sys v0.18.0
+  Downloaded pest_generator v2.9.2
+  Downloaded pest_meta v2.9.2
+  Downloaded phf v0.13.1
+  Downloaded phf_codegen v0.13.1
+  Downloaded phf_macros v0.13.1
+  Downloaded pest v2.9.2
+  Downloaded phf_generator v0.13.1
+  Downloaded pest_derive v2.9.2
+  Downloaded phf_shared v0.13.1
+  Downloaded plist v1.10.1
+  Downloaded precomputed-hash v0.1.1
+  Downloaded proc-macro-crate v1.3.1
+  Downloaded png v0.17.16
+  Downloaded powerfmt v0.2.1
+  Downloaded proc-macro-crate v2.0.2
+  Downloaded proc-macro-error-attr v1.0.4
+  Downloaded png v0.18.1
+  Downloaded proc-macro-error v1.0.4
+  Downloaded process-wrap v8.2.2
+  Downloaded quick-xml v0.42.0
+  Downloaded raw-window-handle v0.6.2
+  Downloaded rustix v1.1.5
+  Downloaded rustls v0.23.45
+  Downloaded schemars_derive v0.8.22
+  Downloaded schemars v0.8.22
+  Downloaded schemars v0.9.0
+  Downloaded serde-untagged v0.1.9
+  Downloaded selectors v0.38.0
+  Downloaded serde_derive_internals v0.29.1
+  Downloaded serde_repr v0.1.21
+  Downloaded serde_with v3.24.0
+  Downloaded serialize-to-javascript-impl v0.1.2
+  Downloaded serde_with_macros v3.24.0
+  Downloaded servo_arc v0.4.3
+  Downloaded serde_spanned v1.1.1
+  Downloaded serialize-to-javascript v0.1.2
+  Downloaded siphasher v1.0.4
+  Downloaded soup3-sys v0.5.0
+  Downloaded smallvec v1.16.2
+  Downloaded soup3 v0.5.0
+  Downloaded string_cache_codegen v0.6.1
+  Downloaded string_cache v0.9.0
+  Downloaded system-deps v6.2.2
+  Downloaded syn v3.0.6
+  Downloaded synstructure v0.14.0
+  Downloaded tauri-codegen v2.7.1
+  Downloaded tao v0.37.1
+  Downloaded target-lexicon v0.12.16
+  Downloaded tauri-build v2.7.1
+  Downloaded tauri-macros v2.7.1
+  Downloaded tauri-runtime v2.12.1
+  Downloaded tauri-winres v0.3.6
+  Downloaded tauri-runtime-wry v2.12.1
+  Downloaded tauri-utils v2.10.1
+  Downloaded tendril v0.5.1
+  Downloaded tauri v2.12.1
+  Downloaded thiserror v2.0.21
+  Downloaded thiserror-impl v2.0.21
+  Downloaded tokio v1.53.2
+  Downloaded toml_edit v0.20.2
+  Downloaded toml_writer v1.1.2+spec-1.1.0
+  Downloaded toml_edit v0.19.15
+  Downloaded toml v0.8.2
+  Downloaded toml v1.1.6+spec-1.1.0
+  Downloaded toml_datetime v1.1.1+spec-1.1.0
+  Downloaded toml_datetime v0.6.3
+  Downloaded toml_parser v1.1.3+spec-1.1.0
+  Downloaded typeid v1.0.3
+  Downloaded unicode-ident v1.0.26
+  Downloaded tray-icon v0.25.1
+  Downloaded ureq-proto v0.6.4
+  Downloaded urlpattern v0.6.0
+  Downloaded ureq v3.4.2
+  Downloaded web-time v1.1.0
+  Downloaded version-compare v0.2.1
+  Downloaded webkit2gtk-sys v2.0.2
+  Downloaded webkit2gtk v2.0.2
+  Downloaded web_atoms v0.2.6
+  Downloaded winnow v0.5.40
+  Downloaded winnow v1.0.4
+  Downloaded x11-dl v2.21.0
+  Downloaded x11 v2.21.0
+  Downloaded yoke-derive v0.8.4
+  Downloaded wry v0.57.0
+  Downloaded zerocopy v0.8.60
+  Downloaded zeroize v1.9.1
+  Downloaded zlib-rs v0.6.8
+  Downloaded zerofrom-derive v0.1.8
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.26
+   Compiling quote v1.0.47
+   Compiling serde_core v1.0.229
+   Compiling syn v3.0.6
+   Compiling serde v1.0.229
+   Compiling smallvec v1.16.2
+   Compiling libc v0.2.190
+   Compiling equivalent v1.0.2
+   Compiling hashbrown v0.17.1
+   Compiling pkg-config v0.3.34
+   Compiling indexmap v2.14.2
+   Compiling serde_derive v1.0.229
+   Compiling heck v0.5.0
+   Compiling syn v2.0.119
+   Compiling toml_datetime v0.6.3
+   Compiling winnow v0.5.40
+   Compiling serde_spanned v0.6.9
+   Compiling toml_edit v0.20.2
+   Compiling target-lexicon v0.12.16
+   Compiling cfg-expr v0.15.8
+   Compiling toml v0.8.2
+   Compiling version-compare v0.2.1
+   Compiling version_check v0.9.5
+   Compiling system-deps v6.2.2
+    Checking memchr v2.8.3
+   Compiling synstructure v0.14.0
+    Checking cfg-if v1.0.5
+   Compiling zerovec-derive v0.11.6
+   Compiling zerofrom-derive v0.1.8
+   Compiling yoke-derive v0.8.4
+    Checking bitflags v2.13.2
+   Compiling displaydoc v0.2.7
+   Compiling zmij v1.0.23
+    Checking once_cell v1.21.4
+   Compiling glib-sys v0.18.1
+   Compiling autocfg v1.5.1
+warning: glib-sys@0.18.1: 
+error: failed to run custom build command for `glib-sys v0.18.1`
+
+Caused by:
+  process didn't exit successfully: `/tmp/hs/apps/desktop/src-tauri/target/debug/build/glib-sys-09b90e717fba7d55/build-script-build` (exit status: 1)
+  --- stdout
+  cargo:rerun-if-env-changed=GLIB_2.0_NO_PKG_CONFIG
+  cargo:rerun-if-env-changed=PKG_CONFIG_x86_64-unknown-linux-gnu
+  cargo:rerun-if-env-changed=PKG_CONFIG_x86_64_unknown_linux_gnu
+  cargo:rerun-if-env-changed=HOST_PKG_CONFIG
+  cargo:rerun-if-env-changed=PKG_CONFIG
+  cargo:rerun-if-env-changed=PKG_CONFIG_PATH_x86_64-unknown-linux-gnu
+  cargo:rerun-if-env-changed=PKG_CONFIG_PATH_x86_64_unknown_linux_gnu
+  cargo:rerun-if-env-changed=HOST_PKG_CONFIG_PATH
+  cargo:rerun-if-env-changed=PKG_CONFIG_PATH
+  cargo:rerun-if-env-changed=PKG_CONFIG_LIBDIR_x86_64-unknown-linux-gnu
+  cargo:rerun-if-env-changed=PKG_CONFIG_LIBDIR_x86_64_unknown_linux_gnu
+  cargo:rerun-if-env-changed=HOST_PKG_CONFIG_LIBDIR
+  cargo:rerun-if-env-changed=PKG_CONFIG_LIBDIR
+  cargo:rerun-if-env-changed=PKG_CONFIG_SYSROOT_DIR_x86_64-unknown-linux-gnu
+  cargo:rerun-if-env-changed=PKG_CONFIG_SYSROOT_DIR_x86_64_unknown_linux_gnu
+  cargo:rerun-if-env-changed=HOST_PKG_CONFIG_SYSROOT_DIR
+  cargo:rerun-if-env-changed=PKG_CONFIG_SYSROOT_DIR
+  cargo:warning=
+  pkg-config exited with status code 1
+  > PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1 pkg-config --libs --cflags glib-2.0 'glib-2.0 >= 2.70'
+
+  pkg-config output:
+    Package glib-2.0 was not found in the pkg-config search path.
+    Perhaps you should add the directory containing `glib-2.0.pc'
+    to the PKG_CONFIG_PATH environment variable
+    No package 'glib-2.0' found
+    Package glib-2.0 was not found in the pkg-config search path.
+    Perhaps you should add the directory containing `glib-2.0.pc'
+    to the PKG_CONFIG_PATH environment variable
+    No package 'glib-2.0' found
+
+  The system library `glib-2.0` required by crate `glib-sys` was not found.
+  The file `glib-2.0.pc` needs to be installed and the PKG_CONFIG_PATH environment variable must contain its parent directory.
+  The PKG_CONFIG_PATH environment variable is not set.
+
+  HINT: if you have installed the library, try setting PKG_CONFIG_PATH to the directory containing `glib-2.0.pc`.
+
+warning: build failed, waiting for other jobs to finish...

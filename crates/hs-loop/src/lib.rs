@@ -211,6 +211,10 @@ pub struct InnerLoop {
     progress_path: Option<PathBuf>,
     ledger: ledger::Ledger,
     todos: crate::dshtodo::TodoSession,
+    session_goal: crate::dshgoal::GoalSession,
+    goal_authority: crate::dshgoal::Authority,
+    goal_turn_active: bool,
+    admitted_goal_round: Option<serde_json::Value>,
     context_budget_chars: usize,
     /// `/compact`: shrink the NEXT history assembly so older exchanges are
     /// distilled now instead of when the window fills. One-shot.
@@ -547,6 +551,10 @@ impl InnerLoop {
             progress_path: None,
             ledger: Default::default(),
             todos: Default::default(),
+            session_goal: Default::default(),
+            goal_authority: crate::dshgoal::Authority::External,
+            goal_turn_active: false,
+            admitted_goal_round: None,
             context_budget_chars: DEFAULT_CONTEXT_BUDGET_TOKENS * 4,
             compact_next: false,
             memory_store: None,
@@ -608,6 +616,7 @@ impl InnerLoop {
         // what the stream actually spent before the restart - pre-fix
         // both counters read 0 after :resume and the budget guard reset
         // with the display.
+        let mut restored_goal_events=vec![];
         let mut distill_floor = 0;
         let mut restored_cost = 0u64;
         let mut restored_conservative = 0u64;
@@ -615,6 +624,11 @@ impl InnerLoop {
             if let Ok(ev) = r.events() {
                 distill_floor = ev.last().map(|e| e.seq).unwrap_or(0);
                 for e in &ev {
+                    if e.kind==hs_core::EventKind::Observation {
+                        let b=r.resolve_payload(e)?;
+                        let v:serde_json::Value=serde_json::from_slice(&b).unwrap_or_default();
+                        if v["record_type"]=="session_goal/change" {restored_goal_events.push(v);}
+                    }
                     if e.kind != hs_core::EventKind::ModelCall && e.kind != hs_core::EventKind::ToolCall {
                         continue;
                     }
@@ -659,6 +673,10 @@ impl InnerLoop {
             progress_path: None,
             ledger: Default::default(),
             todos: Default::default(),
+            session_goal: crate::dshgoal::GoalSession::fold(&restored_goal_events).map_err(LoopError::Visibility)?,
+            goal_authority: crate::dshgoal::Authority::External,
+            goal_turn_active: false,
+            admitted_goal_round: None,
             context_budget_chars: DEFAULT_CONTEXT_BUDGET_TOKENS * 4,
             compact_next: false,
             memory_store: None,
@@ -810,6 +828,26 @@ impl InnerLoop {
     }
 
     /// Goals queued by mid-run gateway adds, in injection order.
+    pub fn admit_goal_round(&mut self)->Result<Option<serde_json::Value>,LoopError>{
+        self.writer.checkpoint()?;
+        let mut proposed=self.session_goal.clone();let source=proposed.admit_round().map_err(LoopError::Visibility)?;
+        if proposed.snapshot()!=self.session_goal.snapshot(){
+            self.writer.append(EventBuilder::new(EventKind::Observation).payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({"record_type":"session_goal/change","operation":"round","source":source,"snapshot":proposed.snapshot()})).expect("round serializes"))))?;
+            self.writer.checkpoint()?;
+            self.session_goal=proposed;
+            if let Some(sink)=self.ui_sink.as_mut(){sink(uipaint::UiEvent::SessionGoal{value:self.session_goal.view()});}
+        }self.admitted_goal_round=source.clone();Ok(source)
+    }
+    pub fn run_admitted_goal_round(&mut self,id:&str,prompt:&str,source:&serde_json::Value)->Result<MissionResult,LoopError>{
+        if self.admitted_goal_round.take().as_ref()!=Some(source){return Err(LoopError::Visibility("goal round was not reserved or already consumed".into()))}
+        let g=self.session_goal.view();if g["goal"]["id"]!=source["goalId"]||g["goal"]["revision"]!=source["revision"]||g["goal"]["roundsStarted"]!=source["round"]||g["activation"]!="armed" {return Err(LoopError::Visibility("stale goal round source".into()))}
+        self.goal_authority=crate::dshgoal::Authority::GoalRound{id:source["goalId"].as_str().unwrap_or("").into(),revision:source["revision"].as_u64().unwrap_or(0),round:source["round"].as_u64().unwrap_or(0)};
+        let result=self.run_mission_inner(id,prompt,false);
+        self.goal_authority=crate::dshgoal::Authority::External;
+        result
+    }
+    pub fn is_child_session(&self)->bool{self.swarm_depth!=0}
+    pub fn session_goal_view(&self)->serde_json::Value{self.session_goal.view()}
     pub fn has_unsettled_jobs(&self)->bool{self.job_session.as_ref().is_some_and(|jobs|jobs.has_unsettled())}
     pub fn take_job_followups(&mut self)->Result<Vec<String>,LoopError>{let Some(jobs)=self.job_session.as_mut()else{return Ok(vec![])};let mut out=vec![];let notices=jobs.notifications();for (index,notice) in notices.iter().enumerate(){let id=notice["job"]["id"].as_str().unwrap_or("");if let Err(error)=self.writer.append(EventBuilder::new(EventKind::Observation).payload(Payload::Inline(serde_json::to_vec(&notice).expect("job notice serializes")))){for pending in &notices[index..]{jobs.retry_notice(pending["job"]["id"].as_str().unwrap_or(""));}return Err(error.into());}out.push(format!("Background job {id} finished while the session was idle. Collect its output with job_output and report its outcome. Do not restart the job."));}Ok(out)}
 
@@ -1494,6 +1532,27 @@ impl InnerLoop {
         tool: &str,
         args: &serde_json::Value,
     ) -> Result<ToolCallOutcome, KernelError> {
+        if self.session_goal.wrapup(&self.goal_authority).is_some()&&!matches!(tool,"answer.submit"|"answer.write") {
+            return Ok(ToolCallOutcome{call_id:uuid::Uuid::new_v4(),start_event_id:uuid::Uuid::nil(),resolved:None,output:serde_json::json!({"error":"goal round has ended; only closing answer submission is allowed"}),latency_ms:0})
+        }
+        if matches!(tool,"create_goal"|"get_goal"|"update_goal") {
+            if !self.goal_turn_active {return Ok(ToolCallOutcome{call_id:uuid::Uuid::new_v4(),start_event_id:uuid::Uuid::nil(),resolved:None,output:serde_json::json!({"error":"goal tools require an open model turn"}),latency_ms:0})}
+            if let Some(output)=permission::gate(tool,args){return Ok(ToolCallOutcome{call_id:uuid::Uuid::new_v4(),start_event_id:uuid::Uuid::nil(),resolved:None,output,latency_ms:0})}
+            let(call_id,start_event_id)=self.kernel.start_internal_tool(tool,args)?;
+            let start=std::time::Instant::now();
+            let mut proposed=self.session_goal.clone();
+            let result=proposed.call(tool,args,self.goal_authority.clone());
+            let output=match result {Ok(v)=>{
+                if tool!="get_goal" {
+                    self.writer.append(EventBuilder::new(EventKind::Observation).payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({"record_type":"session_goal/change","operation":tool,"args":args,"snapshot":proposed.snapshot()})).expect("goal serializes"))))?;
+                    self.writer.checkpoint()?;
+                    self.session_goal=proposed;
+                    if let Some(sink)=self.ui_sink.as_mut(){sink(uipaint::UiEvent::SessionGoal{value:self.session_goal.view()});}
+                }v
+            },Err(e)=>serde_json::json!({"error":e})};
+            let out=ToolCallOutcome{call_id,start_event_id,resolved:None,output,latency_ms:start.elapsed().as_millis().min(u32::MAX as u128) as u32};
+            self.kernel.end_internal_tool(tool,args,&out)?;return Ok(out)
+        }
         if tool=="todo_write"{if let Some(output)=permission::gate(tool,args){return Ok(ToolCallOutcome{call_id:uuid::Uuid::new_v4(),start_event_id:uuid::Uuid::nil(),resolved:None,output,latency_ms:0})}let(call_id,start_event_id)=self.kernel.start_internal_tool(tool,args)?;let start=std::time::Instant::now();let output=self.todos.write(args).unwrap_or_else(|e|serde_json::json!({"error":e}));if output.get("error").is_none(){self.writer.append(EventBuilder::new(EventKind::Observation).payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({"record_type":"todo/write","todos":output["todos"]})).expect("todo serializes"))))?;}if output.get("error").is_none(){if let Some(sink)=self.ui_sink.as_mut(){sink(uipaint::UiEvent::TodoList{todos:output["todos"].clone()});}}let out=ToolCallOutcome{call_id,start_event_id,resolved:None,output,latency_ms:start.elapsed().as_millis().min(u32::MAX as u128) as u32};self.kernel.end_internal_tool(tool,args,&out)?;return Ok(out)}
         if matches!(tool,"glob"|"grep"){
             if let Some(output)=permission::gate(tool,args){return Ok(ToolCallOutcome{call_id:uuid::Uuid::new_v4(),start_event_id:uuid::Uuid::nil(),resolved:None,output,latency_ms:0})}
@@ -2007,6 +2066,14 @@ impl InnerLoop {
     /// the prompt reproduces the mission's recorded first message
     /// byte-for-byte; anything else is new work on a fresh counter.
     /// Benchmark binaries keep `run_mission_full`'s fresh-start law.
+    /// Root UI input is host-attested. External followups use the separate entry.
+    pub fn run_root_human_mission(&mut self,id:&str,prompt:&str)->Result<MissionResult,LoopError>{
+        if self.swarm_depth!=0{return Err(LoopError::Visibility("root-human mission requested on child".into()))}
+        self.goal_authority=crate::dshgoal::Authority::HumanRoot;
+        let result=self.run_mission_inner(id,prompt,true);
+        self.goal_authority=crate::dshgoal::Authority::External;
+        result
+    }
     pub fn run_mission_resuming(
         &mut self,
         mission_id: &str,
@@ -2015,7 +2082,14 @@ impl InnerLoop {
         self.run_mission_inner(mission_id, prompt, true)
     }
 
-    fn run_mission_inner(
+    fn run_mission_inner(&mut self,id:&str,prompt:&str,resume:bool)->Result<MissionResult,LoopError>{
+        self.goal_turn_active=true;
+        let result=self.run_mission_work(id,prompt,resume);
+        self.goal_turn_active=false;
+        if result.as_ref().map_or(true,|r|matches!(r.outcome.as_str(),"harness_error"|"interrupted"|"budget_killed"|"wall_killed")){self.session_goal.disarm();}
+        result
+    }
+    fn run_mission_work(
         &mut self,
         mission_id: &str,
         prompt: &str,
@@ -2253,6 +2327,8 @@ impl InnerLoop {
                     volatile.push_str(&block);
                 }
             }
+            if let Some(note)=self.session_goal.wrapup(&self.goal_authority){volatile.push_str(&note);}
+            volatile.push_str("\nGoal policy: create_goal may infer a long-running objective only from a direct top-level human request. Resume/fork goals are disarmed. Complete requires actual whole-objective evidence. Blocked requires a concrete repeated condition and at least three automatic rounds; difficulty or remaining work is not blocked.\n");
             volatile.push_str(&artifact_section(&answer_path, &artifact));
             // Fix 5: convergence pressure (ab2: three wall-killed missions
             // ran 19-25 steps with zero model-initiated verification). At
@@ -3557,3 +3633,5 @@ pub mod dshjobs;
 pub mod dshsearch;
 
 pub mod dshtodo;
+
+pub mod dshgoal;

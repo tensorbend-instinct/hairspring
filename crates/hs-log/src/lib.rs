@@ -431,6 +431,9 @@ impl StreamWriter {
         Ok(e)
     }
 
+    /// Durability checkpoint before autonomous work is admitted.
+    pub fn checkpoint(&self)->Result<(),LogError>{self.file.sync_all()?;Ok(())}
+
     fn store_blob(&self, bytes: &[u8]) -> Result<[u8; 32], LogError> {
         write_blob(&self.root, bytes)
     }

@@ -1,0 +1,62 @@
+warning: unused attribute
+   --> crates/hs-loop/src/appback.rs:148:1
+    |
+148 | #[must_use]
+    | ^^^^^^^^^^^ help: remove this attribute
+    |
+note: attribute also specified here
+   --> crates/hs-loop/src/appback.rs:144:1
+    |
+144 | #[must_use]
+    | ^^^^^^^^^^^
+    = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+    = note: `#[warn(unused_attributes)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> crates/hs-loop/src/repexec.rs:239:10
+    |
+239 |         .fetch_update(
+    |          ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+239 -         .fetch_update(
+239 +         .try_update(
+    |
+
+warning: unused return value of `workflow` that must be used
+   --> crates/hs-loop/tests/engine_red.rs:144:5
+    |
+144 |     hs_loop::tools2::workflow(wd.path(), &serde_json::json!({"op":"define","name":"two","steps":["step one","step two"]}));
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_must_use)]` (part of `#[warn(unused)]`) on by default
+help: use `let _ = ...` to ignore the resulting value
+    |
+144 |     let _ = hs_loop::tools2::workflow(wd.path(), &serde_json::json!({"op":"define","name":"two","steps":["step one","step two"]}));
+    |     +++++++
+
+error[E0308]: mismatched types
+   --> crates/hs-loop/tests/repl_surface_red.rs:95:31
+    |
+ 95 |   const INTERNALS: [&str; 23] = [
+    |  __________________----------___^
+    | |                  |
+    | |                  expected because of the type of the constant
+ 96 | |     "agent.spawn",
+ 97 | |     "agent.spawn_poll",
+ 98 | |     "agent.fork",
+...   |
+116 | |     "glob", "grep", "todo_write", "create_goal", "get_goal", "update_goal",
+117 | | ];
+    | |_^ expected an array with a size of 23, found one with a size of 26
+    |
+help: consider specifying the actual array length
+    |
+ 95 - const INTERNALS: [&str; 23] = [
+ 95 + const INTERNALS: [&str; 26] = [
+    |
+
+For more information about this error, try `rustc --explain E0308`.
+error: could not compile `hs-loop` (test "repl_surface_red") due to 1 previous error

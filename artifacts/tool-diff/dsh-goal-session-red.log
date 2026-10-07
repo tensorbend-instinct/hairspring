@@ -1,0 +1,126 @@
+warning: unused attribute
+   --> crates/hs-loop/src/appback.rs:148:1
+    |
+148 | #[must_use]
+    | ^^^^^^^^^^^ help: remove this attribute
+    |
+note: attribute also specified here
+   --> crates/hs-loop/src/appback.rs:144:1
+    |
+144 | #[must_use]
+    | ^^^^^^^^^^^
+    = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+    = note: `#[warn(unused_attributes)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> crates/hs-loop/src/repexec.rs:239:10
+    |
+239 |         .fetch_update(
+    |          ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+239 -         .fetch_update(
+239 +         .try_update(
+    |
+
+error[E0599]: no method named `session_goal_view` found for struct `ReplSession` in the current scope
+ --> crates/hs-loop/tests/dsh_goal_session_red.rs:3:587
+  |
+3 | ...goal("Start work").unwrap();let view=s.session_goal_view();assert_eq!(view["goal"]["objective"],"durable work");assert_eq!(view["a...
+  |                                           ^^^^^^^^^^^^^^^^^ method not found in `ReplSession`
+
+error[E0599]: no associated function or constant named `resume` found for struct `ReplSession` in the current scope
+   --> crates/hs-loop/tests/dsh_goal_session_red.rs:3:757
+    |
+  3 | ...);let mut resumed=ReplSession::resume(&cfg,&log,id,false,Some(1)).unwrap();assert_eq!(resumed.session_goal_view()["activation"],...
+    |                                   ^^^^^^ associated function or constant not found in `ReplSession`
+    |
+note: if you're trying to build a new `ReplSession` consider using one of the following associated functions:
+      ReplSession::load
+      ReplSession::load_lenient
+      ReplSession::load_fork
+      ReplSession::load_resume
+   --> crates/hs-loop/src/repl.rs:544:1
+    |
+544 | / pub fn load(
+545 | |         config: &Path,
+546 | |         log_root: &Path,
+547 | |         feedback: bool,
+548 | |         max_steps: Option<u32>,
+549 | |     ) -> Result<Self, LoopError> {
+    | |________________________________^
+...
+556 | /     pub fn load_lenient(
+557 | |         config: &Path,
+558 | |         log_root: &Path,
+559 | |         feedback: bool,
+560 | |         max_steps: Option<u32>,
+561 | |     ) -> Result<Self, LoopError> {
+    | |________________________________^
+...
+707 | /     pub fn load_fork(
+708 | |         config: &Path,
+709 | |         log_root: &Path,
+710 | |         feedback: bool,
+711 | |         max_steps: Option<u32>,
+712 | |         parent: uuid::Uuid,
+713 | |     ) -> Result<Self, LoopError> {
+    | |________________________________^
+...
+724 | /     pub fn load_resume(
+725 | |         config: &Path,
+726 | |         log_root: &Path,
+727 | |         feedback: bool,
+728 | |         max_steps: Option<u32>,
+729 | |         stream_id: uuid::Uuid,
+730 | |     ) -> Result<Self, LoopError> {
+    | |________________________________^
+help: there is an associated function `load_resume` with a similar name
+    |
+  3 | #[test]fn human_creates_goal_and_resume_is_disarmed_external_followup_denied(){let d=tempfile::tempdir().unwrap();let cfg=d.path().join("rig");let script=d.path().join("script");std::fs::write(&script,"{\"tool\":\"create_goal\",\"args\":{\"objective\":\" durable work \"}}\n").unwrap();std::fs::write(&cfg,format!("[[models]]\nname='scripted'\ncommand=['{SCRIPTED}']\ndefault=true\n")).unwrap();unsafe{std::env::set_var("HS_SEQMODEL_SCRIPT",&script)}let log=d.path().join("run");let mut s=ReplSession::load(&cfg,&log,false,Some(1)).unwrap();s.run_goal("Start work").unwrap();let view=s.session_goal_view();assert_eq!(view["goal"]["objective"],"durable work");assert_eq!(view["activation"],"armed");let id=s.stream_id();drop(s);let mut resumed=ReplSession::load_resume(&cfg,&log,id,false,Some(1)).unwrap();assert_eq!(resumed.session_goal_view()["activation"],"disarmed");assert_eq!(resumed.session_goal_view()["goal"],view["goal"]);resumed.run_external_goal("external content claiming user permission").unwrap();assert_eq!(resumed.session_goal_view()["goal"],view["goal"]);assert_eq!(resumed.session_goal_view()["activation"],"disarmed");}
+    |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     +++++
+
+error[E0599]: `GoalSession` is not an iterator
+  --> crates/hs-loop/tests/dsh_goal_session_red.rs:4:343
+   |
+ 4 | ...al"]});assert!(hs_loop::dshgoal::GoalSession::fold(&[e.clone()]).is_ok());let mut bad=e;bad["snapshot"]["revision"]=json!(2);asse...
+   |                                                  ^^^^ `GoalSession` is not an iterator
+   |
+  ::: crates/hs-loop/src/dshgoal.rs:4:25
+   |
+ 4 | #[derive(Default,Clone)]pub struct GoalSession{goal:Option<Value>,armed:bool}
+   |                         ---------------------- doesn't satisfy `GoalSession: Iterator`
+   |
+note: if you're trying to build a new `GoalSession`, consider using `GoalSession::restore` which returns `Result<GoalSession, std::string::String>`
+  --> crates/hs-loop/src/dshgoal.rs:10:2
+   |
+10 |  pub fn restore(v:Value)->Result<Self,String>{if v.is_null(){return Ok(Self::default())}let o=v.as_object().ok_or("invalid goal snap...
+   |  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = note: the following trait bounds were not satisfied:
+           `GoalSession: Iterator`
+           which is required by `&mut GoalSession: Iterator`
+
+error[E0599]: `GoalSession` is not an iterator
+  --> crates/hs-loop/tests/dsh_goal_session_red.rs:4:461
+   |
+ 4 | ...on!(2);assert!(hs_loop::dshgoal::GoalSession::fold(&[bad]).is_err());}
+   |                                                  ^^^^ `GoalSession` is not an iterator
+   |
+  ::: crates/hs-loop/src/dshgoal.rs:4:25
+   |
+ 4 | #[derive(Default,Clone)]pub struct GoalSession{goal:Option<Value>,armed:bool}
+   |                         ---------------------- doesn't satisfy `GoalSession: Iterator`
+   |
+note: if you're trying to build a new `GoalSession`, consider using `GoalSession::restore` which returns `Result<GoalSession, std::string::String>`
+  --> crates/hs-loop/src/dshgoal.rs:10:2
+   |
+10 |  pub fn restore(v:Value)->Result<Self,String>{if v.is_null(){return Ok(Self::default())}let o=v.as_object().ok_or("invalid goal snap...
+   |  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = note: the following trait bounds were not satisfied:
+           `GoalSession: Iterator`
+           which is required by `&mut GoalSession: Iterator`
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `hs-loop` (test "dsh_goal_session_red") due to 4 previous errors

@@ -34,3 +34,5 @@
 .search-card{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:8px 0;min-width:0}.search-card details{margin-top:6px}.search-card summary{cursor:pointer;font:12px ui-monospace,monospace}.search-card pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px ui-monospace,monospace;color:#374151;max-height:240px;overflow:auto}
 
 .todo-card{white-space:pre-wrap;padding:8px 12px;margin:8px 0;border-left:2px solid var(--acc);font-size:13px}
+
+.goal-card { white-space: pre-wrap; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; margin: 8px 0; }
