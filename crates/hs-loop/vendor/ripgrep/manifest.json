@@ -1,0 +1,30 @@
+{
+  "linux-x64": {
+    "package": "@vscode/ripgrep-linux-x64",
+    "version": "1.18.0",
+    "url": "https://registry.npmjs.org/@vscode/ripgrep-linux-x64/-/ripgrep-linux-x64-1.18.0.tgz",
+    "integrity": "sha512-mQ3bVrUpnD2vs7QT0vX90Lt0cnUq467uFtEktIdsJJmW296RoSULRGqWgzG1AKxyBpNDD6l4ZO4qKf6SgyC23Q==",
+    "binary_sha256": "193906679498de4d939345b937fa24e0e69a03c244bd70c859f5e41232713f21"
+  },
+  "linux-arm64": {
+    "package": "@vscode/ripgrep-linux-arm64",
+    "version": "1.18.0",
+    "url": "https://registry.npmjs.org/@vscode/ripgrep-linux-arm64/-/ripgrep-linux-arm64-1.18.0.tgz",
+    "integrity": "sha512-lQ/5zTG++U0E3IhVgS4EPTTn/U4okncaRMM5GOFfOYZywS4nuD31GhkHbNYlDk5CuDC68+hYJ0/eQeyCKJDA+g==",
+    "binary_sha256": "e152ea689d6e8420357e592f0d8253b96476c164118ca3e6e13074fa1705ddda"
+  },
+  "darwin-x64": {
+    "package": "@vscode/ripgrep-darwin-x64",
+    "version": "1.18.0",
+    "url": "https://registry.npmjs.org/@vscode/ripgrep-darwin-x64/-/ripgrep-darwin-x64-1.18.0.tgz",
+    "integrity": "sha512-25b4gWbL138dGuQU244ebCKKc0q05ULBMoFSz9oAEUHNeqK/lOJViDS7DRvbDazzAzSEdan391Znks/R5mkaTQ==",
+    "binary_sha256": "f999495980a5e6f1e7d26461ef5768b4013a62df610ed7d77a8b2de247a5b228"
+  },
+  "darwin-arm64": {
+    "package": "@vscode/ripgrep-darwin-arm64",
+    "version": "1.18.0",
+    "url": "https://registry.npmjs.org/@vscode/ripgrep-darwin-arm64/-/ripgrep-darwin-arm64-1.18.0.tgz",
+    "integrity": "sha512-r3ktHSvbFycQNF6sl7sNDPocpsI7J+mEzh1IaZFkY0spm3k2Z9t8hPAeOK7+p0l6p6/swkQC14XWX01low+94Q==",
+    "binary_sha256": "6ef40346bf31fcce79d9614c7745c198542925a0c7d4911e1ffe794c53392ac1"
+  }
+}

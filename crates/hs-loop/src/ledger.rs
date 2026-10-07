@@ -30,6 +30,7 @@ pub struct Ledger {
     /// exists and render marked (feedback integrity F8).
     restored_before: Option<u64>,
     open_threads: Vec<String>,
+    job_runs: BTreeMap<String, (String, String, String)>,
     last_calls: VecDeque<(String, u64, u64, u64)>, // (plugin, args_hash, args_hash_normalized, seq)
 }
 
@@ -198,6 +199,16 @@ impl Ledger {
                     self.edits.push((seq, p.to_string()));
                 }
             }
+            "bash" => {
+                if result.get("error").is_none() && result.get("$error").is_none(){
+                    let cmd=args["command"].as_str().unwrap_or("").chars().take(60).collect::<String>();
+                    if let Some(id)=result["jobId"].as_str(){let phase=result["kind"].as_str().unwrap_or("");if matches!(phase,"background"|"promoted"){self.job_runs.insert(id.into(),(cmd.clone(),phase.into(),result["output"].as_str().unwrap_or("").into()));if self.job_runs.len()>512{if let Some(old)=self.job_runs.keys().next().cloned(){self.job_runs.remove(&old);}}}}
+                    if result["kind"]=="foreground" && (result["exitCode"].is_i64()||result["signal"].is_string()) {let evidence=serde_json::json!({"exit_code":result["exitCode"],"stdout":result["stdout"]["text"],"stderr":result["stderr"]["text"]});self.test_runs.push((seq,cmd,result["exitCode"]==0&&result["signal"].is_null(),evidence_block(&evidence)));}
+                }
+            }
+            "job_output" => {
+                if result.get("error").is_none()&&result.get("$error").is_none(){if let Some(id)=result["job"]["id"].as_str(){let status=result["job"]["status"].as_str().unwrap_or("");let entry=self.job_runs.entry(id.into()).or_insert_with(||(result["job"]["label"].as_str().unwrap_or("job").into(),status.into(),String::new()));entry.1=status.into();entry.2.push_str(result["text"].as_str().unwrap_or(""));if entry.2.len()>32768{let(_,bounded)=head_tail(&entry.2,16000,16000);entry.2=bounded;}if matches!(status,"completed"|"failed"|"killed"){let evidence=serde_json::json!({"stdout":entry.2});self.test_runs.push((seq,format!("job {id}: {}",entry.0),status=="completed",evidence_block(&evidence)));}}}
+            }
             "term.exec" => {
                 // tb mode: term.exec is the model's ONLY verification
                 // channel (and its edit channel). Every completed run is
@@ -351,6 +362,7 @@ impl Ledger {
 ",
             );
         }
+        for (id,(cmd,status,text)) in self.job_runs.iter().rev().take(4){let (_,body)=head_tail(&collapse(text),200,280);s.push_str(&format!("job {id}: {cmd} [{status}] {body}\n"));}
         if !self.test_runs.is_empty() {
             s.push_str("tests: ");
             for (seq, cmd, ok, tail) in self.test_runs.iter().rev().take(TESTS_SHOWN).rev() {

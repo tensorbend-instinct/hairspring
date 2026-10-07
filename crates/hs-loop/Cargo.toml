@@ -29,11 +29,11 @@ rustyline = "14"
 ratatui = "0.30.2"
 unicode-width = "0.2"
 crossterm = "0.29.0"
+tempfile = "3"
 
 [dev-dependencies]
 hs-scorer = { path = "../hs-scorer" }
 hs-selfmod = { path = "../hs-selfmod" }
-tempfile = "3"
 
 [lints]
 workspace = true

@@ -21,3 +21,7 @@ Vendored source (Apache License 2.0):
   **xai-org/grok-build** (`crates/codegen/xai-grok-tools/src/implementations/grok_build_hashline/`);
   `src/hash.rs` from the same project (`crates/codegen/xai-grok-tools/src/util/hash.rs`).
   Vendored for the edit-path bake-off (2026-09-06).
+
+## Packaged ripgrep search helper
+
+The embedded @vscode/ripgrep 1.18.0 Linux/macOS x64/arm64 binaries are MIT-licensed by Microsoft. Original license, package tarball URLs, npm SHA-512 integrity and binary SHA-256 checksums are in crates/hs-loop/vendor/ripgrep/. No system ripgrep is selected from PATH.
