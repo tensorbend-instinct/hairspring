@@ -216,6 +216,7 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
         CapsInfo(String),
         CapsSet(String),
         PlanNotice(String),
+        PlanReview(serde_json::Value,mpsc::Sender<Result<serde_json::Value,String>>),
         SkillNames(Vec<String>),
     }
 
@@ -257,7 +258,20 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
         ..Default::default()
     };
 
+    fn attach_plan_review(session:&mut hs_loop::repl::ReplSession,tx:mpsc::Sender<TuiMsg>){
+        session.set_plan_reviewer(Box::new(move|question|{
+            let(reply,receive)=mpsc::channel();
+            tx.send(TuiMsg::PlanReview(question.clone(),reply)).map_err(|_|hs_loop::dshplan::DISMISSED.to_owned())?;
+            let answer=hs_loop::dshplan::receive_review(receive)?;
+            let items:Vec<_>=answer["answers"].as_array().into_iter().flatten().filter(|a|a["id"]=="plan-review").collect();
+            if items.len()==1&&items[0]["selected"]==serde_json::json!(["Approve"])&&items[0].get("custom").is_none(){
+                let _=tx.send(TuiMsg::PlanNotice("Plan approved. Leaving plan mode from the next step.".into()));
+            }
+            Ok(answer)
+        }));
+    }
     let mut session = session;
+    attach_plan_review(&mut session,tx.clone());
     // Eric's five #4: the :models picker entries, captured before the
     // session moves to the worker thread.
     let mut model_entries: Vec<(String, bool)> = session.model_names();
@@ -356,6 +370,7 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
                                 hs_loop::repl::last_mission_outcome(&wdir, id).as_deref(),
                             );
                             session = new_session;
+                            attach_plan_review(&mut session,tx.clone());
                             // The resumed session needs the UI sink
                             // re-attached - it ships with none, so
                             // without this a resumed mission runs blind
@@ -395,6 +410,7 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
     execute!(terminal.backend_mut(), crossterm::terminal::Clear(crossterm::terminal::ClearType::All), crossterm::cursor::MoveTo(0,0))?;
 
     let mut running = false;
+    let mut pending_plan_review:Option<mpsc::Sender<Result<serde_json::Value,String>>>=None;
 
     // UI gap #7 on the full-screen surface: bare --resume opens the
     // picker overlay instead of the line-mode numbered prompt.
@@ -499,6 +515,16 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
                         st.push_transcript_line(line);
                     }
                 }
+                TuiMsg::PlanReview(question,reply)=>{
+                    if let Some(old)=pending_plan_review.take(){let _=old.send(Err("ASK_CANCELLED".into()));}
+                    let q=&question["questions"][0];
+                    st.push_transcript_line(q["header"].as_str().unwrap_or("Plan review"));
+                    let theme=st.theme.clone();st.push_transcript_markdown(q["detail"].as_str().unwrap_or(""),&theme);
+                    st.push_transcript_line(q["question"].as_str().unwrap_or("Approve this plan and leave plan mode?"));
+                    st.push_transcript_line("Type Approve or Keep planning, or send feedback. Ctrl+C dismisses.");
+                    st.plan_review_pending=true;
+                    pending_plan_review=Some(reply);
+                },
                 TuiMsg::PlanNotice(s)=>st.push_transcript_line(&s),
                 TuiMsg::CapsSet(s) => {
                     st.push_transcript_line(&format!("caps \u{203a} {s}"));
@@ -523,6 +549,18 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
                     if k.kind != crossterm::event::KeyEventKind::Press {
                         continue;
                     }
+                    if pending_plan_review.is_some(){
+                        if k.code==crossterm::event::KeyCode::Esc||(k.code==crossterm::event::KeyCode::Char('c')&&k.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)){
+                            let reply=pending_plan_review.take().unwrap();st.plan_review_pending=false;
+                            let _=reply.send(Err("ASK_CANCELLED".into()));
+                            let flag=opts.interrupt_file.clone().unwrap_or_else(||opts.dir.join("interrupt"));let _=std::fs::write(flag,b"");
+                            continue;
+                        }
+                        if k.code==crossterm::event::KeyCode::Enter&&!k.modifiers.contains(crossterm::event::KeyModifiers::ALT){
+                            if let Some(text)=st.editor.submit(){let reply=pending_plan_review.take().unwrap();st.plan_review_pending=false;st.push_goal_echo(&text);let _=reply.send(Ok(hs_loop::dshplan::user_reply(text.trim())));}
+                            continue;
+                        }
+                    }
                     match tui::handle_key(&mut st, k) {
                         tui::KeyAction::Continue | tui::KeyAction::ToggleAgents => {}
                         tui::KeyAction::ToggleLineage => {
@@ -542,6 +580,8 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
                                 });
                         }
                         tui::KeyAction::Interrupt => {
+                            if let Some(reply)=pending_plan_review.take(){st.plan_review_pending=false;let _=reply.send(Err("ASK_CANCELLED".into()));}
+
                             // Ctrl+C mid-mission: touch the interrupt
                             // flag; the loop stops cleanly at the next
                             // step boundary, booked "interrupted".
@@ -554,7 +594,7 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
                                 "interrupt sent - the mission stops at the next step boundary",
                             );
                         }
-                        tui::KeyAction::Quit => break,
+                        tui::KeyAction::Quit => {if let Some(reply)=pending_plan_review.take(){st.plan_review_pending=false;let _=reply.send(Err("ASK_CANCELLED".into()));}break},
                         tui::KeyAction::Picked(tui::PickerKind::Models, choice) => {
                             if choice == hs_loop::repl::MODELS_PICKER_ADD_ENTRY {
                                 // The picker's escape hatch opens the
@@ -593,6 +633,12 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
                             }
                         }
                         tui::KeyAction::Submit(text) => {
+                            if let Some(reply)=pending_plan_review.take(){st.plan_review_pending=false;
+                                st.push_goal_echo(&text);
+                                let _=reply.send(Ok(hs_loop::dshplan::user_reply(text.trim())));
+                                continue;
+                            }
+
                             // /models add wizard: lines route to the
                             // wizard, never to goals or the palette.
                             if let Some(w) = add_wiz.as_mut() {

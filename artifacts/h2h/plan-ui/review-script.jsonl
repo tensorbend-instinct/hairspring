@@ -1,0 +1,2 @@
+{"tool":"exit_plan_mode","args":{"plan":"# Repair parser\n- Write failing fixture\n- Fix native parser\n- Run regression suite"}}
+{"tool":"get_goal","args":{}}

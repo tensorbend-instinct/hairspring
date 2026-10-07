@@ -1565,6 +1565,7 @@ pub fn wrapped_rows(line: &Line<'static>, width: u16) -> usize {
 #[allow(clippy::struct_excessive_bools)] // UI surface state: panel visibility flags are the honest shape
 #[derive(Debug, Clone)]
 pub struct TuiState {
+    pub plan_review_pending:bool,
     /// Live loop phase for the rail.
     pub phase: LoopPhase,
     /// The composer editor (M2).
@@ -1679,6 +1680,7 @@ pub fn context_window_tokens(model: &str) -> Option<u64> {
 impl Default for TuiState {
     fn default() -> Self {
         TuiState {
+            plan_review_pending:false,
             phase: LoopPhase::Idle,
             editor: EditorState::default(),
             transcript: Vec::new(),
@@ -2539,7 +2541,9 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
         || state.cur_step > 0
         || !state.ticker.is_empty()
         || !matches!(state.phase, LoopPhase::Idle);
-    let placeholder = if active && state.cur_step > 0 {
+    let placeholder = if state.plan_review_pending {
+        "Approve, Keep planning, or feedback (esc to dismiss)"
+    } else if active && state.cur_step > 0 {
         "Queue a follow-up... (esc to interrupt)"
     } else if !active {
         "What are we building?"
@@ -2730,7 +2734,9 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
                 sgr_style(&state.theme.dim),
             ));
         }
-        let hints = if active && state.cur_step > 0 {
+        let hints = if state.plan_review_pending {
+            "  enter answer  esc dismiss"
+        } else if active && state.cur_step > 0 {
             "  enter queue  esc interrupt"
         } else {
             "  @ files  shift+enter new line  tab modes"
@@ -2773,7 +2779,9 @@ pub fn render_skeleton(f: &mut Frame, state: &TuiState) {
         if !stats.is_empty() {
             footer.push(Span::styled(format!("  {stats}"), sgr_style(&state.theme.dim)));
         }
-        if active && state.cur_step > 0 {
+        if state.plan_review_pending {
+            footer.push(Span::raw("  enter answer  esc dismiss"));
+        } else if active && state.cur_step > 0 {
             footer.push(Span::raw("  enter queue  esc interrupt"));
         } else if active {
             footer.push(Span::raw("  shift+enter new line  tab modes"));

@@ -14,3 +14,7 @@ pub fn render()->&'static str{"Plan approved \u{2014} plan mode exited; carry ou
 #[serde(deny_unknown_fields)]
 pub struct PlanConfig{pub section:String}
 impl PlanConfig{pub fn validate(self)->Result<String,String>{if self.section.trim().is_empty(){Err("PlanModeConfig needs a non-empty `section`".into())}else{Ok(self.section)}}}
+
+pub const DISMISSED:&str="The user dismissed the plan review to speak instead; stay in plan mode, stop here, and wait for their message.";
+pub fn user_reply(text:&str)->Value{if text=="Approve"||text=="Keep planning"{json!({"answers":[{"id":"plan-review","selected":[text]}]})}else{json!({"answers":[{"id":"plan-review","selected":[],"custom":text}]})}}
+pub fn receive_review(receiver:std::sync::mpsc::Receiver<Result<Value,String>>)->Result<Value,String>{match receiver.recv(){Ok(Ok(v))=>Ok(v),Ok(Err(e))if e!="ASK_CANCELLED"=>Err(e),_=>Err(DISMISSED.into())}}
