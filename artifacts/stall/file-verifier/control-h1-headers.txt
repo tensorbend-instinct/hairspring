@@ -1,0 +1,17 @@
+HTTP/1.1 200 OK
+Content-Type: text/event-stream; charset=utf-8
+Transfer-Encoding: chunked
+Connection: keep-alive
+Date: Wed, 07 Oct 2026 01:13:28 GMT
+X-Content-Type-Options: nosniff
+Server: elb
+cache-control: no-cache
+vary: origin, access-control-request-method, access-control-request-headers
+access-control-allow-credentials: true
+x-ds-trace-id: 3c49604c1968dcbdc18daf32dfffabc0
+Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+X-Cache: Miss from cloudfront
+Via: 1.1 10bfbac2daf99d585c60cd6a21af0e12.cloudfront.net (CloudFront)
+X-Amz-Cf-Pop: SEA900-P13
+X-Amz-Cf-Id: oTAkBXfbLYYgDiHjNVEg8DhRFOgm3XliagtVoU55CTt6ZrrguIj64Q==
+

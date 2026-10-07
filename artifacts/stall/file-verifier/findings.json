@@ -20,9 +20,18 @@
       "total": 0.862706,
       "trace": "b36054f7fcfe1a8b28624ed2e1c0da5a",
       "http_version": 2
+    },
+    "http1": {
+      "http": 200,
+      "ttfb": 0.393793,
+      "total": 42.090968,
+      "bytes": 1184732,
+      "trace": "3c49604c1968dcbdc18daf32dfffabc0",
+      "http_version": "1.1"
     }
   },
   "root_bug": "stream waits for HTTP EOF instead of Messages message_stop",
   "root_proof": "hermetic chunked server keeps HTTP open after message_stop, RED then GREEN",
-  "original_bug_attribution": "partial: original message_stop not captured"
+  "original_bug_attribution": "partial: original message_stop not captured",
+  "control_conclusion": "New HTTP1.1 and HTTP2 requests complete; not a provider-wide outage. Original request cause remains partial because original SSE frames were not captured."
 }

@@ -41,6 +41,7 @@ pub struct Stream {
 }
 impl Default for Stream{fn default()->Self{Self{codec:sse_codec::SSECodec::default(),bytes:futures_codec::BytesMut::new(),message:Value::Null,blocks:Default::default(),partial:Default::default(),done:false}}}
 impl Stream{
+ pub fn is_done(&self)->bool{self.done}
  pub fn push(&mut self,b:&[u8],delta:&mut dyn FnMut(&str))->Result<(),String>{
   use futures_codec::Decoder;self.bytes.extend_from_slice(b);
   while let Some(ev)=self.codec.decode(&mut self.bytes).map_err(|e|e.to_string())?{

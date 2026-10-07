@@ -927,7 +927,7 @@ fn attempt_streaming(
         }
         let mut parser=crate::messagesapi::Stream::default();
         let mut reader=response.body_mut().as_reader();let mut buf=[0u8;8192];
-        loop {use std::io::Read;let n=reader.read(&mut buf).map_err(|e|AttemptError::Other(format!("Messages stream read: {e}")))?;if n==0{break;}on_heartbeat();parser.push(&buf[..n],on_delta).map_err(AttemptError::Other)?;}
+        loop {use std::io::Read;let n=reader.read(&mut buf).map_err(|e|AttemptError::Other(format!("Messages stream read: {e}")))?;if n==0{break;}on_heartbeat();parser.push(&buf[..n],on_delta).map_err(AttemptError::Other)?;if parser.is_done(){break;}}
         let v=parser.finish().map_err(AttemptError::Other)?;
         return (if native {parse_response(p,&v)} else {parse_response_legacy(p,&v)}).map_err(AttemptError::Other);
     }

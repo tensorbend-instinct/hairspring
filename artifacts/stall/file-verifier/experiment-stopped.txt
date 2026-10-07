@@ -1,0 +1,1 @@
+Old experimental run stopped after raw capture committed, by parent instruction, not a runtime watchdog.

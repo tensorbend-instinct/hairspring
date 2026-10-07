@@ -1,0 +1,75 @@
+warning: unused attribute
+   --> crates/hs-loop/src/appback.rs:148:1
+    |
+148 | #[must_use]
+    | ^^^^^^^^^^^ help: remove this attribute
+    |
+note: attribute also specified here
+   --> crates/hs-loop/src/appback.rs:144:1
+    |
+144 | #[must_use]
+    | ^^^^^^^^^^^
+    = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+    = note: `#[warn(unused_attributes)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> crates/hs-loop/src/repexec.rs:239:10
+    |
+239 |         .fetch_update(
+    |          ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+239 -         .fetch_update(
+239 +         .try_update(
+    |
+
+
+running 7 tests
+edit_unique_all_and_noop_errors --- FAILED
+edit_restores_crlf_and_deletes_literal --- FAILED
+. 3/7
+mode_preserved_and_symlink_escape_denied --- FAILED
+read_then_write_and_stale_guards --- FAILED
+write_creates_but_cannot_clobber_unread_file --- FAILED
+.
+failures:
+
+---- edit_unique_all_and_noop_errors stdout ----
+
+thread 'edit_unique_all_and_noop_errors' (154935) panicked at crates/hs-loop/tests/dsh_mutation_red.rs:9:280:
+called `Result::unwrap()` on an `Err` value: "not implemented"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- edit_restores_crlf_and_deletes_literal stdout ----
+
+thread 'edit_restores_crlf_and_deletes_literal' (154934) panicked at crates/hs-loop/tests/dsh_mutation_red.rs:11:212:
+called `Result::unwrap()` on an `Err` value: "not implemented"
+
+---- mode_preserved_and_symlink_escape_denied stdout ----
+
+thread 'mode_preserved_and_symlink_escape_denied' (154937) panicked at crates/hs-loop/tests/dsh_mutation_red.rs:16:334:
+called `Result::unwrap()` on an `Err` value: "not implemented"
+
+---- read_then_write_and_stale_guards stdout ----
+
+thread 'read_then_write_and_stale_guards' (154938) panicked at crates/hs-loop/tests/dsh_mutation_red.rs:7:195:
+called `Result::unwrap()` on an `Err` value: "not implemented"
+
+---- write_creates_but_cannot_clobber_unread_file stdout ----
+
+thread 'write_creates_but_cannot_clobber_unread_file' (154940) panicked at crates/hs-loop/tests/dsh_mutation_red.rs:5:174:
+called `Result::unwrap()` on an `Err` value: "not implemented"
+
+
+failures:
+    edit_restores_crlf_and_deletes_literal
+    edit_unique_all_and_noop_errors
+    mode_preserved_and_symlink_escape_denied
+    read_then_write_and_stale_guards
+    write_creates_but_cannot_clobber_unread_file
+
+test result: FAILED. 2 passed; 5 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p hs-loop --test dsh_mutation_red`

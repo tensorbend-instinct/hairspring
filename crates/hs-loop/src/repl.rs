@@ -637,7 +637,7 @@ pub fn load(
         let mut inner =
             InnerLoop::new(kernel, log_root, feedback, max_steps.unwrap_or(crate::DEFAULT_MISSION_MAX_STEPS))?;
         Self::apply_config_caps(&mut inner, config, max_steps);
-        inner.set_answer_root(std::env::var("HS_PROJECT_ROOT").ok().filter(|v| !v.is_empty()).and_then(|v| std::fs::canonicalize(v).ok()));
+        inner.set_answer_root(Some(resolve_work_dir(log_root)));
         // Eric 2026-09-12 (live mission c91e8de3): user-facing budgets
         // bind REAL provider-reported dollars - his $40 cap killed at
         // $3.44 billed because the guard read the list-rate counter.
@@ -673,6 +673,11 @@ pub fn load(
             crate::toolschema::skill_list_tool(),
             crate::toolschema::skill_view_tool(),
         ]);
+        // Exact dsh file contracts backed by session-owned native execution.
+        for name in ["read","write","edit"] {
+            let t=crate::dshtools::schema(name).expect("captured dsh file schema");
+            offer_unique(&mut native_tools,serde_json::json!({"type":"function","function":{"name":name,"description":t["description"],"parameters":t["input_schema"]}}));
+        }
         // Persist after every interactive extension so the audit equals delivery.
         std::fs::write(log_root.join("tools.json"), serde_json::to_string_pretty(&native_tools).expect("tools serialize")).expect("tools.json");
         inner.set_tools(serde_json::Value::Array(native_tools));
@@ -780,7 +785,7 @@ pub fn load(
             max_steps.unwrap_or(crate::DEFAULT_MISSION_MAX_STEPS),
         )?;
         Self::apply_config_caps(&mut inner, config, max_steps);
-        inner.set_answer_root(std::env::var("HS_PROJECT_ROOT").ok().filter(|v| !v.is_empty()).and_then(|v| std::fs::canonicalize(v).ok()));
+        inner.set_answer_root(Some(resolve_work_dir(log_root)));
         // Eric 2026-09-12 (live mission c91e8de3): user-facing budgets
         // bind REAL provider-reported dollars - his $40 cap killed at
         // $3.44 billed because the guard read the list-rate counter.
@@ -816,6 +821,11 @@ pub fn load(
             crate::toolschema::skill_list_tool(),
             crate::toolschema::skill_view_tool(),
         ]);
+        // Exact dsh file contracts backed by session-owned native execution.
+        for name in ["read","write","edit"] {
+            let t=crate::dshtools::schema(name).expect("captured dsh file schema");
+            offer_unique(&mut native_tools,serde_json::json!({"type":"function","function":{"name":name,"description":t["description"],"parameters":t["input_schema"]}}));
+        }
         // Persist after every interactive extension so the audit equals delivery.
         std::fs::write(log_root.join("tools.json"), serde_json::to_string_pretty(&native_tools).expect("tools serialize")).expect("tools.json");
         inner.set_tools(serde_json::Value::Array(native_tools));

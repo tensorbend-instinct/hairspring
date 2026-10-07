@@ -158,6 +158,16 @@ impl Ledger {
         ));
 
         match plugin {
+            "read" => {
+                if let (Some(path),Some(lines))=(args["file_path"].as_str(),result["lines"].as_array()) {
+                    let content=lines.iter().filter_map(|l|l["text"].as_str()).collect::<Vec<_>>().join("\n");
+                    let (n,body)=head_tail(&collapse(&content),300,300);self.read_evidence.insert(path.to_string(),(n,body));
+                    if let (Some(lo),Some(hi))=(lines.first().and_then(|l|l["number"].as_u64()),lines.last().and_then(|l|l["number"].as_u64())){merge_range(self.files_read.entry(path.to_string()).or_default(),lo.min(u32::MAX as u64) as u32,hi.min(u32::MAX as u64) as u32);}
+                }
+            }
+            "write"|"edit" => {
+                if result.get("error").is_none() && result.get("$error").is_none() && result["path"].is_string(){if let Some(path)=args["file_path"].as_str(){self.edits.push((seq,path.to_string()));}}
+            }
             "repo.read" => {
                 if let Some(path) = args["path"].as_str() {
                     let start = args["start_line"].as_u64().unwrap_or(1) as u32;
