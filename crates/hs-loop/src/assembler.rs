@@ -191,6 +191,7 @@ pub fn assemble_messages(
                 } else {
                     "null".to_string()
                 };
+                if plugin=="exit_plan_mode"&&v["result"]["approved"]==true{content=crate::dshplan::render().into();}
                 if plugin=="skill"&&v["result"].get("error").is_none(){content=crate::dshskill::render(&v["result"]);}
                 if plugin=="todo_write"&&v["result"].get("error").is_none(){content=crate::dshtodo::render(&v["result"]);}
                 if matches!(plugin.as_str(),"bash"|"job_output"|"job_list"|"job_kill"){content=crate::dshjobs::render(&plugin,&v["result"]);}

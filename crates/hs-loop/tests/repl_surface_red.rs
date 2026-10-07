@@ -92,7 +92,7 @@ default = true
 /// registered in the kernel): swarm delegation, the world plane, and the
 /// memory plane (present when the session db opens, which a writable log
 /// root guarantees).
-const INTERNALS: [&str; 27] = [
+const INTERNALS: [&str; 28] = [
     "agent.spawn",
     "agent.spawn_poll",
     "agent.fork",
@@ -113,7 +113,7 @@ const INTERNALS: [&str; 27] = [
     "read",
     "write",
     "edit",
-    "glob", "grep", "todo_write", "create_goal", "get_goal", "update_goal", "skill",
+    "glob", "grep", "todo_write", "create_goal", "get_goal", "update_goal", "skill", "exit_plan_mode",
 ];
 
 #[test]

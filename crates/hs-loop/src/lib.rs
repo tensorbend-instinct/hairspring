@@ -212,6 +212,8 @@ pub struct InnerLoop {
     ledger: ledger::Ledger,
     todos: crate::dshtodo::TodoSession,
     session_goal: crate::dshgoal::GoalSession,
+    session_plan:crate::dshplan::PlanSession,
+    plan_reviewer:Option<Box<dyn FnMut(&serde_json::Value)->Result<serde_json::Value,String>+Send>>,
     goal_authority: crate::dshgoal::Authority,
     goal_turn_active: bool,
     admitted_goal_round: Option<serde_json::Value>,
@@ -557,6 +559,8 @@ impl InnerLoop {
             ledger: Default::default(),
             todos: Default::default(),
             session_goal: Default::default(),
+            session_plan:Default::default(),
+            plan_reviewer:None,
             goal_authority: crate::dshgoal::Authority::External,
             goal_turn_active: false,
             admitted_goal_round: None,
@@ -628,6 +632,7 @@ impl InnerLoop {
         // with the display.
         let mut restored_goal_events=vec![];
         let mut restored_skill_history=false;
+        let mut restored_plan=false;
         let mut distill_floor = 0;
         let mut restored_cost = 0u64;
         let mut restored_conservative = 0u64;
@@ -639,6 +644,7 @@ impl InnerLoop {
                         let b=r.resolve_payload(e)?;
                         let v:serde_json::Value=serde_json::from_slice(&b).unwrap_or_default();
                         if v["record_type"]=="session_goal/change" {restored_goal_events.push(v);}
+                        else if v["record_type"]=="plan/mode"{restored_plan=v["active"].as_bool().ok_or_else(||LoopError::Visibility("invalid plan mode snapshot".into()))?;}
                     }
                     if e.kind != hs_core::EventKind::ModelCall && e.kind != hs_core::EventKind::ToolCall {
                         continue;
@@ -686,6 +692,8 @@ impl InnerLoop {
             ledger: Default::default(),
             todos: Default::default(),
             session_goal: crate::dshgoal::GoalSession::fold(&restored_goal_events).map_err(LoopError::Visibility)?,
+            session_plan:crate::dshplan::PlanSession{active:restored_plan,..Default::default()},
+            plan_reviewer:None,
             goal_authority: crate::dshgoal::Authority::External,
             goal_turn_active: false,
             admitted_goal_round: None,
@@ -1209,6 +1217,11 @@ impl InnerLoop {
         self.answer_root = root;
     }
 
+    pub fn set_plan_guidance(&mut self,section:String)->Result<(),LoopError>{if section.trim().is_empty(){return Err(LoopError::Visibility("PlanModeConfig needs a non-empty section".into()))}self.session_plan.section=section;Ok(())}
+    pub fn set_plan_reviewer(&mut self,reviewer:Box<dyn FnMut(&serde_json::Value)->Result<serde_json::Value,String>+Send>){self.plan_reviewer=Some(reviewer);}
+    pub fn select_plan_mode(&mut self,active:bool)->Result<&'static str,LoopError>{let old=self.session_plan.clone();let outcome=self.session_plan.select(active,self.goal_turn_active);if outcome=="committed"{if let Err(e)=self.record_plan_mode(){self.session_plan=old;return Err(e)}}Ok(outcome)}
+    pub fn plan_view(&self)->serde_json::Value{serde_json::json!({"active":self.session_plan.active,"pending":self.session_plan.pending.is_some_and(|p|p!=self.session_plan.active)})}
+    fn record_plan_mode(&mut self)->Result<(),LoopError>{self.writer.append(EventBuilder::new(EventKind::Observation).payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({"record_type":"plan/mode","active":self.session_plan.active})).expect("plan serializes"))))?;self.writer.checkpoint()?;Ok(())}
     pub fn register_skill_provider(&mut self,scope:Option<&str>,provider:std::sync::Arc<dyn crate::dshskill::SkillProvider>)->Result<(),LoopError>{self.skill_registry.register_provider(scope,provider).map_err(LoopError::Visibility)}
     pub fn remove_skill_provider(&mut self,scope:Option<&str>,name:&str)->bool{self.skill_registry.remove_provider(scope,name)}
     pub fn set_skill_scope_chain(&mut self,chain:Vec<String>){self.skill_scope_chain=chain;}
@@ -1570,6 +1583,11 @@ impl InnerLoop {
     ) -> Result<ToolCallOutcome, KernelError> {
         if self.session_goal.wrapup(&self.goal_authority).is_some()&&!matches!(tool,"answer.submit"|"answer.write") {
             return Ok(ToolCallOutcome{call_id:uuid::Uuid::new_v4(),start_event_id:uuid::Uuid::nil(),resolved:None,output:serde_json::json!({"error":"goal round has ended; only closing answer submission is allowed"}),latency_ms:0})
+        }
+        if tool=="exit_plan_mode"{
+            let(call_id,start_event_id)=self.kernel.start_internal_tool(tool,args)?;let start=std::time::Instant::now();
+            let validation=self.session_plan.review(args,None);let result=if validation.as_ref().is_err_and(|e|e.starts_with("no user-questions channel")){if let Some(review)=self.plan_reviewer.as_mut(){match review(&crate::dshplan::question(args["plan"].as_str().unwrap_or(""),call_id)){Ok(answer)=>self.session_plan.review(args,Some(&answer)),Err(e)=>Err(e)}}else{validation}}else{validation};
+            let output=result.unwrap_or_else(|e|serde_json::json!({"error":e}));let out=ToolCallOutcome{call_id,start_event_id,resolved:None,output,latency_ms:start.elapsed().as_millis().min(u32::MAX as u128) as u32};self.kernel.end_internal_tool(tool,args,&out)?;return Ok(out)
         }
         if matches!(tool,"create_goal"|"get_goal"|"update_goal") {
             if !self.goal_turn_active {return Ok(ToolCallOutcome{call_id:uuid::Uuid::new_v4(),start_event_id:uuid::Uuid::nil(),resolved:None,output:serde_json::json!({"error":"goal tools require an open model turn"}),latency_ms:0})}
@@ -2320,10 +2338,12 @@ impl InnerLoop {
                                                         // monotonically and no prior message is ever rewritten between
                                                         // steps (pre-migration the mutating LEDGER sat BEFORE the
                                                         // transcript, busting the cache for the whole history).
+            let before=self.session_plan.clone();if self.session_plan.boundary().is_some(){if let Err(error)=self.record_plan_mode(){self.session_plan=before;return Err(error)}}
             let mut messages: Vec<serde_json::Value> = vec![serde_json::json!({
                 "role": "user",
                 "content": crate::msgfmt::mission_first_message(&prompt),
             })];
+            if self.session_plan.active&&!self.session_plan.section.is_empty(){messages.push(serde_json::json!({"role":"user","content":self.session_plan.section}));}
             if let Some(root)=self.answer_root.as_ref(){let _=root;match self.skill_registry.snapshot_scoped(&self.skill_roots,&self.skill_scope_chain){Ok((_entries,false))=>{if let Ok(r)=hs_log::StreamReader::open(&self.log_root,self.stream_id){if let Ok(es)=r.events(){for e in es.iter().rev(){if e.kind!=EventKind::Observation{continue}if let Ok(b)=r.resolve_payload(e){if let Ok(v)=serde_json::from_slice::<serde_json::Value>(&b){if v["record_type"]=="skill/catalog"{if let Some(text)=v["text"].as_str(){messages.push(serde_json::json!({"role":"user","content":text}));break}}}}}}}},Ok((entries,true))=>{let mut previous=None;let mut previous_text=None;if let Ok(r)=hs_log::StreamReader::open(&self.log_root,self.stream_id){if let Ok(events)=r.events(){for e in events.iter().rev(){if e.kind!=EventKind::Observation{continue}if let Ok(b)=r.resolve_payload(e){if let Ok(v)=serde_json::from_slice::<serde_json::Value>(&b){if v["record_type"]=="skill/catalog"{previous=Some(v["entries"].clone());previous_text=v["text"].as_str().map(str::to_owned);break}}}}}}if previous.is_some()||entries.as_array().is_some_and(|v|!v.is_empty()){let changed=previous.as_ref()!=Some(&entries);let text=if !changed{previous_text.unwrap_or_else(||crate::dshskill::catalog_text(&entries,false))}else{crate::dshskill::catalog_text(&entries,previous.is_some())};if changed{self.writer.append(EventBuilder::new(EventKind::Observation).payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({"record_type":"skill/catalog","entries":entries,"text":text})).expect("catalog serializes"))))?;}messages.push(serde_json::json!({"role":"user","content":text}));}},Err(error)=>return Err(LoopError::Visibility(error))}}
             // Replay durable direct invocations as user content, never as a
             // fake model-issued skill tool call or mutable filesystem reread.
@@ -3694,3 +3714,5 @@ pub mod dshtodo;
 
 pub mod dshgoal;
 pub mod dshskill;
+
+pub mod dshplan;

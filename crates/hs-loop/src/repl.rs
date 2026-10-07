@@ -677,7 +677,7 @@ pub fn load(
             crate::toolschema::skill_view_tool(),
         ]);
         // Exact dsh file contracts backed by session-owned native execution.
-        for name in ["read","write","edit","bash","job_list","job_output","job_kill","glob","grep","todo_write","create_goal","get_goal","update_goal","skill"] {
+        for name in ["read","write","edit","bash","job_list","job_output","job_kill","glob","grep","todo_write","create_goal","get_goal","update_goal","skill","exit_plan_mode"] {
             let t=crate::dshtools::schema(name).expect("captured dsh file schema");
             offer_unique(&mut native_tools,serde_json::json!({"type":"function","function":{"name":name,"description":t["description"],"parameters":t["input_schema"]}}));
         }
@@ -826,7 +826,7 @@ pub fn load(
             crate::toolschema::skill_view_tool(),
         ]);
         // Exact dsh file contracts backed by session-owned native execution.
-        for name in ["read","write","edit","bash","job_list","job_output","job_kill","glob","grep","todo_write","create_goal","get_goal","update_goal","skill"] {
+        for name in ["read","write","edit","bash","job_list","job_output","job_kill","glob","grep","todo_write","create_goal","get_goal","update_goal","skill","exit_plan_mode"] {
             let t=crate::dshtools::schema(name).expect("captured dsh file schema");
             offer_unique(&mut native_tools,serde_json::json!({"type":"function","function":{"name":name,"description":t["description"],"parameters":t["input_schema"]}}));
         }
