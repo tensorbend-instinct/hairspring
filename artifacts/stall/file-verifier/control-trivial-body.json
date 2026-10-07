@@ -1,0 +1,1 @@
+{"model": "deepseek-flash", "max_tokens": 1, "stream": true, "messages": [{"role": "user", "content": "Reply OK"}]}

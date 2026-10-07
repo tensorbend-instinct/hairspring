@@ -1,0 +1,11 @@
+{
+  "samples": 305,
+  "max_gap_seconds": 1.0465179179991537,
+  "last_sample": {
+    "wall": 1791335616.540511,
+    "monotonic": 5483.25810796
+  },
+  "stuck_pid": 162548,
+  "stuck_tid": 165708,
+  "socket_fd": 5
+}

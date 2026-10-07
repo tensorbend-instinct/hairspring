@@ -1,0 +1,28 @@
+{
+  "original_call": "f998f6b5-2d95-44ce-a601-3f87f33b9485",
+  "original_event_bytes": 3839,
+  "original_prompt_bytes": 3578,
+  "control_http_body_bytes": 4749,
+  "stream_enabled_source_verified": true,
+  "original_http_request_id": null,
+  "original_sse_frames": "not observable before capture",
+  "controls": {
+    "identical": {
+      "http": 200,
+      "ttfb": 0.072338,
+      "total": 12.255163,
+      "trace": "77d7552cec37f75be7d15c8e619b3d70",
+      "http_version": 2
+    },
+    "trivial": {
+      "http": 200,
+      "ttfb": 0.083392,
+      "total": 0.862706,
+      "trace": "b36054f7fcfe1a8b28624ed2e1c0da5a",
+      "http_version": 2
+    }
+  },
+  "root_bug": "stream waits for HTTP EOF instead of Messages message_stop",
+  "root_proof": "hermetic chunked server keeps HTTP open after message_stop, RED then GREEN",
+  "original_bug_attribution": "partial: original message_stop not captured"
+}

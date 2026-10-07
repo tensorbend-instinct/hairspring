@@ -1,0 +1,22 @@
+[
+  {
+    "call_id": "3f3a80df-cbfa-4fa9-bc59-105e93ab036b",
+    "payload_bytes": 1377,
+    "method": "model.call"
+  },
+  {
+    "call_id": "012eb719-a760-4e5a-a99e-aa2a71641c52",
+    "payload_bytes": 1706,
+    "method": "model.call"
+  },
+  {
+    "call_id": "f23e7e0b-4950-4ec8-8353-48dbba81cff8",
+    "payload_bytes": 2031,
+    "method": "model.call"
+  },
+  {
+    "call_id": "4db7eb08-d724-468e-94e9-5817585b73ae",
+    "payload_bytes": 2801,
+    "method": "model.call"
+  }
+]

@@ -1,0 +1,15 @@
+HTTP/2 200 
+content-type: text/event-stream; charset=utf-8
+date: Wed, 07 Oct 2026 01:10:59 GMT
+x-content-type-options: nosniff
+server: elb
+cache-control: no-cache
+vary: origin, access-control-request-method, access-control-request-headers
+access-control-allow-credentials: true
+x-ds-trace-id: b36054f7fcfe1a8b28624ed2e1c0da5a
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+x-cache: Miss from cloudfront
+via: 1.1 2a44ef7b9d28e74c78ffadeedcbb887c.cloudfront.net (CloudFront)
+x-amz-cf-pop: SEA73-P2
+x-amz-cf-id: VHOQv_CS8VAb8TsGI-kIP59xYm3dETi7uxHbwY2gir1j20TwmkltvA==
+
