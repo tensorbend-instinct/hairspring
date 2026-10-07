@@ -913,7 +913,8 @@ pub fn handle_key(state: &mut TuiState, key: ratatui::crossterm::event::KeyEvent
             // accepts the command into the buffer in canonical
             // spelling; the exact name then dispatches below.
             // Arg-taking commands stop at the buffer for the argument.
-            if let Some(p) = &state.palette {
+            let direct_skill={let t=state.editor.text();crate::dshskill::starts_user_gesture(&t,&state.user_skill_names)&&t.trim().strip_prefix('/').and_then(|r|r.split_whitespace().next()).is_some_and(|word|command_lookup(word).is_none())};
+            if !direct_skill && let Some(p) = &state.palette {
                 if !p.matches.is_empty() {
                     let cmd = p.matches[p.selected.min(p.matches.len() - 1)];
                     let text = state.editor.text().trim().to_string();
@@ -940,6 +941,7 @@ pub fn handle_key(state: &mut TuiState, key: ratatui::crossterm::event::KeyEvent
                         Some(rest) => {
                             let word = rest.split_whitespace().next().unwrap_or("");
                             match command_lookup(word) {
+                                None if crate::dshskill::starts_user_gesture(t,&state.user_skill_names) => KeyAction::Submit(text),
                                 None if word == "cancel" => {
                                     // No palette command, but the
                                     // add-provider wizard's escape hatch:
@@ -1587,6 +1589,7 @@ pub struct TuiState {
     pub help_overlay: bool,
     /// Live command palette, open while the buffer starts with a sigil.
     pub palette: Option<PaletteState>,
+    pub user_skill_names: Vec<String>,
     /// In-flight streaming answer text; committed per line (M5).
     pub answer_inflight: String,
     /// Delegation graph for this session (M6).
@@ -1683,6 +1686,7 @@ impl Default for TuiState {
             picker: None,
             help_overlay: false,
             palette: None,
+            user_skill_names:vec![],
             answer_inflight: String::new(),
             agents: DelegationGraph::new(),
             agents_panel: false,

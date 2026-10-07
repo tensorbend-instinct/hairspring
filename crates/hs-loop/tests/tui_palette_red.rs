@@ -163,3 +163,5 @@ fn p10_bin_commands_passthrough() {
         other => panic!("status reaches the bin: {other:?}"),
     }
 }
+#[test]fn registered_user_skill_submits_but_unknown_and_colon_do_not(){let mut st=TuiState::default();st.user_skill_names=vec!["parser".into()];type_str(&mut st,"/parser fix fixture");assert_eq!(tui::handle_key(&mut st,enter()),KeyAction::Submit("/parser fix fixture".into()));type_str(&mut st,"/missing");assert_eq!(tui::handle_key(&mut st,enter()),KeyAction::Continue);type_str(&mut st,":parser");assert_eq!(tui::handle_key(&mut st,enter()),KeyAction::Continue);}
+#[test]fn exact_user_skill_name_beats_command_prefix_completion_but_not_exact_command(){let mut st=TuiState::default();st.user_skill_names=vec!["hist".into(),"help".into()];type_str(&mut st,"/hist");assert_eq!(tui::handle_key(&mut st,enter()),KeyAction::Submit("/hist".into()));type_str(&mut st,"/help");assert_eq!(tui::handle_key(&mut st,enter()),KeyAction::Continue);assert!(st.help_overlay);}

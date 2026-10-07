@@ -20,3 +20,6 @@ impl RootConfig{pub fn roots(&self,project:Option<&Path>)->Vec<SkillRoot>{let ho
 /// not punctuation or path separators, and first-seen order is preserved.
 pub fn gestures(text:&str)->Vec<String>{let mut names=vec![];for token in text.split_whitespace(){if let Some(name)=token.strip_prefix('/') {if valid_name(name)&&!names.iter().any(|s|s==name){names.push(name.to_owned());}}}names}
 pub fn direct(roots:&[SkillRoot],text:&str)->Result<Vec<Value>,String>{let names=gestures(text);if names.is_empty(){return Ok(vec![])}let entries=discover(roots)?;Ok(names.iter().filter_map(|name|entries.iter().find(|e|&e.name==name&&e.user)).map(|e|json!({"name":e.name,"provider":"filesystem","resourceBase":{"kind":"directory","path":e.base},"content":e.content})).collect())}
+
+pub fn user_names(roots:&[SkillRoot])->Result<Vec<String>,String>{Ok(discover(roots)?.into_iter().filter(|e|e.user).map(|e|e.name).collect())}
+pub fn starts_user_gesture(text:&str,names:&[String])->bool{text.trim().split_whitespace().next().and_then(|t|t.strip_prefix('/')).is_some_and(|name|valid_name(name)&&names.iter().any(|n|n==name))}

@@ -1203,6 +1203,7 @@ impl InnerLoop {
         self.answer_root = root;
     }
 
+    pub fn user_skill_names(&self)->Result<Vec<String>,LoopError>{crate::dshskill::user_names(&self.skill_roots).map_err(LoopError::Visibility)}
     pub fn set_skill_config(&mut self,config:crate::dshskill::RootConfig){self.skill_roots=config.roots(self.answer_root.as_deref());self.skill_config=config;}
     #[must_use]
     pub fn work_dir(&self) -> std::path::PathBuf {

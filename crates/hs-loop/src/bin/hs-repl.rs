@@ -215,6 +215,7 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
         JobFollowupStarted(String),
         CapsInfo(String),
         CapsSet(String),
+        SkillNames(Vec<String>),
     }
 
     enum UiCmd {
@@ -241,6 +242,7 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
     let theme = Theme::from_env();
     let mut st = TuiState {
         theme: theme.clone(),
+        user_skill_names:session.user_skill_names()?,
         cwd_label: std::env::current_dir()
             .map(|p| p.display().to_string())
             .unwrap_or_default(),
@@ -277,7 +279,9 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
     let wmax = opts.max_steps;
     std::thread::spawn(move || {
         let mut session = session;
+        let mut advertised_names=session.user_skill_names().unwrap_or_default();
         loop {
+            if let Ok(names)=session.user_skill_names(){if names!=advertised_names{advertised_names=names.clone();let _=tx.send(TuiMsg::SkillNames(names));}}
             let cmd=match goal_rx.recv_timeout(Duration::from_millis(100)){
                 Ok(cmd)=>cmd,
                 Err(mpsc::RecvTimeoutError::Disconnected)=>break,
@@ -286,6 +290,7 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
             match cmd {
                 UiCmd::GoalControl(input)=>{if let Err(e)=session.host_goal_command(&input){let _=tx.send(TuiMsg::Done(Err(format!("goal control failed: {e}"))));}},
                 UiCmd::Goal(goal) => {
+                    if goal.starts_with('/')&&matches!(session.classify_input(&goal),Ok(hs_loop::repl::ReplCommand::Unknown(_))|Err(_)){let _=tx.send(TuiMsg::Done(Err("skill is unknown or no longer available for user invocation".into())));continue;}
                     let r = session
                         .run_goal(&goal)
                         .map(|m| (m, session.total_cost_micros()))
@@ -416,6 +421,7 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
         terminal.draw(|f| tui::render_skeleton(f, &st))?;
         while let Ok(msg) = rx.try_recv() {
             match msg {
+                TuiMsg::SkillNames(names)=>st.user_skill_names=names,
                 TuiMsg::Ui(ev) => st.on_ui_event(&ev),
                 TuiMsg::Delta(d) => st.on_answer_delta(&d),
                 TuiMsg::Done(r) => {
@@ -761,7 +767,7 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
                                     }
                                 }
                             } else if t=="/goal"||t.starts_with("/goal "){if running{st.push_transcript_line("Goal controls require the idle session; interrupt the current turn first.");}else{let _=goal_tx.send(UiCmd::GoalControl(t[5..].trim().to_string()));}}
-                            else if let Some(goal) = t.strip_prefix('/') {
+                            else if let Some(goal) = t.strip_prefix('/').filter(|_|!hs_loop::dshskill::starts_user_gesture(&t,&st.user_skill_names)) {
                                 st.push_transcript_line(&format!(
                                     "unknown command /{goal} (/help lists commands)"
                                 ));

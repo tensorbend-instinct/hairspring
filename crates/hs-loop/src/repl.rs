@@ -944,6 +944,8 @@ pub fn load(
 
     /// Run one goal end-to-end: mission id names the work dir, the goal
     /// text itself is the prompt the model sees.
+    pub fn user_skill_names(&self)->Result<Vec<String>,LoopError>{self.inner.user_skill_names()}
+    pub fn classify_input(&self,line:&str)->Result<ReplCommand,LoopError>{let command=parse_command(line);if matches!(command,ReplCommand::Unknown(_))&&crate::dshskill::starts_user_gesture(line,&self.user_skill_names()?){Ok(ReplCommand::Goal(line.trim().to_owned()))}else{Ok(command)}}
     pub fn run_goal(&mut self,goal:&str)->Result<MissionResult,LoopError>{self.run_goal_sourced(goal,!self.inner.is_child_session())}
     pub fn run_external_goal(&mut self,goal:&str)->Result<MissionResult,LoopError>{self.run_goal_sourced(goal,false)}
     fn run_goal_sourced(&mut self, goal: &str, human:bool) -> Result<MissionResult, LoopError> {
@@ -1919,7 +1921,7 @@ pub fn run_interactive<E: Editor + ?Sized>(
             continue;
         }
         editor.add_history(&line);
-        match parse_command(&line) {
+        match session.classify_input(&line)? {
             ReplCommand::Quit => break,
             ReplCommand::GoalControl(input)=>{match session.host_goal_command(&input){Ok(v)=>eprintln!("{}",crate::dshgoal::card_text(&v)),Err(e)=>eprintln!("goal control failed: {e}")}},
             ReplCommand::Help => eprintln!("{REPL_HELP}"),
