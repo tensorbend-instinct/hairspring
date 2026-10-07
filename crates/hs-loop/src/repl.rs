@@ -967,7 +967,7 @@ pub fn load(
         let hs_dir = self.work_dir.join(".hs");
         std::fs::create_dir_all(&hs_dir)?;
         std::fs::write(hs_dir.join("instruction.txt"), &prompt)?;
-        let r = if human {self.inner.run_root_human_mission(&id,&prompt)}else{self.inner.run_mission_resuming(&id, &prompt)}?;
+        let r = if human {self.inner.run_root_human_mission_with_input(&id,&prompt,goal)}else{self.inner.run_mission_resuming(&id, &prompt)}?;
         // Tag the session with the project root it ran in (workspace
         // switcher: /sessions groups by this).
         let ws_root = crate::projectroot::project_root().unwrap_or_else(|| self.work_dir.clone());

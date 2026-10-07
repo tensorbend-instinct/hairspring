@@ -2091,9 +2091,12 @@ impl InnerLoop {
     /// Benchmark binaries keep `run_mission_full`'s fresh-start law.
     /// Root UI input is host-attested. External followups use the separate entry.
     pub fn run_root_human_mission(&mut self,id:&str,prompt:&str)->Result<MissionResult,LoopError>{
+        self.run_root_human_mission_with_input(id,prompt,prompt)
+    }
+    pub fn run_root_human_mission_with_input(&mut self,id:&str,prompt:&str,input:&str)->Result<MissionResult,LoopError>{
         if self.swarm_depth!=0{return Err(LoopError::Visibility("root-human mission requested on child".into()))}
         self.goal_authority=crate::dshgoal::Authority::HumanRoot;
-        let result=self.run_mission_inner(id,prompt,true);
+        let result=self.run_mission_inner_sourced(id,prompt,true,Some(input));
         self.goal_authority=crate::dshgoal::Authority::External;
         result
     }
@@ -2106,9 +2109,12 @@ impl InnerLoop {
     }
 
     fn run_mission_inner(&mut self,id:&str,prompt:&str,resume:bool)->Result<MissionResult,LoopError>{
+        self.run_mission_inner_sourced(id,prompt,resume,None)
+    }
+    fn run_mission_inner_sourced(&mut self,id:&str,prompt:&str,resume:bool,input:Option<&str>)->Result<MissionResult,LoopError>{
         self.admitted_goal_round=None;
         self.goal_turn_active=true;
-        let result=self.run_mission_work(id,prompt,resume);
+        let result=self.run_mission_work(id,prompt,resume,input);
         self.goal_turn_active=false;
         if result.as_ref().map_or(true,|r|matches!(r.outcome.as_str(),"harness_error"|"interrupted"|"budget_killed"|"wall_killed")){self.session_goal.disarm();}
         result
@@ -2118,6 +2124,7 @@ impl InnerLoop {
         mission_id: &str,
         prompt: &str,
         resume: bool,
+        direct_input: Option<&str>,
     ) -> Result<MissionResult, LoopError> {
         let mission = mission_id;
         // Deep-pass hostile review (2026-09-09): the mission id names the
@@ -2149,6 +2156,14 @@ impl InnerLoop {
             })).expect("json serializes"))))?;
         self.kernel.set_trace_parent(trace_root.event_id);
         self.writer.set_default_parent(Some(trace_root.event_id));
+        // This entry alone is host-attested direct user input. Automatic rounds,
+        // child missions and external followups must never manufacture gestures.
+        if let Some(input)=direct_input{
+            for value in crate::dshskill::direct(&self.skill_roots,input).map_err(LoopError::Visibility)?{
+                self.writer.append(EventBuilder::new(EventKind::Observation).payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({"record_type":"skill/invocation","mission":mission,"prompt":input,"source":{"kind":"skill-invocation","name":value["name"],"form":"instructions"},"value":value,"text":crate::dshskill::render(&value)})).expect("skill invocation serializes"))))?;
+            }
+        }
+
         self.kernel
             .set_tool_run_dir(Some(self.log_root.join("work").join(mission)));
         self.mission_started = Some(std::time::Instant::now());
@@ -2296,6 +2311,9 @@ impl InnerLoop {
                 "content": crate::msgfmt::mission_first_message(&prompt),
             })];
             if let Some(root)=self.answer_root.as_ref(){let _=root;match crate::dshskill::catalog(&self.skill_roots){Ok(entries)=>{let mut previous=None;let mut previous_text=None;if let Ok(r)=hs_log::StreamReader::open(&self.log_root,self.stream_id){if let Ok(events)=r.events(){for e in events.iter().rev(){if e.kind!=EventKind::Observation{continue}if let Ok(b)=r.resolve_payload(e){if let Ok(v)=serde_json::from_slice::<serde_json::Value>(&b){if v["record_type"]=="skill/catalog"{previous=Some(v["entries"].clone());previous_text=v["text"].as_str().map(str::to_owned);break}}}}}}if previous.is_some()||entries.as_array().is_some_and(|v|!v.is_empty()){let changed=previous.as_ref()!=Some(&entries);let text=if !changed{previous_text.unwrap_or_else(||crate::dshskill::catalog_text(&entries,false))}else{crate::dshskill::catalog_text(&entries,previous.is_some())};if changed{self.writer.append(EventBuilder::new(EventKind::Observation).payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({"record_type":"skill/catalog","entries":entries,"text":text})).expect("catalog serializes"))))?;}messages.push(serde_json::json!({"role":"user","content":text}));}},Err(error)=>return Err(LoopError::Visibility(error))}}
+            // Replay durable direct invocations as user content, never as a
+            // fake model-issued skill tool call or mutable filesystem reread.
+            if let Ok(r)=hs_log::StreamReader::open(&self.log_root,self.stream_id){if let Ok(es)=r.events(){for e in es{if e.kind!=EventKind::Observation{continue}if let Ok(b)=r.resolve_payload(&e){if let Ok(v)=serde_json::from_slice::<serde_json::Value>(&b){if v["record_type"]=="skill/invocation"&&v["source"]["kind"]=="skill-invocation"{if let Some(text)=v["text"].as_str(){messages.push(serde_json::json!({"role":"user","content":text}));}}}}}}}
             // Fix 4: budget visibility every step - "step N of MAX, T-minus
             // Xs, $Y of $Z spent" (ab2: the model could not pace itself
             // because it never saw a budget).

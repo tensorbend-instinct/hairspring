@@ -1,0 +1,5 @@
+# Direct user skill injection
+
+Direct host-attested input supports whitespace-boundary /name gestures, first-seen dedup, independent user-invocable/model-invocable policy, canonical full-content user injection, durable replay after resume and file removal. Original user text is separate from generated policy overlays, external followups and automatic rounds. Four semantic REDs: missing direct injection; relaxed YAML delimiters; repeated same-text new turn skipped; generated prompt overlay forged gesture. 17 skill, 5 session, 1 offered-surface, 3 REPL-surface focused tests green. Source parser accepts only exact --- lines (CRLF allowed), not ... or padded delimiters.
+
+Still partial: leading /name rejected by command palette/REPL before mission admission, historical catalog visibility/projection semantics, runtime provider/scoped registry, watch invalidation, bundled trust, configuration env details. Inline gesture in ordinary user goal reaches admission. No live mission or speed claim. No checker/critic/cap change. Native Tauri changes excluded.
