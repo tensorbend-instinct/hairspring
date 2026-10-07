@@ -1,0 +1,3 @@
+grep -q '^TIMEOUT_SECONDS = 30$' app/config.py
+grep -qi 'live service code is in app/' README.md
+grep -q '^TIMEOUT_SECONDS = 90$' legacy/config.py

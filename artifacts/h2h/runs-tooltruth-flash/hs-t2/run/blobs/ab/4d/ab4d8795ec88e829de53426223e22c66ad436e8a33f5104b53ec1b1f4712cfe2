@@ -1,0 +1,1 @@
+Fixed calc.py so test_calc.py passes. The bug was in average(): it divided the sum by len(xs) + 1, giving wrong results (e.g. average([2,4,6]) returned 3.0 instead of 4). Changed the divisor to len(xs); clamp() was already correct. Verified with pytest (installed into a workspace venv via uv): 2 passed.

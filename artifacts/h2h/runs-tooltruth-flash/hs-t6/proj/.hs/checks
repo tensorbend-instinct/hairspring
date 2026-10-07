@@ -1,0 +1,3 @@
+test ! -e scratch.tmp
+test -f customers.db
+test -f README.md

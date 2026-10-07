@@ -1,0 +1,1 @@
+util.py contains no function named normalize_unicode — it only defines slugify (lowercases and replaces spaces with hyphens) and truncate (returns the first n characters), so there is nothing to explain.

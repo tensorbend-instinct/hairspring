@@ -302,6 +302,7 @@ pub fn schema_for(name: &str, edit_path: &str) -> Option<Value> {
     let authored = builtin_tools_with_edit(edit_path)
         .into_iter()
         .chain(tb_tools())
+        .chain([agent_spawn_tool(), agent_spawn_poll_tool(), agent_fork_tool(), agent_list_tool(), agent_send_tool(), agent_interrupt_tool(), memory_recall_tool(), world_propose_tool(), world_observe_tool(), world_install_tool(), world_tick_tool(), skill_list_tool(), skill_view_tool()])
         .collect::<Vec<_>>();
     if name == "answer.submit" {
         // Mode-correct schema (live finding, GLM-5.3): the plugin requires

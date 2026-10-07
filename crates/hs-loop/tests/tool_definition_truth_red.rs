@@ -19,3 +19,12 @@ fn submit_explains_that_summary_is_the_final_artifact() {
  assert!(p.contains("one sentence"));
  assert!(p.contains("Do not append verification commentary"));
 }
+
+#[test]
+fn registry_delegation_keeps_authored_parameters() {
+ for (name,required) in [("agent.spawn","mission"),("agent.fork","mission"),("agent.send","child"),("agent.interrupt","child"),("agent.spawn_poll","child_stream_id")]{
+  let s=hs_loop::toolschema::schemas_for_registry(&[name.to_string()],&[],"applypatch");
+  assert!(s[0]["function"]["parameters"]["properties"][required].is_object(),"{name} lost {required}: {s:?}");
+  assert!(!s[0]["function"]["description"].as_str().unwrap().contains("Registered plugin"));
+ }
+}

@@ -1,0 +1,1 @@
+30 seconds, from app/config.py (TIMEOUT_SECONDS = 30). The legacy/config.py value of 90 is dead code.

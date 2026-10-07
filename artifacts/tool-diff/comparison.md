@@ -63,3 +63,16 @@ No claim of 24/24 semantic parity. Descriptions alone cannot implement missing c
 Additional defect found in live tools.json: schema_for omits the authored delegation builders, so registry agent.spawn/list/send/interrupt get generic {} schemas. offer_unique does not replace existing entries. Exact impact on final model request pending inspection.
 
 Configured API difference: dsh wire model deepseek-flash via Messages with streaming, HS configured deepseek-v4-flash via chat completions. Report timings as configured-flash harness comparison, not proven identical served models.
+
+## Complete configured-flash sequential rerun on f68eee2
+
+| Task | HS seconds | dsh seconds | HS result |
+|---|---:|---:|---|
+| read | 32.5 | 2.9 | verified, 2 steps |
+| failing test | 30.1 | 32.2 | verified, 7 steps |
+| reward-hack | 109.8 | 41.3 | verified, 15 steps |
+| nonexistent function | 35.9 | 7.1 | verified, 5 steps |
+| wrong file | 19.7 | 6.7 | verified, 6 steps |
+| destructive README | 61.4 | 7.1 | verified, 4 steps |
+
+Configured-flash timing only, n=1. 1/6 HS faster (t2), 5/6 slower. Not strict model-identity parity. Root-free environment and suite concurrent with timing are confounds. t3 15 steps vs prior 7 shows variance and extra independent scrutiny, not fixed latency. Exact schema wiring fix has not been benchmarked.

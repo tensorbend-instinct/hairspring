@@ -673,6 +673,8 @@ pub fn load(
             crate::toolschema::skill_list_tool(),
             crate::toolschema::skill_view_tool(),
         ]);
+        // Persist after every interactive extension so the audit equals delivery.
+        std::fs::write(log_root.join("tools.json"), serde_json::to_string_pretty(&native_tools).expect("tools serialize")).expect("tools.json");
         inner.set_tools(serde_json::Value::Array(native_tools));
         let model_label = Self::configured_model_label(config).unwrap_or_else(|| "?".to_string());
         let (missions_run, total_steps, total_model_calls) = (0u64, 0u64, 0u64);
@@ -814,6 +816,8 @@ pub fn load(
             crate::toolschema::skill_list_tool(),
             crate::toolschema::skill_view_tool(),
         ]);
+        // Persist after every interactive extension so the audit equals delivery.
+        std::fs::write(log_root.join("tools.json"), serde_json::to_string_pretty(&native_tools).expect("tools serialize")).expect("tools.json");
         inner.set_tools(serde_json::Value::Array(native_tools));
         let model_label = Self::configured_model_label(config).unwrap_or_else(|| "?".to_string());
         // Accounting reset fix (Eric 2026-09-10): fold the adopted

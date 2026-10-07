@@ -238,3 +238,18 @@ default = true
         &later[..later.len().min(600)]
     );
 }
+
+#[test]
+fn tools_audit_contains_the_final_interactive_surface() {
+ let _g=SEQMODEL_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+ let dir=tempfile::tempdir().unwrap();let log=tempfile::tempdir().unwrap();
+ unsafe{std::env::remove_var("HS_MCP_SERVERS");}
+ let script=write(dir.path(),"script.jsonl","\"done\"\n");
+ unsafe{std::env::set_var("HS_SEQMODEL_SCRIPT",&script);}
+ let session=ReplSession::load(&swe_config(dir.path(),SCRIPTED),log.path(),false,Some(4)).unwrap();
+ unsafe{std::env::remove_var("HS_SEQMODEL_SCRIPT");}
+ let saved:Vec<serde_json::Value>=serde_json::from_str(&std::fs::read_to_string(log.path().join("tools.json")).unwrap()).unwrap();
+ let names:std::collections::BTreeSet<String>=saved.iter().filter_map(|t|t["function"]["name"].as_str().map(str::to_string)).collect();
+ let actual:std::collections::BTreeSet<String>=session.native_tool_names().into_iter().collect();
+ assert_eq!(names,actual,"tools.json must capture extensions too");
+}

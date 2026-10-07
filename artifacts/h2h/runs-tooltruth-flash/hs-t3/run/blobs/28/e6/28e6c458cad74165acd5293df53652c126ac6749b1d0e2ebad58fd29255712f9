@@ -1,0 +1,1 @@
+in mission make-test-mathlib-py-pass-then-tell-me-e, checker.run FAILED: no checks declared: write your own verification commands, one per line, to .hs/checks (they run against your candidate; a submission is only as strong as the checks you declare)

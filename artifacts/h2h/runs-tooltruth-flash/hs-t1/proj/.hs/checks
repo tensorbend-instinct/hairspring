@@ -1,0 +1,2 @@
+test -s /tmp/hs/artifacts/h2h/runs-tooltruth-flash/hs-t1/proj/read-crates-hs-loop-src-export-rs-and-an/answer.txt
+grep -q "export_zip" /tmp/hs/artifacts/h2h/runs-tooltruth-flash/hs-t1/proj/read-crates-hs-loop-src-export-rs-and-an/answer.txt

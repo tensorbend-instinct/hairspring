@@ -1,0 +1,1 @@
+cd /tmp/hs/artifacts/h2h/runs-tooltruth-flash/hs-t2/proj && .venv/bin/python -m pytest -q
