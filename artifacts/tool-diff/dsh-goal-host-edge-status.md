@@ -1,0 +1,9 @@
+# Host goal edge cases and replay normalization
+
+Three RED regressions pin dsh source semantics: /goal edit on a complete goal creates a new active revision-one identity; edit recognizes arbitrary whitespace including Unicode; restoring objectives and blocker fields rejects non-normalized values and invalid blocker codes. Implemented those semantics and normalized reported blocking reason before snapshot storage. A focused run exposed the existing host-control session test relying on another test having set its script environment; now that test sets its own script under its existing mutex.
+
+13 goal core, 4 session and 6 wrapup tests green. Actual binaries rebuilt before fullsuite. Native desktop main.rs/Cargo.lock remain excluded, missing glib. Still14 tools unfinished (3 goal partial+11 untouched), including busy competing-input cancellation/checkpoint/claimed-input preservation, teardown and source timestamps/projection. TTYidle,wider sandbox/profile, exact search budget,six-task speed/full desktop and provider billing remain. No paid run.
+
+Actual rebuilt PTY pixels inspected: first goal complete/disarmed revision2, /goal edit creates Revised objective active/armed revision1, then /goal pause disarms revision2. Fixture only, all missions remain not passed. Initial capture from outside repository root failed to locate the relative fixture script; ran from repo root as reproduction instructions require.
+
+First fullsuite found an additional real publication race in permission question output: reader sees q-file existence before bytes are written, parses empty JSON and fails (q1 EOF). Publish question using stock NamedTempFile, flush/sync and persist_noclobber, so readers see only complete questions. No approval weakening or timeout changes. Focused 2 permission tests green. First failed suite retained; final suite is the shipping check.

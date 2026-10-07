@@ -28,7 +28,7 @@ pub fn gate(tool: &str, args: &Value) -> Option<Value> {
     let n = (1..).find(|n| !dir.join(format!("q-{n}.json")).exists()).unwrap_or(1);
     let summary: String = args.to_string().chars().take(300).collect();
     let q = json!({"question": format!("Allow {tool}? {summary}"), "options": ["allow", "deny"]});
-    if std::fs::write(dir.join(format!("q-{n}.json")), q.to_string()).is_err() {
+    if publish_question(&dir,&format!("q-{n}.json"),&q).is_err() {
         return Some(json!({"error": "permission denied: cannot publish the approval question"}));
     }
     let secs: u64 = std::env::var("HS_ASK_TIMEOUT_SECS").ok().and_then(|v| v.parse().ok()).unwrap_or(600);
@@ -46,3 +46,5 @@ pub fn gate(tool: &str, args: &Value) -> Option<Value> {
     }
     Some(json!({"error": format!("permission denied: no answer within {secs}s for {tool}")}))
 }
+
+fn publish_question(dir:&std::path::Path,name:&str,value:&Value)->std::io::Result<()> {use std::io::Write;let mut tmp=tempfile::NamedTempFile::new_in(dir)?;tmp.write_all(value.to_string().as_bytes())?;tmp.flush()?;tmp.as_file().sync_all()?;tmp.persist_noclobber(dir.join(name)).map_err(|e|e.error)?;Ok(())}

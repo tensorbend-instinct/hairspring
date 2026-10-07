@@ -1,0 +1,36 @@
+┌ HAIRSPRING: Session · 5d9b74a3 ──────────────────────────────────────────────────────────────────────────────────────┐
+│▣ ▶ update_goal  {"action":"complete","goal_id":"goal-a47ff121-c44b-45ee-a9d2-aeaebc249530","revision":1}             │
+│Goal [complete; disarmed] Inspect parser and verify tests (round 1/256, revision 2)                                   │
+│  ✓ Completed in 0ms                                                                                                  │
+│── done: 3 steps, 3 calls, $0.0000 (steps_exhausted)                                                                  │
+│  · not passed (steps_exhausted) - re-run the same goal to continue this mission at step 4                            │
+│Goal [active; armed] Revised objective (round 0/256, revision 1)                                                      │
+│Goal [active; armed] Revised objective (round 1/256, revision 1)                                                      │
+│── done: 3 steps, 3 calls, $0.0000 (steps_exhausted)                                                                  │
+│  · not passed (steps_exhausted) - re-run the same goal to continue this mission at step 4                            │
+│Goal [active; armed] Revised objective (round 2/256, revision 1)                                                      │
+│── done: 3 steps, 3 calls, $0.0000 (steps_exhausted)                                                                  │
+│  · not passed (steps_exhausted) - re-run the same goal to continue this mission at step 4                            │
+│Goal [active; armed] Revised objective (round 3/256, revision 1)                                                      │
+│── done: 3 steps, 3 calls, $0.0000 (steps_exhausted)                                                                  │
+│  · not passed (steps_exhausted) - re-run the same goal to continue this mission at step 4                            │
+│Goal [active; armed] Revised objective (round 4/256, revision 1)                                                      │
+│── done: 3 steps, 3 calls, $0.0000 (steps_exhausted)                                                                  │
+│  · not passed (steps_exhausted) - re-run the same goal to continue this mission at step 4                            │
+│Goal [active; armed] Revised objective (round 5/256, revision 1)                                                      │
+│── done: 3 steps, 3 calls, $0.0000 (steps_exhausted)                                                                  │
+│  · not passed (steps_exhausted) - re-run the same goal to continue this mission at step 4                            │
+│Goal [active; armed] Revised objective (round 6/256, revision 1)                                                      │
+│── done: 3 steps, 3 calls, $0.0000 (steps_exhausted)                                                                  │
+│  · not passed (steps_exhausted) - re-run the same goal to continue this mission at step 4                            │
+│Goal [active; armed] Revised objective (round 7/256, revision 1)                                                      │
+│── done: 3 steps, 3 calls, $0.0000 (steps_exhausted)                                                                  │
+│  · not passed (steps_exhausted) - re-run the same goal to continue this mission at step 4                            │
+│Goal [paused; disarmed] Revised objective (round 7/256, revision 2)                                                   │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+                                                                                                                        
+  ┌ message or /command ─────────────────────────────────────────────────────────────────────────────────────────────┐  
+  │Agent  Message HAIRSPRING...                                                                                      │  
+  │wrapup-fixture  @ files  shift+enter new line  tab modes                                                          │  
+  └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘  
+/tmp/hs  wrapup-fixture  24 calls  shift+enter new line  tab modes                                                      
