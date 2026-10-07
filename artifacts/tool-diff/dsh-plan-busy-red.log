@@ -1,0 +1,423 @@
+warning: Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: workspace (manifest) generated 23 warnings
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-hashline` (manifest) generated 23 warnings
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-applypatch` (manifest) generated 23 warnings
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-goal` (manifest) generated 23 warnings
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-swarm` (manifest) generated 23 warnings
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-loop` (manifest) generated 23 warnings
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-bench` (manifest) generated 23 warnings
+warning: crates/hs-log/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-log` (manifest) generated 23 warnings
+warning: crates/hs-core/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-core` (manifest) generated 23 warnings
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-scorer` (manifest) generated 23 warnings
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-memory` (manifest) generated 23 warnings
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-selfmod` (manifest) generated 23 warnings
+warning: crates/hs-world/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-world` (manifest) generated 23 warnings
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-kernel` (manifest) generated 23 warnings
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-cli` (manifest) generated 23 warnings
+warning: unused attribute
+   --> crates/hs-loop/src/appback.rs:148:1
+    |
+148 | #[must_use]
+    | ^^^^^^^^^^^ help: remove this attribute
+    |
+note: attribute also specified here
+   --> crates/hs-loop/src/appback.rs:144:1
+    |
+144 | #[must_use]
+    | ^^^^^^^^^^^
+    = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+    = note: `#[warn(unused_attributes)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> crates/hs-loop/src/repexec.rs:239:10
+    |
+239 |         .fetch_update(
+    |          ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+239 -         .fetch_update(
+239 +         .try_update(
+    |
+
+warning: function `load` is never used
+  --> crates/hs-loop/src/dshskill.rs:64:4
+   |
+64 | fn load(e:&Entry)->Result<Value,String>{if let Some((p,c))=&e.lazy{let skill=p.get(c)?.ok_or_else(||format!("skill \"{}\" is unknown...
+   |    ^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `hs-loop` (lib) generated 3 warnings (run `cargo fix --lib -p hs-loop` to apply 2 suggestions)
+   Compiling hs-loop v0.1.0 (/tmp/hs/crates/hs-loop)
+error[E0599]: no method named `set_plan_inbox` found for struct `InnerLoop` in the current scope
+ --> crates/hs-loop/tests/dsh_plan_busy_red.rs:2:473
+  |
+2 | ...into()).unwrap();let inbox=d.path().join("plan-input");lp.set_plan_inbox(&inbox);std::fs::write(&inbox,json!({"stream_id":lp.strea...
+  |                                                              ^^^^^^^^^^^^^^
+  |
+help: there is a method `set_task_inbox` with a similar name
+  |
+2 - #[test]fn busy_host_selection_is_committed_before_next_actual_model_request(){let d=tempfile::tempdir().unwrap();let cfg=d.path().join("rig");std::fs::write(&cfg,format!("[[models]]\nname='seqmodel'\ncommand=['{}']\ndefault=true\n",env!("CARGO_BIN_EXE_hs-plugin-seqmodel"))).unwrap();let mut lp=hs_loop::InnerLoop::new(hs_kernel::Kernel::load(&cfg).unwrap(),d.path(),false,1).unwrap();lp.set_plan_guidance("Guide".into()).unwrap();let inbox=d.path().join("plan-input");lp.set_plan_inbox(&inbox);std::fs::write(&inbox,json!({"stream_id":lp.stream_id(),"active":true}).to_string()+"\n").unwrap();lp.run_mission("selected").unwrap();assert_eq!(lp.plan_view()["active"],true);assert_eq!(std::fs::read_to_string(&inbox).unwrap(),"");let r=hs_log::StreamReader::open(d.path(),lp.stream_id()).unwrap();let vals:Vec<serde_json::Value>=r.events().unwrap().iter().filter_map(|e|serde_json::from_slice(&r.resolve_payload(e).ok()?).ok()).collect();assert!(vals.iter().filter_map(|v|v["messages"].as_array()).any(|ms|ms.iter().any(|m|m["content"]=="Guide")));}
+2 + #[test]fn busy_host_selection_is_committed_before_next_actual_model_request(){let d=tempfile::tempdir().unwrap();let cfg=d.path().join("rig");std::fs::write(&cfg,format!("[[models]]\nname='seqmodel'\ncommand=['{}']\ndefault=true\n",env!("CARGO_BIN_EXE_hs-plugin-seqmodel"))).unwrap();let mut lp=hs_loop::InnerLoop::new(hs_kernel::Kernel::load(&cfg).unwrap(),d.path(),false,1).unwrap();lp.set_plan_guidance("Guide".into()).unwrap();let inbox=d.path().join("plan-input");lp.set_task_inbox(&inbox);std::fs::write(&inbox,json!({"stream_id":lp.stream_id(),"active":true}).to_string()+"\n").unwrap();lp.run_mission("selected").unwrap();assert_eq!(lp.plan_view()["active"],true);assert_eq!(std::fs::read_to_string(&inbox).unwrap(),"");let r=hs_log::StreamReader::open(d.path(),lp.stream_id()).unwrap();let vals:Vec<serde_json::Value>=r.events().unwrap().iter().filter_map(|e|serde_json::from_slice(&r.resolve_payload(e).ok()?).ok()).collect();assert!(vals.iter().filter_map(|v|v["messages"].as_array()).any(|ms|ms.iter().any(|m|m["content"]=="Guide")));}
+  |
+
+error[E0599]: no method named `set_plan_inbox` found for struct `InnerLoop` in the current scope
+ --> crates/hs-loop/tests/dsh_plan_busy_red.rs:3:470
+  |
+3 | ...into()).unwrap();let inbox=d.path().join("plan-input");lp.set_plan_inbox(&inbox);std::fs::write(&inbox,format!("{}\n{}\n",json!({"...
+  |                                                              ^^^^^^^^^^^^^^
+  |
+help: there is a method `set_task_inbox` with a similar name
+  |
+3 - #[test]fn stale_other_session_selection_and_malformed_fields_fail_closed(){let d=tempfile::tempdir().unwrap();let cfg=d.path().join("rig");std::fs::write(&cfg,format!("[[models]]\nname='seqmodel'\ncommand=['{}']\ndefault=true\n",env!("CARGO_BIN_EXE_hs-plugin-seqmodel"))).unwrap();let mut lp=hs_loop::InnerLoop::new(hs_kernel::Kernel::load(&cfg).unwrap(),d.path(),false,1).unwrap();lp.set_plan_guidance("Guide".into()).unwrap();let inbox=d.path().join("plan-input");lp.set_plan_inbox(&inbox);std::fs::write(&inbox,format!("{}\n{}\n",json!({"stream_id":uuid::Uuid::new_v4(),"active":true}),json!({"stream_id":lp.stream_id(),"active":"true"}))).unwrap();lp.run_mission("notselected").unwrap();assert_eq!(lp.plan_view()["active"],false);}
+3 + #[test]fn stale_other_session_selection_and_malformed_fields_fail_closed(){let d=tempfile::tempdir().unwrap();let cfg=d.path().join("rig");std::fs::write(&cfg,format!("[[models]]\nname='seqmodel'\ncommand=['{}']\ndefault=true\n",env!("CARGO_BIN_EXE_hs-plugin-seqmodel"))).unwrap();let mut lp=hs_loop::InnerLoop::new(hs_kernel::Kernel::load(&cfg).unwrap(),d.path(),false,1).unwrap();lp.set_plan_guidance("Guide".into()).unwrap();let inbox=d.path().join("plan-input");lp.set_task_inbox(&inbox);std::fs::write(&inbox,format!("{}\n{}\n",json!({"stream_id":uuid::Uuid::new_v4(),"active":true}),json!({"stream_id":lp.stream_id(),"active":"true"}))).unwrap();lp.run_mission("notselected").unwrap();assert_eq!(lp.plan_view()["active"],false);}
+  |
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `hs-loop` (test "dsh_plan_busy_red") due to 2 previous errors

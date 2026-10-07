@@ -272,6 +272,8 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
     }
     let mut session = session;
     attach_plan_review(&mut session,tx.clone());
+    let plan_inbox=opts.dir.join("plan-selections.jsonl");
+    session.set_plan_inbox(&plan_inbox);
     // Eric's five #4: the :models picker entries, captured before the
     // session moves to the worker thread.
     let mut model_entries: Vec<(String, bool)> = session.model_names();
@@ -371,6 +373,7 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
                             );
                             session = new_session;
                             attach_plan_review(&mut session,tx.clone());
+                            session.set_plan_inbox(&wdir.join("plan-selections.jsonl"));
                             // The resumed session needs the UI sink
                             // re-attached - it ships with none, so
                             // without this a resumed mission runs blind
@@ -816,7 +819,7 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
                                         st.push_transcript_line("(no mission has finished yet)")
                                     }
                                 }
-                            } else if t=="/plan"||t.starts_with("/plan "){if running{st.push_transcript_line("Plan controls require the idle session; interrupt the current turn first.");}else{let input=t[5..].trim().to_string();if !input.is_empty()&&input!="off"{running=true;st.push_goal_echo(&input);}let _=goal_tx.send(UiCmd::PlanControl(input));}}
+                            } else if t=="/plan"||t.starts_with("/plan "){if running{let input=t[5..].trim();let value=serde_json::json!({"stream_id":current_stream,"active":input!="off","message":if input.is_empty()||input=="off"{None}else{Some(input)}});match hs_loop::dshplan::append_selection(&plan_inbox,&value){Ok(())=>st.push_transcript_line(if input=="off"{"Leaving plan mode (applies from the next step)."}else{"Entering plan mode (applies from the next step). Use /plan off to leave."}),Err(e)=>st.push_transcript_line(&format!("plan selection undelivered: {e}"))}}else{let input=t[5..].trim().to_string();if !input.is_empty()&&input!="off"{running=true;st.push_goal_echo(&input);}let _=goal_tx.send(UiCmd::PlanControl(input));}}
                             else if t=="/goal"||t.starts_with("/goal "){if running{st.push_transcript_line("Goal controls require the idle session; interrupt the current turn first.");}else{let _=goal_tx.send(UiCmd::GoalControl(t[5..].trim().to_string()));}}
                             else if let Some(goal) = t.strip_prefix('/').filter(|_|!hs_loop::dshskill::starts_user_gesture(&t,&st.user_skill_names)) {
                                 st.push_transcript_line(&format!(

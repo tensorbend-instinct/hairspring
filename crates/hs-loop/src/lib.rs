@@ -213,6 +213,7 @@ pub struct InnerLoop {
     todos: crate::dshtodo::TodoSession,
     session_goal: crate::dshgoal::GoalSession,
     session_plan:crate::dshplan::PlanSession,
+    plan_inbox:Option<PathBuf>,
     plan_reviewer:Option<Box<dyn FnMut(&serde_json::Value)->Result<serde_json::Value,String>+Send>>,
     goal_authority: crate::dshgoal::Authority,
     goal_turn_active: bool,
@@ -561,6 +562,7 @@ impl InnerLoop {
             session_goal: Default::default(),
             session_plan:Default::default(),
             plan_reviewer:None,
+            plan_inbox:None,
             goal_authority: crate::dshgoal::Authority::External,
             goal_turn_active: false,
             admitted_goal_round: None,
@@ -698,6 +700,7 @@ impl InnerLoop {
             session_goal: crate::dshgoal::GoalSession::fold(&restored_goal_events).map_err(LoopError::Visibility)?,
             session_plan:crate::dshplan::PlanSession{active:restored_plan,last_header:restored_plan_header,pending_notice:restored_plan_notice,..Default::default()},
             plan_reviewer:None,
+            plan_inbox:None,
             goal_authority: crate::dshgoal::Authority::External,
             goal_turn_active: false,
             admitted_goal_round: None,
@@ -1222,6 +1225,21 @@ impl InnerLoop {
     }
 
     pub fn set_plan_guidance(&mut self,section:String)->Result<(),LoopError>{if section.trim().is_empty(){return Err(LoopError::Visibility("PlanModeConfig needs a non-empty section".into()))}self.session_plan.section=section;Ok(())}
+    pub fn set_plan_inbox(&mut self,path:&Path){self.plan_inbox=Some(path.into());}
+    fn drain_plan_selections(&mut self)->Result<(),LoopError>{
+        let Some(path)=self.plan_inbox.as_ref()else{return Ok(())};
+        let selections=crate::dshplan::take_selections(path).map_err(LoopError::Io)?;
+        for value in selections{
+            if value["stream_id"].as_str()!=Some(self.stream_id.to_string().as_str()){continue}
+            let Some(active)=value["active"].as_bool()else{continue};
+            if active&&self.session_plan.section.trim().is_empty(){continue}
+            self.select_plan_mode(active)?;
+            if let Some(text)=value["message"].as_str().filter(|s|!s.is_empty()){
+                self.writer.append(EventBuilder::new(EventKind::Observation).payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({"record_type":"plan/input","text":text})).unwrap())))?;
+            }
+        }
+        Ok(())
+    }
     pub fn clear_plan_reviewer(&mut self){self.plan_reviewer=None;}
     pub fn set_plan_reviewer(&mut self,reviewer:Box<dyn FnMut(&serde_json::Value)->Result<serde_json::Value,String>+Send>){self.plan_reviewer=Some(reviewer);}
     pub fn host_plan_command(&mut self,input:&str)->Result<serde_json::Value,LoopError>{
@@ -2356,6 +2374,7 @@ impl InnerLoop {
                                                         // monotonically and no prior message is ever rewritten between
                                                         // steps (pre-migration the mutating LEDGER sat BEFORE the
                                                         // transcript, busting the cache for the whole history).
+            self.drain_plan_selections()?;
             let before=self.session_plan.clone();if let Some(target)=self.session_plan.boundary(){if let Err(error)=self.record_plan_mode(){self.session_plan=before;return Err(error)}if before.narrate_pending{self.queue_plan_notice(target)?;}}
             let mut messages: Vec<serde_json::Value> = vec![serde_json::json!({
                 "role": "user",
@@ -2366,7 +2385,7 @@ impl InnerLoop {
             if let Some(root)=self.answer_root.as_ref(){let _=root;match self.skill_registry.snapshot_scoped(&self.skill_roots,&self.skill_scope_chain){Ok((_entries,false))=>{if let Ok(r)=hs_log::StreamReader::open(&self.log_root,self.stream_id){if let Ok(es)=r.events(){for e in es.iter().rev(){if e.kind!=EventKind::Observation{continue}if let Ok(b)=r.resolve_payload(e){if let Ok(v)=serde_json::from_slice::<serde_json::Value>(&b){if v["record_type"]=="skill/catalog"{if let Some(text)=v["text"].as_str(){messages.push(serde_json::json!({"role":"user","content":text}));break}}}}}}}},Ok((entries,true))=>{let mut previous=None;let mut previous_text=None;if let Ok(r)=hs_log::StreamReader::open(&self.log_root,self.stream_id){if let Ok(events)=r.events(){for e in events.iter().rev(){if e.kind!=EventKind::Observation{continue}if let Ok(b)=r.resolve_payload(e){if let Ok(v)=serde_json::from_slice::<serde_json::Value>(&b){if v["record_type"]=="skill/catalog"{previous=Some(v["entries"].clone());previous_text=v["text"].as_str().map(str::to_owned);break}}}}}}if previous.is_some()||entries.as_array().is_some_and(|v|!v.is_empty()){let changed=previous.as_ref()!=Some(&entries);let text=if !changed{previous_text.unwrap_or_else(||crate::dshskill::catalog_text(&entries,false))}else{crate::dshskill::catalog_text(&entries,previous.is_some())};if changed{self.writer.append(EventBuilder::new(EventKind::Observation).payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({"record_type":"skill/catalog","entries":entries,"text":text})).expect("catalog serializes"))))?;}messages.push(serde_json::json!({"role":"user","content":text}));}},Err(error)=>return Err(LoopError::Visibility(error))}}
             // Replay durable direct invocations as user content, never as a
             // fake model-issued skill tool call or mutable filesystem reread.
-            if let Ok(r)=hs_log::StreamReader::open(&self.log_root,self.stream_id){if let Ok(es)=r.events(){for e in es{if e.kind!=EventKind::Observation{continue}if let Ok(b)=r.resolve_payload(&e){if let Ok(v)=serde_json::from_slice::<serde_json::Value>(&b){if v["record_type"]=="skill/invocation"&&v["source"]["kind"]=="skill-invocation"{if let Some(text)=v["text"].as_str(){messages.push(serde_json::json!({"role":"user","content":text}));}}}}}}}
+            if let Ok(r)=hs_log::StreamReader::open(&self.log_root,self.stream_id){if let Ok(es)=r.events(){for e in es{if e.kind!=EventKind::Observation{continue}if let Ok(b)=r.resolve_payload(&e){if let Ok(v)=serde_json::from_slice::<serde_json::Value>(&b){if v["record_type"]=="plan/input"||(v["record_type"]=="skill/invocation"&&v["source"]["kind"]=="skill-invocation"){if let Some(text)=v["text"].as_str(){messages.push(serde_json::json!({"role":"user","content":text}));}}}}}}}
             // Fix 4: budget visibility every step - "step N of MAX, T-minus
             // Xs, $Y of $Z spent" (ab2: the model could not pace itself
             // because it never saw a budget).

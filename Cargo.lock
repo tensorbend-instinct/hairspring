@@ -976,6 +976,7 @@ dependencies = [
  "hs-selfmod",
  "hs-world",
  "ignore",
+ "libc",
  "ratatui",
  "rmcp",
  "rustyline",

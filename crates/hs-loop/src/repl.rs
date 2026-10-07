@@ -1030,6 +1030,7 @@ pub fn load(
         self.inner.snapshot_workdir()
     }
     /// `/compact`.
+    pub fn set_plan_inbox(&mut self,path:&Path){self.inner.set_plan_inbox(path);}
     pub fn host_plan_command(&mut self,input:&str)->Result<serde_json::Value,LoopError>{self.inner.host_plan_command(input)}
     pub fn set_plan_reviewer(&mut self,reviewer:Box<dyn FnMut(&serde_json::Value)->Result<serde_json::Value,String>+Send>){self.inner.set_plan_reviewer(reviewer);}
     pub fn select_plan_mode(&mut self,active:bool)->Result<&'static str,LoopError>{self.inner.select_plan_mode(active)}
