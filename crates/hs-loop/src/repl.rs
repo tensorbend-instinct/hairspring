@@ -1697,9 +1697,17 @@ impl rustyline::Helper for CommandCompleter {}
 pub trait Editor {
     /// One line of input, None on EOF/Ctrl-C.
     fn read_line(&mut self, prompt: &str) -> std::io::Result<Option<String>>;
+    /// Optional idle tick for an event-driven input surface.
+    fn poll_line(&mut self,prompt:&str)->std::io::Result<InputPoll>{self.read_line(prompt).map(|line|match line{Some(s)=>InputPoll::Line(s),None=>InputPoll::Eof})}
     fn add_history(&mut self, line: &str);
     fn history(&self) -> &[String];
 }
+
+pub enum InputPoll { Line(String), Idle, Eof }
+/// Pipe input is read independently so the owner can service completion events.
+pub struct PipeEditor { input:std::sync::mpsc::Receiver<std::io::Result<Option<String>>>,log_root:PathBuf,history:Vec<String>,prompted:bool }
+impl PipeEditor {pub fn new(log_root:&Path)->Self{let(tx,input)=std::sync::mpsc::channel();std::thread::spawn(move||{let stdin=std::io::stdin();let mut reader=stdin.lock();loop{let mut line=String::new();use std::io::BufRead;let result=reader.read_line(&mut line).map(|n|if n==0{None}else{Some(line)});let done=!matches!(result,Ok(Some(_)));if tx.send(result).is_err()||done{break}}});Self{input,log_root:log_root.into(),history:load_history(log_root),prompted:false}}}
+impl Editor for PipeEditor {fn read_line(&mut self,prompt:&str)->std::io::Result<Option<String>>{loop{match self.poll_line(prompt)?{InputPoll::Line(s)=>return Ok(Some(s)),InputPoll::Eof=>return Ok(None),InputPoll::Idle=>{}}}}fn poll_line(&mut self,prompt:&str)->std::io::Result<InputPoll>{if !self.prompted{eprint!("{prompt}");self.prompted=true;}match self.input.recv_timeout(std::time::Duration::from_millis(100)){Ok(Ok(Some(s)))=>{self.prompted=false;Ok(InputPoll::Line(s))},Ok(Ok(None))|Err(std::sync::mpsc::RecvTimeoutError::Disconnected)=>Ok(InputPoll::Eof),Ok(Err(e))=>Err(e),Err(std::sync::mpsc::RecvTimeoutError::Timeout)=>Ok(InputPoll::Idle)}}fn add_history(&mut self,line:&str){append_history(&self.log_root,line);self.history.push(line.into());}fn history(&self)->&[String]{&self.history}}
 
 const HISTORY_FILE: &str = ".hs_repl_history";
 
@@ -1881,9 +1889,10 @@ pub fn run_interactive<E: Editor + ?Sized>(
                 )
             );
         }
-        let line = match editor.read_line(prompt)? {
-            None => break,
-            Some(l) => l.trim().to_string(),
+        let line = match editor.poll_line(prompt)? {
+            InputPoll::Eof => break,
+            InputPoll::Idle => {for followup in session.take_job_followups()? {eprintln!("background job followup: {followup}");let result=session.run_goal(&followup)?;print_result(&result);paint_status(session);}continue;}
+            InputPoll::Line(l) => l.trim().to_string(),
         };
         if color {
             eprintln!("{}", crate::uipaint::composer_bottom(cols, true));

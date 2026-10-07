@@ -1003,8 +1003,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 .map_err(|e| format!("line editor: {e}"))?;
             hs_loop::repl::run_interactive(&mut session, &mut ed)?;
         } else {
-            let stdin = std::io::stdin();
-            let mut ed = hs_loop::repl::StdinEditor::new(&opts.dir, stdin.lock());
+            let mut ed = hs_loop::repl::PipeEditor::new(&opts.dir);
             hs_loop::repl::run_interactive(&mut session, &mut ed)?;
         }
     }
