@@ -381,6 +381,10 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
     execute!(stdout(), EnterAlternateScreen, EnableBracketedPaste)?;
     let _guard = Guard;
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
+    // The diff renderer assumes its first frame is blank. Pre-screen startup
+    // stderr and terminals that retain alternate-screen cells break that
+    // assumption: spaces are skipped and old help text bleeds into user echo.
+    execute!(terminal.backend_mut(), crossterm::terminal::Clear(crossterm::terminal::ClearType::All), crossterm::cursor::MoveTo(0,0))?;
 
     let mut running = false;
 

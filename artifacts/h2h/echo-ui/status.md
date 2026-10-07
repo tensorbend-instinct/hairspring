@@ -1,0 +1,3 @@
+# Startup help bleeds into user echo
+
+Actual PTY RED asserted the user echo row and failed: `User/parserlinstructionscommands, /quit to exit)`. The fullscreen diff renderer assumes an empty first frame; startup stderr remains on terminals/emulators retaining alternate-screen cells, and its skipped blank cells expose old text. Clear the physical alternate screen and move to 0,0 before the first frame. Using Terminal.clear first failed on a PTY without cursor-position-query support, so the fix uses Crossterm Clear(All) and MoveTo instead. Actual PTY GREEN asserts the exact clean user echo and inspected pixels show no startup help bleed. Fixture still stops steps_exhausted/not passed; not a successful live mission or direct-injection visual proof.

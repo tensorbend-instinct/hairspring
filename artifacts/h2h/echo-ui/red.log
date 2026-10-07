@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "/tmp/echo-ui-red.py", line 24, in <module>
+    assert screen.display[1].strip("│ ")=="› Use /parser instructions", repr(screen.display[1])
+AssertionError: '│› User/parserlinstructionscommands, /quit to exit)                                                                    │'
