@@ -1,0 +1,5 @@
+# Scoped runtime layers
+
+Host selects an ordered outer-to-inner scope chain; runtime entries from nearest layer win duplicate names outright even over global project rank. Rank only applies within global layer. Duplicate runtime names in one scope remain first-wins. Removing a scope reveals the parent/global winner. Disabled nearer winner masks older catalogs/model call without preventing separately permitted direct-user invocation. Unrelated scopes invisible; malformed registrations cannot poison global state. RED nearest-layer registration absent, then 26skill7session13palette focused green.
+
+Still partial: generic provider callback/list/locator lifecycle and async cancel/cache completeness, actual preset/plugin composition and borrowed disposer teardown, watcher/catalog history and busy gestures/palette discovery/bundled/config. Host scope-string routing is internal, not accepted from model arguments, and runtime registrations are borrowed in-memory state, not persisted. No UI change/live mission/speed/paid run/checker changes. Native Tauri excluded missing glib.
