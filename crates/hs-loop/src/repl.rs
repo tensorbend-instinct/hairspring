@@ -1891,6 +1891,32 @@ fn paint_status(session: &ReplSession) {
     p.status_line(&session.vitals());
 }
 
+/// Borrow the existing editor for review; never create a second stdin reader.
+fn run_goal_with_editor<E:Editor+?Sized>(session:&mut ReplSession,editor:&mut E,goal:&str)->Result<MissionResult,LoopError>{
+    let (requests,receive)=std::sync::mpsc::channel();
+    session.set_plan_reviewer(Box::new(move|question|{let(reply,answer)=std::sync::mpsc::channel();requests.send((question.clone(),reply)).map_err(|_|crate::dshplan::DISMISSED.to_owned())?;crate::dshplan::receive_review(answer)}));
+    let result=std::thread::scope(|scope|{
+        let work=scope.spawn(||session.run_goal(goal));
+        while !work.is_finished(){
+            match receive.recv_timeout(std::time::Duration::from_millis(50)){
+                Ok((question,reply))=>{
+                    let q=&question["questions"][0];eprintln!("{}\n{}\n{}",q["header"].as_str().unwrap_or("Plan review"),q["detail"].as_str().unwrap_or(""),q["question"].as_str().unwrap_or(""));
+                    match editor.read_line("Approve or Keep planning, or feedback: "){
+                        Ok(Some(text))=>{editor.add_history(text.trim());let _=reply.send(Ok(crate::dshplan::user_reply(text.trim())));},
+                        Ok(None)=>{let _=reply.send(Err("ASK_CANCELLED".into()));},
+                        Err(e)=>{let _=reply.send(Err(e.to_string()));},
+                    }
+                },
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected)=>break,
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout)=>{},
+            }
+        }
+        work.join().unwrap_or_else(|_|Err(LoopError::Visibility("mission worker panicked".into())))
+    });
+    session.inner.clear_plan_reviewer();
+    result
+}
+
 /// The interactive loop: read a line, record it, dispatch. Shared by
 /// the TTY and piped paths so behavior is identical on both.
 pub fn run_interactive<E: Editor + ?Sized>(
@@ -1942,7 +1968,7 @@ pub fn run_interactive<E: Editor + ?Sized>(
         match session.classify_input(&line)? {
             ReplCommand::Quit => break,
             ReplCommand::GoalControl(input)=>{match session.host_goal_command(&input){Ok(v)=>eprintln!("{}",crate::dshgoal::card_text(&v)),Err(e)=>eprintln!("goal control failed: {e}")}},
-            ReplCommand::PlanControl(input)=>{match session.host_plan_command(&input){Ok(v)=>{eprintln!("{}",v["text"].as_str().unwrap_or(""));if let Some(message)=v["message"].as_str(){match session.run_goal(message){Ok(r)=>print_result(&r),Err(e)=>eprintln!("mission failed: {e}")}}},Err(e)=>eprintln!("plan control failed: {e}")}},
+            ReplCommand::PlanControl(input)=>{match session.host_plan_command(&input){Ok(v)=>{eprintln!("{}",v["text"].as_str().unwrap_or(""));if let Some(message)=v["message"].as_str(){match run_goal_with_editor(session,editor,message){Ok(r)=>print_result(&r),Err(e)=>eprintln!("mission failed: {e}")}}},Err(e)=>eprintln!("plan control failed: {e}")}},
             ReplCommand::Help => eprintln!("{REPL_HELP}"),
             ReplCommand::Status => {
                 println!(
@@ -1991,7 +2017,7 @@ pub fn run_interactive<E: Editor + ?Sized>(
                 eprintln!("unknown command {c} (:help lists commands)");
             }
             ReplCommand::Goal(goal) => {
-                match session.run_goal(&goal) {
+                match run_goal_with_editor(session,editor,&goal) {
                     Ok(r) => print_result(&r),
                     Err(e) => eprintln!("mission failed: {e}"),
                 }

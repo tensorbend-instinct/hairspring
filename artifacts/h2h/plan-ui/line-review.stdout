@@ -1,0 +1,3 @@
+project root: /tmp/hs/artifacts/h2h/plan-ui/proj (missions confined to this directory)
+{"answer_path":"/tmp/hs/artifacts/h2h/plan-ui/proj/repair-parser/answer.txt","budget_killed":false,"harness_error":null,"model_calls":2,"outcome":"steps_exhausted","passed":false,"steps":2,"stream_id":"1770f4ee-2b25-4d53-a0dc-f7a647cb4349"}
+{"continuable":true,"hint":"re-run the same goal to continue this mission at step 3"}

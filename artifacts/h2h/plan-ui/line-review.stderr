@@ -1,0 +1,20 @@
+hairspring repl (/help for commands, /quit to exit)
+scripted · 0 missions · 0 steps · 0 calls · $0.0000 · 0s · 1770f4ee
+hs> Plan mode on. Use /plan off to leave.
+  … 
+  ↑366 ↓9
+▶ exit_plan_mode  {"plan":"# Repair parser\n- Write failing fixture\n- Fix native parser\n- Run regression suite"}
+Plan review
+# Repair parser
+- Write failing fixture
+- Fix native parser
+- Run regression suite
+Approve this plan and leave plan mode?
+Approve or Keep planning, or feedback:   ✓ ok  0ms
+  {"approved":true}
+  … scripted
+  ↑412 ↓9
+▶ get_goal  {}
+  ✓ ok  0ms
+  {"goal":null}
+hs> 

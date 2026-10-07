@@ -1222,6 +1222,7 @@ impl InnerLoop {
     }
 
     pub fn set_plan_guidance(&mut self,section:String)->Result<(),LoopError>{if section.trim().is_empty(){return Err(LoopError::Visibility("PlanModeConfig needs a non-empty section".into()))}self.session_plan.section=section;Ok(())}
+    pub fn clear_plan_reviewer(&mut self){self.plan_reviewer=None;}
     pub fn set_plan_reviewer(&mut self,reviewer:Box<dyn FnMut(&serde_json::Value)->Result<serde_json::Value,String>+Send>){self.plan_reviewer=Some(reviewer);}
     pub fn host_plan_command(&mut self,input:&str)->Result<serde_json::Value,LoopError>{
         let message=input.trim();
