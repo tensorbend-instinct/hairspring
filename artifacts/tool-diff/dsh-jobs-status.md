@@ -28,3 +28,5 @@ Update21:45: production framed drain tests now exercise direct spill write failu
 Final local suite:1192passed,7failed,1ignored,1200total. Only failures are3critic-shell and4repexec-sandbox tests requiring real root, unverified here. Native live job audit remains open, author served deepseek-flash. Proven mechanics slice only, not four tools exact-complete.
 
 Push recovery: token lacks workflow permission, push rejected and remote stayed ad75d23. Renamed packaging helper to hs-plugin-shell-supervisor so existing CI hs-plugin-* glob already copies it. No workflow edit or account permission change needed. Installer/helper lookup/fixture tests updated; focused packaging tests green.
+
+Followup25focused job tests: teardown now waits for workers; cancellation reason retained; cancellation during supervisor bootstrap continues until workers settle; equal workspace-write sandbox mode accepted without escalation. Each new case observed RED thenGREEN. Full followup suite1196passed,7needs-real-root failures unverified,1ignored,1204total. Live native job mission audit still stalled nonstream provider request; no completed verdict.
