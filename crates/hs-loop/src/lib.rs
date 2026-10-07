@@ -2337,7 +2337,7 @@ impl InnerLoop {
                     volatile.push_str(&block);
                 }
             }
-            if let Some(note)=self.session_goal.wrapup(&self.goal_authority){volatile.push_str(&note);}
+
             volatile.push_str("\nGoal policy: create_goal may infer a long-running objective only from a direct top-level human request. Resume/fork goals are disarmed. Complete requires actual whole-objective evidence. Blocked requires a concrete repeated condition and at least three automatic rounds; difficulty or remaining work is not blocked.\n");
             volatile.push_str(&artifact_section(&answer_path, &artifact));
             // Fix 5: convergence pressure (ab2: three wall-killed missions
@@ -2368,7 +2368,7 @@ impl InnerLoop {
             // ToolCall events, replayed as native assistant/tool pairs. No
             // parallel store: both are read models over the log and survive
             // restarts/freeze recovery.
-            if self.feedback_injection
+            if (self.feedback_injection||matches!(self.goal_authority,crate::dshgoal::Authority::GoalRound{..}))
                 && let Ok(reader) = hs_log::StreamReader::open(&self.log_root, self.stream_id)
                     && let Ok(events) = reader.events() {
                         volatile.push_str("LEDGER (your work so far, always current):\n");
@@ -2928,6 +2928,7 @@ impl InnerLoop {
                         let mut rec = serde_json::json!({
                             "call_id": tool_out.call_id, "record_type": "mirror", "plugin": effective, "args": args, "result": tool_out.output,
                         });
+                        if effective=="update_goal"&&matches!(args["action"].as_str(),Some("complete"|"blocked"))&&tool_out.output.get("error").is_none(){if let Some(note)=self.session_goal.wrapup(&self.goal_authority){rec["deferred_context"]=serde_json::json!(note);}}
                         if matches!(effective.as_str(),"glob"|"grep")&&tool_out.output.get("error").is_none(){if let Some(root)=self.answer_root.as_ref(){rec["presentation_meta"]=crate::dshsearch::metadata(&effective,&tool_out.output);rec["model_text"]=serde_json::json!(crate::dshsearch::render(root,&effective,&tool_out.output).unwrap_or_else(|e|format!("Error: {e}")));}}
                         if let Some(meta)=rec.get("presentation_meta"){if let Some(sink)=self.ui_sink.as_mut(){sink(uipaint::UiEvent::SearchResult{plugin:effective.clone(),meta:meta.clone()});}}
                         if effective != tool {

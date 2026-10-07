@@ -1,0 +1,4 @@
+[[models]]
+name='wrapup-fixture'
+command=['python3','artifacts/h2h/goal-ui/wrapup-model.py']
+default=true

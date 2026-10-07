@@ -132,6 +132,7 @@ struct Exchange {
     /// empty when unrecorded).
     reasoning: String,
     native: serde_json::Value,
+    deferred:Option<String>,
 }
 
 /// Build the history messages from the stream's `ToolCall` events.
@@ -197,7 +198,8 @@ pub fn assemble_messages(
                     content = crate::msgfmt::prefix_bytes_safe(&content, CONTENT_CAP);
                     content.push_str("...[truncated]");
                 }
-                let line = format!("{}({}) => {}", plugin, v["args"], content);
+                let mut line = format!("{}({}) => {}", plugin, v["args"], content);
+                if let Some(note)=v["deferred_context"].as_str(){line.push_str("\nDeferred user context: ");line.push_str(note);}
                 let reasoning = reasoning_by_tc.get(&e.seq).cloned().unwrap_or_default();
                 exch.push(Exchange {
                     seq: e.seq,
@@ -207,12 +209,13 @@ pub fn assemble_messages(
                     content,
                     line,
                     reasoning,
+                    deferred:v["deferred_context"].as_str().map(str::to_owned),
                     native:native_by_tc.get(&e.seq).cloned().unwrap_or(serde_json::Value::Null),
                 });
             }
     }
     let cost = |x: &Exchange| {
-        x.args.to_string().len() + x.content.len() + x.reasoning.len() + if x.native.is_null(){0}else{x.native.to_string().len()} + PAIR_OVERHEAD
+        x.deferred.as_ref().map_or(0,String::len) + x.args.to_string().len() + x.content.len() + x.reasoning.len() + if x.native.is_null(){0}else{x.native.to_string().len()} + PAIR_OVERHEAD
     };
     let total: usize = exch.iter().map(&cost).sum();
     let mut messages: Vec<serde_json::Value> = vec![];
@@ -234,6 +237,7 @@ pub fn assemble_messages(
             preserve_native(&mut a,&mut t,&x.native);
             messages.push(a);
             messages.push(t);
+            if let Some(note)=&x.deferred{messages.push(serde_json::json!({"role":"user","content":note}));}
         }
         return AssemblyMessages {
             messages,
@@ -280,6 +284,7 @@ pub fn assemble_messages(
         preserve_native(&mut a,&mut t,&x.native);
         messages.push(a);
         messages.push(t);
+        if let Some(note)=&x.deferred{messages.push(serde_json::json!({"role":"user","content":note}));}
     }
     AssemblyMessages {
         messages,

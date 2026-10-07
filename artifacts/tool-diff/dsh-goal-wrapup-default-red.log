@@ -1,0 +1,49 @@
+warning: unused attribute
+   --> crates/hs-loop/src/appback.rs:148:1
+    |
+148 | #[must_use]
+    | ^^^^^^^^^^^ help: remove this attribute
+    |
+note: attribute also specified here
+   --> crates/hs-loop/src/appback.rs:144:1
+    |
+144 | #[must_use]
+    | ^^^^^^^^^^^
+    = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+    = note: `#[warn(unused_attributes)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> crates/hs-loop/src/repexec.rs:239:10
+    |
+239 |         .fetch_update(
+    |          ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+239 -         .fetch_update(
+239 +         .try_update(
+    |
+
+
+running 1 test
+feedback_off_autonomous_update_defers_exact_notice_on_next_model_request --- FAILED
+
+failures:
+
+---- feedback_off_autonomous_update_defers_exact_notice_on_next_model_request stdout ----
+
+thread 'feedback_off_autonomous_update_defers_exact_notice_on_next_model_request' (749904) panicked at crates/hs-loop/tests/dsh_goal_wrapup_red.rs:8:1532:
+assertion failed: calls.iter().any(|m|
+        m.windows(2).any(|p|
+                p[0]["role"] == "tool" && p[1]["role"] == "user" &&
+                    p[1]["content"] == notice))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    feedback_off_autonomous_update_defers_exact_notice_on_next_model_request
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.05s
+
+error: test failed, to rerun pass `-p hs-loop --test dsh_goal_wrapup_red`
