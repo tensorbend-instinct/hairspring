@@ -9,3 +9,8 @@ impl PlanSession{
 
 pub fn question(plan:&str,call_id:uuid::Uuid)->Value{json!({"questions":[{"id":"plan-review","header":"Plan review","question":"Approve this plan and leave plan mode?","detail":plan,"options":[{"label":"Approve","description":"Leave plan mode; the plan is carried out from the next step."},{"label":"Keep planning","description":"Stay in plan mode; feedback goes back to the model."}],"intent":{"kind":"plan-review","approve":"Approve","callId":call_id}}]})}
 pub fn render()->&'static str{"Plan approved \u{2014} plan mode exited; carry out the plan starting with your next step."}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PlanConfig{pub section:String}
+impl PlanConfig{pub fn validate(self)->Result<String,String>{if self.section.trim().is_empty(){Err("PlanModeConfig needs a non-empty `section`".into())}else{Ok(self.section)}}}

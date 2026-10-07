@@ -641,6 +641,7 @@ pub fn load(
         Self::apply_config_caps(&mut inner, config, max_steps);
         inner.set_answer_root(Some(resolve_work_dir(log_root)));
         Self::configure_skills(&mut inner,config)?;
+        Self::configure_plan(&mut inner,config)?;
         // Eric 2026-09-12 (live mission c91e8de3): user-facing budgets
         // bind REAL provider-reported dollars - his $40 cap killed at
         // $3.44 billed because the guard read the list-rate counter.
@@ -790,6 +791,7 @@ pub fn load(
         Self::apply_config_caps(&mut inner, config, max_steps);
         inner.set_answer_root(Some(resolve_work_dir(log_root)));
         Self::configure_skills(&mut inner,config)?;
+        Self::configure_plan(&mut inner,config)?;
         // Eric 2026-09-12 (live mission c91e8de3): user-facing budgets
         // bind REAL provider-reported dollars - his $40 cap killed at
         // $3.44 billed because the guard read the list-rate counter.
@@ -1025,6 +1027,8 @@ pub fn load(
         self.inner.snapshot_workdir()
     }
     /// `/compact`.
+    pub fn select_plan_mode(&mut self,active:bool)->Result<&'static str,LoopError>{self.inner.select_plan_mode(active)}
+    pub fn plan_view(&self)->serde_json::Value{self.inner.plan_view()}
     pub fn set_mode(&mut self, mode: &str) -> Result<(), String> {
         self.inner.set_mode(mode)
     }
@@ -1078,6 +1082,15 @@ pub fn load(
     /// spawned process whose RefuteConfig::from_env stays the reader.
     /// Eric 2026-09-12: caps are opt-in. An explicit --max-steps wins;
     /// else a persisted `[run] max_steps`; else NO step cap is armed.
+    fn configure_plan(inner:&mut InnerLoop,config:&Path)->Result<(),LoopError>{
+        let raw=std::fs::read_to_string(config)?;
+        let value:toml::Value=toml::from_str(&raw).map_err(|e|LoopError::Visibility(e.to_string()))?;
+        if let Some(plan)=value.get("plan"){
+            let parsed:crate::dshplan::PlanConfig=plan.clone().try_into().map_err(|e:toml::de::Error|LoopError::Visibility(format!("plan configuration: {e}")))?;
+            inner.set_plan_guidance(parsed.validate().map_err(LoopError::Visibility)?)?;
+        }
+        Ok(())
+    }
     fn configure_skills(inner:&mut InnerLoop,config:&Path)->Result<(),LoopError>{let raw=std::fs::read_to_string(config)?;let value:toml::Value=toml::from_str(&raw).map_err(|e|LoopError::Visibility(e.to_string()))?;let mut roots:crate::dshskill::RootConfig=value.get("skills").cloned().map(|v|v.try_into()).transpose().map_err(|e:toml::de::Error|LoopError::Visibility(format!("skills configuration: {e}")))?.unwrap_or_default();let base=std::env::current_dir()?;let absolute=|p:&mut PathBuf|{if p.is_relative(){*p=base.join(&*p)}};for p in &mut roots.custom_skill_dirs{absolute(p)}for p in [&mut roots.dsh_home,&mut roots.agents_home,&mut roots.bundled_skill_dir]{if let Some(p)=p{absolute(p)}}inner.set_skill_config(roots);Ok(())}
     fn apply_config_caps(inner: &mut InnerLoop, config: &Path, max_steps: Option<u32>) {
         match max_steps.or_else(|| configured_max_steps(config)) {
