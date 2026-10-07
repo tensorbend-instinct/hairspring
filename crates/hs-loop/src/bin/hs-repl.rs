@@ -981,6 +981,21 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             hs_loop::repl::print_result(&r);
             all_passed &= r.passed;
         }
+        // A one-shot owner remains alive for its launched jobs. No model timer:
+        // settlement comes from the supervisor, not a guessed deadline.
+        loop {
+            while session.has_unsettled_jobs() {
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+            let followups = session.take_job_followups()?;
+            if followups.is_empty() { break; }
+            for followup in followups {
+                eprintln!("background job followup: {followup}");
+                let result = session.run_goal(&followup)?;
+                hs_loop::repl::print_result(&result);
+                all_passed &= result.passed;
+            }
+        }
         // T7: the exit code IS the mission contract (Codex/Claude
         // convention) - 0 iff every mission passed, so scripts can rely
         // on `hairspring run ... && next-step`.
