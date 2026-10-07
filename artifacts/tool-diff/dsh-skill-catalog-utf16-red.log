@@ -1,0 +1,46 @@
+warning: unused attribute
+   --> crates/hs-loop/src/appback.rs:148:1
+    |
+148 | #[must_use]
+    | ^^^^^^^^^^^ help: remove this attribute
+    |
+note: attribute also specified here
+   --> crates/hs-loop/src/appback.rs:144:1
+    |
+144 | #[must_use]
+    | ^^^^^^^^^^^
+    = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+    = note: `#[warn(unused_attributes)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> crates/hs-loop/src/repexec.rs:239:10
+    |
+239 |         .fetch_update(
+    |          ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+239 -         .fetch_update(
+239 +         .try_update(
+    |
+
+
+running 1 test
+catalog_description_caps_utf16_units_like_source --- FAILED
+
+failures:
+
+---- catalog_description_caps_utf16_units_like_source stdout ----
+
+thread 'catalog_description_caps_utf16_units_like_source' (870608) panicked at crates/hs-loop/tests/dsh_skill_red.rs:15:409:
+assertion failed: text.encode_utf16().count() <= 500
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    catalog_description_caps_utf16_units_like_source
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 11 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p hs-loop --test dsh_skill_red`

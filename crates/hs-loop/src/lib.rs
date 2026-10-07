@@ -623,6 +623,7 @@ impl InnerLoop {
         // both counters read 0 after :resume and the budget guard reset
         // with the display.
         let mut restored_goal_events=vec![];
+        let mut restored_skill_history=false;
         let mut distill_floor = 0;
         let mut restored_cost = 0u64;
         let mut restored_conservative = 0u64;
@@ -642,6 +643,7 @@ impl InnerLoop {
                     let Ok(v) = serde_json::from_slice::<serde_json::Value>(&b) else {
                         continue;
                     };
+                    if v["plugin"]=="skill"&&v["result"].get("error").is_none(){restored_skill_history=true;}
                     let micros = |k: &str| {
                         v.get(k)
                             .and_then(serde_json::Value::as_i64)
@@ -685,7 +687,7 @@ impl InnerLoop {
             admitted_goal_round: None,
             skill_roots:vec![],
             skill_config:Default::default(),
-            skill_history:false,
+            skill_history:restored_skill_history,
             context_budget_chars: DEFAULT_CONTEXT_BUDGET_TOKENS * 4,
             compact_next: false,
             memory_store: None,

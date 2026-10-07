@@ -1,0 +1,40 @@
+warning: unused attribute
+   --> crates/hs-loop/src/appback.rs:148:1
+    |
+148 | #[must_use]
+    | ^^^^^^^^^^^ help: remove this attribute
+    |
+note: attribute also specified here
+   --> crates/hs-loop/src/appback.rs:144:1
+    |
+144 | #[must_use]
+    | ^^^^^^^^^^^
+    = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+    = note: `#[warn(unused_attributes)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> crates/hs-loop/src/repexec.rs:239:10
+    |
+239 |         .fetch_update(
+    |          ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+239 -         .fetch_update(
+239 +         .try_update(
+    |
+
+error[E0282]: type annotations needed for `&_`
+ --> crates/hs-loop/tests/dsh_skill_session_red.rs:4:1295
+  |
+4 | ...ice(&r.resolve_payload(e).ok()?).ok()).filter(|v|v["messages"].is_array()).collect();let last=calls.last().unwrap();assert!(last["...
+  |                                                   ^ - type must be known at this point
+  |
+help: consider giving this closure parameter an explicit type, where the type for type parameter `B` is specified
+  |
+4 | #[test]fn resumed_default_session_retains_loaded_skill_instructions(){let _g=ENV.lock().unwrap_or_else(std::sync::PoisonError::into_inner);let d=tempfile::tempdir().unwrap();let root=d.path().join("custom");std::fs::create_dir(&root).unwrap();std::fs::write(root.join("alpha.md"),"---\nname: alpha\ndescription: A\n---\nDurable loaded instruction.").unwrap();let cfg=d.path().join("rig");let script=d.path().join("script");std::fs::write(&script,"{\"tool\":\"skill\",\"args\":{\"name\":\"alpha\"}}\n").unwrap();unsafe{std::env::set_var("HS_SEQMODEL_SCRIPT",&script)}std::fs::write(&cfg,format!("[skills]\nincludeDefaultRoots=false\ncustomSkillDirs=['{}']\n[[models]]\nname='scripted'\ncommand=['{}']\ndefault=true\n",root.display(),env!("CARGO_BIN_EXE_hs-plugin-scripted"))).unwrap();let log=d.path().join("run");let mut s=ReplSession::load(&cfg,&log,false,Some(1)).unwrap();s.run_goal("Load alpha").unwrap();let id=s.stream_id();drop(s);std::fs::write(&script,"{\"tool\":\"get_goal\",\"args\":{}}\n").unwrap();let mut s=ReplSession::load_resume(&cfg,&log,false,Some(1),id).unwrap();s.run_goal("Continue").unwrap();let r=hs_log::StreamReader::open(&log,id).unwrap();let calls:Vec<Value>=r.events().unwrap().iter().filter_map(|e|serde_json::from_slice(&r.resolve_payload(e).ok()?).ok()).filter(|v: &B|v["messages"].is_array()).collect();let last=calls.last().unwrap();assert!(last["messages"].as_array().unwrap().iter().any(|m|m["role"]=="tool"&&m["content"].as_str().is_some_and(|s|s.contains("Durable loaded instruction."))));}
+  |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                ++++
+
+For more information about this error, try `rustc --explain E0282`.
+error: could not compile `hs-loop` (test "dsh_skill_session_red") due to 1 previous error
