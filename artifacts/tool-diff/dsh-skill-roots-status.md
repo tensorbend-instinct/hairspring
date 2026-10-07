@@ -1,0 +1,7 @@
+# Session-owned skill roots and default history
+
+Two RED tests found custom configured roots ignored and loaded skill instructions missing from default feedback-off model history; invalid root settings were silently ignored. RootConfig is now session-owned and decoded strictly from [skills] camelCase keys: includeDefaultRoots, customSkillDirs, dshHome, agentsHome and bundledSkillDir. Configured paths resolve at session load; project/user/custom/bundled ranks match source. User dsh .system excluded, default roots can be turned off, custom roots remain. Loading a skill retains full model history even with general feedback off. No process override controls these per-session paths.
+
+A separate prefix RED found unchanged catalog wording flipped from initial to update on its next request. Unchanged entry catalog now reuses its exact logged text.11skill2session3surface green, actual binaries rebuilt. Actual PTY custom-root/default-feedback-off pixels inspected successful skill then read, not-passed fixture only.
+
+Still partial: runtime provider/scope registry, watcher invalidation, exact catalog historical replacement and visibility filtering, direct user invocation, bundled trust, tilde/env configuration details and resume-default-history coverage.14tools unfinished(4partial10untouched). Native desktopmain.rsCargo.lock excludedmissingglib. Goalbusycancelclaimedpreservationteardown/sourceprojectiontimestamps,TTYidle/widersandbox/profile/exactsearchbudget/six-task speed/full desktop/providerbilling remain. No paidrun.

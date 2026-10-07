@@ -1,0 +1,7 @@
+[skills]
+includeDefaultRoots=false
+customSkillDirs=['artifacts/h2h/skill-ui/proj/.dsh/skills']
+[[models]]
+name='scripted'
+command=['/tmp/hs/target/debug/hs-plugin-scripted']
+default=true
