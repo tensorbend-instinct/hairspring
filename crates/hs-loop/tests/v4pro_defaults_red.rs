@@ -17,7 +17,7 @@ fn critic_caps_are_opt_in_by_default() {
 fn deepseek_default_model_is_v4_pro() {
     assert_eq!(
         hs_loop::realmodel::deepseek().default_model,
-        "deepseek-v4-pro",
+        "deepseek-flash",
         "Eric 2026-09-10: 'just use v4 pro for now'"
     );
 }

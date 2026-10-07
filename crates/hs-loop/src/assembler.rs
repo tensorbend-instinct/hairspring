@@ -131,6 +131,7 @@ struct Exchange {
     /// The owning `ModelCall`'s `reasoning_content` (thinking-mode pass-back;
     /// empty when unrecorded).
     reasoning: String,
+    native: serde_json::Value,
 }
 
 /// Build the history messages from the stream's `ToolCall` events.
@@ -149,15 +150,19 @@ pub fn assemble_messages(
     let mut reasoning_by_tc: std::collections::HashMap<u64, String> =
         std::collections::HashMap::new();
     let mut last_reasoning = String::new();
+    let mut last_native=serde_json::Value::Null;
+    let mut native_by_tc=std::collections::HashMap::new();
     for e in events {
         match e.kind {
             EventKind::ModelCall => {
                 if let Ok(bytes) = reader.resolve_payload(e)
                     && let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+                        last_native=v["messages_content"].clone();
                         last_reasoning = v["reasoning_content"].as_str().unwrap_or("").to_string();
                     }
             }
-            EventKind::ToolCall if !last_reasoning.is_empty() => {
+            EventKind::ToolCall => {
+                native_by_tc.insert(e.seq,last_native.clone());
                 reasoning_by_tc.insert(e.seq, last_reasoning.clone());
             }
             _ => {}
@@ -199,11 +204,12 @@ pub fn assemble_messages(
                     content,
                     line,
                     reasoning,
+                    native:native_by_tc.get(&e.seq).cloned().unwrap_or(serde_json::Value::Null),
                 });
             }
     }
     let cost = |x: &Exchange| {
-        x.args.to_string().len() + x.content.len() + x.reasoning.len() + PAIR_OVERHEAD
+        x.args.to_string().len() + x.content.len() + x.reasoning.len() + if x.native.is_null(){0}else{x.native.to_string().len()} + PAIR_OVERHEAD
     };
     let total: usize = exch.iter().map(&cost).sum();
     let mut messages: Vec<serde_json::Value> = vec![];
@@ -220,8 +226,9 @@ pub fn assemble_messages(
         }
         kept.reverse();
         for x in kept {
-            let (a, t) =
+            let (mut a, mut t) =
                 crate::msgfmt::exchange_pair(x.seq, &x.plugin, &x.args, &x.content, &x.reasoning);
+            preserve_native(&mut a,&mut t,&x.native);
             messages.push(a);
             messages.push(t);
         }
@@ -265,8 +272,9 @@ pub fn assemble_messages(
     }
     kept.reverse();
     for x in kept {
-        let (a, t) =
+        let (mut a, mut t) =
             crate::msgfmt::exchange_pair(x.seq, &x.plugin, &x.args, &x.content, &x.reasoning);
+        preserve_native(&mut a,&mut t,&x.native);
         messages.push(a);
         messages.push(t);
     }
@@ -274,4 +282,12 @@ pub fn assemble_messages(
         messages,
         compressed,
     }
+}
+
+fn preserve_native(a:&mut serde_json::Value,t:&mut serde_json::Value,blocks:&serde_json::Value){
+ if let Some(bs)=blocks.as_array(){
+   if let Some(tool)=bs.iter().find(|b|b["type"]=="tool_use"){
+     a["content"]=blocks.clone();t["tool_call_id"]=tool["id"].clone();
+   }
+ }
 }

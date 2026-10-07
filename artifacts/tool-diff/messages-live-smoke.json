@@ -1,0 +1,14 @@
+{
+  "Ok": {
+    "cached_tokens": 0,
+    "completion": "OK",
+    "conservative_cost_usd_micros": 209,
+    "cost_usd_micros": 209,
+    "input_tokens": 44,
+    "output_tokens": 17,
+    "provider_model": "deepseek-flash",
+    "reasoning_content": "The user just says \"Reply OK.\" So I should reply \"OK.\"",
+    "reasoning_tokens": 0,
+    "served_model": "deepseek-flash"
+  }
+}

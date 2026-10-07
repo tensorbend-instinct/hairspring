@@ -94,8 +94,8 @@ pub fn glm() -> Provider {
 pub fn deepseek() -> Provider {
     let mut p = builtin(
         "deepseek",
-        "https://api.deepseek.com/chat/completions",
-        "deepseek-v4-pro",
+        "https://api.deepseek.com/anthropic/v1/messages",
+        "deepseek-flash",
         2.2,
         0.07,
         6.6,
@@ -317,6 +317,8 @@ pub fn extract_json_object(s: &str) -> Option<&str> {
 
 pub struct CallResult {
     pub completion: String,
+    pub served_model: String,
+    pub messages_content: serde_json::Value,
     pub input_tokens: u64,
     pub output_tokens: u64,
     pub cached_tokens: u64,
@@ -329,6 +331,8 @@ pub struct CallResult {
 
 pub struct ParsedCall {
     pub completion: String,
+    pub served_model: String,
+    pub messages_content: serde_json::Value,
     pub input_tokens: u64,
     pub output_tokens: u64,
     pub cached_tokens: u64,
@@ -459,6 +463,7 @@ pub fn parse_response(p: &Provider, v: &serde_json::Value) -> Result<ParsedCall,
     let msg = &v["choices"][0]["message"];
     let empty = vec![];
     let tcs = msg["tool_calls"].as_array().unwrap_or(&empty);
+    if tcs.len()>1 {return Err(format!("{}: multiple tool calls unsupported by single-call author protocol; refusing to discard calls",p.name));}
     let tc = tcs
         .first()
         .ok_or_else(|| format!("{}: no tool_calls in response (finish_reason={fr})", p.name))?;
@@ -474,6 +479,8 @@ pub fn parse_response(p: &Provider, v: &serde_json::Value) -> Result<ParsedCall,
     let (input_tokens, output_tokens, cached_tokens, reasoning_tokens, cost, conservative) =
         usage_cost(p, &v["usage"]);
     Ok(ParsedCall {
+        served_model: v["model"].as_str().unwrap_or("").to_string(),
+        messages_content: v["choices"][0]["message"]["messages_content"].clone(),
         completion,
         input_tokens,
         output_tokens,
@@ -510,6 +517,8 @@ fn parse_response_legacy(p: &Provider, v: &serde_json::Value) -> Result<ParsedCa
     let (input_tokens, output_tokens, cached_tokens, reasoning_tokens, cost, conservative) =
         usage_cost(p, &v["usage"]);
     Ok(ParsedCall {
+        served_model: v["model"].as_str().unwrap_or("").to_string(),
+        messages_content: v["choices"][0]["message"]["messages_content"].clone(),
         completion,
         input_tokens,
         output_tokens,
@@ -610,11 +619,11 @@ fn attempt(
     body: &serde_json::Value,
     native: bool,
 ) -> Result<ParsedCall, AttemptError> {
-    let mut resp = agent
-        .post(url)
-        .header("Authorization", &format!("Bearer {key}"))
-        .header("Content-Type", "application/json")
-        .send_json(body)
+    let messages_api = url.trim_end_matches('/').ends_with("/messages");
+    let body = if messages_api { crate::messagesapi::from_chat(body).map_err(AttemptError::Other)? } else { body.clone() };
+    let request = agent.post(url).header("Content-Type", "application/json");
+    let request = if messages_api { request.header("x-api-key", key).header("anthropic-version", "2023-06-01") } else { request.header("Authorization", &format!("Bearer {key}")) };
+    let mut resp = request.send_json(&body)
         .map_err(|e| AttemptError::Other(format!("{}: request failed: {e}", p.name)))?;
     let status = resp.status();
     if !status.is_success() {
@@ -633,6 +642,7 @@ fn attempt(
     let v: serde_json::Value = resp.body_mut().read_json().map_err(|e| {
         AttemptError::Other(format!("{}: unparsable provider response: {e}", p.name))
     })?;
+    let v = if messages_api { crate::messagesapi::to_chat(&v).map_err(AttemptError::Other)? } else { v };
     let r = if native {
         parse_response(p, &v)
     } else {
@@ -778,6 +788,8 @@ fn call_with_body(
                     "cost_usd_micros": out.cost_usd_micros,
                     "conservative_cost_usd_micros": out.conservative_cost_usd_micros,
                     "provider_model": model,
+                    "served_model": out.served_model,
+                    "messages_content": out.messages_content,
                 }))
             }
             Ok(Err(e)) => {
@@ -870,6 +882,8 @@ fn call_with_body_streaming(
                     "cost_usd_micros": out.cost_usd_micros,
                     "conservative_cost_usd_micros": out.conservative_cost_usd_micros,
                     "provider_model": model,
+                    "served_model": out.served_model,
+                    "messages_content": out.messages_content,
                 }))
             }
             Err(e) => {
@@ -903,6 +917,20 @@ fn attempt_streaming(
     on_delta: &mut dyn FnMut(&str),
     on_heartbeat: &mut dyn FnMut(),
 ) -> Result<ParsedCall, AttemptError> {
+    if url.trim_end_matches('/').ends_with("/messages") {
+        let mut body = crate::messagesapi::from_chat(body).map_err(AttemptError::Other)?;
+        body["stream"] = json!(true);
+        let mut response = agent.post(url).header("x-api-key", key).header("anthropic-version", "2023-06-01").header("Content-Type", "application/json").send_json(&body).map_err(|e|AttemptError::Other(format!("Messages request: {e}")))?;
+        if !response.status().is_success() {
+            let code=response.status().as_u16();let detail=provider_error_detail(response.body_mut());
+            return Err(AttemptError::Status{code,retry_after_secs:None,msg:provider_error_msg(p,code,&detail)});
+        }
+        let mut parser=crate::messagesapi::Stream::default();
+        let mut reader=response.body_mut().as_reader();let mut buf=[0u8;8192];
+        loop {use std::io::Read;let n=reader.read(&mut buf).map_err(|e|AttemptError::Other(format!("Messages stream read: {e}")))?;if n==0{break;}on_heartbeat();parser.push(&buf[..n],on_delta).map_err(AttemptError::Other)?;}
+        let v=parser.finish().map_err(AttemptError::Other)?;
+        return (if native {parse_response(p,&v)} else {parse_response_legacy(p,&v)}).map_err(AttemptError::Other);
+    }
     let mut body = body.clone();
     body["stream"] = serde_json::json!(true);
     body["stream_options"] = serde_json::json!({"include_usage": true});

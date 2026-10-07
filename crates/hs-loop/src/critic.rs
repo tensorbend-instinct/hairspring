@@ -54,6 +54,8 @@ impl std::fmt::Debug for CriticReply {
 
 /// The critic's model interface. Scripted in tests, `DeepSeek` in prod.
 pub trait CriticModel {
+    fn assistant_content(&self) -> Option<Value> {None}
+    fn served_model(&self)->&str{""}
     fn step(&mut self, messages: &[Value]) -> Result<CriticReply, String>;
     /// Cumulative (`input_tokens`, `output_tokens`, `cost_micros`).
     fn usage(&self) -> (u64, u64, u64) {
@@ -193,6 +195,7 @@ pub fn refute(
             "input_tokens":after.0.saturating_sub(before.0),
             "output_tokens":after.1.saturating_sub(before.1),
             "cost_micros":after.2.saturating_sub(before.2),
+            "served_model":model.served_model(),
             "status":if result.is_ok() {"ok"} else {"error"},
             "error":result.as_ref().err(),
         }));
@@ -233,7 +236,7 @@ pub fn refute(
                         "id": id, "type": "function",
                         "function": {"name": TERM_EXEC_TOOL, "arguments": json!({"command": cmd}).to_string()}
                     })).collect();
-                    messages.push(json!({"role": "assistant", "content": null, "tool_calls": tcs}));
+                    messages.push(json!({"role": "assistant", "content": model.assistant_content().unwrap_or(Value::Null), "tool_calls": tcs}));
                     for (id, cmd) in &calls {
                         trace.push(json!({"kind": "final_tool_rejected", "command": cmd}));
                         messages.push(json!({"role": "tool", "tool_call_id": id,
@@ -252,7 +255,7 @@ pub fn refute(
                         "function": {"name": TERM_EXEC_TOOL, "arguments": json!({"command": cmd}).to_string()}
                     }))
                     .collect();
-                messages.push(json!({"role": "assistant", "content": null, "tool_calls": tcs}));
+                messages.push(json!({"role": "assistant", "content": model.assistant_content().unwrap_or(Value::Null), "tool_calls": tcs}));
                 for (id, cmd) in &calls {
                     trace.push(json!({"kind": "term_exec", "command": cmd}));
                     let tool_call_id = uuid::Uuid::new_v4();
@@ -432,6 +435,8 @@ pub fn provider_from_env() -> Result<crate::realmodel::Provider, String> {
 // transport error. Key material is fill-only and never logged.
 
 pub struct ProviderCritic {
+    last_content: Option<Value>,
+    served_model: String,
     name: String,
     url: String,
     model: String,
@@ -459,6 +464,8 @@ impl ProviderCritic {
         let key = crate::realmodel::load_key(&p)?;
         let envf = |k: &str, d: f64| std::env::var(k).ok().and_then(|v| v.parse().ok()).unwrap_or(d);
         Ok(Self {
+            last_content: None,
+            served_model: String::new(),
             name: p.name.clone(),
             url: std::env::var(&p.base_url_env).unwrap_or(p.default_base_url),
             model: std::env::var(&p.model_env).unwrap_or(p.default_model),
@@ -475,25 +482,28 @@ impl ProviderCritic {
     fn attempt(&self, body: &Value) -> Result<Value, String> {
         let agent: ureq::Agent = ureq::Agent::config_builder()
             .timeout_global(None)
+            .http_status_as_error(false)
             .build()
             .into();
-        let mut resp = agent
-            .post(&self.url)
-            .header("Authorization", &format!("Bearer {}", self.key))
-            .header("Content-Type", "application/json")
-            .send_json(body)
+        let messages_api = self.url.trim_end_matches('/').ends_with("/messages");
+        let body = if messages_api {crate::messagesapi::from_chat(body)?} else {body.clone()};
+        let request = agent.post(&self.url).header("Content-Type", "application/json");
+        let request = if messages_api {request.header("x-api-key", &self.key).header("anthropic-version", "2023-06-01")} else {request.header("Authorization", &format!("Bearer {}", self.key))};
+        let mut resp = request.send_json(&body)
             .map_err(|e| format!("{} critic: request failed: {e}", self.name))?;
         let status = resp.status();
         if !status.is_success() {
-            return Err(format!("{} critic: HTTP {}", self.name, status.as_u16()));
+            let detail:Value=resp.body_mut().read_json().unwrap_or(Value::Null);
+            return Err(format!("{} critic: HTTP {} {}", self.name, status.as_u16(), detail["error"]["message"].as_str().unwrap_or("no provider detail")));
         }
-        resp.body_mut()
-            .read_json()
-            .map_err(|e| format!("{} critic: unparsable response: {e}", self.name))
+        let v:Value=resp.body_mut().read_json().map_err(|e|format!("{} critic: unparsable response: {e}",self.name))?;
+        if messages_api {crate::messagesapi::to_chat(&v)} else {Ok(v)}
     }
 }
 
 impl CriticModel for ProviderCritic {
+    fn assistant_content(&self)->Option<Value>{self.last_content.clone()}
+    fn served_model(&self)->&str{&self.served_model}
     fn step(&mut self, messages: &[Value]) -> Result<CriticReply, String> {
         let tools = json!([{
             "type": "function",
@@ -519,6 +529,8 @@ impl CriticModel for ProviderCritic {
         // fail closed; an unresponsive connection remains open.
         let (tx, rx) = std::sync::mpsc::channel();
         let me = Self {
+            last_content: None,
+            served_model: String::new(),
             name: self.name.clone(),
             url: self.url.clone(),
             model: self.model.clone(),
@@ -535,6 +547,7 @@ impl CriticModel for ProviderCritic {
             let _ = tx.send(me.attempt(&body2));
         });
         let v = rx.recv().map_err(|_| format!("{} critic: provider worker died", self.name))??;
+        self.served_model=v["model"].as_str().unwrap_or("").to_string();
         let usage = &v["usage"];
         let in_tok = usage["prompt_tokens"].as_u64().unwrap_or(0);
         let cached = usage["prompt_cache_hit_tokens"].as_u64().unwrap_or(0);
@@ -545,6 +558,7 @@ impl CriticModel for ProviderCritic {
             + cached as f64 * self.cached_micros
             + out_tok as f64 * self.out_micros) as u64;
         let msg = &v["choices"][0]["message"];
+        self.last_content=msg.get("messages_content").cloned();
         if let Some(tcs) = msg["tool_calls"].as_array()
             && !tcs.is_empty() {
                 let mut calls = vec![];

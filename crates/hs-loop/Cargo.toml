@@ -18,6 +18,8 @@ sha2 = "0.10"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ureq = { version = "3", features = ["json"] }
+sse-codec = "0.3.3"
+futures_codec = "=0.5.0"
 uuid = { version = "1", features = ["v4", "serde"] }
 toml = "0.8"
 tokio = { version = "1", features = ["rt", "process", "io-std", "macros"] }

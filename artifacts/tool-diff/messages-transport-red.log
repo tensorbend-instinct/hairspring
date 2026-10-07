@@ -1,0 +1,47 @@
+warning: unused attribute
+   --> crates/hs-loop/src/appback.rs:148:1
+    |
+148 | #[must_use]
+    | ^^^^^^^^^^^ help: remove this attribute
+    |
+note: attribute also specified here
+   --> crates/hs-loop/src/appback.rs:144:1
+    |
+144 | #[must_use]
+    | ^^^^^^^^^^^
+    = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+    = note: `#[warn(unused_attributes)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> crates/hs-loop/src/repexec.rs:239:10
+    |
+239 |         .fetch_update(
+    |          ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+239 -         .fetch_update(
+239 +         .try_update(
+    |
+
+
+running 1 test
+messages_mock_checks_path_auth_body_and_real_model_identity --- FAILED
+
+failures:
+
+---- messages_mock_checks_path_auth_body_and_real_model_identity stdout ----
+realmodel deepseek attempt 1 failed: deepseek: no tool_calls in response (finish_reason=<none>)
+
+thread 'messages_mock_checks_path_auth_body_and_real_model_identity' (95062) panicked at crates/hs-loop/tests/messages_api_red.rs:43:94:
+assertion failed: headers.to_lowercase().contains("x-api-key: fake")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    messages_mock_checks_path_auth_body_and_real_model_identity
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p hs-loop --test messages_api_red`

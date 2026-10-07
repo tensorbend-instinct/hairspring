@@ -1,0 +1,59 @@
+warning: unused attribute
+   --> crates/hs-loop/src/appback.rs:148:1
+    |
+148 | #[must_use]
+    | ^^^^^^^^^^^ help: remove this attribute
+    |
+note: attribute also specified here
+   --> crates/hs-loop/src/appback.rs:144:1
+    |
+144 | #[must_use]
+    | ^^^^^^^^^^^
+    = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+    = note: `#[warn(unused_attributes)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> crates/hs-loop/src/repexec.rs:239:10
+    |
+239 |         .fetch_update(
+    |          ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+239 -         .fetch_update(
+239 +         .try_update(
+    |
+
+error[E0433]: cannot find `messagesapi` in `hs_loop`
+ --> crates/hs-loop/tests/messages_api_red.rs:5:17
+  |
+5 |  let b=hs_loop::messagesapi::from_chat(&json!({"model":"deepseek-flash","max_tokens":393216,"messages":[{"role":"system","content":"s...
+  |                 ^^^^^^^^^^^ could not find `messagesapi` in `hs_loop`
+
+error[E0433]: cannot find `messagesapi` in `hs_loop`
+  --> crates/hs-loop/tests/messages_api_red.rs:12:200
+   |
+12 | ...nts":"broken"}}]}])]{assert!(hs_loop::messagesapi::from_chat(&json!({"messages":ms})).is_err());}
+   |                                          ^^^^^^^^^^^ could not find `messagesapi` in `hs_loop`
+
+error[E0433]: cannot find `messagesapi` in `hs_loop`
+  --> crates/hs-loop/tests/messages_api_red.rs:16:17
+   |
+16 |  let r=hs_loop::messagesapi::to_chat(&json!({"model":"served-flash","stop_reason":"tool_use","content":[{"type":"thinking","thinking...
+   |                 ^^^^^^^^^^^ could not find `messagesapi` in `hs_loop`
+
+error[E0433]: cannot find `messagesapi` in `hs_loop`
+  --> crates/hs-loop/tests/messages_api_red.rs:21:19
+   |
+21 |  assert!(hs_loop::messagesapi::assemble_sse("event: message_start\ndata: {\"type\":\"message_start\",\"message\":{}}\n\n").is_err());
+   |                   ^^^^^^^^^^^ could not find `messagesapi` in `hs_loop`
+
+error[E0433]: cannot find `messagesapi` in `hs_loop`
+  --> crates/hs-loop/tests/messages_api_red.rs:22:19
+   |
+22 |  assert!(hs_loop::messagesapi::assemble_sse("event: error\ndata: {\"type\":\"error\",\"error\":{\"message\":\"bad\"}}\n\n").is_err());
+   |                   ^^^^^^^^^^^ could not find `messagesapi` in `hs_loop`
+
+For more information about this error, try `rustc --explain E0433`.
+error: could not compile `hs-loop` (test "messages_api_red") due to 5 previous errors

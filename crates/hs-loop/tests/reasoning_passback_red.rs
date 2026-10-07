@@ -125,3 +125,11 @@ fn assemble_orphan_toolcall_has_no_reasoning_field() {
         asm.messages[0]
     );
 }
+#[test]
+fn assemble_preserves_native_messages_blocks_and_provider_tool_id(){
+ let dir=tempfile::tempdir().unwrap();let stream=uuid::Uuid::new_v4();
+ let blocks=serde_json::json!([{"type":"thinking","thinking":"check","signature":"sig"},{"type":"tool_use","id":"provider-id","name":"repo_read","input":{"path":"a"}}]);
+ stream_with(dir.path(),stream,&[(EventKind::ModelCall,serde_json::json!({"messages_content":blocks})),(EventKind::ToolCall,serde_json::json!({"plugin":"repo.read","args":{"path":"a"},"result":"aaa"}))]);
+ let reader=hs_log::StreamReader::open(dir.path(),stream).unwrap();let asm=assembler::assemble_messages(&reader,&reader.events().unwrap(),1_000_000);
+ assert_eq!(asm.messages[0]["content"],blocks);assert_eq!(asm.messages[1]["tool_call_id"],"provider-id");
+}

@@ -128,6 +128,8 @@ pub struct ModelOutcome {
     pub reasoning_tokens: u64,
     /// The reasoning text itself (empty when the provider returns none).
     pub reasoning_content: String,
+    pub messages_content: serde_json::Value,
+    pub served_model: String,
     pub cached_tokens: u64,
     pub cost_usd_micros: i64,
     /// Conservative list-rate cost (no cache credit): every input token
@@ -880,6 +882,8 @@ impl Kernel {
             output_tokens: r["output_tokens"].as_u64().unwrap_or(0),
             reasoning_tokens: r["reasoning_tokens"].as_u64().unwrap_or(0),
             reasoning_content: r["reasoning_content"].as_str().unwrap_or("").to_string(),
+            messages_content: r["messages_content"].clone(),
+            served_model: r["served_model"].as_str().unwrap_or("").to_string(),
             cached_tokens: r["cached_tokens"].as_u64().unwrap_or(0),
             cost_usd_micros: r["cost_usd_micros"].as_i64().unwrap_or(0),
             conservative_cost_usd_micros: r["conservative_cost_usd_micros"]
@@ -896,6 +900,8 @@ impl Kernel {
                 "input_tokens": out.input_tokens, "output_tokens": out.output_tokens,
                 "reasoning_tokens": out.reasoning_tokens,
                 "reasoning_content": out.reasoning_content,
+                "messages_content": out.messages_content,
+                "served_model": out.served_model,
                 "cached_tokens": out.cached_tokens,
                 "cost_usd_micros": out.cost_usd_micros,
                 "conservative_cost_usd_micros": out.conservative_cost_usd_micros,
@@ -1015,6 +1021,8 @@ impl Kernel {
             output_tokens: r["output_tokens"].as_u64().unwrap_or(0),
             reasoning_tokens: r["reasoning_tokens"].as_u64().unwrap_or(0),
             reasoning_content: r["reasoning_content"].as_str().unwrap_or("").to_string(),
+            messages_content: r["messages_content"].clone(),
+            served_model: r["served_model"].as_str().unwrap_or("").to_string(),
             cached_tokens: r["cached_tokens"].as_u64().unwrap_or(0),
             cost_usd_micros: r["cost_usd_micros"].as_i64().unwrap_or(0),
             conservative_cost_usd_micros: r["conservative_cost_usd_micros"]
@@ -1031,6 +1039,8 @@ impl Kernel {
                 "input_tokens": out.input_tokens, "output_tokens": out.output_tokens,
                 "reasoning_tokens": out.reasoning_tokens,
                 "reasoning_content": out.reasoning_content,
+                "messages_content": out.messages_content,
+                "served_model": out.served_model,
                 "cached_tokens": out.cached_tokens,
                 "cost_usd_micros": out.cost_usd_micros,
                 "conservative_cost_usd_micros": out.conservative_cost_usd_micros,
