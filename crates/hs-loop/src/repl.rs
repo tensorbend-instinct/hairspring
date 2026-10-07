@@ -1304,7 +1304,7 @@ pub fn load(
     /// Goals injected mid-run via the gateway task inbox, drained.
     pub fn run_next_goal_round(&mut self)->Result<Option<MissionResult>,LoopError>{
         let Some(source)=self.inner.admit_goal_round()?else{return Ok(None)};
-        let prompt=format!("<goal_round>\nObjective: {}\nRound: {}/{}\n\nContinue working toward the objective in this same session. Treat the current workspace, tool results, and durable session state as authoritative; inspect them instead of assuming earlier narration is still current. Make concrete progress and verify the result. Before claiming completion, gather evidence that the whole objective is achieved, read the current goal, and mark it complete. If work remains, leave the goal active for the next round. Follow the configured goal-tool policy before reporting a blocker.\n</goal_round>",source["objective"],source["round"],source["maxGoalRounds"]);
+        let prompt=crate::dshgoal::round_prompt(&source);
         let id=format!("{}-round-{}",source["goalId"].as_str().unwrap_or("goal"),source["round"]);
         let hs_dir=self.work_dir.join(".hs");std::fs::create_dir_all(&hs_dir)?;std::fs::write(hs_dir.join("instruction.txt"),&prompt)?;
         let r=self.inner.run_admitted_goal_round(&id,&prompt,&source)?;

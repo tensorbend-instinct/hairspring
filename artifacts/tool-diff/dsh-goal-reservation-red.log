@@ -1,0 +1,57 @@
+warning: unused attribute
+   --> crates/hs-loop/src/appback.rs:148:1
+    |
+148 | #[must_use]
+    | ^^^^^^^^^^^ help: remove this attribute
+    |
+note: attribute also specified here
+   --> crates/hs-loop/src/appback.rs:144:1
+    |
+144 | #[must_use]
+    | ^^^^^^^^^^^
+    = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+    = note: `#[warn(unused_attributes)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> crates/hs-loop/src/repexec.rs:239:10
+    |
+239 |         .fetch_update(
+    |          ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+239 -         .fetch_update(
+239 +         .try_update(
+    |
+
+
+running 3 tests
+host_edit_revokes_queued_goal_round_without_counting_it --- FAILED
+round_reservation_is_idempotent_and_does_not_count_before_entry --- FAILED
+.
+failures:
+
+---- host_edit_revokes_queued_goal_round_without_counting_it stdout ----
+
+thread 'host_edit_revokes_queued_goal_round_without_counting_it' (696057) panicked at crates/hs-loop/tests/dsh_dispatch_red.rs:17:220:
+assertion `left == right` failed
+  left: Number(1)
+ right: 0
+
+---- round_reservation_is_idempotent_and_does_not_count_before_entry stdout ----
+
+thread 'round_reservation_is_idempotent_and_does_not_count_before_entry' (696058) panicked at crates/hs-loop/tests/dsh_dispatch_red.rs:16:228:
+assertion `left == right` failed
+  left: Object {"goalId": String("goal-59867527-b7dd-466c-904d-df3fa7822b62"), "maxGoalRounds": Number(256), "objective": String("work"), "revision": Number(1), "round": Number(1)}
+ right: Object {"goalId": String("goal-59867527-b7dd-466c-904d-df3fa7822b62"), "maxGoalRounds": Number(256), "objective": String("work"), "revision": Number(1), "round": Number(2)}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    host_edit_revokes_queued_goal_round_without_counting_it
+    round_reservation_is_idempotent_and_does_not_count_before_entry
+
+test result: FAILED. 1 passed; 2 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p hs-loop --test dsh_dispatch_red`

@@ -35,3 +35,5 @@ impl GoalSession{
 }
 
 pub fn card_text(value:&Value)->String{let g=&value["goal"];if g.is_null(){return "Goal: none".into()}format!("Goal [{}; {}] {} (round {}/{}, revision {})",g["phase"].as_str().unwrap_or("unknown"),value["activation"].as_str().unwrap_or("disarmed"),g["objective"].as_str().unwrap_or(""),g["roundsStarted"],g["maxGoalRounds"],g["revision"])}
+
+pub fn round_prompt(source:&Value)->String{format!("<goal_round>\nObjective: {}\nRound: {}/{}\n\nContinue working toward the objective in this same session. Treat the current workspace, tool results, and durable session state as authoritative; inspect them instead of assuming earlier narration is still current. Make concrete progress and verify the result. Before claiming completion, gather evidence that the whole objective is achieved, read the current goal, and mark it complete. If work remains, leave the goal active for the next round. Follow the configured goal-tool policy before reporting a blocker.\n</goal_round>",source["objective"],source["round"],source["maxGoalRounds"])}

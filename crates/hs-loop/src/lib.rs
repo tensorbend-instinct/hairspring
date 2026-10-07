@@ -829,9 +829,11 @@ impl InnerLoop {
 
     /// Goals queued by mid-run gateway adds, in injection order.
     pub fn admit_goal_round(&mut self)->Result<Option<serde_json::Value>,LoopError>{
+        if self.swarm_depth!=0||self.goal_turn_active{return Err(LoopError::Visibility("goal reservation requires idle root session".into()))}
+        if let Some(source)=self.admitted_goal_round.as_ref(){return Ok(Some(source.clone()))}
         self.writer.checkpoint()?;
         let mut proposed=self.session_goal.clone();let source=proposed.admit_round().map_err(LoopError::Visibility)?;
-        if proposed.snapshot()!=self.session_goal.snapshot(){
+        if source.is_none()&&proposed.snapshot()!=self.session_goal.snapshot(){
             self.writer.append(EventBuilder::new(EventKind::Observation).payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({"record_type":"session_goal/change","operation":"round","source":source,"snapshot":proposed.snapshot()})).expect("round serializes"))))?;
             self.writer.checkpoint()?;
             self.session_goal=proposed;
@@ -840,7 +842,13 @@ impl InnerLoop {
     }
     pub fn run_admitted_goal_round(&mut self,id:&str,prompt:&str,source:&serde_json::Value)->Result<MissionResult,LoopError>{
         if self.admitted_goal_round.take().as_ref()!=Some(source){return Err(LoopError::Visibility("goal round was not reserved or already consumed".into()))}
-        let g=self.session_goal.view();if g["goal"]["id"]!=source["goalId"]||g["goal"]["revision"]!=source["revision"]||g["goal"]["roundsStarted"]!=source["round"]||g["activation"]!="armed" {return Err(LoopError::Visibility("stale goal round source".into()))}
+        if self.swarm_depth!=0||self.goal_turn_active||prompt!=crate::dshgoal::round_prompt(source){return Err(LoopError::Visibility("stale or substituted goal round prompt".into()))}
+        self.writer.checkpoint()?;
+        let mut proposed=self.session_goal.clone();let expected=proposed.admit_round().map_err(LoopError::Visibility)?;
+        if expected.as_ref()!=Some(source){return Err(LoopError::Visibility("stale goal round source".into()))}
+        self.writer.append(EventBuilder::new(EventKind::Observation).payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({"record_type":"session_goal/change","operation":"round","source":source,"snapshot":proposed.snapshot()})).expect("round serializes"))))?;
+        self.writer.checkpoint()?;self.session_goal=proposed;
+        if let Some(sink)=self.ui_sink.as_mut(){sink(uipaint::UiEvent::SessionGoal{value:self.session_goal.view()});}
         self.goal_authority=crate::dshgoal::Authority::GoalRound{id:source["goalId"].as_str().unwrap_or("").into(),revision:source["revision"].as_u64().unwrap_or(0),round:source["round"].as_u64().unwrap_or(0)};
         let result=self.run_mission_inner(id,prompt,false);
         self.goal_authority=crate::dshgoal::Authority::External;
@@ -2084,6 +2092,7 @@ impl InnerLoop {
     }
 
     fn run_mission_inner(&mut self,id:&str,prompt:&str,resume:bool)->Result<MissionResult,LoopError>{
+        self.admitted_goal_round=None;
         self.goal_turn_active=true;
         let result=self.run_mission_work(id,prompt,resume);
         self.goal_turn_active=false;

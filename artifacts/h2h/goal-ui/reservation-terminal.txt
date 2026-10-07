@@ -1,0 +1,36 @@
+┌ HAIRSPRING: Session · 691cf385 ──────────────────────────────────────────────────────────────────────────────────────┐
+│  · not passed (steps_exhausted) - re-run the same goal to continue this mission at step 2                            │
+│Goal [active; armed] Inspect parser and verify tests (round 6/256, revision 1)                                        │
+│▣ ▶ get_goal  {}                                                                                                      │
+│  ✓ Completed in 0ms                                                                                                  │
+│── done: 1 steps, 1 calls, $0.0007 (steps_exhausted)                                                                  │
+│  · not passed (steps_exhausted) - re-run the same goal to continue this mission at step 2                            │
+│Goal [active; armed] Inspect parser and verify tests (round 7/256, revision 1)                                        │
+│▣ ▶ get_goal  {}                                                                                                      │
+│  ✓ Completed in 0ms                                                                                                  │
+│── done: 1 steps, 1 calls, $0.0007 (steps_exhausted)                                                                  │
+│  · not passed (steps_exhausted) - re-run the same goal to continue this mission at step 2                            │
+│Goal [active; armed] Inspect parser and verify tests (round 8/256, revision 1)                                        │
+│▣ ▶ get_goal  {}                                                                                                      │
+│  ✓ Completed in 0ms                                                                                                  │
+│── done: 1 steps, 1 calls, $0.0007 (steps_exhausted)                                                                  │
+│  · not passed (steps_exhausted) - re-run the same goal to continue this mission at step 2                            │
+│Goal [active; armed] Inspect parser and verify tests (round 9/256, revision 1)                                        │
+│▣ ▶ get_goal  {}                                                                                                      │
+│  ✓ Completed in 0ms                                                                                                  │
+│── done: 1 steps, 1 calls, $0.0007 (steps_exhausted)                                                                  │
+│  · not passed (steps_exhausted) - re-run the same goal to continue this mission at step 2                            │
+│Goal [active; armed] Inspect parser and verify tests (round 10/256, revision 1)                                       │
+│▣ ▶ get_goal  {}                                                                                                      │
+│  ✓ Completed in 0ms                                                                                                  │
+│── done: 1 steps, 1 calls, $0.0007 (steps_exhausted)                                                                  │
+│  · not passed (steps_exhausted) - re-run the same goal to continue this mission at step 2                            │
+│Goal [paused; disarmed] Inspect parser and verify tests (round 10/256, revision 2)                                    │
+│Goal [paused; disarmed] Inspect parser and verify tests (round 10/256, revision 2)                                    │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+                                                                                                                        
+  ┌ message or /command ─────────────────────────────────────────────────────────────────────────────────────────────┐  
+  │Agent  Message HAIRSPRING...                                                                                      │  
+  │scripted  @ files  shift+enter new line  tab modes                                                                │  
+  └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘  
+/home/sandbox  scripted  10 calls · cache 9%  shift+enter new line  tab modes                                           
