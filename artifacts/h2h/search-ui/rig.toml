@@ -1,0 +1,4 @@
+[[models]]
+name='scripted'
+command=['/tmp/hs/target/debug/hs-plugin-scripted']
+default=true

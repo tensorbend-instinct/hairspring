@@ -1,4 +1,38 @@
-const T = window.__TAURI__, invoke = T.core.invoke, listen = T.event.listen;
+<!doctype html><meta charset="utf-8"><style>:root{--line:#e5e7eb;--mut:#6b7280;--acc:#2563eb}
+*{box-sizing:border-box}body{margin:0;font:14px -apple-system,system-ui,sans-serif;color:#111;height:100vh}
+#app{display:flex;height:100vh}
+#side{width:260px;background:#f6f7f9;border-right:1px solid var(--line);display:flex;flex-direction:column;padding:10px;gap:8px;overflow:auto}
+#side button.new{padding:8px;border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer}
+.ws{margin-top:8px;color:var(--mut);font-size:12px}.sess{padding:6px 8px;border-radius:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sess:hover{background:#e9ecf1}
+#main{flex:1;display:flex;flex-direction:column;min-width:0}
+#tabs{display:flex;gap:16px;padding:8px 16px;border-bottom:1px solid var(--line)}
+#tabs span{cursor:pointer;color:var(--mut);padding-bottom:6px}#tabs span.on{color:var(--acc);border-bottom:2px solid var(--acc)}
+#chat{flex:1;overflow:auto;padding:16px 10%}
+.user{background:#eef2ff;border-radius:12px;padding:10px 14px;margin:10px 0 10px auto;max-width:80%;width:fit-content}
+.asst{margin:10px 0}.row{color:var(--mut);padding:2px 0;cursor:pointer}.row.fail{color:#dc2626}
+.row .d{display:none;white-space:pre-wrap;font:12px ui-monospace,monospace;color:#374151}.row.open .d{display:block}
+.think{color:var(--mut);font-style:italic}.done{color:var(--mut);border-top:1px solid var(--line);margin-top:8px;padding-top:6px}
+#traj{flex:1;overflow:auto;padding:12px 16px;display:none;font:12px ui-monospace,monospace}
+#comp{padding:10px 10%;position:relative}#comp textarea{width:100%;border:1px solid var(--line);border-radius:14px;padding:12px;resize:none;font:inherit}
+#menu{position:absolute;bottom:70px;left:10%;right:10%;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 4px 16px #0002;display:none}
+#menu div{padding:8px 12px;display:flex;justify-content:space-between;cursor:pointer}#menu div:hover{background:#f3f4f6}#menu small{color:var(--mut)}
+#foot{padding:6px 10%;color:var(--mut);font-size:12px;border-top:1px solid var(--line);display:flex;gap:14px}
+#setup{margin:auto;max-width:420px;display:flex;flex-direction:column;gap:10px}#setup input,#setup button{padding:10px;border-radius:8px;border:1px solid var(--line)}
+
+.sess{display:flex;justify-content:space-between;gap:6px}.sess small{color:var(--mut)}.sess.sel{background:#dbe4ff}
+#plug,#set{flex:1;overflow:auto;padding:16px 10%;display:none}.plg{padding:6px 0;display:flex;justify-content:space-between;border-bottom:1px solid var(--line)}.plg small{color:var(--mut)}
+#set label{display:block;margin:10px 0}#set select,#set input{margin-left:8px;padding:6px}
+.bar{display:flex;align-items:center;gap:10px;margin:8px 0}.bar span{width:80px}.bar i{display:block;height:10px;background:var(--acc);border-radius:5px;min-width:2px}.stats{margin-top:12px;color:var(--mut)}
+#qcard{display:none;margin:0 10%;padding:12px;border:1px solid var(--acc);border-radius:10px;background:#eff6ff}#qcard .q{margin-bottom:8px;font-weight:600}#qcard button{margin:2px 6px 2px 0;padding:6px 12px;border-radius:8px;border:1px solid var(--acc);background:#fff;cursor:pointer}
+#queue{padding:2px 10%;color:var(--mut);font-size:12px}
+.sess .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}.sess small{flex:none}
+#pwarn{display:none;background:#5a4a12;color:#ffe9a8;padding:6px 10px;font-size:13px}
+#wsbar{padding:6px;border-bottom:1px solid #333;font-size:12px}.wsh{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}.wsr{padding:4px 6px;cursor:pointer;border-radius:4px;display:flex;flex-direction:column;position:relative}.wsr:hover{background:#2a2a2a}.wsr.on{background:#27466b}.wsr small{opacity:.6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.wsx{position:absolute;right:4px;top:4px;opacity:.5;background:none;border:0;color:inherit;cursor:pointer}
+#browse{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;z-index:50}.bx{background:#1e1e1e;color:#ddd;padding:14px;border-radius:8px;width:460px;max-height:70vh;display:flex;flex-direction:column}#bpath{font-family:monospace;font-size:12px;margin:6px 0;word-break:break-all}#blist{overflow:auto;flex:1;border:1px solid #333;min-height:160px}.bd{padding:4px 8px;cursor:pointer}.bd:hover{background:#2a2a2a}.bbtn{display:flex;gap:8px;margin-top:8px}
+.wsr.on,.wsr.on small{color:#fff}
+.search-card{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:8px 0;min-width:0}.search-card details{margin-top:6px}.search-card summary{cursor:pointer;font:12px ui-monospace,monospace}.search-card pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px ui-monospace,monospace;color:#374151;max-height:240px;overflow:auto}
+</style><div id="app"></div><script>window.handlers={};window.__TAURI__={core:{invoke:async(c)=>c==='setup_status'?{ready:true}:c==='workspaces'?{list:[{name:'Search fixture',path:'/project'}],active:'/project'}:c==='project_status'?{empty:false}:c==='sessions'?[]:c==='questions'?[]:c==='submit'?{}:{}},event:{listen:(name,fn)=>window.handlers[name]=fn}};</script><script>const T = window.__TAURI__, invoke = T.core.invoke, listen = T.event.listen;
 const $ = (h) => { const d = document.createElement('div'); d.innerHTML = h.trim(); return d.firstChild; };
 const app = document.getElementById('app');
 const traj = []; let t0 = 0, calls = 0, steps = 0, tin = 0, tout = 0, cached = 0, tinCache = 0, ticker = null, asst = null, running = {};
@@ -196,3 +230,4 @@ async function browseDialog(path) {
     dlg.remove(); wsBar(); projectWarn(); refresh();
   };
 }
+</script><script>setTimeout(async()=>{await send('Find needle42 in the project');handlers['hs-event']({payload:{type:'tool_start',plugin:'grep',args:'pattern: needle42'}});handlers['hs-event']({payload:{type:'tool_end',plugin:'grep',ok:true,output:'Found 1 match',elapsed_ms:4}});handlers['hs-event']({payload:{type:'search_result',plugin:'grep',meta:{shape:'matches',files:[{path:'src/a.rs',matches:[{lineNumber:2,line:'needle42'}]},{path:'src/b.rs',matches:[{lineNumber:4,line:'needle42 again'}]}],total:300,truncated:true}}});document.querySelector('details').open=true;document.getElementById('browse')?.remove();clearInterval(ticker);},200);</script>

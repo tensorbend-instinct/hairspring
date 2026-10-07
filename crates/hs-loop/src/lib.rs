@@ -2835,7 +2835,8 @@ impl InnerLoop {
                         let mut rec = serde_json::json!({
                             "call_id": tool_out.call_id, "record_type": "mirror", "plugin": effective, "args": args, "result": tool_out.output,
                         });
-                        if matches!(effective.as_str(),"glob"|"grep")&&tool_out.output.get("error").is_none(){if let Some(root)=self.answer_root.as_ref(){rec["model_text"]=serde_json::json!(crate::dshsearch::render(root,&effective,&tool_out.output).unwrap_or_else(|e|format!("Error: {e}")));}}
+                        if matches!(effective.as_str(),"glob"|"grep")&&tool_out.output.get("error").is_none(){if let Some(root)=self.answer_root.as_ref(){rec["presentation_meta"]=crate::dshsearch::metadata(&effective,&tool_out.output);rec["model_text"]=serde_json::json!(crate::dshsearch::render(root,&effective,&tool_out.output).unwrap_or_else(|e|format!("Error: {e}")));}}
+                        if let Some(meta)=rec.get("presentation_meta"){if let Some(sink)=self.ui_sink.as_mut(){sink(uipaint::UiEvent::SearchResult{plugin:effective.clone(),meta:meta.clone()});}}
                         if effective != tool {
                             rec["requested_as"] = serde_json::json!(tool);
                         }

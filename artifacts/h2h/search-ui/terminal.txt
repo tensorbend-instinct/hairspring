@@ -1,0 +1,36 @@
+┌ HAIRSPRING: Search needle42 · 19d90528 ──────────────────────────────────────────────────────────────────────────────┐
+│› Searchgneedle42help for commands, /quit to exit)                                                                    │
+│▣ ▶ grep  {"pattern":"needle42"}                                                                                      │
+│  ✓ Completed in 30ms                                                                                                 │
+│  Search: 1 matches                                                                                                   │
+│  a.rs                                                                                                                │
+│  Line 1: needle42                                                                                                    │
+│── done: 1 steps, 1 calls, $0.0007 (steps_exhausted)                                                                  │
+│  · not passed (steps_exhausted) - re-run the same goal to continue this mission at step 2                            │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+                                                                                                                        
+  ┌ message or /command ─────────────────────────────────────────────────────────────────────────────────────────────┐  
+  │Agent  Message HAIRSPRING...                                                                                      │  
+  │scripted  @ files  shift+enter new line  tab modes                                                                │  
+  └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘  
+/tmp/hs  scripted  1 call · 144 tok/s · cache 14%  shift+enter new line  tab modes                                      

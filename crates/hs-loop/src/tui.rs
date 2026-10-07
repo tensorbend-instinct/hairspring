@@ -1936,6 +1936,7 @@ impl TuiState {
                 self.agents.note_done(*child, *ok);
                 self.push_ticker(EventKind::Consequence);
             }
+            U::SearchResult { meta, .. } => { for line in crate::dshsearch::card_text(meta).lines(){self.push_transcript_spans(vec![Span::raw(format!("  {line}"))]);} }
             U::ToolCallEnd {
                 ok,
                 output_summary,
