@@ -1,0 +1,5 @@
+# Plan host commands
+
+RED /plan incorrectly classified unknown; GREEN exact builtin parsing, /planet unknown. Native line and fullscreen hosts expose /plan [off|message], canonical source mode replies, private deployment guidance required before host entry, supplied message remains source input not a model-generated instruction. Native line uses run_goal for supplied message; fullscreen uses worker/session API. Stable palette/help/completion admission prevents skill shadowing. Idle host commands commit durably. Legacy gate unchanged.
+
+Actual rebuilt fullscreen PTY submitted /plan and displayed mode-on reply, zero model calls. Pixels inspected: clean reply at top, blank compositor, no startup echo overlap or false model throughput. This proves host command rendering only, not user review or live mission. Screenshot green.png/capture.py. No production plan review channel, busy host selection currently explicitly rejected, not queued parity; cancellation/reload/narration/header/fork still partial. No paid run.

@@ -192,7 +192,7 @@ pub struct StreamWriter {
     // Spec 2.6 single-authority fencing: an advisory exclusive flock on
     // writer.lock held for the writer's whole lifetime. The OS releases
     // it on close/kill, so a dead holder never wedges the stream.
-    _lock: File,
+    _lock: WriterLock,
     seg_index: usize,
     seg_len: u64,
     next_seq: u64,
@@ -211,7 +211,19 @@ pub struct ResumeOutcome {
 /// flock on `<stream>/writer.lock`; the fd lives in the writer, so the
 /// lock is held exactly as long as the writer and released by the OS on
 /// drop, exit, or kill - crash-safe by construction.
-fn acquire_writer_lock(dir: &Path, stream: Uuid) -> Result<File, LogError> {
+// flock ownership follows the open-file description through fork. Explicit
+// owner-side unlock avoids a concurrent spawn keeping a dropped writer fenced
+// until its exec. A fork child must never unlock its parent's live writer.
+struct WriterLock{file:File,owner_pid:u32}
+impl Drop for WriterLock{
+    fn drop(&mut self){
+        use std::os::unix::io::AsRawFd;
+        if std::process::id()==self.owner_pid{
+            let _=unsafe{libc::flock(self.file.as_raw_fd(),libc::LOCK_UN)};
+        }
+    }
+}
+fn acquire_writer_lock(dir: &Path, stream: Uuid) -> Result<WriterLock, LogError> {
     use std::os::unix::io::AsRawFd;
     let f = OpenOptions::new()
         .create(true)
@@ -226,7 +238,7 @@ fn acquire_writer_lock(dir: &Path, stream: Uuid) -> Result<File, LogError> {
         }
         return Err(LogError::Io(e));
     }
-    Ok(f)
+    Ok(WriterLock{file:f,owner_pid:std::process::id()})
 }
 
 impl StreamWriter {

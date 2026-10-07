@@ -1219,6 +1219,13 @@ impl InnerLoop {
 
     pub fn set_plan_guidance(&mut self,section:String)->Result<(),LoopError>{if section.trim().is_empty(){return Err(LoopError::Visibility("PlanModeConfig needs a non-empty section".into()))}self.session_plan.section=section;Ok(())}
     pub fn set_plan_reviewer(&mut self,reviewer:Box<dyn FnMut(&serde_json::Value)->Result<serde_json::Value,String>+Send>){self.plan_reviewer=Some(reviewer);}
+    pub fn host_plan_command(&mut self,input:&str)->Result<serde_json::Value,LoopError>{
+        let message=input.trim();
+        if message!="off"&&self.session_plan.section.trim().is_empty(){return Err(LoopError::Visibility("PlanModeConfig needs a non-empty section before entering plan mode".into()))}
+        let active=message!="off";let outcome=self.select_plan_mode(active)?;
+        let text=if active{if outcome=="committed"{"Plan mode on. Use /plan off to leave."}else{"Entering plan mode (applies from the next step). Use /plan off to leave."}}else{match outcome{"committed"=>"Plan mode off.","cancelled"=>"Plan mode entry cancelled.",_=>if self.session_plan.active{"Leaving plan mode (applies from the next step)."}else{"Plan mode is already inactive."}}};
+        Ok(serde_json::json!({"text":text,"message":if active&&!message.is_empty(){Some(message)}else{None},"mode":self.plan_view()}))
+    }
     pub fn select_plan_mode(&mut self,active:bool)->Result<&'static str,LoopError>{let old=self.session_plan.clone();let outcome=self.session_plan.select(active,self.goal_turn_active);if outcome=="committed"{if let Err(e)=self.record_plan_mode(){self.session_plan=old;return Err(e)}}Ok(outcome)}
     pub fn plan_view(&self)->serde_json::Value{serde_json::json!({"active":self.session_plan.active,"pending":self.session_plan.pending.is_some_and(|p|p!=self.session_plan.active)})}
     fn record_plan_mode(&mut self)->Result<(),LoopError>{self.writer.append(EventBuilder::new(EventKind::Observation).payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({"record_type":"plan/mode","active":self.session_plan.active})).expect("plan serializes"))))?;self.writer.checkpoint()?;Ok(())}

@@ -16,6 +16,7 @@ pub enum ReplCommand {
     Goal(String),
     Help,
     GoalControl(String),
+    PlanControl(String),
     /// Steps/cost/stream of the current session.
     Status,
     /// Recovery tier B: snapshot the mission workdir (books `snapshot_ref`).
@@ -50,6 +51,7 @@ pub fn parse_command(line: &str) -> ReplCommand {
         ":quit" | ":q" | ":exit" => ReplCommand::Quit,
         ":help" | ":h" | ":?" => ReplCommand::Help,
         t if t==":goal"||t.starts_with(":goal ") => ReplCommand::GoalControl(t[5..].trim().to_string()),
+        t if t==":plan"||t.starts_with(":plan ") => ReplCommand::PlanControl(t[5..].trim().to_string()),
         ":status" => ReplCommand::Status,
         ":snapshot" => ReplCommand::Snapshot,
         t if t.starts_with(":restore") => ReplCommand::Restore(
@@ -92,6 +94,7 @@ pub fn goal_slug(goal: &str) -> String {
 
 pub const REPL_HELP: &str = "hairspring REPL - run the harness on a goal, end to end
   <text>    run <text> as a goal (mission) on the loaded kernel
+  :plan [off|message]  enter or leave planning collaboration
   :status   steps, model calls, cost, stream id of the current session
   :snapshot snapshot the mission workdir (recovery tier B, books snapshot_ref)
   :restore <id>  restore the workdir from a snapshot (tier B, hash-verified)
@@ -1027,6 +1030,7 @@ pub fn load(
         self.inner.snapshot_workdir()
     }
     /// `/compact`.
+    pub fn host_plan_command(&mut self,input:&str)->Result<serde_json::Value,LoopError>{self.inner.host_plan_command(input)}
     pub fn select_plan_mode(&mut self,active:bool)->Result<&'static str,LoopError>{self.inner.select_plan_mode(active)}
     pub fn plan_view(&self)->serde_json::Value{self.inner.plan_view()}
     pub fn set_mode(&mut self, mode: &str) -> Result<(), String> {
@@ -1669,7 +1673,7 @@ pub fn sessions_overview(infos: &[SessionInfo]) -> Vec<String> {
 /// type them from memory). Pure prefix function so it is testable
 /// without a TTY; `CommandCompleter` adapts it to rustyline.
 pub const REPL_COMMANDS: &[&str] =
-    &[":compact", ":help", ":history", ":last", ":quit", ":restore", ":snapshot", ":status"];
+    &[":compact", ":plan", ":help", ":history", ":last", ":quit", ":restore", ":snapshot", ":status"];
 
 /// Completions for a command prefix. Sigil-prefixed input completes
 /// ("/" canonical, ":" the backward-compatible alias); goal text
@@ -1937,6 +1941,7 @@ pub fn run_interactive<E: Editor + ?Sized>(
         match session.classify_input(&line)? {
             ReplCommand::Quit => break,
             ReplCommand::GoalControl(input)=>{match session.host_goal_command(&input){Ok(v)=>eprintln!("{}",crate::dshgoal::card_text(&v)),Err(e)=>eprintln!("goal control failed: {e}")}},
+            ReplCommand::PlanControl(input)=>{match session.host_plan_command(&input){Ok(v)=>{eprintln!("{}",v["text"].as_str().unwrap_or(""));if let Some(message)=v["message"].as_str(){match session.run_goal(message){Ok(r)=>print_result(&r),Err(e)=>eprintln!("mission failed: {e}")}}},Err(e)=>eprintln!("plan control failed: {e}")}},
             ReplCommand::Help => eprintln!("{REPL_HELP}"),
             ReplCommand::Status => {
                 println!(

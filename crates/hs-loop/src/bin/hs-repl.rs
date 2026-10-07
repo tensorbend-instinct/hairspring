@@ -215,12 +215,14 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
         JobFollowupStarted(String),
         CapsInfo(String),
         CapsSet(String),
+        PlanNotice(String),
         SkillNames(Vec<String>),
     }
 
     enum UiCmd {
         Goal(String),
         GoalControl(String),
+        PlanControl(String),
         Switch(uuid::Uuid),
         SetModel(String),
         CapsQuery,
@@ -288,6 +290,7 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
                 Err(mpsc::RecvTimeoutError::Timeout)=>{let followups=match session.take_job_followups(){Ok(v)=>v,Err(e)=>{let _=tx.send(TuiMsg::Done(Err(format!("job followup delivery failed: {e}"))));continue;}};for followup in followups{let _=tx.send(TuiMsg::JobFollowupStarted(followup.clone()));let r=session.run_external_goal(&followup).map(|m|(m,session.total_cost_micros())).map_err(|e|e.to_string());let _=tx.send(TuiMsg::Done(r));}match session.run_next_goal_round(){Ok(Some(m))=>{let _=tx.send(TuiMsg::Done(Ok((m,session.total_cost_micros()))));},Ok(None)=>{},Err(e)=>{let _=tx.send(TuiMsg::Done(Err(format!("goal round failed: {e}"))));}}continue;}
             };
             match cmd {
+                UiCmd::PlanControl(input)=>{match session.host_plan_command(&input){Ok(v)=>{let _=tx.send(TuiMsg::PlanNotice(v["text"].as_str().unwrap_or("").to_owned()));if let Some(message)=v["message"].as_str(){let r=session.run_goal(message).map(|m|(m,session.total_cost_micros())).map_err(|e|e.to_string());let _=tx.send(TuiMsg::Done(r));}},Err(e)=>{let _=tx.send(TuiMsg::Done(Err(format!("plan control failed: {e}"))));}}},
                 UiCmd::GoalControl(input)=>{if let Err(e)=session.host_goal_command(&input){let _=tx.send(TuiMsg::Done(Err(format!("goal control failed: {e}"))));}},
                 UiCmd::Goal(goal) => {
                     if goal.starts_with('/')&&matches!(session.classify_input(&goal),Ok(hs_loop::repl::ReplCommand::Unknown(_))|Err(_)){let _=tx.send(TuiMsg::Done(Err("skill is unknown or no longer available for user invocation".into())));continue;}
@@ -496,6 +499,7 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
                         st.push_transcript_line(line);
                     }
                 }
+                TuiMsg::PlanNotice(s)=>st.push_transcript_line(&s),
                 TuiMsg::CapsSet(s) => {
                     st.push_transcript_line(&format!("caps \u{203a} {s}"));
                 }
@@ -766,7 +770,8 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
                                         st.push_transcript_line("(no mission has finished yet)")
                                     }
                                 }
-                            } else if t=="/goal"||t.starts_with("/goal "){if running{st.push_transcript_line("Goal controls require the idle session; interrupt the current turn first.");}else{let _=goal_tx.send(UiCmd::GoalControl(t[5..].trim().to_string()));}}
+                            } else if t=="/plan"||t.starts_with("/plan "){if running{st.push_transcript_line("Plan controls require the idle session; interrupt the current turn first.");}else{let input=t[5..].trim().to_string();if !input.is_empty()&&input!="off"{running=true;st.push_goal_echo(&input);}let _=goal_tx.send(UiCmd::PlanControl(input));}}
+                            else if t=="/goal"||t.starts_with("/goal "){if running{st.push_transcript_line("Goal controls require the idle session; interrupt the current turn first.");}else{let _=goal_tx.send(UiCmd::GoalControl(t[5..].trim().to_string()));}}
                             else if let Some(goal) = t.strip_prefix('/').filter(|_|!hs_loop::dshskill::starts_user_gesture(&t,&st.user_skill_names)) {
                                 st.push_transcript_line(&format!(
                                     "unknown command /{goal} (/help lists commands)"

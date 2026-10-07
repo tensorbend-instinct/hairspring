@@ -84,6 +84,7 @@ pub fn kind_glyph(k: EventKind) -> char {
 /// and never mentioned :resume/:agents.
 pub const TUI_HELP: &str = "hairspring - full-screen surface
   <text>    run <text> as a goal (queues behind a running mission)
+  /plan [off|message]  enter or leave planning collaboration
   /status   model, missions, steps, calls, cost, stream of this session
   /history  goals you have submitted this session
   /last     the latest mission's answer artifact
@@ -171,6 +172,7 @@ pub fn format_caps_listing(s: &CapsSnapshot) -> String {
 }
 
 pub const TUI_COMMANDS: &[CommandSpec] = &[
+    CommandSpec{name:"plan",summary:"Enter or leave plan mode",args:Some("[off|message]")},
     CommandSpec { name:"goal", args:Some("[objective|edit objective|pause|resume|clear]"), summary:"Show or control the session goal" },
     CommandSpec {
         name: "help",
