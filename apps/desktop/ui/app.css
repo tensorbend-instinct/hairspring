@@ -32,3 +32,5 @@
 #browse{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;z-index:50}.bx{background:#1e1e1e;color:#ddd;padding:14px;border-radius:8px;width:460px;max-height:70vh;display:flex;flex-direction:column}#bpath{font-family:monospace;font-size:12px;margin:6px 0;word-break:break-all}#blist{overflow:auto;flex:1;border:1px solid #333;min-height:160px}.bd{padding:4px 8px;cursor:pointer}.bd:hover{background:#2a2a2a}.bbtn{display:flex;gap:8px;margin-top:8px}
 .wsr.on,.wsr.on small{color:#fff}
 .search-card{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:8px 0;min-width:0}.search-card details{margin-top:6px}.search-card summary{cursor:pointer;font:12px ui-monospace,monospace}.search-card pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px ui-monospace,monospace;color:#374151;max-height:240px;overflow:auto}
+
+.todo-card{white-space:pre-wrap;padding:8px 12px;margin:8px 0;border-left:2px solid var(--acc);font-size:13px}

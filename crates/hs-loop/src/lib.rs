@@ -210,6 +210,7 @@ pub struct InnerLoop {
     budget_micros: Option<u64>,
     progress_path: Option<PathBuf>,
     ledger: ledger::Ledger,
+    todos: crate::dshtodo::TodoSession,
     context_budget_chars: usize,
     /// `/compact`: shrink the NEXT history assembly so older exchanges are
     /// distilled now instead of when the window fills. One-shot.
@@ -545,6 +546,7 @@ impl InnerLoop {
                 .unwrap_or(0),
             progress_path: None,
             ledger: Default::default(),
+            todos: Default::default(),
             context_budget_chars: DEFAULT_CONTEXT_BUDGET_TOKENS * 4,
             compact_next: false,
             memory_store: None,
@@ -656,6 +658,7 @@ impl InnerLoop {
                 .unwrap_or(0),
             progress_path: None,
             ledger: Default::default(),
+            todos: Default::default(),
             context_budget_chars: DEFAULT_CONTEXT_BUDGET_TOKENS * 4,
             compact_next: false,
             memory_store: None,
@@ -1490,6 +1493,7 @@ impl InnerLoop {
         tool: &str,
         args: &serde_json::Value,
     ) -> Result<ToolCallOutcome, KernelError> {
+        if tool=="todo_write"{if let Some(output)=permission::gate(tool,args){return Ok(ToolCallOutcome{call_id:uuid::Uuid::new_v4(),start_event_id:uuid::Uuid::nil(),resolved:None,output,latency_ms:0})}let(call_id,start_event_id)=self.kernel.start_internal_tool(tool,args)?;let start=std::time::Instant::now();let output=self.todos.write(args).unwrap_or_else(|e|serde_json::json!({"error":e}));if output.get("error").is_none(){self.writer.append(EventBuilder::new(EventKind::Observation).payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({"record_type":"todo/write","todos":output["todos"]})).expect("todo serializes"))))?;}if output.get("error").is_none(){if let Some(sink)=self.ui_sink.as_mut(){sink(uipaint::UiEvent::TodoList{todos:output["todos"].clone()});}}let out=ToolCallOutcome{call_id,start_event_id,resolved:None,output,latency_ms:start.elapsed().as_millis().min(u32::MAX as u128) as u32};self.kernel.end_internal_tool(tool,args,&out)?;return Ok(out)}
         if matches!(tool,"glob"|"grep"){
             if let Some(output)=permission::gate(tool,args){return Ok(ToolCallOutcome{call_id:uuid::Uuid::new_v4(),start_event_id:uuid::Uuid::nil(),resolved:None,output,latency_ms:0})}
             let (call_id,start_event_id)=self.kernel.start_internal_tool(tool,args)?;let started=std::time::Instant::now();
@@ -2037,6 +2041,8 @@ impl InnerLoop {
         // tool.call in this mission carries the mission's run dir, so
         // policy.propose_prompt records into <log>/work/<mission>/ with no
         // env var on the live path.
+        self.todos.reset();
+        if let Some(sink)=self.ui_sink.as_mut(){sink(uipaint::UiEvent::TodoList{todos:serde_json::Value::Null});}
         self.writer.set_default_parent(None);
         let trace_root = self.writer.append(EventBuilder::new(EventKind::Observation)
             .payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({
@@ -3548,3 +3554,5 @@ pub mod dshtools;
 pub mod dshjobs;
 
 pub mod dshsearch;
+
+pub mod dshtodo;

@@ -195,6 +195,7 @@ pub enum UiEvent {
     },
     /// Structured search projection, separate from the canonical tool value.
     SearchResult { plugin: String, meta: serde_json::Value },
+    TodoList { todos: serde_json::Value },
     /// UI gap #10 M6: a sub-agent was delegated to (hs-swarm Spawn).
     SubAgentSpawned {
         child: uuid::Uuid,
@@ -304,6 +305,7 @@ impl<'a, W: Write> Painter<'a, W> {
                 }
                 let _ = writeln!(self.out);
             }
+            UiEvent::TodoList { todos } => {if !todos.is_null(){let _=writeln!(self.out,"{}",crate::dshtodo::card_text(todos));}}
             UiEvent::SearchResult { meta, .. } => { for line in crate::dshsearch::card_text(meta).lines() { let _ = writeln!(self.out,"  {line}"); } }
             UiEvent::Step { .. } | UiEvent::ModelCallCache { .. } => {}
             UiEvent::ModelReasoning { text } => {
@@ -661,6 +663,7 @@ impl UiEvent {
                 "type":"tool_start","plugin":plugin,"args":args_summary}),
             UiEvent::ToolCallEnd { plugin, ok, output_summary, elapsed_ms } => json!({
                 "type":"tool_end","plugin":plugin,"ok":ok,"output":output_summary,"elapsed_ms":elapsed_ms}),
+            UiEvent::TodoList { todos } => json!({"type":"todo_list","todos":todos}),
             UiEvent::SearchResult { plugin, meta } => json!({"type":"search_result","plugin":plugin,"meta":meta}),
             UiEvent::SubAgentSpawned { child, parent, mission, model } => json!({
                 "type":"subagent_spawned","child":child.to_string(),"parent":parent.map(|p| p.to_string()),

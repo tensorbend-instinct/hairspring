@@ -1,0 +1,36 @@
+┌ HAIRSPRING: Update todo list · 05ab9eca ─────────────────────────────────────────────────────────────────────────────┐
+│› Updategtodollistelp for commands, /quit to exit)                                                                    │
+│▣ ▶ todo_write  {"todos":[{"content":"Inspect parser","status":"completed"},{"content":"Run                           │
+│tests","status":"in_progress"},{"content":"…                                                                          │
+│[completed] Inspect parser                                                                                            │
+│[in_progress] Run tests                                                                                               │
+│[pending] Check output                                                                                                │
+│  ✓ Completed in 0ms  {"counts":{"completed":1,"inProgress":1,"pending":1},"todos":[{"content":"Inspec…               │
+│── done: 1 steps, 1 calls, $0.0007 (steps_exhausted)                                                                  │
+│  · not passed (steps_exhausted) - re-run the same goal to continue this mission at step 2                            │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+                                                                                                                        
+  ┌ message or /command ─────────────────────────────────────────────────────────────────────────────────────────────┐  
+  │Agent  Message HAIRSPRING...                                                                                      │  
+  │scripted  @ files  shift+enter new line  tab modes                                                                │  
+  └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘  
+/tmp/hs  scripted  1 call · 4235294 tok/s · cache 14%  shift+enter new line  tab modes                                  
