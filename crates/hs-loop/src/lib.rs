@@ -1494,7 +1494,7 @@ impl InnerLoop {
             if let Some(output)=permission::gate(tool,args){return Ok(ToolCallOutcome{call_id:uuid::Uuid::new_v4(),start_event_id:uuid::Uuid::nil(),resolved:None,output,latency_ms:0})}
             let (call_id,start_event_id)=self.kernel.start_internal_tool(tool,args)?;let started=std::time::Instant::now();
             let result=match self.answer_root.as_ref(){Some(root)=>if tool=="glob"{crate::dshsearch::glob(root,args)}else{crate::dshsearch::grep(root,args)},None=>Err("native search requires explicit project root".into())};
-            let mut output=result.unwrap_or_else(|e|serde_json::json!({"error":e}));if output.get("error").is_none(){if let Some(root)=self.answer_root.as_ref(){output["model_text"]=serde_json::json!(crate::dshsearch::render(root,tool,&output).unwrap_or_else(|e|format!("Error: {e}")));}}
+            let output=result.unwrap_or_else(|e|serde_json::json!({"error":e}));
             let out=ToolCallOutcome{call_id,start_event_id,resolved:None,output,latency_ms:started.elapsed().as_millis().min(u32::MAX as u128) as u32};self.kernel.end_internal_tool(tool,args,&out)?;return Ok(out)
         }
         if matches!(tool,"bash"|"job_list"|"job_output"|"job_kill") {
@@ -2835,6 +2835,7 @@ impl InnerLoop {
                         let mut rec = serde_json::json!({
                             "call_id": tool_out.call_id, "record_type": "mirror", "plugin": effective, "args": args, "result": tool_out.output,
                         });
+                        if matches!(effective.as_str(),"glob"|"grep")&&tool_out.output.get("error").is_none(){if let Some(root)=self.answer_root.as_ref(){rec["model_text"]=serde_json::json!(crate::dshsearch::render(root,&effective,&tool_out.output).unwrap_or_else(|e|format!("Error: {e}")));}}
                         if effective != tool {
                             rec["requested_as"] = serde_json::json!(tool);
                         }
