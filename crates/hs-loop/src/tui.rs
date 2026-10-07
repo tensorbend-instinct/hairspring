@@ -171,6 +171,7 @@ pub fn format_caps_listing(s: &CapsSnapshot) -> String {
 }
 
 pub const TUI_COMMANDS: &[CommandSpec] = &[
+    CommandSpec { name:"goal", args:Some("[objective|edit objective|pause|resume|clear]"), summary:"Show or control the session goal" },
     CommandSpec {
         name: "help",
         summary: "list commands",

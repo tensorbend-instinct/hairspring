@@ -219,6 +219,7 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
 
     enum UiCmd {
         Goal(String),
+        GoalControl(String),
         Switch(uuid::Uuid),
         SetModel(String),
         CapsQuery,
@@ -283,6 +284,7 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
                 Err(mpsc::RecvTimeoutError::Timeout)=>{let followups=match session.take_job_followups(){Ok(v)=>v,Err(e)=>{let _=tx.send(TuiMsg::Done(Err(format!("job followup delivery failed: {e}"))));continue;}};for followup in followups{let _=tx.send(TuiMsg::JobFollowupStarted(followup.clone()));let r=session.run_external_goal(&followup).map(|m|(m,session.total_cost_micros())).map_err(|e|e.to_string());let _=tx.send(TuiMsg::Done(r));}match session.run_next_goal_round(){Ok(Some(m))=>{let _=tx.send(TuiMsg::Done(Ok((m,session.total_cost_micros()))));},Ok(None)=>{},Err(e)=>{let _=tx.send(TuiMsg::Done(Err(format!("goal round failed: {e}"))));}}continue;}
             };
             match cmd {
+                UiCmd::GoalControl(input)=>{if let Err(e)=session.host_goal_command(&input){let _=tx.send(TuiMsg::Done(Err(format!("goal control failed: {e}"))));}},
                 UiCmd::Goal(goal) => {
                     let r = session
                         .run_goal(&goal)
@@ -754,7 +756,8 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
                                         st.push_transcript_line("(no mission has finished yet)")
                                     }
                                 }
-                            } else if let Some(goal) = t.strip_prefix('/') {
+                            } else if t=="/goal"||t.starts_with("/goal "){if running{st.push_transcript_line("Goal controls require the idle session; interrupt the current turn first.");}else{let _=goal_tx.send(UiCmd::GoalControl(t[5..].trim().to_string()));}}
+                            else if let Some(goal) = t.strip_prefix('/') {
                                 st.push_transcript_line(&format!(
                                     "unknown command /{goal} (/help lists commands)"
                                 ));

@@ -15,6 +15,7 @@ pub enum ReplCommand {
     /// A goal to run end-to-end (any non-`:` line of text).
     Goal(String),
     Help,
+    GoalControl(String),
     /// Steps/cost/stream of the current session.
     Status,
     /// Recovery tier B: snapshot the mission workdir (books `snapshot_ref`).
@@ -48,6 +49,7 @@ pub fn parse_command(line: &str) -> ReplCommand {
     match t {
         ":quit" | ":q" | ":exit" => ReplCommand::Quit,
         ":help" | ":h" | ":?" => ReplCommand::Help,
+        t if t==":goal"||t.starts_with(":goal ") => ReplCommand::GoalControl(t[5..].trim().to_string()),
         ":status" => ReplCommand::Status,
         ":snapshot" => ReplCommand::Snapshot,
         t if t.starts_with(":restore") => ReplCommand::Restore(
@@ -1308,6 +1310,7 @@ pub fn load(
         let r=self.inner.run_admitted_goal_round(&id,&prompt,&source)?;
         self.missions_run+=1;self.total_steps+=u64::from(r.steps);self.total_model_calls+=u64::from(r.model_calls);self.last_answer_path=Some(r.answer_path.clone());Ok(Some(r))
     }
+    pub fn host_goal_command(&mut self,input:&str)->Result<serde_json::Value,LoopError>{self.inner.host_goal_command(input)}
     pub fn session_goal_view(&self)->serde_json::Value{self.inner.session_goal_view()}
     pub fn has_unsettled_jobs(&self)->bool{self.inner.has_unsettled_jobs()}
     pub fn take_job_followups(&mut self)->Result<Vec<String>,LoopError>{self.inner.take_job_followups()}
@@ -1915,6 +1918,7 @@ pub fn run_interactive<E: Editor + ?Sized>(
         editor.add_history(&line);
         match parse_command(&line) {
             ReplCommand::Quit => break,
+            ReplCommand::GoalControl(input)=>{match session.host_goal_command(&input){Ok(v)=>eprintln!("{}",crate::dshgoal::card_text(&v)),Err(e)=>eprintln!("goal control failed: {e}")}},
             ReplCommand::Help => eprintln!("{REPL_HELP}"),
             ReplCommand::Status => {
                 println!(

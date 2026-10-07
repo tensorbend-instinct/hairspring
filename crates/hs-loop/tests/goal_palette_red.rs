@@ -1,0 +1,2 @@
+use hs_loop::tui::{TuiState,handle_key,KeyAction};use crossterm::event::{KeyEvent,KeyCode,KeyModifiers};
+#[test]fn full_goal_command_reaches_owner_instead_of_unknown_gate(){for command in ["/goal","/goal pause","/goal resume","/goal edit Keep working"]{let mut s=TuiState::default();s.editor.set_text(command);assert!(matches!(handle_key(&mut s,KeyEvent::new(KeyCode::Enter,KeyModifiers::NONE)),KeyAction::Submit(v) if v==command),"{command}");}}

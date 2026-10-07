@@ -1,0 +1,65 @@
+warning: unused attribute
+   --> crates/hs-loop/src/appback.rs:148:1
+    |
+148 | #[must_use]
+    | ^^^^^^^^^^^ help: remove this attribute
+    |
+note: attribute also specified here
+   --> crates/hs-loop/src/appback.rs:144:1
+    |
+144 | #[must_use]
+    | ^^^^^^^^^^^
+    = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+    = note: `#[warn(unused_attributes)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> crates/hs-loop/src/repexec.rs:239:10
+    |
+239 |         .fetch_update(
+    |          ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+239 -         .fetch_update(
+239 +         .try_update(
+    |
+
+error[E0599]: no method named `host_command` found for struct `GoalSession` in the current scope
+  --> crates/hs-loop/tests/dsh_goal_core_red.rs:10:106
+   |
+10 | ...ion(){let mut s=GoalSession::default();s.host_command("Work carefully").unwrap();s.host_command("pause").unwrap();let v=s.view();...
+   |                                             ^^^^^^^^^^^^ method not found in `GoalSession`
+
+error[E0599]: no method named `host_command` found for struct `GoalSession` in the current scope
+  --> crates/hs-loop/tests/dsh_goal_core_red.rs:10:148
+   |
+10 | ...ost_command("Work carefully").unwrap();s.host_command("pause").unwrap();let v=s.view();assert_eq!(v["goal"]["phase"],"paused");as...
+   |                                             ^^^^^^^^^^^^ method not found in `GoalSession`
+
+error[E0599]: no method named `host_command` found for struct `GoalSession` in the current scope
+  --> crates/hs-loop/tests/dsh_goal_core_red.rs:10:384
+   |
+10 | ...ume"}),Authority::HumanRoot).is_err());s.host_command("resume").unwrap();assert_eq!(s.view()["activation"],"armed");assert_eq!(s....
+   |                                             ^^^^^^^^^^^^ method not found in `GoalSession`
+
+error[E0599]: no method named `host_command` found for struct `GoalSession` in the current scope
+  --> crates/hs-loop/tests/dsh_goal_core_red.rs:10:504
+   |
+10 | ...rt_eq!(s.view()["goal"]["revision"],3);s.host_command("edit Revised objective").unwrap();assert_eq!(s.view()["goal"]["objective"]...
+   |                                             ^^^^^^^^^^^^ method not found in `GoalSession`
+
+error[E0599]: no method named `host_command` found for struct `GoalSession` in the current scope
+  --> crates/hs-loop/tests/dsh_goal_core_red.rs:10:624
+   |
+10 | ...jective"],"Revised objective");assert!(s.host_command("edit").is_err());s.host_command("clear").unwrap();assert_eq!(s.view(),json...
+   |                                             ^^^^^^^^^^^^ method not found in `GoalSession`
+
+error[E0599]: no method named `host_command` found for struct `GoalSession` in the current scope
+  --> crates/hs-loop/tests/dsh_goal_core_red.rs:10:657
+   |
+10 | ...sert!(s.host_command("edit").is_err());s.host_command("clear").unwrap();assert_eq!(s.view(),json!({"goal":null}));}
+   |                                             ^^^^^^^^^^^^ method not found in `GoalSession`
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `hs-loop` (test "dsh_goal_core_red") due to 6 previous errors
