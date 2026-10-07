@@ -1236,7 +1236,7 @@ impl InnerLoop {
         else if outcome!="noop"{self.session_plan.narrate_pending=true;}
         Ok(outcome)
     }
-    fn queue_plan_notice(&mut self,target:bool)->Result<(),LoopError>{if let Some(text)=self.session_plan.narration(target){self.writer.append(EventBuilder::new(EventKind::Observation).payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({"record_type":"plan/notice","text":text})).unwrap())))?;self.session_plan.pending_notice=Some(text.into());}Ok(())}
+    fn queue_plan_notice(&mut self,target:bool)->Result<(),LoopError>{let text=self.session_plan.narration(target);self.writer.append(EventBuilder::new(EventKind::Observation).payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({"record_type":"plan/notice","text":text})).unwrap())))?;self.session_plan.pending_notice=text.map(str::to_owned);Ok(())}
     pub fn plan_view(&self)->serde_json::Value{serde_json::json!({"active":self.session_plan.active,"pending":self.session_plan.pending.is_some_and(|p|p!=self.session_plan.active)})}
     fn record_plan_mode(&mut self)->Result<(),LoopError>{self.writer.append(EventBuilder::new(EventKind::Observation).payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({"record_type":"plan/mode","active":self.session_plan.active})).expect("plan serializes"))))?;self.writer.checkpoint()?;Ok(())}
     pub fn register_skill_provider(&mut self,scope:Option<&str>,provider:std::sync::Arc<dyn crate::dshskill::SkillProvider>)->Result<(),LoopError>{self.skill_registry.register_provider(scope,provider).map_err(LoopError::Visibility)}
