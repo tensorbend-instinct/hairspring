@@ -216,6 +216,7 @@ pub struct InnerLoop {
     goal_turn_active: bool,
     admitted_goal_round: Option<serde_json::Value>,
     skill_roots:Vec<crate::dshskill::SkillRoot>,
+    skill_registry:crate::dshskill::Registry,
     skill_config:crate::dshskill::RootConfig,
     skill_history:bool,
     context_budget_chars: usize,
@@ -559,6 +560,7 @@ impl InnerLoop {
             goal_turn_active: false,
             admitted_goal_round: None,
             skill_roots:vec![],
+            skill_registry:Default::default(),
             skill_config:Default::default(),
             skill_history:false,
             context_budget_chars: DEFAULT_CONTEXT_BUDGET_TOKENS * 4,
@@ -686,6 +688,7 @@ impl InnerLoop {
             goal_turn_active: false,
             admitted_goal_round: None,
             skill_roots:vec![],
+            skill_registry:Default::default(),
             skill_config:Default::default(),
             skill_history:restored_skill_history,
             context_budget_chars: DEFAULT_CONTEXT_BUDGET_TOKENS * 4,
@@ -1203,7 +1206,9 @@ impl InnerLoop {
         self.answer_root = root;
     }
 
-    pub fn user_skill_names(&self)->Result<Vec<String>,LoopError>{crate::dshskill::user_names(&self.skill_roots).map_err(LoopError::Visibility)}
+    pub fn register_runtime_skill(&mut self,skill:crate::dshskill::RuntimeSkill)->Result<bool,LoopError>{self.skill_registry.register(skill).map_err(LoopError::Visibility)}
+    pub fn remove_runtime_skill(&mut self,name:&str)->bool{self.skill_registry.remove(name)}
+    pub fn user_skill_names(&self)->Result<Vec<String>,LoopError>{self.skill_registry.user_names(&self.skill_roots).map_err(LoopError::Visibility)}
     pub fn set_skill_config(&mut self,config:crate::dshskill::RootConfig){self.skill_roots=config.roots(self.answer_root.as_deref());self.skill_config=config;}
     #[must_use]
     pub fn work_dir(&self) -> std::path::PathBuf {
@@ -1576,7 +1581,7 @@ impl InnerLoop {
             let out=ToolCallOutcome{call_id,start_event_id,resolved:None,output,latency_ms:start.elapsed().as_millis().min(u32::MAX as u128) as u32};
             self.kernel.end_internal_tool(tool,args,&out)?;return Ok(out)
         }
-        if tool=="skill"{self.skill_history=true;let(call_id,start_event_id)=self.kernel.start_internal_tool(tool,args)?;let start=std::time::Instant::now();let result=match self.answer_root.as_ref(){Some(_root)=>crate::dshskill::call(&self.skill_roots,args),None=>Err("skill requires an explicit project root".into())};let output=result.unwrap_or_else(|e|serde_json::json!({"error":e}));let out=ToolCallOutcome{call_id,start_event_id,resolved:None,output,latency_ms:start.elapsed().as_millis().min(u32::MAX as u128) as u32};self.kernel.end_internal_tool(tool,args,&out)?;return Ok(out)}
+        if tool=="skill"{self.skill_history=true;let(call_id,start_event_id)=self.kernel.start_internal_tool(tool,args)?;let start=std::time::Instant::now();let result=match self.answer_root.as_ref(){Some(_root)=>self.skill_registry.call(&self.skill_roots,args),None=>Err("skill requires an explicit project root".into())};let output=result.unwrap_or_else(|e|serde_json::json!({"error":e}));let out=ToolCallOutcome{call_id,start_event_id,resolved:None,output,latency_ms:start.elapsed().as_millis().min(u32::MAX as u128) as u32};self.kernel.end_internal_tool(tool,args,&out)?;return Ok(out)}
         if tool=="todo_write"{if let Some(output)=permission::gate(tool,args){return Ok(ToolCallOutcome{call_id:uuid::Uuid::new_v4(),start_event_id:uuid::Uuid::nil(),resolved:None,output,latency_ms:0})}let(call_id,start_event_id)=self.kernel.start_internal_tool(tool,args)?;let start=std::time::Instant::now();let output=self.todos.write(args).unwrap_or_else(|e|serde_json::json!({"error":e}));if output.get("error").is_none(){self.writer.append(EventBuilder::new(EventKind::Observation).payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({"record_type":"todo/write","todos":output["todos"]})).expect("todo serializes"))))?;}if output.get("error").is_none(){if let Some(sink)=self.ui_sink.as_mut(){sink(uipaint::UiEvent::TodoList{todos:output["todos"].clone()});}}let out=ToolCallOutcome{call_id,start_event_id,resolved:None,output,latency_ms:start.elapsed().as_millis().min(u32::MAX as u128) as u32};self.kernel.end_internal_tool(tool,args,&out)?;return Ok(out)}
         if matches!(tool,"glob"|"grep"){
             if let Some(output)=permission::gate(tool,args){return Ok(ToolCallOutcome{call_id:uuid::Uuid::new_v4(),start_event_id:uuid::Uuid::nil(),resolved:None,output,latency_ms:0})}
@@ -2160,7 +2165,7 @@ impl InnerLoop {
         // This entry alone is host-attested direct user input. Automatic rounds,
         // child missions and external followups must never manufacture gestures.
         if let Some(input)=direct_input{
-            for value in crate::dshskill::direct(&self.skill_roots,input).map_err(LoopError::Visibility)?{
+            for value in self.skill_registry.direct(&self.skill_roots,input).map_err(LoopError::Visibility)?{
                 self.writer.append(EventBuilder::new(EventKind::Observation).payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({"record_type":"skill/invocation","mission":mission,"prompt":input,"source":{"kind":"skill-invocation","name":value["name"],"form":"instructions"},"value":value,"text":crate::dshskill::render(&value)})).expect("skill invocation serializes"))))?;
             }
         }
@@ -2311,7 +2316,7 @@ impl InnerLoop {
                 "role": "user",
                 "content": crate::msgfmt::mission_first_message(&prompt),
             })];
-            if let Some(root)=self.answer_root.as_ref(){let _=root;match crate::dshskill::catalog(&self.skill_roots){Ok(entries)=>{let mut previous=None;let mut previous_text=None;if let Ok(r)=hs_log::StreamReader::open(&self.log_root,self.stream_id){if let Ok(events)=r.events(){for e in events.iter().rev(){if e.kind!=EventKind::Observation{continue}if let Ok(b)=r.resolve_payload(e){if let Ok(v)=serde_json::from_slice::<serde_json::Value>(&b){if v["record_type"]=="skill/catalog"{previous=Some(v["entries"].clone());previous_text=v["text"].as_str().map(str::to_owned);break}}}}}}if previous.is_some()||entries.as_array().is_some_and(|v|!v.is_empty()){let changed=previous.as_ref()!=Some(&entries);let text=if !changed{previous_text.unwrap_or_else(||crate::dshskill::catalog_text(&entries,false))}else{crate::dshskill::catalog_text(&entries,previous.is_some())};if changed{self.writer.append(EventBuilder::new(EventKind::Observation).payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({"record_type":"skill/catalog","entries":entries,"text":text})).expect("catalog serializes"))))?;}messages.push(serde_json::json!({"role":"user","content":text}));}},Err(error)=>return Err(LoopError::Visibility(error))}}
+            if let Some(root)=self.answer_root.as_ref(){let _=root;match self.skill_registry.catalog(&self.skill_roots){Ok(entries)=>{let mut previous=None;let mut previous_text=None;if let Ok(r)=hs_log::StreamReader::open(&self.log_root,self.stream_id){if let Ok(events)=r.events(){for e in events.iter().rev(){if e.kind!=EventKind::Observation{continue}if let Ok(b)=r.resolve_payload(e){if let Ok(v)=serde_json::from_slice::<serde_json::Value>(&b){if v["record_type"]=="skill/catalog"{previous=Some(v["entries"].clone());previous_text=v["text"].as_str().map(str::to_owned);break}}}}}}if previous.is_some()||entries.as_array().is_some_and(|v|!v.is_empty()){let changed=previous.as_ref()!=Some(&entries);let text=if !changed{previous_text.unwrap_or_else(||crate::dshskill::catalog_text(&entries,false))}else{crate::dshskill::catalog_text(&entries,previous.is_some())};if changed{self.writer.append(EventBuilder::new(EventKind::Observation).payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({"record_type":"skill/catalog","entries":entries,"text":text})).expect("catalog serializes"))))?;}messages.push(serde_json::json!({"role":"user","content":text}));}},Err(error)=>return Err(LoopError::Visibility(error))}}
             // Replay durable direct invocations as user content, never as a
             // fake model-issued skill tool call or mutable filesystem reread.
             if let Ok(r)=hs_log::StreamReader::open(&self.log_root,self.stream_id){if let Ok(es)=r.events(){for e in es{if e.kind!=EventKind::Observation{continue}if let Ok(b)=r.resolve_payload(&e){if let Ok(v)=serde_json::from_slice::<serde_json::Value>(&b){if v["record_type"]=="skill/invocation"&&v["source"]["kind"]=="skill-invocation"{if let Some(text)=v["text"].as_str(){messages.push(serde_json::json!({"role":"user","content":text}));}}}}}}}
