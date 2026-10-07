@@ -1,0 +1,48 @@
+warning: unused attribute
+   --> crates/hs-loop/src/appback.rs:148:1
+    |
+148 | #[must_use]
+    | ^^^^^^^^^^^ help: remove this attribute
+    |
+note: attribute also specified here
+   --> crates/hs-loop/src/appback.rs:144:1
+    |
+144 | #[must_use]
+    | ^^^^^^^^^^^
+    = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+    = note: `#[warn(unused_attributes)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> crates/hs-loop/src/repexec.rs:239:10
+    |
+239 |         .fetch_update(
+    |          ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+239 -         .fetch_update(
+239 +         .try_update(
+    |
+
+
+running 1 test
+owner_session_id_and_profile_are_explicit_not_process_global --- FAILED
+
+failures:
+
+---- owner_session_id_and_profile_are_explicit_not_process_global stdout ----
+
+thread 'owner_session_id_and_profile_are_explicit_not_process_global' (340581) panicked at crates/hs-loop/tests/dsh_jobs_red.rs:45:365:
+assertion `left == right` failed
+  left: String("93608f47-9d94-447e-bb7f-71068667f21f||")
+ right: "owner-42|offline|/profile/offline"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    owner_session_id_and_profile_are_explicit_not_process_global
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 26 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p hs-loop --test dsh_jobs_red`

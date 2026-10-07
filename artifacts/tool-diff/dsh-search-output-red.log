@@ -1,0 +1,56 @@
+warning: unused attribute
+   --> crates/hs-loop/src/appback.rs:148:1
+    |
+148 | #[must_use]
+    | ^^^^^^^^^^^ help: remove this attribute
+    |
+note: attribute also specified here
+   --> crates/hs-loop/src/appback.rs:144:1
+    |
+144 | #[must_use]
+    | ^^^^^^^^^^^
+    = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+    = note: `#[warn(unused_attributes)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> crates/hs-loop/src/repexec.rs:239:10
+    |
+239 |         .fetch_update(
+    |          ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+239 -         .fetch_update(
+239 +         .try_update(
+    |
+
+
+running 6 tests
+. 1/6
+capped_glob_retains_full_result_spill_and_model_head --- FAILED
+grep_model_render_groups_and_labels_lines --- FAILED
+...
+failures:
+
+---- capped_glob_retains_full_result_spill_and_model_head stdout ----
+
+thread 'capped_glob_retains_full_result_spill_and_model_head' (344206) panicked at crates/hs-loop/tests/dsh_search_red.rs:5:340:
+assertion failed: text.contains("Full")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- grep_model_render_groups_and_labels_lines stdout ----
+
+thread 'grep_model_render_groups_and_labels_lines' (344215) panicked at crates/hs-loop/tests/dsh_search_red.rs:6:199:
+assertion `left == right` failed
+  left: "{\"matches\":[{\"line\":\"foo\",\"lineNumber\":2,\"path\":\"a\"},{\"line\":\"bar\",\"lineNumber\":4,\"path\":\"a\"}]}"
+ right: "Found 2 matches\n\na\nLine 2: foo\nLine 4: bar"
+
+
+failures:
+    capped_glob_retains_full_result_spill_and_model_head
+    grep_model_render_groups_and_labels_lines
+
+test result: FAILED. 4 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+error: test failed, to rerun pass `-p hs-loop --test dsh_search_red`

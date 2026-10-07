@@ -1,0 +1,64 @@
+warning: unused attribute
+   --> crates/hs-loop/src/appback.rs:148:1
+    |
+148 | #[must_use]
+    | ^^^^^^^^^^^ help: remove this attribute
+    |
+note: attribute also specified here
+   --> crates/hs-loop/src/appback.rs:144:1
+    |
+144 | #[must_use]
+    | ^^^^^^^^^^^
+    = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+    = note: `#[warn(unused_attributes)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> crates/hs-loop/src/repexec.rs:239:10
+    |
+239 |         .fetch_update(
+    |          ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+239 -         .fetch_update(
+239 +         .try_update(
+    |
+
+
+running 3 tests
+grep_regex_grouping_and_include --- FAILED
+glob_basename_searches_hidden_ignored_files_and_excludes_vcs --- FAILED
+search_escape_and_invalid_pattern_fail_closed --- FAILED
+
+failures:
+
+---- grep_regex_grouping_and_include stdout ----
+
+thread 'grep_regex_grouping_and_include' (342537) panicked at crates/hs-loop/tests/dsh_search_red.rs:3:294:
+assertion `left == right` failed
+  left: 0
+ right: 2
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- glob_basename_searches_hidden_ignored_files_and_excludes_vcs stdout ----
+
+thread 'glob_basename_searches_hidden_ignored_files_and_excludes_vcs' (342536) panicked at crates/hs-loop/tests/dsh_search_red.rs:2:489:
+assertion `left == right` failed
+  left: 0
+ right: 2
+
+---- search_escape_and_invalid_pattern_fail_closed stdout ----
+
+thread 'search_escape_and_invalid_pattern_fail_closed' (342538) panicked at crates/hs-loop/tests/dsh_search_red.rs:4:94:
+assertion failed: dshsearch::glob(d.path(), &json!({"pattern":"*","path":"/"})).is_err()
+
+
+failures:
+    glob_basename_searches_hidden_ignored_files_and_excludes_vcs
+    grep_regex_grouping_and_include
+    search_escape_and_invalid_pattern_fail_closed
+
+test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p hs-loop --test dsh_search_red`

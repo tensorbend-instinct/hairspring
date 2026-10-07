@@ -1,0 +1,14 @@
+{
+  "answer_path": "/tmp/hs/artifacts/h2h/dsh-search-live/proj/find-the-rust-source-file-matching-rs-us/answer.txt",
+  "budget_killed": false,
+  "harness_error": null,
+  "model_calls": 8,
+  "outcome": "verified",
+  "passed": true,
+  "steps": 7,
+  "stream_id": "265cca54-57bd-4453-bf36-5a368883a42f",
+  "seconds": 43.1,
+  "served_models": [
+    "deepseek-flash"
+  ]
+}

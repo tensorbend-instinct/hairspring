@@ -1135,7 +1135,7 @@ impl InnerLoop {
     /// snapshotted.
     /// Point mission answer files at the session's project folder (set once at session load).
     pub fn set_answer_root(&mut self, root: Option<std::path::PathBuf>) {
-        self.job_session=root.as_ref().map(|r|crate::dshjobs::JobSession::new(r));
+        self.job_session=root.as_ref().map(|r|crate::dshjobs::JobSession::with_environment(r,&self.stream_id.to_string(),None));
         self.file_session=root.as_ref().map(|r|crate::dshtools::FileSession::new(r));
         self.answer_root = root;
     }
@@ -1490,6 +1490,13 @@ impl InnerLoop {
         tool: &str,
         args: &serde_json::Value,
     ) -> Result<ToolCallOutcome, KernelError> {
+        if matches!(tool,"glob"|"grep"){
+            if let Some(output)=permission::gate(tool,args){return Ok(ToolCallOutcome{call_id:uuid::Uuid::new_v4(),start_event_id:uuid::Uuid::nil(),resolved:None,output,latency_ms:0})}
+            let (call_id,start_event_id)=self.kernel.start_internal_tool(tool,args)?;let started=std::time::Instant::now();
+            let result=match self.answer_root.as_ref(){Some(root)=>if tool=="glob"{crate::dshsearch::glob(root,args)}else{crate::dshsearch::grep(root,args)},None=>Err("native search requires explicit project root".into())};
+            let mut output=result.unwrap_or_else(|e|serde_json::json!({"error":e}));if output.get("error").is_none(){if let Some(root)=self.answer_root.as_ref(){output["model_text"]=serde_json::json!(crate::dshsearch::render(root,tool,&output).unwrap_or_else(|e|format!("Error: {e}")));}}
+            let out=ToolCallOutcome{call_id,start_event_id,resolved:None,output,latency_ms:started.elapsed().as_millis().min(u32::MAX as u128) as u32};self.kernel.end_internal_tool(tool,args,&out)?;return Ok(out)
+        }
         if matches!(tool,"bash"|"job_list"|"job_output"|"job_kill") {
             if let Some(output)=permission::gate(tool,args){return Ok(ToolCallOutcome{call_id:uuid::Uuid::new_v4(),start_event_id:uuid::Uuid::nil(),resolved:None,output,latency_ms:0})}
             if let Some(root)=self.answer_root.as_ref(){if let Some(output)=plan_mode::gate(root,tool,args){return Ok(ToolCallOutcome{call_id:uuid::Uuid::new_v4(),start_event_id:uuid::Uuid::nil(),resolved:None,output,latency_ms:0})}}
@@ -3537,3 +3544,5 @@ pub fn fork_mission(mission: &str, ledger_summary: &str) -> String {
 pub mod dshtools;
 
 pub mod dshjobs;
+
+pub mod dshsearch;

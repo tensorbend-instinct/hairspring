@@ -3,7 +3,7 @@ use std::{path::{Path,PathBuf},collections::BTreeMap,sync::{Arc,Mutex},time::{Du
 use serde_json::{json,Value};
 struct State{stdout:Vec<u8>,stderr:Vec<u8>,out_base:usize,err_base:usize,out_path:PathBuf,err_path:PathBuf,code:Option<i32>,signal:Option<String>,io_errors:Vec<String>,process_exited:bool,cancelled:bool,cancel_reason:Option<String>,finished:Option<u64>}
 struct Job{notified:bool,awaited:bool,collected:bool,id:String,label:String,pid:u32,started:u64,state:Arc<Mutex<State>>,out_cursor:usize,err_cursor:usize}
-pub struct JobSession{session_id:String,root:PathBuf,jobs:BTreeMap<String,Job>}
+pub struct JobSession{session_id:String,profile:Option<(String,String)>,root:PathBuf,jobs:BTreeMap<String,Job>}
 fn now()->u64{SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64}
 fn validate(a:&Value,allowed:&[&str])->Result<(),String>{let o=a.as_object().ok_or("arguments must be object")?;for k in o.keys(){if !allowed.contains(&k.as_str()){return Err(format!("unknown argument {k}"))}}Ok(())}
 fn positive(a:&Value,k:&str,default:f64,cap:f64)->Result<Duration,String>{let n=a.get(k).map(|x|x.as_f64().ok_or_else(||format!("{k} must be positive number"))).transpose()?.unwrap_or(default);if !n.is_finite()||n<=0.0{return Err(format!("{k} must be positive number"))}Ok(Duration::from_secs_f64(n.min(cap)/1000.0))}
@@ -20,11 +20,12 @@ fn delta(j:&mut Job)->String{let s=j.state.lock().unwrap();let lost=j.out_cursor
 
 fn wait(j:&Job,d:Duration){let start=Instant::now();while j.state.lock().unwrap().finished.is_none()&&start.elapsed()<d{std::thread::sleep(Duration::from_millis(5))}}
 impl JobSession{
+ pub fn with_environment(root:&Path,id:&str,profile:Option<(&str,&str)>)->Self{Self{session_id:id.into(),profile:profile.map(|(n,d)|(n.into(),d.into())),root:root.to_path_buf(),jobs:BTreeMap::new()}}
  pub fn retry_notice(&mut self,id:&str){if let Some(job)=self.jobs.get_mut(id){job.notified=false}}
  pub fn owned_pids(&self)->Vec<u32>{self.jobs.values().map(|j|j.pid).collect()}
  pub fn uncollected(&self)->Vec<String>{self.jobs.values().filter(|j|!j.collected&&!j.state.lock().unwrap().cancelled).map(|j|j.id.clone()).collect()}
  pub fn notifications(&mut self)->Vec<Value>{let mut out=vec![];for j in self.jobs.values_mut(){let settled={let s=j.state.lock().unwrap();s.finished.is_some()&&!s.cancelled};if settled&&!j.notified&&!j.awaited{j.notified=true;out.push(json!({"job":view(j),"text":format!("Background job {} finished; collect its newer output with job_output.",j.id)}));}}out}
- pub fn new(root:&Path)->Self{Self{session_id:uuid::Uuid::new_v4().to_string(),root:root.to_path_buf(),jobs:BTreeMap::new()}}
+ pub fn new(root:&Path)->Self{Self::with_environment(root,&uuid::Uuid::new_v4().to_string(),None)}
  pub fn bash(&mut self,a:&Value)->Result<Value,String>{
   validate(a,&["description","command","timeoutMs","workdir","run_in_background","sandbox_permissions","justification"])?;
   let command=a["command"].as_str().filter(|s|!s.trim().is_empty()).ok_or("command must be non-empty string")?;
@@ -33,7 +34,7 @@ impl JobSession{
   let timeout=positive(a,"timeoutMs",120000.0,600000.0)?;let background=flag(a,"run_in_background")?;
   let root=self.root.canonicalize().map_err(|e|e.to_string())?;let wd=match a.get("workdir"){None=>root.clone(),Some(v)=>{let p=v.as_str().ok_or("workdir must be string")?;if Path::new(p).is_absolute(){PathBuf::from(p)}else{root.join(p)}}};
   let mut spill=root.clone();for component in [".hs","jobs"]{spill.push(component);match std::fs::symlink_metadata(&spill){Ok(m) if m.file_type().is_symlink()||!m.is_dir()=>return Err("spill path must be a real directory inside root".into()),Ok(_)=>{},Err(e) if e.kind()==std::io::ErrorKind::NotFound=>std::fs::create_dir(&spill).map_err(|e|e.to_string())?,Err(e)=>return Err(e.to_string())}if !spill.canonicalize().map_err(|e|e.to_string())?.starts_with(&root){return Err("spill path escapes root".into())}}let spill_id=uuid::Uuid::new_v4();let out_path=spill.join(format!("{spill_id}.stdout"));let err_path=spill.join(format!("{spill_id}.stderr"));let out_file=std::fs::OpenOptions::new().write(true).create_new(true).open(&out_path).map_err(|e|e.to_string())?;let err_file=std::fs::OpenOptions::new().write(true).create_new(true).open(&err_path).map_err(|e|e.to_string())?;
-  let quoted_home=format!("'{}'",root.join(".hs").display().to_string().replace('\'',"'\"'\"'"));let wrapped=format!("export DSH_SHELL=1 DSH_SESSION_ID='{}' DSH_HOME={quoted_home};\n{command}",self.session_id);
+  let quoted_home=format!("'{}'",root.join(".hs").display().to_string().replace('\'',"'\"'\"'"));let quote=|v:&str|format!("'{}'",v.replace('\'',"'\"'\"'"));let profile=self.profile.as_ref().map(|(n,d)|format!(" DSH_PROFILE={} DSH_PROFILE_DIR={}",quote(n),quote(d))).unwrap_or_default();let wrapped=format!("export DSH_SHELL=1 DSH_SESSION_ID={} DSH_HOME={quoted_home}{profile};\n{command}",quote(&self.session_id));
   let mut child=crate::termexec::spawn_managed_status(&root,&wd,&wrapped).map_err(|v|v.to_string())?;let pid=child.id();let out=child.stdout.take().ok_or("stdout unavailable")?;let err=child.stderr.take().ok_or("stderr unavailable")?;
   let state=Arc::new(Mutex::new(State{stdout:vec![],stderr:vec![],out_base:0,err_base:0,out_path,err_path,code:None,signal:None,io_errors:vec![],process_exited:false,cancelled:false,cancel_reason:None,finished:None}));let so=state.clone();
   let output=std::thread::spawn(move||drain_frames(out,out_file,err_file,&so));
