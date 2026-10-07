@@ -1,0 +1,29 @@
+ 229165  229160       06:51  0.0 target/debug/hs-repl run --goal Use native bash to start one background command that prints alpha, waits 0.2 seconds, writes the exact bytes job done followed by a newline to result.txt, then prints omega. Collect its completed output with native job_output. Use native read to confirm result.txt. Finish with one sentence stating whether the job completed and what the file contains. Do not use legacy shell tools. --config /home/sandbox/.config/hairspring/hairspring.toml --dir artifacts/h2h/dsh-jobs-live/run --project-dir artifacts/h2h/dsh-jobs-live/proj
+ 229174  229165       06:51  0.0 /tmp/hs/target/debug/bin/hs-plugin-termexec
+ 229176  229165       06:51  0.0 /tmp/hs/target/debug/bin/hs-plugin-fileread
+ 229178  229165       06:51  0.0 /tmp/hs/target/debug/bin/hs-plugin-reposearch
+ 229182  229165       06:50  0.0 /tmp/hs/target/debug/bin/hs-plugin-notescratch
+ 229185  229165       06:50  0.0 /tmp/hs/target/debug/bin/hs-plugin-askuser
+ 229187  229165       06:50  0.0 /tmp/hs/target/debug/bin/hs-plugin-jobs
+ 229191  229165       06:50  0.0 /tmp/hs/target/debug/bin/hs-plugin-glob
+ 229195  229165       06:50  0.0 /tmp/hs/target/debug/bin/hs-plugin-todo
+ 229198  229165       06:50  0.0 /tmp/hs/target/debug/bin/hs-plugin-present
+ 229204  229165       06:50  0.0 /tmp/hs/target/debug/bin/hs-plugin-readimage
+ 229206  229165       06:50  0.0 /tmp/hs/target/debug/bin/hs-plugin-schedule
+ 229212  229165       06:50  0.0 /tmp/hs/target/debug/bin/hs-plugin-workflow
+ 229214  229165       06:50  0.0 /tmp/hs/target/debug/bin/hs-plugin-speak
+ 229218  229165       06:50  0.0 /tmp/hs/target/debug/bin/hs-plugin-goaltool
+ 229222  229165       06:50  0.0 /tmp/hs/target/debug/bin/hs-plugin-plan
+ 229224  229165       06:50  0.0 /tmp/hs/target/debug/bin/hs-plugin-websearch
+ 229228  229165       06:50  0.0 /tmp/hs/target/debug/bin/hs-plugin-webfetch
+ 229230  229165       06:50  0.0 /tmp/hs/target/debug/bin/hs-plugin-answersubmit
+ 229232  229165       06:50  0.0 /tmp/hs/target/debug/bin/hs-plugin-critic
+ 229234  229165       06:50  0.0 /tmp/hs/target/debug/bin/hs-plugin-policy
+ 229236  229165       06:50  0.0 [hs-plugin-swarm] <defunct>
+ 229238  229165       06:50  0.0 [hs-plugin-swarm] <defunct>
+ 229241  229165       06:50  0.0 /tmp/hs/target/debug/bin/hs-plugin-agentlist
+ 229245  229165       06:50  0.0 /tmp/hs/target/debug/bin/hs-plugin-agentsend
+ 229252  229165       06:50  0.0 /tmp/hs/target/debug/bin/hs-plugin-agentstop
+ 229254  229165       06:50  0.0 /tmp/hs/target/debug/bin/hs-plugin-deepseek
+ 229256  229165       06:50  0.0 /tmp/hs/target/debug/bin/hs-plugin-scripted
+ 253876  253865       00:00  0.0 grep -E 229232|229165

@@ -28,7 +28,7 @@ echo "Building HAIRSPRING (release, locked)..."
 # and the install died on the cp).
 (cd "$SRC" && CARGO_TARGET_DIR="$SRC/target" cargo build --release --locked --workspace --bins)
 
-BINS="hs-repl hs-log-cli \
+BINS="hs-repl hs-plugin-shell-supervisor hs-log-cli \
 hs-plugin-answer hs-plugin-answersubmit hs-plugin-selfcheck hs-plugin-critic \
 hs-plugin-fileread hs-plugin-reposearch hs-plugin-repoexec \
 hs-plugin-editapply hs-plugin-notescratch hs-plugin-webfetch hs-plugin-jobs hs-plugin-askuser hs-plugin-websearch hs-plugin-plan hs-plugin-goaltool hs-plugin-glob hs-plugin-todo hs-plugin-present hs-plugin-readimage hs-plugin-schedule hs-plugin-workflow hs-plugin-speak hs-plugin-termexec \

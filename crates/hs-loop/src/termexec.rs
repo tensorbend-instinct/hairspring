@@ -300,8 +300,13 @@ fn spawn_confined(
     command: &str,
     identity: Option<(u32, u32)>,
 ) -> Result<std::process::Child, Value> {
+    spawn_confined_status(root,workdir,command,identity,None)
+}
+#[cfg(not(target_os = "macos"))]
+fn spawn_confined_status(root:&std::path::Path,workdir:&std::path::Path,command:&str,identity:Option<(u32,u32)>,status_fd:Option<&std::path::Path>)->Result<std::process::Child,Value>{
     let root_s = root.to_string_lossy().into_owned();
     let mut cmd = std::process::Command::new("bwrap");
+    if let Some(helper)=status_fd{cmd.args(["--ro-bind"]).arg(helper).arg("/hs-plugin-shell-supervisor");}
     let author_path =
         format!("{root_s}/.cargo/bin:{root_s}/.local/bin:/usr/local/bin:/usr/bin:/bin");
     cmd.args([
@@ -376,8 +381,9 @@ fn spawn_confined(
     if let Some((uid, gid)) = identity {
         cmd.args(["--uid", &uid.to_string(), "--gid", &gid.to_string()]);
     }
-    cmd.args(["--chdir", &workdir.to_string_lossy(), "bash", "-c", command])
-        .stdout(Stdio::piped())
+    cmd.args(["--chdir", &workdir.to_string_lossy()]);
+    if status_fd.is_some(){cmd.args(["/hs-plugin-shell-supervisor",command]);}else{cmd.args(["bash","-c",command]);}
+    cmd.stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .process_group(0);
     cmd.spawn().map_err(|e| {
@@ -505,4 +511,25 @@ pub fn spawn_background(
         let _ = c.wait();
     });
     Ok(pid)
+}
+/// Session-root-bound managed command. Uses the same confinement machinery,
+/// without a command lifetime timer; caller owns promotion and cancellation.
+pub fn spawn_managed(root:&std::path::Path,workdir:&std::path::Path,command:&str)->Result<std::process::Child,Value>{
+ let root=root.canonicalize().map_err(|e|serde_json::json!({"$error":e.to_string()}))?;
+ let wd=workdir.canonicalize().map_err(|e|serde_json::json!({"$error":e.to_string()}))?;
+ if !wd.starts_with(&root){return Err(serde_json::json!({"$error":"workdir escapes project root"}))}
+ spawn_confined(&root,&wd,command,None)
+}
+
+/// Run a framing supervisor INSIDE confinement. Its child cannot forge frames:
+/// child stdout/stderr are separate pipes consumed and encoded by the supervisor.
+pub fn spawn_managed_status(root:&std::path::Path,workdir:&std::path::Path,command:&str)->Result<std::process::Child,Value>{
+ let root=root.canonicalize().map_err(|e|serde_json::json!({"$error":e.to_string()}))?;
+ let wd=workdir.canonicalize().map_err(|e|serde_json::json!({"$error":e.to_string()}))?;
+ if !wd.starts_with(&root){return Err(serde_json::json!({"$error":"workdir escapes project root"}))}
+ let exe=std::env::current_exe().map_err(|e|serde_json::json!({"$error":e.to_string()}))?;
+ let mut dir=exe.parent().unwrap();if dir.file_name().is_some_and(|n|n=="deps"){dir=dir.parent().unwrap()}
+ let helper=dir.join("hs-plugin-shell-supervisor");if !helper.is_file(){return Err(serde_json::json!({"$error":"hs-plugin-shell-supervisor missing beside hs-repl; refusing lossy status"}))}
+ #[cfg(not(target_os="macos"))]{spawn_confined_status(&root,&wd,command,None,Some(&helper))}
+ #[cfg(target_os="macos")]{let wrapped=format!("'{}' '{}'",helper.display().to_string().replace('\'',"'\"'\"'"),command.replace('\'',"'\"'\"'"));spawn_confined(&root,&wd,&wrapped,None)}
 }

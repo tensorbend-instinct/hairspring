@@ -262,6 +262,7 @@ pub struct InnerLoop {
     /// Where mission answer dirs live (the session's project folder); None = <log_root>/work.
     answer_root: Option<std::path::PathBuf>,
     file_session: Option<crate::dshtools::FileSession>,
+    job_session: Option<crate::dshjobs::JobSession>,
     mission_started: Option<std::time::Instant>,
     /// Native tool schemas delivered to the provider's tools parameter on
     /// the operator call (native tool calling; Eric 2026-09-05). None = the
@@ -566,6 +567,7 @@ impl InnerLoop {
             interrupt_sticky: false,
             answer_root: None,
             file_session: None,
+            job_session: None,
             mission_started: None,
             ui_sink: None,
             last_model: None,
@@ -676,6 +678,7 @@ impl InnerLoop {
             interrupt_sticky: false,
             answer_root: None,
             file_session: None,
+            job_session: None,
             mission_started: None,
             ui_sink: None,
             last_model: None,
@@ -1130,6 +1133,7 @@ impl InnerLoop {
     /// snapshotted.
     /// Point mission answer files at the session's project folder (set once at session load).
     pub fn set_answer_root(&mut self, root: Option<std::path::PathBuf>) {
+        self.job_session=root.as_ref().map(|r|crate::dshjobs::JobSession::new(r));
         self.file_session=root.as_ref().map(|r|crate::dshtools::FileSession::new(r));
         self.answer_root = root;
     }
@@ -1484,6 +1488,13 @@ impl InnerLoop {
         tool: &str,
         args: &serde_json::Value,
     ) -> Result<ToolCallOutcome, KernelError> {
+        if matches!(tool,"bash"|"job_list"|"job_output"|"job_kill") {
+            if let Some(output)=permission::gate(tool,args){return Ok(ToolCallOutcome{call_id:uuid::Uuid::new_v4(),start_event_id:uuid::Uuid::nil(),resolved:None,output,latency_ms:0})}
+            if let Some(root)=self.answer_root.as_ref(){if let Some(output)=plan_mode::gate(root,tool,args){return Ok(ToolCallOutcome{call_id:uuid::Uuid::new_v4(),start_event_id:uuid::Uuid::nil(),resolved:None,output,latency_ms:0})}}
+            let (call_id,start_event_id)=self.kernel.start_internal_tool(tool,args)?;let started=std::time::Instant::now();
+            let result=match self.job_session.as_mut(){Some(s)=>match tool{"bash"=>s.bash(args),"job_list"=>s.list(args),"job_output"=>s.output(args),_=>s.kill(args)},None=>Err("managed jobs require explicit project root".into())};
+            let output=result.unwrap_or_else(|e|serde_json::json!({"error":e}));let out=ToolCallOutcome{call_id,start_event_id,resolved:None,output,latency_ms:started.elapsed().as_millis().min(u32::MAX as u128) as u32};self.kernel.end_internal_tool(tool,args,&out)?;return Ok(out)
+        }
         if matches!(tool,"read"|"write"|"edit") {
             if let Some(output)=permission::gate(tool,args){return Ok(ToolCallOutcome{call_id:uuid::Uuid::new_v4(),start_event_id:uuid::Uuid::nil(),resolved:None,output,latency_ms:0})}
             if let Some(root)=self.answer_root.as_ref(){if let Some(output)=plan_mode::gate(root,tool,args){return Ok(ToolCallOutcome{call_id:uuid::Uuid::new_v4(),start_event_id:uuid::Uuid::nil(),resolved:None,output,latency_ms:0})}}
@@ -2140,6 +2151,13 @@ impl InnerLoop {
             }
             steps = step;
             // Async delegation: finished children land here, every step.
+            let mut job_updates=vec![];
+            if let Some(jobs)=self.job_session.as_mut(){
+                for notice in jobs.notifications(){
+                    self.writer.append(EventBuilder::new(EventKind::Observation).payload(Payload::Inline(serde_json::to_vec(&notice).expect("job notice serializes"))))?;
+                    job_updates.push(notice["text"].as_str().unwrap_or("").to_string());
+                }
+            }
             let delegation_updates = self.poll_children();
             // observe + drain_feedback: what the world said since last step
             let artifact = std::fs::read_to_string(&answer_path).unwrap_or_default();
@@ -2181,6 +2199,9 @@ impl InnerLoop {
                     cap as f64 / 1e6
                 ));
             }
+            if let Some(jobs)=self.job_session.as_ref(){let ids=jobs.uncollected();if !ids.is_empty(){volatile.push_str(&format!("UNCOLLECTED JOBS: {}. Collect relevant output before final answer, cancel irrelevant jobs.\n",ids.join(", ")));}}
+            for update in job_updates {volatile.push_str(&format!("BACKGROUND JOB UPDATE: {update}\n"));}
+            volatile.push_str("BACKGROUND JOBS: Track every job id. Before final answer, collect every still-relevant job with job_output; wait only when blocked, and job_kill jobs that stopped mattering.\n");
             let mut injected = false;
             if self.feedback_injection && !drained.is_empty() {
                 volatile.push_str("FEEDBACK:\n");
@@ -2973,6 +2994,8 @@ impl InnerLoop {
                 continue;
             }
 
+            if let Some(jobs)=self.job_session.as_ref(){let ids=jobs.uncollected();if !ids.is_empty(){let notice=format!("Final answer cannot close over uncollected jobs: {}. Collect still-relevant output with job_output; cancel jobs that no longer matter with job_kill.",ids.join(", "));self.writer.append(EventBuilder::new(EventKind::Feedback).payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({"why":"uncollected_jobs","detail":notice})).expect("job final gate serializes"))))?;pending_feedback.push(notice);continue;}}
+
             // the world answers (checker = ground truth at this gate);
             // only an answer.submit produces something to judge
             let verdict = self.kernel.call_tool(
@@ -3510,3 +3533,5 @@ pub fn fork_mission(mission: &str, ledger_summary: &str) -> String {
 }
 
 pub mod dshtools;
+
+pub mod dshjobs;

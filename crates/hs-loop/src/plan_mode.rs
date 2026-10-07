@@ -20,7 +20,7 @@ pub fn active(workdir: &Path) -> bool {
 #[must_use]
 pub fn mutates(tool: &str, args: &Value) -> bool {
     match tool {
-        "write" | "edit" | "term.exec" | "repo.exec" | "edit.apply" | "edit.patch" | "edit.anchor" | "agent.spawn"
+        "bash" | "job_kill" | "write" | "edit" | "term.exec" | "repo.exec" | "edit.apply" | "edit.patch" | "edit.anchor" | "agent.spawn"
         | "answer.submit" | "answer.write" | "world.install" => true,
         "jobs" => matches!(args["op"].as_str(), Some("start" | "kill")),
         _ => false,

@@ -1,0 +1,1700 @@
+warning: Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: workspace (manifest) generated 23 warnings
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-hashline/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-hashline` (manifest) generated 23 warnings
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-applypatch/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-applypatch` (manifest) generated 23 warnings
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-goal/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-goal` (manifest) generated 23 warnings
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-swarm/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-swarm` (manifest) generated 23 warnings
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-loop/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-loop` (manifest) generated 23 warnings
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-bench/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-bench` (manifest) generated 23 warnings
+warning: crates/hs-log/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-log/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-log` (manifest) generated 23 warnings
+warning: crates/hs-core/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-core/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-core` (manifest) generated 23 warnings
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-scorer/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-scorer` (manifest) generated 23 warnings
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-memory/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-memory` (manifest) generated 23 warnings
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-selfmod/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-selfmod` (manifest) generated 23 warnings
+warning: crates/hs-world/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-world/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-world` (manifest) generated 23 warnings
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-kernel/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-kernel` (manifest) generated 23 warnings
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.assigning-clones` is deprecated in favor of `lints.clippy.assigning_clones` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.cast-possible-truncation` is deprecated in favor of `lints.clippy.cast_possible_truncation` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.cast-possible-wrap` is deprecated in favor of `lints.clippy.cast_possible_wrap` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.cast-precision-loss` is deprecated in favor of `lints.clippy.cast_precision_loss` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.cast-sign-loss` is deprecated in favor of `lints.clippy.cast_sign_loss` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.default-trait-access` is deprecated in favor of `lints.clippy.default_trait_access` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.float-cmp` is deprecated in favor of `lints.clippy.float_cmp` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.format-collect` is deprecated in favor of `lints.clippy.format_collect` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.format-push-string` is deprecated in favor of `lints.clippy.format_push_string` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.items-after-statements` is deprecated in favor of `lints.clippy.items_after_statements` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.manual-let-else` is deprecated in favor of `lints.clippy.manual_let_else` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.many-single-char-names` is deprecated in favor of `lints.clippy.many_single_char_names` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.match-wildcard-for-single-variants` is deprecated in favor of `lints.clippy.match_wildcard_for_single_variants` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.missing-errors-doc` is deprecated in favor of `lints.clippy.missing_errors_doc` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.missing-panics-doc` is deprecated in favor of `lints.clippy.missing_panics_doc` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.must-use-candidate` is deprecated in favor of `lints.clippy.must_use_candidate` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.needless-continue` is deprecated in favor of `lints.clippy.needless_continue` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.needless-pass-by-value` is deprecated in favor of `lints.clippy.needless_pass_by_value` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.similar-names` is deprecated in favor of `lints.clippy.similar_names` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.struct-field-names` is deprecated in favor of `lints.clippy.struct_field_names` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.too-many-lines` is deprecated in favor of `lints.clippy.too_many_lines` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.trivially-copy-pass-by-ref` is deprecated in favor of `lints.clippy.trivially_copy_pass_by_ref` and will not work in a future edition
+warning: crates/hs-cli/Cargo.toml: `lints.clippy.wildcard-enum-match-arm` is deprecated in favor of `lints.clippy.wildcard_enum_match_arm` and will not work in a future edition
+warning: `hs-cli` (manifest) generated 23 warnings
+warning: unused attribute
+   --> crates/hs-loop/src/appback.rs:148:1
+    |
+148 | #[must_use]
+    | ^^^^^^^^^^^ help: remove this attribute
+    |
+note: attribute also specified here
+   --> crates/hs-loop/src/appback.rs:144:1
+    |
+144 | #[must_use]
+    | ^^^^^^^^^^^
+    = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+    = note: `#[warn(unused_attributes)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> crates/hs-loop/src/repexec.rs:239:10
+    |
+239 |         .fetch_update(
+    |          ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+239 -         .fetch_update(
+239 +         .try_update(
+    |
+
+warning: `hs-loop` (lib) generated 2 warnings (run `cargo fix --lib -p hs-loop` to apply 2 suggestions)
+   Compiling hs-swarm v0.1.0 (/tmp/hs/crates/hs-swarm)
+   Compiling hs-loop v0.1.0 (/tmp/hs/crates/hs-loop)
+warning: unused return value of `workflow` that must be used
+   --> crates/hs-loop/tests/engine_red.rs:144:5
+    |
+144 |     hs_loop::tools2::workflow(wd.path(), &serde_json::json!({"op":"define","name":"two","steps":["step one","step two"]}));
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_must_use)]` (part of `#[warn(unused)]`) on by default
+help: use `let _ = ...` to ignore the resulting value
+    |
+144 |     let _ = hs_loop::tools2::workflow(wd.path(), &serde_json::json!({"op":"define","name":"two","steps":["step one","step two"]}));
+    |     +++++++
+
+warning: `hs-loop` (test "engine_red") generated 1 warning
+warning: unused return value of `hs_loop::goal_state::call` that must be used
+  --> crates/hs-loop/tests/goal_tool_red.rs:23:5
+   |
+23 |     call(d.path(), &json!({"op":"create","objective":"a"}));
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_must_use)]` (part of `#[warn(unused)]`) on by default
+help: use `let _ = ...` to ignore the resulting value
+   |
+23 |     let _ = call(d.path(), &json!({"op":"create","objective":"a"}));
+   |     +++++++
+
+warning: `hs-loop` (test "goal_tool_red") generated 1 warning
+warning: `hs-loop` (lib test) generated 2 warnings (2 duplicates)
+    Finished `test` profile [unoptimized] target(s) in 38.58s
+     Running unittests src/lib.rs (target/debug/deps/hs_applypatch-c6f7cb0c75c1c8ff)
+
+running 32 tests
+test apply::tests::test_end_of_file_marker_handling ... ok
+test apply::tests::test_context_not_found_returns_error ... ok
+test apply::tests::test_multiple_chunks_in_single_file ... ok
+test apply::tests::test_interleaved_changes ... ok
+test apply::tests::test_old_lines_not_found_returns_error ... ok
+test apply::tests::test_pure_addition_then_removal ... ok
+test apply::tests::test_unicode_dash_matching ... ok
+test apply::tests::test_update_file_modifies_content ... ok
+test parser::tests::test_parse_one_hunk_bad_header ... ok
+test parser::tests::test_parse_patch_add_file_with_whitespace_around_markers ... ok
+test parser::tests::test_parse_patch_all_hunk_types ... ok
+test parser::tests::test_parse_patch_bad_first_line ... ok
+test parser::tests::test_parse_patch_bad_last_line ... ok
+test parser::tests::test_parse_patch_empty_hunks ... ok
+test parser::tests::test_parse_patch_empty_update_hunk ... ok
+test parser::tests::test_parse_patch_public_api ... ok
+test parser::tests::test_parse_patch_lenient_heredoc_variants ... ok
+test parser::tests::test_parse_patch_update_followed_by_add ... ok
+test parser::tests::test_parse_patch_update_without_explicit_context_marker ... ok
+test parser::tests::test_update_file_chunk_bad_diff_line ... ok
+test parser::tests::test_update_file_chunk_bad_start ... ok
+test parser::tests::test_update_file_chunk_empty_after_context ... ok
+test parser::tests::test_update_file_chunk_eof_with_no_lines ... ok
+test parser::tests::test_update_file_chunk_with_context_and_diff_lines ... ok
+test parser::tests::test_update_file_chunk_with_eof_marker ... ok
+test seek_sequence::tests::test_empty_pattern_returns_start ... ok
+test seek_sequence::tests::test_eof_flag_searches_from_end ... ok
+test seek_sequence::tests::test_exact_match_finds_sequence ... ok
+test seek_sequence::tests::test_pattern_longer_than_input_returns_none ... ok
+test seek_sequence::tests::test_rstrip_match_ignores_trailing_whitespace ... ok
+test seek_sequence::tests::test_trim_match_ignores_leading_and_trailing_whitespace ... ok
+test seek_sequence::tests::test_unicode_normalise_matches_typographic_dashes ... ok
+
+test result: ok. 32 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/hs_bench-1f17884e787ce51f)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/bench_prep_proof.rs (target/debug/deps/bench_prep_proof-51af8516464ced53)
+
+running 4 tests
+test loader_parses_swebench_verified_jsonl ... ok
+test budget_burn_is_killed_and_scored_unresolved ... ok
+test report_is_swebench_shaped ... ok
+test offline_pipeline_gold_resolves_wrong_fails ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/mission_adapter_proof.rs (target/debug/deps/mission_adapter_proof-a8b45871757603a3)
+
+running 4 tests
+test empty_patch_leaves_tests_failing ... ok
+test gold_patch_applies_and_flips_fail_to_pass ... ok
+test malformed_patch_is_no_apply_not_a_test_failure ... ok
+test prep_workspace_clones_and_checks_out_base_commit ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests/mission_prompt_proof.rs (target/debug/deps/mission_prompt_proof-a9d5c85447f9426b)
+
+running 2 tests
+test prompt_carries_statement_layout_and_contract ... ok
+test contract_round_trips_through_extractor ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/orchestrator_proof.rs (target/debug/deps/orchestrator_proof-d70fd99d2d3cfc75)
+
+running 2 tests
+test uncapped_run_completes_everything ... ok
+test run_cap_stops_launching_and_marks_not_run ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/patch_artifact_proof.rs (target/debug/deps/patch_artifact_proof-1c124dae3f5c47b6)
+
+running 2 tests
+test apply_leaves_no_artifact_in_workspace ... ok
+test failed_apply_also_leaves_no_artifact ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/patch_extract_proof.rs (target/debug/deps/patch_extract_proof-fc42f9a35db4ece4)
+
+running 5 tests
+test extracts_fenced_diff ... ok
+test extracts_bare_unified_diff ... ok
+test picks_the_diff_not_other_fences ... ok
+test prose_only_yields_no_patch ... ok
+test preserves_trailing_blank_context_line ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src/lib.rs (target/debug/deps/hs_cli-b255a2365adfe3c5)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-demo.rs (target/debug/deps/hs_demo-e70483a336e1a472)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-gate2-driver.rs (target/debug/deps/hs_gate2_driver-59ac6ed78d2bff6d)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-log-cli.rs (target/debug/deps/hs_log_cli-899c92389cf97924)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-echo.rs (target/debug/deps/hs_plugin_echo-26a0ec0321b999b9)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-fakemodel.rs (target/debug/deps/hs_plugin_fakemodel-30dfd08eb522b30e)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-fakemodel2.rs (target/debug/deps/hs_plugin_fakemodel2-183d0cf586dcd448)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-upper.rs (target/debug/deps/hs_plugin_upper-9bcb97e98a3cf93b)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/atif.rs (target/debug/deps/atif-5609919d15ebf27a)
+
+running 2 tests
+test unpaired_model_call_is_reported_not_exported ... ok
+test trajectory_has_required_atif_fields_and_correlated_tool_results ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/gate1_proof.rs (target/debug/deps/gate1_proof-4ae1b940ca8a9bb2)
+
+running 4 tests
+test gate1_determinism_two_runs_identical ... ok
+test gate1_proof_2_rewind_and_replay_to_identical_state ... ok
+test gate1_proof_3_corrupted_byte_is_caught ... ok
+test gate1_proof_1_kill_mid_run_resume_zero_loss ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
+     Running tests/gate2_proof.rs (target/debug/deps/gate2_proof-189e8da9d6c6a3ec)
+
+running 1 test
+test gate2_proof_add_tool_and_model_by_config_only ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+     Running tests/log_dump_truncate_red.rs (target/debug/deps/log_dump_truncate_red-29d2140da411c654)
+
+running 3 tests
+test dump_payloads_actually_truncates_oversize_payloads ... ok
+test dump_payloads_truncation_respects_char_boundaries ... ok
+test trace_truncation_respects_char_boundaries ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/log_trace_red.rs (target/debug/deps/log_trace_red-206b4333ccc75119)
+
+running 2 tests
+test trace_replay_prints_reasoning_in_order_and_skips_non_model_events ... ok
+test trace_follow_emits_events_appended_after_start ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+
+     Running tests/otlp.rs (target/debug/deps/otlp-b9187f62447f025c)
+
+running 4 tests
+test duplicate_identity_is_reported_not_arbitrarily_priced ... ok
+test nested_critic_rounds_export_without_double_counting_checker_cost ... ok
+test unmatched_start_and_legacy_call_are_not_success ... ok
+test real_kernel_export_counts_once_and_pairs_errors ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running unittests src/lib.rs (target/debug/deps/hs_core-d45bc8742423dc46)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/capability_change_red.rs (target/debug/deps/capability_change_red-2c0ea285051f025d)
+
+running 1 test
+test capability_change_kind_exists_at_a_stable_tag_and_roundtrips ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/decode_option_tags_red.rs (target/debug/deps/decode_option_tags_red-755193ad5bf63874)
+
+running 2 tests
+test decode_rejects_noncanonical_parent_option_tag ... ok
+test decode_rejects_noncanonical_snap_option_tag ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/event_schema.rs (target/debug/deps/event_schema-dedef5182b470718)
+
+running 8 tests
+test cost_is_decimal_micros_not_float ... ok
+test changing_any_field_breaks_verify ... ok
+test encoding_is_deterministic ... ok
+test hash_is_sha256_over_canonical_encoding_without_hash_field ... ok
+test every_spec_kind_exists_and_roundtrips_through_encoding ... ok
+test payload_variants_roundtrip ... ok
+test reserved_kinds_for_gates_7_and_8_are_in_kind_space ... ok
+test unknown_kind_tag_is_rejected_not_silently_mapped ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/hs_goal-f9ddbc0e9d2ef38a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-costmodel.rs (target/debug/deps/hs_plugin_costmodel-7af99175de9cb0e4)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-costtool.rs (target/debug/deps/hs_plugin_costtool-bdaee4986ef26062)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-goalanswer.rs (target/debug/deps/hs_plugin_goalanswer-39a982de319fb56d)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-goalchecker.rs (target/debug/deps/hs_plugin_goalchecker-f5a757b267f16196)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-goalmodel.rs (target/debug/deps/hs_plugin_goalmodel-81a19e5a1ffb0436)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/gate4_proof.rs (target/debug/deps/gate4_proof-40ddab7c7c2620e5)
+
+running 1 test
+test gate4_proof_false_completion_plants ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
+
+     Running tests/outer_loop.rs (target/debug/deps/outer_loop-c26c512508a105ee)
+
+running 7 tests
+test budget_exceeded_checkpoints_and_stops ... ok
+test gateway_cancel_mid_run_leaves_progress_intact ... ok
+test gateway_redirect_mid_run_retargets_without_losing_history ... ok
+test independent_mode_catches_every_false_completion ... ok
+test hybrid_mode_catches_false_completion_but_passes_honest_work ... ok
+test independent_mode_still_passes_honest_work ... ok
+test self_mode_accepts_a_false_completion_and_it_is_counted ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+
+     Running tests/tool_cost_red.rs (target/debug/deps/tool_cost_red-233b85957ac36e65)
+
+running 1 test
+test tool_call_events_carry_their_cost_in_the_canonical_field ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running unittests src/lib.rs (target/debug/deps/hs_hashline-9f80d489870316c1)
+
+running 157 tests
+test anchor::tests::generate_for_content_roundtrip ... ok
+test anchor::tests::find_shifted_in_content_found ... ok
+test anchor::tests::split_lines_basic ... ok
+test anchor::tests::split_lines_empty ... ok
+test anchor::tests::split_lines_single_newline ... ok
+test anchor::tests::split_lines_trailing_newline ... ok
+test anchor::tests::validate_against_content_valid ... ok
+test anchor::tests::validate_against_content_stale ... ok
+test config::tests::chunk_size_zero_rejected ... ok
+test config::tests::content_only_builds ... ok
+test config::tests::content_only_ignores_chunk_size ... ok
+test config::tests::custom_chunk_params ... ok
+test config::tests::default_builds_chunk_scheme ... ok
+test config::tests::hash_len_five_rejected ... ok
+test config::tests::deserializes_from_json ... ok
+test config::tests::hash_len_zero_rejected ... ok
+test config::tests::render_description_chunk_3 ... ok
+test config::tests::render_description_content_only_2 ... ok
+test config::tests::render_does_not_panic_on_invalid_hash_len ... ok
+test config::tests::render_grep_examples_chunk ... ok
+test config::tests::render_grep_examples_content_only ... ok
+test config::tests::unknown_scheme_rejected ... ok
+test edit::apply::tests::arrow_content_stripped_from_anchor ... ok
+test edit::apply::tests::batch_ordering_bottom_up ... ok
+test edit::apply::tests::batch_overlap_identifies_conflicting_edits ... ok
+test edit::apply::tests::ambiguous_recovery_with_repetitive_content ... ok
+test edit::apply::tests::delete_via_empty_content ... ok
+test edit::apply::tests::batch_stale_anchor_rejects_all_and_identifies_failing_edit ... ok
+test edit::apply::tests::detect_anchor_prefix_in_content_works ... ok
+test edit::apply::tests::edit_details_empty_for_write_op ... ok
+test edit::apply::tests::edit_details_empty_on_error ... ok
+test edit::apply::tests::deterministic_shifted_recovery_with_full_anchor ... ok
+test edit::apply::tests::edit_details_for_delete_has_empty_new_text ... ok
+test edit::apply::tests::edit_details_for_insert_has_empty_old_text ... ok
+test edit::apply::tests::edit_details_for_multi_edit_with_shift ... ok
+test edit::apply::tests::edit_details_for_range_replace_captures_full_range ... ok
+test edit::apply::tests::edit_details_for_single_replace ... ok
+test edit::apply::tests::end_before_start_error ... ok
+test edit::apply::tests::eof_insert_no_extra_blank_line_trailing_newline ... ok
+test edit::apply::tests::eof_insert_no_trailing_newline ... ok
+test edit::apply::tests::format_hint_chunk_scheme_shows_two_hashes ... ok
+test edit::apply::tests::format_hint_content_only_scheme_shows_single_hash ... ok
+test edit::apply::tests::format_hint_respects_hash_len ... ok
+test edit::apply::tests::format_hint_used_in_malformed_anchor_error ... ok
+test edit::apply::tests::hash_only_anchor_recovered_when_unique ... ok
+test edit::apply::tests::hash_only_anchor_rejected_when_ambiguous ... ok
+test edit::apply::tests::hash_only_anchor_rejected_when_no_match ... ok
+test edit::apply::tests::insert_after_anchor ... ok
+test edit::apply::tests::insert_after_bof ... ok
+test edit::apply::tests::insert_after_empty_content_inserts_blank_line ... ok
+test edit::apply::tests::edit_details_for_scattered_edits_are_compact ... ok
+test edit::apply::tests::insert_after_eof ... ok
+test edit::apply::tests::insert_after_rejects_content_with_anchor_prefix ... ok
+test edit::apply::tests::insert_at_exclusive_end_of_replace_range_allowed ... ok
+test edit::apply::tests::insert_at_start_of_replace_range_rejected ... ok
+test edit::apply::tests::insert_before_replace_range_allowed ... ok
+test edit::apply::tests::insert_inside_replace_range_rejected ... ok
+test edit::apply::tests::malformed_anchor_error ... ok
+test edit::apply::tests::large_range_produces_warning ... ok
+test edit::apply::tests::medium_range_warns ... ok
+test edit::apply::tests::no_recovery_when_content_changed ... ok
+test edit::apply::tests::nearby_batch_produces_contiguous_snippet ... ok
+test edit::apply::tests::out_of_range_anchor_error ... ok
+test edit::apply::tests::overlapping_edits_error ... ok
+test edit::apply::tests::point_replace ... ok
+test edit::apply::tests::range_replace ... ok
+test edit::apply::tests::replace_rejects_content_with_anchor_prefix ... ok
+test edit::apply::tests::same_anchor_inserts_preserve_request_order ... ok
+test edit::apply::tests::scattered_batch_produces_per_region_snippets ... ok
+test edit::apply::tests::shifted_anchor_is_usable ... ok
+test edit::apply::tests::scattered_mixed_ops_delete_insert_replace ... ok
+test edit::apply::tests::shifted_recovery_after_delete_above ... ok
+test edit::apply::tests::shifted_recovery_after_insert_above ... ok
+test edit::apply::tests::small_range_no_warning ... ok
+test edit::apply::tests::snippet_has_fresh_anchors ... ok
+test edit::apply::tests::stale_anchor_error ... ok
+test edit::apply::tests::stale_error_has_context_snippet ... ok
+test edit::apply::tests::write_rejects_content_with_anchor_prefix ... ok
+test edit::apply::tests::success_includes_scheme_name ... ok
+test edit::apply::tests::write_replaces_entire_file ... ok
+test edit::range_policy::tests::classification ... ok
+test edit::range_policy::tests::empty_range_no_warning ... ok
+test edit::range_policy::tests::large_range_warns ... ok
+test edit::range_policy::tests::medium_range_warns ... ok
+test edit::range_policy::tests::small_range_no_warning ... ok
+test edit::types::tests::deserialize_edits_from_bare_object ... ok
+test edit::types::tests::deserialize_edits_from_array ... ok
+test edit::types::tests::deserialize_edits_from_double_encoded_empty_array ... ok
+test edit::types::tests::deserialize_edits_from_double_encoded_string ... ok
+test edit::types::tests::deserialize_edits_rejects_number ... ok
+test edit::types::tests::deserialize_edits_rejects_non_array_string ... ok
+test hash::tests::encode_hash_deterministic ... ok
+test hash::tests::encode_hash_different_hashes_differ ... ok
+test hash::tests::encode_hash_length ... ok
+test hash::tests::encode_hash_lowercase_letters ... ok
+test hash::tests::encode_hash_zero_len_panics - should panic ... ok
+test hash::tests::encode_hash_five_len_panics - should panic ... ok
+test hash::tests::fnv1a_32_deterministic ... ok
+test hash::tests::fnv1a_32_different_inputs_differ ... ok
+test hash::tests::fnv1a_32_empty ... ok
+test hash::tests::line_hash_content_changes_differ ... ok
+test hash::tests::line_hash_deterministic ... ok
+test hash::tests::line_hash_empty_line ... ok
+test hash::tests::line_hash_preserves_token_boundaries ... ok
+test hash::tests::line_hash_whitespace_normalization_indentation ... ok
+test hash::tests::line_hash_whitespace_normalization_internal_collapse ... ok
+test hash::tests::line_hash_whitespace_normalization_trailing ... ok
+test mutate::tests::boilerplate_insert ... ok
+test mutate::tests::delete_lines ... ok
+test mutate::tests::delete_past_end_clamped ... ok
+test mutate::tests::edit_line ... ok
+test mutate::tests::insert_at_end ... ok
+test mutate::tests::insert_lines_above ... ok
+test mutate::tests::range_rewrite ... ok
+test mutate::tests::range_rewrite_expand ... ok
+test mutate::tests::reindent_line ... ok
+test scheme::tests::anchor_render_with_context ... ok
+test scheme::tests::anchor_render_without_context ... ok
+test scheme::tests::checkpoint_ambiguity_less_likely_with_repeated_lines ... ok
+test scheme::tests::checkpoint_detects_upstream_edit ... ok
+test scheme::tests::checkpoint_deterministic ... ok
+test scheme::tests::checkpoint_find_shifted_after_insert_above ... ok
+test scheme::tests::checkpoint_generates_context ... ok
+test scheme::tests::checkpoint_invalid_hash_len - should panic ... ok
+test scheme::tests::checkpoint_invalid_interval - should panic ... ok
+test scheme::tests::checkpoint_rejects_anchor_without_context ... ok
+test scheme::tests::checkpoint_validates_correct_anchor ... ok
+test scheme::tests::chunk_ambiguity_with_repeated_lines ... ok
+test scheme::tests::chunk_detects_stale_from_same_chunk_edit ... ok
+test scheme::tests::chunk_deterministic ... ok
+test scheme::tests::chunk_find_shifted_after_insert_above ... ok
+test scheme::tests::chunk_different_chunks_may_differ ... ok
+test scheme::tests::chunk_generates_context ... ok
+test scheme::tests::chunk_invalid_chunk_size - should panic ... ok
+test scheme::tests::chunk_invalid_hash_len - should panic ... ok
+test scheme::tests::chunk_rejects_anchor_without_context ... ok
+test scheme::tests::chunk_same_chunk_same_context ... ok
+test scheme::tests::chunk_validates_correct_anchor ... ok
+test scheme::tests::content_only_anchors_have_no_context ... ok
+test scheme::tests::content_only_detects_stale_anchor ... ok
+test scheme::tests::content_only_deterministic ... ok
+test scheme::tests::content_only_generates_correct_count ... ok
+test scheme::tests::content_only_invalid_hash_len_five - should panic ... ok
+test scheme::tests::content_only_line_numbers_1based ... ok
+test scheme::tests::content_only_invalid_hash_len_zero - should panic ... ok
+test scheme::tests::content_only_out_of_range ... ok
+test scheme::tests::content_only_survives_indentation_change ... ok
+test scheme::tests::content_only_validates_correct_anchor ... ok
+test scheme::tests::custom_hash_len_2 ... ok
+test scheme::tests::find_shifted_after_insert_above ... ok
+test scheme::tests::find_shifted_ambiguous_with_repeated_lines ... ok
+test scheme::tests::find_shifted_not_found ... ok
+test scheme::tests::parse_anchor_rejects_malformed ... ok
+test scheme::tests::parse_anchor_roundtrip ... ok
+test scheme::tests::parse_anchor_three_parts ... ok
+test scheme::tests::parse_anchor_two_parts ... ok
+test scheme::tests::scheme_names ... ok
+
+test result: ok. 157 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/eof_insert_empty_file_red.rs (target/debug/deps/eof_insert_empty_file_red-e59828eb456a7a0b)
+
+running 1 test
+test insert_after_eof_on_empty_file_has_no_leading_blank_line ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/hs_kernel-c45da9a886a68ebd)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-fixture-plugin.rs (target/debug/deps/hs_fixture_plugin-af9e86c763639aba)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/kernel_behavior.rs (target/debug/deps/kernel_behavior-9e5995233e7d3056)
+
+running 14 tests
+test config_loads_and_describes_plugins ... ok
+test calls_are_recorded_in_the_event_log ... ok
+test crashed_plugin_process_is_restarted ... ok
+test describe_mismatch_is_rejected ... ok
+test dropping_kernel_reaps_idle_tool_process ... ok
+test hot_reload_adds_capability_without_restart ... ok
+test lifecycle_pairs_have_ids_parents_and_error_ends ... ok
+test model_call_returns_completion_counts_and_cost ... ok
+test rail_failure_is_contained_and_logged ... ok
+test rails_fire_in_priority_order_with_name_tiebreak ... ok
+test tool_call_executes_and_returns_output ... ok
+test tool_call_stamps_mission_run_dir ... ok
+test unknown_tool_error_suggests_the_closest_valid_name ... ok
+test visibility_gating_filters_by_subject ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
+
+     Running tests/reload_semantics_red.rs (target/debug/deps/reload_semantics_red-505a1ab5f940d1dc)
+
+running 3 tests
+test hot_reload_respawns_when_a_command_changes ... ok
+test removed_plugin_process_reaps_itself_on_stdin_eof ... ok
+test tool_cost_lands_in_the_canonical_event_field ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.94s
+
+     Running tests/stderr_eof_red.rs (target/debug/deps/stderr_eof_red-131cabc95f7861cd)
+
+running 1 test
+test dead_plugins_stderr_tail_reaches_the_error ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/supervisor_red.rs (target/debug/deps/supervisor_red-6a7eae5b583b2b60)
+
+running 5 tests
+test app_errors_never_strike_and_never_kill_the_process ... ok
+test crashed_plugin_recovers_and_serves ... ok
+test dead_plugin_errors_with_name_and_bounded_attempts ... ok
+test failed_out_slot_recovers_when_plugin_returns ... ok
+test hung_plugin_is_killed_by_lease ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.02s
+
+     Running tests/wedge_visibility_red.rs (target/debug/deps/wedge_visibility_red-b6ad6c91fcd719d4)
+
+running 2 tests
+test plugin_stderr_is_captured_under_log_root ... ok
+test wedged_call_is_logged_in_flight_before_lease_expiry ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 24.02s
+
+     Running unittests src/lib.rs (target/debug/deps/hs_log-c0817df7aca39861)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/log_behavior.rs (target/debug/deps/log_behavior-506e77dcb7269108)
+
+running 7 tests
+test append_assigns_seq_chain_and_hash ... ok
+test clean_resume_continues_chain_without_rewrite ... ok
+test deleted_and_bitflipped_blobs_are_caught ... ok
+test corruption_is_caught_at_exact_seq ... ok
+test deleted_middle_event_breaks_the_chain ... ok
+test large_payload_is_stored_by_hash_and_reads_back ... ok
+test torn_tail_from_kill_is_truncated_on_resume ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/log_red.rs (target/debug/deps/log_red-2aa1b18f5d28f114)
+
+running 1 test
+test write_blobs_bulk_roundtrips_and_dedups ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests/resume_lock_regression.rs (target/debug/deps/resume_lock_regression-fb7c960f42692161)
+
+running 1 test
+test held_stream_cannot_be_truncated_during_resume ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/stream_registry_red.rs (target/debug/deps/stream_registry_red-73b9878fd46e1359)
+
+running 2 tests
+test v2_roles_are_path_safe_names_only ... ok
+test v1_register_and_discover_a_stream_by_role ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/hs_loop-b879257885ee7b0c)
+
+running 1 test
+test dshjobs::io_tests::pump_reports_spill_failure_and_keeps_drain ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-loopfix.rs (target/debug/deps/hs_loopfix-ab0b294793ad2eb2)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-mcp-fixture.rs (target/debug/deps/hs_mcp_fixture-24ded29fe8fff28b)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-meta-harness.rs (target/debug/deps/hs_meta_harness-95522bb8cd88fb86)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-agentlist.rs (target/debug/deps/hs_plugin_agentlist-b9d9862c510c0a14)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-agentsend.rs (target/debug/deps/hs_plugin_agentsend-93dbf50e11a32e34)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-agentstop.rs (target/debug/deps/hs_plugin_agentstop-9d60635bf272f0d5)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-answer.rs (target/debug/deps/hs_plugin_answer-092c13dc4c7b1c35)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-answersubmit.rs (target/debug/deps/hs_plugin_answersubmit-5d4772611e4dae17)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-applypatch.rs (target/debug/deps/hs_plugin_applypatch-98d1835e1d99a104)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-askuser.rs (target/debug/deps/hs_plugin_askuser-cdb4c79dbf5025fb)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-benchmodel.rs (target/debug/deps/hs_plugin_benchmodel-fa77b59bb1278265)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-bigread.rs (target/debug/deps/hs_plugin_bigread-ba2e0db3c45bbbf3)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-checker.rs (target/debug/deps/hs_plugin_checker-3b31cd8e5d4e9092)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-critic.rs (target/debug/deps/hs_plugin_critic-f18d0b9dbc24304f)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-deepseek.rs (target/debug/deps/hs_plugin_deepseek-2b7ac9e5ab45bb18)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-editanchor.rs (target/debug/deps/hs_plugin_editanchor-9f342b12ecee43c5)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-editapply.rs (target/debug/deps/hs_plugin_editapply-30c0e44af8f9c00e)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-fileread.rs (target/debug/deps/hs_plugin_fileread-3b5410d3c2e0f522)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-gatemodel.rs (target/debug/deps/hs_plugin_gatemodel-c60aa029e2b74c9e)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-glm.rs (target/debug/deps/hs_plugin_glm-3330dee6e18ec9ac)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-glob.rs (target/debug/deps/hs_plugin_glob-87f294321a3a21b9)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-goaltool.rs (target/debug/deps/hs_plugin_goaltool-bd78b876c8c341d1)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-jobs.rs (target/debug/deps/hs_plugin_jobs-4bd087b2989db474)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-liechecker.rs (target/debug/deps/hs_plugin_liechecker-e0fd4ae62ae5dc06)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-mcpcall.rs (target/debug/deps/hs_plugin_mcpcall-e068c05153159cd9)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-notescratch.rs (target/debug/deps/hs_plugin_notescratch-0983afea119bb7ab)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-plan.rs (target/debug/deps/hs_plugin_plan-3a7d4b50c53d0e9d)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-policy.rs (target/debug/deps/hs_plugin_policy-829a77aeccd5437b)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-present.rs (target/debug/deps/hs_plugin_present-5f84e02976eacee7)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-probe.rs (target/debug/deps/hs_plugin_probe-67fcdb908da94a79)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-provmodel.rs (target/debug/deps/hs_plugin_provmodel-79778f1e8c3fe423)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-readimage.rs (target/debug/deps/hs_plugin_readimage-b384f0053973e685)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-recmodel.rs (target/debug/deps/hs_plugin_recmodel-1c4a9fca0b09b9ea)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-repoexec.rs (target/debug/deps/hs_plugin_repoexec-332c188badf7c885)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-reposearch.rs (target/debug/deps/hs_plugin_reposearch-280fae610abb2dd9)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-schedule.rs (target/debug/deps/hs_plugin_schedule-af63ab7134402a6f)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-scripted.rs (target/debug/deps/hs_plugin_scripted-365eafc535724196)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-selfcheck.rs (target/debug/deps/hs_plugin_selfcheck-35b138668821fbdc)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-seqmodel.rs (target/debug/deps/hs_plugin_seqmodel-5a502dd4ec31c97b)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-speak.rs (target/debug/deps/hs_plugin_speak-4b4ecb577038f422)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-swecheck.rs (target/debug/deps/hs_plugin_swecheck-cef36b3fb0222959)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-sweexec.rs (target/debug/deps/hs_plugin_sweexec-c3550d925c8e1423)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-swemcp.rs (target/debug/deps/hs_plugin_swemcp-6aa6a1e74976a09a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-swemodel.rs (target/debug/deps/hs_plugin_swemodel-c47d2ba0860276c7)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-swereader.rs (target/debug/deps/hs_plugin_swereader-494fb7cd619c9100)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-termexec.rs (target/debug/deps/hs_plugin_termexec-4a48d1c5cacda27b)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-todo.rs (target/debug/deps/hs_plugin_todo-1949490caeee9aed)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-vfmodel.rs (target/debug/deps/hs_plugin_vfmodel-ed80f8271d975a89)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-webfetch.rs (target/debug/deps/hs_plugin_webfetch-e5b273ff61c1e0d8)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-websearch.rs (target/debug/deps/hs_plugin_websearch-16a96da0cc89dcb6)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-plugin-workflow.rs (target/debug/deps/hs_plugin_workflow-f34df6892e5678c6)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-promote.rs (target/debug/deps/hs_promote-a93acb904ff7479b)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-repl.rs (target/debug/deps/hs_repl-5b4fda0e852dc152)
+
+running 1 test
+test tui_bin_tests::resume_choice_maps_entry_to_stream ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-shell-supervisor.rs (target/debug/deps/hs_shell_supervisor-e9839e226dd7aa1d)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-swe-run.rs (target/debug/deps/hs_swe_run-59830b0f317c94c1)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/hs-tb-run.rs (target/debug/deps/hs_tb_run-039e5520d76e3031)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/agentctl_red.rs (target/debug/deps/agentctl_red-a9103057f776fefb)
+
+running 4 tests
+test a2_send_appends_to_the_child_inbox_and_interrupt_sets_the_flag ... ok
+test a1_list_reports_running_and_done_children ... ok
+test a3_guards ... ok
+test a4_wired ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/anchor_red.rs (target/debug/deps/anchor_red-c489548a652762b0)
+
+running 6 tests
+test anchor_insert_after_and_write_ops ... ok
+test anchor_edits_then_submit_git_apply_clean ... ok
+test anchor_rejects_escaping_paths ... ok
+test anchor_replace_applies_and_returns_fresh_anchors_and_cumulative ... ok
+test anchored_read_renders_line_hash_prefixes ... ok
+test anchor_stale_or_wrong_named_error_candidate_untouched ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+
+     Running tests/answer_path_red.rs (target/debug/deps/answer_path_red-aaa5acc6d0d09ba4)
+
+running 2 tests
+test answer_path_lives_under_the_session_project_root ... ok
+test engine_mission_writes_its_answer_dir_inside_the_project_folder ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/answer_submit_inline_checks_red.rs (target/debug/deps/answer_submit_inline_checks_red-4275148317f02414)
+
+running 6 tests
+test declare_checks_persists_and_refuses_empty ... ok
+test inline_checks_are_really_executed_no_bypass ... ok
+test raw_schema_advertises_optional_checks ... ok
+test inline_checks_persisted_before_checker_and_mission_goes_green ... ok
+test submit_without_checks_still_refused ... ok
+test ten_step_research_mission_shape_goes_green_within_the_original_cap ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.26s
+
+     Running tests/answer_submit_schema_red.rs (target/debug/deps/answer_submit_schema_red-8823f64ddf0aa252)
+
+running 3 tests
+test registry_path_serves_summary_in_raw_mode ... ok
+test raw_mode_requires_summary ... ok
+test swe_mode_stays_path_only ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/appback_red.rs (target/debug/deps/appback_red-9814f3742c8a01d1)
+
+running 11 tests
+test a1_question_protocol_pending_then_answered ... ok
+test a2_trajectory_counts_a_real_session ... ok
+test a3_sessions_carry_title_and_age ... ok
+test a4_slash_menu_lists_and_runs ... ok
+test a6_plugins_list_from_config_and_settings_roundtrip ... ok
+test browse_lists_only_visible_subfolders_sorted ... ok
+test project_dir_setting_validates_and_persists ... ok
+test project_status_flags_an_empty_folder_and_lists_a_populated_one ... ok
+test switching_workspace_sets_the_project_folder_only_for_registered_ones ... ok
+test workspaces_register_real_folders_dedupe_and_remove ... ok
+test a5_queue_while_busy_runs_in_order ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+     Running tests/applypatch_red.rs (target/debug/deps/applypatch_red-4129c7165ae0471f)
+
+running 6 tests
+test answer_submit_empty_candidate_named_error_no_file_written ... ok
+test answer_submit_writes_git_apply_clean_diff_including_new_files ... ok
+test edit_patch_add_and_delete_file ... ok
+test edit_patch_rejects_escaping_paths ... ok
+test edit_patch_update_applies_to_candidate_and_returns_cumulative_diff ... ok
+test edit_patch_wrong_context_named_error_candidate_untouched ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+     Running tests/argcoerce_red.rs (target/debug/deps/argcoerce_red-bcd306d1b8e2b2f2)
+
+running 4 tests
+test coerces_json_string_containers_and_nested_fields ... ok
+test coerces_exact_string_scalars ... ok
+test never_guesses_or_loses_information ... ok
+test loop_coerces_string_args_before_dispatch ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/ask_user_red.rs (target/debug/deps/ask_user_red-f818d9e45db562da)
+
+running 3 tests
+test a1_question_is_published_and_the_answer_comes_back ... ok
+test a3_requires_a_question_and_is_wired ... ok
+test a2_timeout_is_a_clean_error ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.04s
+
+     Running tests/assembler_red.rs (target/debug/deps/assembler_red-dc472fc59a328b17)
+
+running 5 tests
+test d1_handoff_summary_four_elements ... ok
+test t1_no_context_wipe_50_steps ... ok
+test t8_ledger_summary_bounded_at_200_steps ... ok
+test w2_budget_from_verified_context ... ok
+test t2_dup_read_flagged_with_prior_seq ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.66s
+
+     Running tests/assembler_utf8_red.rs (target/debug/deps/assembler_utf8_red-c115dc2532e4986b)
+
+running 2 tests
+test assemble_truncates_multibyte_line_without_panicking ... ok
+test assemble_messages_truncates_multibyte_content_without_panicking ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/assembly_probe.rs (target/debug/deps/assembly_probe-39a4f618fcff53b9)
+
+running 1 test
+test assembly_cost_vs_transcript_growth ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.10s
+
+     Running tests/autocompact_red.rs (target/debug/deps/autocompact_red-a5b92c367613df6b)
+
+running 1 test
+test repl_compacts_at_the_configured_models_window ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests/autocomplete_red.rs (target/debug/deps/autocomplete_red-dcf768caaecc2864)
+
+running 3 tests
+test r2_bare_colon_and_non_commands ... ok
+test r1_command_prefix_completions ... ok
+test r3_rustyline_completer_replaces_from_colon ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/best_of_n_red.rs (target/debug/deps/best_of_n_red-978f331035051461)
+
+running 3 tests
+test v2_strengthened_isolates_flip_the_envelope_verdict_to_lose ... ok
+test v1_envelope_semantics_and_published_artifact ... ok
+test v3_specialist_draw_flips_the_envelope_verdict_to_win ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.03s
+
+     Running tests/blind_mode_red.rs (target/debug/deps/blind_mode_red-8963e17a2318dacc)
+
+running 2 tests
+test b1_blind_mission_never_sees_f2p_and_grades_externally ... ok
+test b2_blind_mission_with_failing_self_checks_does_not_pass ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+
+     Running tests/blob_scope_red.rs (target/debug/deps/blob_scope_red-4aa6181f2367bbb8)
+
+running 2 tests
+test session_anchors_repo_tools_at_work_area_not_run_root ... ok
+test repo_read_cannot_reach_harness_state_under_run_root ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/budget.rs (target/debug/deps/budget-9a90c8667d0c8d37)
+
+running 2 tests
+test mission_is_killed_at_budget_cap ... ok
+test mission_under_budget_runs_normally ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+     Running tests/budget_binding_red.rs (target/debug/deps/budget_binding_red-9b1a434dd792d7db)
+
+running 3 tests
+test explicit_set_budget_overrides_config ... ok
+test session_without_budget_config_binds_no_cap ... ok
+test session_binds_budget_from_config_run_stanza ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+     Running tests/budget_dual_red.rs (target/debug/deps/budget_dual_red-5e94c5c8dca0950c)
+
+running 2 tests
+test ledger_model_call_events_book_both_figures ... ok
+test guard_binds_conservative_and_both_figures_book ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/budget_guard_mode_red.rs (target/debug/deps/budget_guard_mode_red-b49dee02fec83ac6)
+
+running 4 tests
+test kill_event_records_the_guard_that_fired ... ok
+test default_mode_stays_conservative_for_benchmark_arms ... ok
+test provider_mode_spares_mission_whose_real_spend_is_under_cap ... ok
+test repl_sessions_arm_provider_reported_guard ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+
+     Running tests/candidate_artifact_red.rs (target/debug/deps/candidate_artifact_red-55e651bb7692caf0)
+
+running 3 tests
+test cumulative_diff_never_contains_eval_artifact ... ok
+test artifact_state_stable_across_calls ... ok
+test untracked_artifact_copy_stays_out_of_diff ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests/cap_change_red.rs (target/debug/deps/cap_change_red-86a348f67ccc66cf)
+
+running 2 tests
+test c1_model_picker_books_capability_change ... ok
+test c2_one_live_writer_per_stream ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests/caps_default_red.rs (target/debug/deps/caps_default_red-e129462e1c89f77e)
+
+running 4 tests
+test fresh_rig_arms_no_caps ... ok
+test setup_caps_answers_apply_to_config ... ok
+test caps_off_disarms_and_persists ... ok
+test whole_dollar_budget_survives_restart ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests/caps_persist_red.rs (target/debug/deps/caps_persist_red-645063f9358bc393)
+
+running 5 tests
+test config_cap_readers ... ok
+test explicit_cli_max_steps_beats_config ... ok
+test persisted_caps_arm_on_load ... ok
+test toml_upsert_creates_replaces_and_preserves ... ok
+test set_cap_persists_and_survives_reload ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests/checker_cost_red.rs (target/debug/deps/checker_cost_red-d65a697bbc7373f4)
+
+running 1 test
+test checker_cost_is_booked_once_and_survives_session_resume ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests/checker_idempotent_red.rs (target/debug/deps/checker_idempotent_red-546f4216a541f2e1)
+
+running 2 tests
+test rejudge_same_answer_stays_green ... ok
+test failed_attempt_leaves_no_untracked_residue ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests/compact_red.rs (target/debug/deps/compact_red-910029d2085b5c1d)
+
+running 3 tests
+test c1_forced_compact_shrinks_budget_unforced_does_not ... ok
+test c3_compact_is_a_repl_command ... ok
+test c2_request_is_one_shot_state ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/compaction_red.rs (target/debug/deps/compaction_red-76d395b3796093d0)
+
+running 2 tests
+test pressure_compacts_oldest_with_audit_refs_and_records_context_inject ... ok
+test no_pressure_no_compaction ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+
+     Running tests/context_verify_red.rs (target/debug/deps/context_verify_red-94c9d8575b615091)
+
+running 1 test
+test v1_pressure_compaction_is_booked_with_why_and_source_range ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+
+     Running tests/critic_key_red.rs (target/debug/deps/critic_key_red-319c22e7f40a32bf)
+
+running 2 tests
+test critic_key_falls_back_to_config_dir ... ok
+test critic_error_names_setup_when_no_key ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/critic_no_call_kill_red.rs (target/debug/deps/critic_no_call_kill_red-5807e921de7f9a06)
+
+running 1 test
+test slow_critic_response_survives_old_watchdog ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.21s
+
+     Running tests/critic_red.rs (target/debug/deps/critic_red-88c9c2b3362b59a3)
+
+running 20 tests
+test critic_parse_retry_recovers_verdict ... ok
+test critic_parse_retry_twice_unparseable_fails_closed ... ok
+test critic_records_paired_model_scopes_even_on_error ... ok
+test t10_critic_mode_prompt_discloses_critic ... ok
+test t11_critic_refutes_special_casing_and_author_is_told ... ok
+test t7_critic_refutation_blocks_green_author_checks ... ok
+test t11_critic_model_env_selection ... ok
+test t8_critic_clean_lets_green_mission_pass ... ok
+test u1_refuted_fails_with_reason ... ok
+test u2_clean_verdict_passes ... ok
+test u3_tool_calls_execute_and_feed_back ... ok
+test u4_step_cap_fails_closed ... ok
+test u4b_final_step_is_reserved_for_verdict ... ok
+test u4c_final_step_refusing_verdict_terminates_cleanly ... ok
+test u5_malformed_verdict_fails_closed ... ok
+test u6_model_error_fails_closed ... ok
+test u7_critic_model_selection ... ok
+test u8_clean_verdict_without_probes_fails_closed ... ok
+test u9_refuted_verdict_without_probes_still_fails ... ok
+test t9_red_author_checks_never_reach_critic ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.79s
+
+     Running tests/critic_shell_red.rs (target/debug/deps/critic_shell_red-70a872550bf58fcc)
+
+running 7 tests
+test r1_readonly_refuses_mutation ... FAILED
+test r2_readonly_reads_task_files ... FAILED
+test r3_readonly_tmp_scratch_works ... FAILED
+test r4_prompt_matches_mechanism ... ok
+test r5_critic_loop_cannot_mutate_submission ... ok
+test r6_readonly_fails_closed_without_root ... ok
+test p1_premise_root_surface_could_mutate ... ok
+
+failures:
+
+---- r1_readonly_refuses_mutation stdout ----
+
+thread 'r1_readonly_refuses_mutation' (234832) panicked at crates/hs-loop/tests/critic_shell_red.rs:49:5:
+assertion `left != right` failed: write must fail: {"$error":"run_readonly requires root to drop privileges (setuid nobody); refusing to run unenforced"}
+  left: 0
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- r2_readonly_reads_task_files stdout ----
+
+thread 'r2_readonly_reads_task_files' (234834) panicked at crates/hs-loop/tests/critic_shell_red.rs:66:5:
+assertion `left == right` failed: {"$error":"run_readonly requires root to drop privileges (setuid nobody); refusing to run unenforced"}
+  left: Null
+ right: 0
+
+---- r3_readonly_tmp_scratch_works stdout ----
+
+thread 'r3_readonly_tmp_scratch_works' (234835) panicked at crates/hs-loop/tests/critic_shell_red.rs:81:5:
+assertion `left == right` failed: {"$error":"run_readonly requires root to drop privileges (setuid nobody); refusing to run unenforced"}
+  left: Null
+ right: 0
+
+
+failures:
+    r1_readonly_refuses_mutation
+    r2_readonly_reads_task_files
+    r3_readonly_tmp_scratch_works
+
+test result: FAILED. 4 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+error: test failed, to rerun pass `-p hs-loop --test critic_shell_red`

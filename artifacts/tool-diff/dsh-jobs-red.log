@@ -1,0 +1,68 @@
+warning: unused attribute
+   --> crates/hs-loop/src/appback.rs:148:1
+    |
+148 | #[must_use]
+    | ^^^^^^^^^^^ help: remove this attribute
+    |
+note: attribute also specified here
+   --> crates/hs-loop/src/appback.rs:144:1
+    |
+144 | #[must_use]
+    | ^^^^^^^^^^^
+    = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+    = note: `#[warn(unused_attributes)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> crates/hs-loop/src/repexec.rs:239:10
+    |
+239 |         .fetch_update(
+    |          ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+239 -         .fetch_update(
+239 +         .try_update(
+    |
+
+
+running 6 tests
+foreground_returns_separate_output_and_fresh_shell --- FAILED
+background_wait_timeout_leaves_alive_and_kill_settles --- FAILED
+. 3/6
+owner_isolation_and_job_id_traversal_denied --- FAILED
+timeout_promotes_without_killing_and_output_is_incremental --- FAILED
+.
+failures:
+
+---- foreground_returns_separate_output_and_fresh_shell stdout ----
+
+thread 'foreground_returns_separate_output_and_fresh_shell' (209790) panicked at crates/hs-loop/tests/dsh_jobs_red.rs:5:248:
+called `Result::unwrap()` on an `Err` value: "not implemented"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- background_wait_timeout_leaves_alive_and_kill_settles stdout ----
+
+thread 'background_wait_timeout_leaves_alive_and_kill_settles' (209789) panicked at crates/hs-loop/tests/dsh_jobs_red.rs:9:232:
+called `Result::unwrap()` on an `Err` value: "not implemented"
+
+---- owner_isolation_and_job_id_traversal_denied stdout ----
+
+thread 'owner_isolation_and_job_id_traversal_denied' (209793) panicked at crates/hs-loop/tests/dsh_jobs_red.rs:11:253:
+called `Result::unwrap()` on an `Err` value: "not implemented"
+
+---- timeout_promotes_without_killing_and_output_is_incremental stdout ----
+
+thread 'timeout_promotes_without_killing_and_output_is_incremental' (209794) panicked at crates/hs-loop/tests/dsh_jobs_red.rs:7:259:
+called `Result::unwrap()` on an `Err` value: "not implemented"
+
+
+failures:
+    background_wait_timeout_leaves_alive_and_kill_settles
+    foreground_returns_separate_output_and_fresh_shell
+    owner_isolation_and_job_id_traversal_denied
+    timeout_promotes_without_killing_and_output_is_incremental
+
+test result: FAILED. 2 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p hs-loop --test dsh_jobs_red`

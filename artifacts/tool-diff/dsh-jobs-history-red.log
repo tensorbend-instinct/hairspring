@@ -1,0 +1,46 @@
+warning: unused attribute
+   --> crates/hs-loop/src/appback.rs:148:1
+    |
+148 | #[must_use]
+    | ^^^^^^^^^^^ help: remove this attribute
+    |
+note: attribute also specified here
+   --> crates/hs-loop/src/appback.rs:144:1
+    |
+144 | #[must_use]
+    | ^^^^^^^^^^^
+    = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+    = note: `#[warn(unused_attributes)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> crates/hs-loop/src/repexec.rs:239:10
+    |
+239 |         .fetch_update(
+    |          ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+239 -         .fetch_update(
+239 +         .try_update(
+    |
+
+
+running 1 test
+shell_history_is_model_render_not_struct_dump --- FAILED
+
+failures:
+
+---- shell_history_is_model_render_not_struct_dump stdout ----
+
+thread 'shell_history_is_model_render_not_struct_dump' (223637) panicked at crates/hs-loop/tests/dsh_dispatch_red.rs:9:627:
+[Object {"role": String("assistant"), "tool_calls": Array [Object {"function": Object {"arguments": String("{}"), "name": String("bash")}, "id": String("call_0"), "type": String("function")}]}, Object {"content": String("{\"aborted\":false,\"exitCode\":null,\"kind\":\"foreground\",\"signal\":\"SIG7\",\"stderr\":{\"spillPath\":\"/tmp/.tmp1YfZh3/.hs/jobs/23c99a3c-2e5b-417f-8169-faf0616c73c1.stderr\",\"text\":\"\",\"truncated\":false},\"stdout\":{\"spillPath\":\"/tmp/.tmp1YfZh3/.hs/jobs/23c99a3c-2e5b-417f-8169-faf0616c73c1.stdout\",\"text\":\"out\",\"truncated\":false},\"timedOut\":false,\"timeoutMs\":120000}"), "role": String("tool"), "tool_call_id": String("call_0")}]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    shell_history_is_model_render_not_struct_dump
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p hs-loop --test dsh_dispatch_red`

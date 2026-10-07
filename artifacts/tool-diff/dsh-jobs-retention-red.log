@@ -1,0 +1,67 @@
+warning: unused attribute
+   --> crates/hs-loop/src/appback.rs:148:1
+    |
+148 | #[must_use]
+    | ^^^^^^^^^^^ help: remove this attribute
+    |
+note: attribute also specified here
+   --> crates/hs-loop/src/appback.rs:144:1
+    |
+144 | #[must_use]
+    | ^^^^^^^^^^^
+    = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+    = note: `#[warn(unused_attributes)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> crates/hs-loop/src/repexec.rs:239:10
+    |
+239 |         .fetch_update(
+    |          ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+239 -         .fetch_update(
+239 +         .try_update(
+    |
+
+
+running 7 tests
+background_wait_timeout_leaves_alive_and_kill_settles --- FAILED
+.... 5/7
+large_output_is_bounded_and_full_stream_spills --- FAILED
+timeout_promotes_without_killing_and_output_is_incremental --- FAILED
+
+failures:
+
+---- background_wait_timeout_leaves_alive_and_kill_settles stdout ----
+
+thread 'background_wait_timeout_leaves_alive_and_kill_settles' (210748) panicked at crates/hs-loop/tests/dsh_jobs_red.rs:9:581:
+assertion `left == right` failed
+  left: String("cancelled")
+ right: "killed"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- large_output_is_bounded_and_full_stream_spills stdout ----
+
+thread 'large_output_is_bounded_and_full_stream_spills' (210771) panicked at crates/hs-loop/tests/dsh_jobs_red.rs:16:237:
+assertion `left == right` failed
+  left: Bool(false)
+ right: true
+
+---- timeout_promotes_without_killing_and_output_is_incremental stdout ----
+
+thread 'timeout_promotes_without_killing_and_output_is_incremental' (210783) panicked at crates/hs-loop/tests/dsh_jobs_red.rs:7:470:
+assertion `left == right` failed
+  left: String("succeeded")
+ right: "completed"
+
+
+failures:
+    background_wait_timeout_leaves_alive_and_kill_settles
+    large_output_is_bounded_and_full_stream_spills
+    timeout_promotes_without_killing_and_output_is_incremental
+
+test result: FAILED. 4 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+
+error: test failed, to rerun pass `-p hs-loop --test dsh_jobs_red`

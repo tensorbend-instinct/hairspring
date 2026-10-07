@@ -1,0 +1,65 @@
+warning: unused attribute
+   --> crates/hs-loop/src/appback.rs:148:1
+    |
+148 | #[must_use]
+    | ^^^^^^^^^^^ help: remove this attribute
+    |
+note: attribute also specified here
+   --> crates/hs-loop/src/appback.rs:144:1
+    |
+144 | #[must_use]
+    | ^^^^^^^^^^^
+    = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+    = note: `#[warn(unused_attributes)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> crates/hs-loop/src/repexec.rs:239:10
+    |
+239 |         .fetch_update(
+    |          ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+239 -         .fetch_update(
+239 +         .try_update(
+    |
+
+warning: function `pump` is never used
+  --> crates/hs-loop/src/dshjobs.rs:52:4
+   |
+52 | fn pump(mut reader:impl Read,mut writer:impl std::io::Write,mut retain:impl FnMut(&[u8]))->Vec<String>{let mut buf=[0;8192];while le...
+   |    ^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+
+running 16 tests
+.... 4/16
+foreground_signal_is_not_laundered_into_exit_code --- FAILED
+..... 10/16
+spill_directory_symlink_cannot_escape_root --- FAILED
+.....
+failures:
+
+---- foreground_signal_is_not_laundered_into_exit_code stdout ----
+
+thread 'foreground_signal_is_not_laundered_into_exit_code' (219477) panicked at crates/hs-loop/tests/dsh_jobs_red.rs:34:214:
+assertion `left == right` failed
+  left: Null
+ right: "SIGTERM"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- spill_directory_symlink_cannot_escape_root stdout ----
+
+thread 'spill_directory_symlink_cannot_escape_root' (219513) panicked at crates/hs-loop/tests/dsh_jobs_red.rs:32:234:
+assertion failed: s.bash(&json!({"description":"Reject spill escape","command":"touch launched"})).is_err()
+
+
+failures:
+    foreground_signal_is_not_laundered_into_exit_code
+    spill_directory_symlink_cannot_escape_root
+
+test result: FAILED. 14 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.61s
+
+error: test failed, to rerun pass `-p hs-loop --test dsh_jobs_red`

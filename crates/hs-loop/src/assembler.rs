@@ -190,6 +190,7 @@ pub fn assemble_messages(
                 } else {
                     "null".to_string()
                 };
+                if matches!(plugin.as_str(),"bash"|"job_output"|"job_list"|"job_kill"){content=crate::dshjobs::render(&plugin,&v["result"]);}
                 if content.len() > CONTENT_CAP {
                     content = crate::msgfmt::prefix_bytes_safe(&content, CONTENT_CAP);
                     content.push_str("...[truncated]");
