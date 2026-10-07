@@ -1,0 +1,67 @@
+warning: unused attribute
+   --> crates/hs-loop/src/appback.rs:148:1
+    |
+148 | #[must_use]
+    | ^^^^^^^^^^^ help: remove this attribute
+    |
+note: attribute also specified here
+   --> crates/hs-loop/src/appback.rs:144:1
+    |
+144 | #[must_use]
+    | ^^^^^^^^^^^
+    = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+    = note: `#[warn(unused_attributes)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> crates/hs-loop/src/repexec.rs:239:10
+    |
+239 |         .fetch_update(
+    |          ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+239 -         .fetch_update(
+239 +         .try_update(
+    |
+
+
+running 4 tests
+filesystem_skill_loads_full_yaml_body_and_resource_base --- FAILED
+lower_rank_wins_and_disabled_winner_does_not_fallback --- FAILED
+unknown_and_path_traversal_fail_without_reading_arbitrary_file --- FAILED
+mutation_is_seen_and_invalid_metadata_not_loaded --- FAILED
+
+failures:
+
+---- filesystem_skill_loads_full_yaml_body_and_resource_base stdout ----
+
+thread 'filesystem_skill_loads_full_yaml_body_and_resource_base' (816853) panicked at crates/hs-loop/tests/dsh_skill_red.rs:4:294:
+called `Result::unwrap()` on an `Err` value: UnknownTool("skill. Valid tools for you:  - call them by these exact names")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- lower_rank_wins_and_disabled_winner_does_not_fallback stdout ----
+
+thread 'lower_rank_wins_and_disabled_winner_does_not_fallback' (816854) panicked at crates/hs-loop/tests/dsh_skill_red.rs:5:377:
+called `Result::unwrap()` on an `Err` value: UnknownTool("skill. Valid tools for you:  - call them by these exact names")
+
+---- unknown_and_path_traversal_fail_without_reading_arbitrary_file stdout ----
+
+thread 'unknown_and_path_traversal_fail_without_reading_arbitrary_file' (816860) panicked at crates/hs-loop/tests/dsh_skill_red.rs:6:251:
+called `Result::unwrap()` on an `Err` value: UnknownTool("skill. Valid tools for you:  - call them by these exact names")
+
+---- mutation_is_seen_and_invalid_metadata_not_loaded stdout ----
+
+thread 'mutation_is_seen_and_invalid_metadata_not_loaded' (816859) panicked at crates/hs-loop/tests/dsh_skill_red.rs:7:243:
+called `Result::unwrap()` on an `Err` value: UnknownTool("skill. Valid tools for you:  - call them by these exact names")
+
+
+failures:
+    filesystem_skill_loads_full_yaml_body_and_resource_base
+    lower_rank_wins_and_disabled_winner_does_not_fallback
+    mutation_is_seen_and_invalid_metadata_not_loaded
+    unknown_and_path_traversal_fail_without_reading_arbitrary_file
+
+test result: FAILED. 0 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+error: test failed, to rerun pass `-p hs-loop --test dsh_skill_red`

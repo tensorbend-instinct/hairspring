@@ -1562,6 +1562,7 @@ impl InnerLoop {
             let out=ToolCallOutcome{call_id,start_event_id,resolved:None,output,latency_ms:start.elapsed().as_millis().min(u32::MAX as u128) as u32};
             self.kernel.end_internal_tool(tool,args,&out)?;return Ok(out)
         }
+        if tool=="skill"{let(call_id,start_event_id)=self.kernel.start_internal_tool(tool,args)?;let start=std::time::Instant::now();let result=match self.answer_root.as_ref(){Some(root)=>crate::dshskill::call(&crate::dshskill::project_roots(root),args),None=>Err("skill requires an explicit project root".into())};let output=result.unwrap_or_else(|e|serde_json::json!({"error":e}));let out=ToolCallOutcome{call_id,start_event_id,resolved:None,output,latency_ms:start.elapsed().as_millis().min(u32::MAX as u128) as u32};self.kernel.end_internal_tool(tool,args,&out)?;return Ok(out)}
         if tool=="todo_write"{if let Some(output)=permission::gate(tool,args){return Ok(ToolCallOutcome{call_id:uuid::Uuid::new_v4(),start_event_id:uuid::Uuid::nil(),resolved:None,output,latency_ms:0})}let(call_id,start_event_id)=self.kernel.start_internal_tool(tool,args)?;let start=std::time::Instant::now();let output=self.todos.write(args).unwrap_or_else(|e|serde_json::json!({"error":e}));if output.get("error").is_none(){self.writer.append(EventBuilder::new(EventKind::Observation).payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({"record_type":"todo/write","todos":output["todos"]})).expect("todo serializes"))))?;}if output.get("error").is_none(){if let Some(sink)=self.ui_sink.as_mut(){sink(uipaint::UiEvent::TodoList{todos:output["todos"].clone()});}}let out=ToolCallOutcome{call_id,start_event_id,resolved:None,output,latency_ms:start.elapsed().as_millis().min(u32::MAX as u128) as u32};self.kernel.end_internal_tool(tool,args,&out)?;return Ok(out)}
         if matches!(tool,"glob"|"grep"){
             if let Some(output)=permission::gate(tool,args){return Ok(ToolCallOutcome{call_id:uuid::Uuid::new_v4(),start_event_id:uuid::Uuid::nil(),resolved:None,output,latency_ms:0})}
@@ -2281,6 +2282,7 @@ impl InnerLoop {
                 "role": "user",
                 "content": crate::msgfmt::mission_first_message(&prompt),
             })];
+            if let Some(root)=self.answer_root.as_ref(){let roots=crate::dshskill::project_roots(root);match crate::dshskill::catalog(&roots){Ok(entries)=>{let mut previous=None;if let Ok(r)=hs_log::StreamReader::open(&self.log_root,self.stream_id){if let Ok(events)=r.events(){for e in events.iter().rev(){if e.kind!=EventKind::Observation{continue}if let Ok(b)=r.resolve_payload(e){if let Ok(v)=serde_json::from_slice::<serde_json::Value>(&b){if v["record_type"]=="skill/catalog"{previous=Some(v["entries"].clone());break}}}}}}if previous.is_some()||entries.as_array().is_some_and(|v|!v.is_empty()){let changed=previous.as_ref()!=Some(&entries);let text=crate::dshskill::catalog_text(&entries,previous.is_some());if changed{self.writer.append(EventBuilder::new(EventKind::Observation).payload(Payload::Inline(serde_json::to_vec(&serde_json::json!({"record_type":"skill/catalog","entries":entries,"text":text})).expect("catalog serializes"))))?;}messages.push(serde_json::json!({"role":"user","content":text}));}},Err(error)=>return Err(LoopError::Visibility(error))}}
             // Fix 4: budget visibility every step - "step N of MAX, T-minus
             // Xs, $Y of $Z spent" (ab2: the model could not pace itself
             // because it never saw a budget).
@@ -3646,3 +3648,4 @@ pub mod dshsearch;
 pub mod dshtodo;
 
 pub mod dshgoal;
+pub mod dshskill;

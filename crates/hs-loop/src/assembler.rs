@@ -191,10 +191,11 @@ pub fn assemble_messages(
                 } else {
                     "null".to_string()
                 };
+                if plugin=="skill"&&v["result"].get("error").is_none(){content=crate::dshskill::render(&v["result"]);}
                 if plugin=="todo_write"&&v["result"].get("error").is_none(){content=crate::dshtodo::render(&v["result"]);}
                 if matches!(plugin.as_str(),"bash"|"job_output"|"job_list"|"job_kill"){content=crate::dshjobs::render(&plugin,&v["result"]);}
                 if matches!(plugin.as_str(),"glob"|"grep"){content=v["model_text"].as_str().map(str::to_owned).unwrap_or(content);}
-                if content.len() > CONTENT_CAP && !matches!(plugin.as_str(),"glob"|"grep") {
+                if content.len() > CONTENT_CAP && !matches!(plugin.as_str(),"glob"|"grep"|"skill") {
                     content = crate::msgfmt::prefix_bytes_safe(&content, CONTENT_CAP);
                     content.push_str("...[truncated]");
                 }

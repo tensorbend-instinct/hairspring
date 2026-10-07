@@ -1,0 +1,14 @@
+error: unexpected end of macro invocation
+  --> crates/hs-loop/src/dshskill.rs:12:129
+   |
+12 | ...|e|json!({"name":e.name,"description":{let normalized=e.description.split_whitespace().collect::<Vec<_>>().join(" ");if normalized.encode_utf16().count()>500{format!("{}...",normalized.chars().take(497).collect::<String>())}else{normalized}}})).c...
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ missing tokens in macro arguments
+   |
+note: while trying to match `@`
+  --> /home/sandbox/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_json-1.0.151/src/macros.rs:79:6
+   |
+79 |     (@array [$($elems:expr,)*]) => {
+   |      ^
+   = note: this error originates in the macro `$crate::json_internal` which comes from the expansion of the macro `json` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: could not compile `hs-loop` (lib) due to 1 previous error
