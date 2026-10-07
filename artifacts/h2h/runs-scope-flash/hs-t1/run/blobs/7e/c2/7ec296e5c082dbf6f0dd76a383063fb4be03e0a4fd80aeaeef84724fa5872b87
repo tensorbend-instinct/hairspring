@@ -1,0 +1,7 @@
+Read crates/hs-loop/src/export.rs (70 lines) and answered in one sentence.
+
+What the code shows (export.rs:25-70): export_zip(src, out) recursively walks every file under src (walk(), with backslashes normalized to "/"), sorts the relative names, then builds a ZIP byte buffer by hand — per file a PK\x03\x04 local header plus a PK\x01\x02 central-directory record, both with method 0 stored (uncompressed) and a hand-rolled crc32 — followed by the PK\x05\x06 end-of-central-directory record holding the entry count and central-directory offset/size, and finally writes that buffer to out with File::create(...).write_all(). It returns Ok(files.len()), i.e. the number of files written.
+
+Answer written to ANSWER_PATH: "export_zip recursively walks every file under the src directory and writes them into a single ZIP archive at out as uncompressed (stored) entries with relative forward-slash paths and standard local, central-directory and end-of-central-directory records, returning the number of files written."
+
+Verification: the claim is derived directly from the full source read (all 70 lines, no truncation) — the method flag 0 in the local/central headers, the CRC-32 table-less implementation, the sorted relative-name walk and the returned files.len() are all visible. Checked the environment has python3/unzip (no rustc available to build the crate for a runtime round-trip), so checks assert the artifact exists, is non-empty, is a single sentence, and states the ZIP/stored/file-count facts.

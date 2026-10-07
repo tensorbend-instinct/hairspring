@@ -1,0 +1,53 @@
+warning: unused attribute
+   --> crates/hs-loop/src/appback.rs:148:1
+    |
+148 | #[must_use]
+    | ^^^^^^^^^^^ help: remove this attribute
+    |
+note: attribute also specified here
+   --> crates/hs-loop/src/appback.rs:144:1
+    |
+144 | #[must_use]
+    | ^^^^^^^^^^^
+    = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+    = note: `#[warn(unused_attributes)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> crates/hs-loop/src/repexec.rs:239:10
+    |
+239 |         .fetch_update(
+    |          ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+239 -         .fetch_update(
+239 +         .try_update(
+    |
+
+
+running 2 tests
+submit_explains_that_summary_is_the_final_artifact --- FAILED
+shell_contract_is_truthful_and_routes_background_work_to_jobs --- FAILED
+
+failures:
+
+---- submit_explains_that_summary_is_the_final_artifact stdout ----
+
+thread 'submit_explains_that_summary_is_the_final_artifact' (50299) panicked at crates/hs-loop/tests/tool_definition_truth_red.rs:17:2:
+assertion failed: p.contains("overwrites ANSWER_PATH")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- shell_contract_is_truthful_and_routes_background_work_to_jobs stdout ----
+
+thread 'shell_contract_is_truthful_and_routes_background_work_to_jobs' (50298) panicked at crates/hs-loop/tests/tool_definition_truth_red.rs:8:2:
+assertion failed: !p.contains("you are root")
+
+
+failures:
+    shell_contract_is_truthful_and_routes_background_work_to_jobs
+    submit_explains_that_summary_is_the_final_artifact
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p hs-loop --test tool_definition_truth_red`

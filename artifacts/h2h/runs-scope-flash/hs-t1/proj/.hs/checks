@@ -1,0 +1,1 @@
+A=/tmp/hs/artifacts/h2h/runs-scope-flash/hs-t1/proj/read-crates-hs-loop-src-export-rs-and-an/answer.txt; test -s "$A"; test "$(wc -l < "$A")" -eq 1; grep -qi 'zip' "$A"; grep -qi 'stored' "$A"; grep -qi 'number of files written' "$A"

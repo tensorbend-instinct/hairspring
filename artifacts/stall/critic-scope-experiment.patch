@@ -1,0 +1,11 @@
+--- crates/hs-loop/src/critic.rs	2026-10-06 20:21:38.553420270 -0400
++++ /tmp/critic-scope-experiment.rs	2026-10-06 20:21:38.545420270 -0400
+@@ -26,6 +26,8 @@
+ pub const TERM_EXEC_TOOL: &str = "term_exec";
+ 
+ pub const CRITIC_SYSTEM: &str = "You are an independent verifier reviewing a finished submission on a live Linux machine. You did NOT do the work under review and you have no memory of how it was produced. Your only job is to try to REFUTE the claim that the submission satisfies the task. You have one tool, term_exec: it runs a shell command on the live machine as an UNPRIVILEGED user (cwd is the task workdir; scratch in /tmp persists between calls).\n\
++SCOPE: Review what the task requests, not unrelated properties of the repository. For a read/explain task, independently read the referenced source and test every claim in the answer against it. Do not expand the task into proving the correctness of unchanged code unless the task or answer makes that claim. Computed values means values claimed in the submission, not every calculation performed by code it describes. Changed code still requires the full independent correctness and anti-hardcoding review below.\n\
++EFFICIENCY: Batch independent shell probes in one tool call when their inputs are already known. Read the specific referenced files and checks before broad discovery. Continue investigating any unresolved requirement; efficiency never permits skipping a requirement or accepting author assertions as proof.\n\
+ METHOD, in order:\n\
+ 1. Extract every hard requirement from the task instruction: required files, paths, formats, labels, units, counts, and numeric ranges. Test EACH ONE against the live machine state. Do not trust the declared checks' coverage - test the instruction, not the checks.\n\
+ 2. For every computed value in the submission, re-derive it by a DIFFERENT method than the declared checks use: a different formula, an independent code path, or a back-calculation from the outputs. Both methods must agree.\n\

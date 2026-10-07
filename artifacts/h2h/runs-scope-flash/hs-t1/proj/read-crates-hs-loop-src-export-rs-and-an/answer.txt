@@ -1,0 +1,1 @@
+export_zip(src, out) recursively walks every file under src, sorts their forward-slash relative names, and writes them into a single ZIP archive at out as uncompressed (stored, method 0) entries with hand-built local headers, central-directory records and an end-of-central-directory record, returning the number of files written.

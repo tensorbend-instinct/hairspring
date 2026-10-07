@@ -1,0 +1,13 @@
+ESTAB    0      0               169.254.0.21:58130          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:7072 lastrcv:6808 lastack:6808
+ESTAB    0      0               169.254.0.21:58136          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:6832 lastrcv:6532 lastack:6532
+ESTAB    0      0               169.254.0.21:58144          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:6652 lastrcv:6376 lastack:6376
+ESTAB    0      0               169.254.0.21:58146          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:6288 lastrcv:6284 lastack:6284
+--
+ESTAB    0      0               169.254.0.21:58102          3.173.21.63:443  
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:5165 segs_out:17 segs_in:9 data_segs_out:10 data_segs_in:5 lastsnd:7188 lastrcv:6912 lastack:6912
+ESTAB    0      0               169.254.0.21:58118          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:7148 lastrcv:6892 lastack:6892

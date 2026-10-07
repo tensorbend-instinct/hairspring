@@ -164,7 +164,7 @@ pub fn tb_tools() -> Vec<Value> {
     vec![
         f(
             "term.exec",
-            "Run bash in the task workdir in a fresh shell. Workspace files persist, but shell variables and cd do not persist between calls. Do not assume root privileges or installed tools; check only what the task needs. In confined sessions only the project and allowed scratch are writable; sandbox denial is a policy denial, not a reason to bypass confinement. Returns exit_code and stdout/stderr tails. Use jobs for background commands, services, and long builds; do not manage them with nohup or shell polling. Before deletion or moving files, verify the intended path and guard unset path variables.",
+            "Run a bash command DIRECTLY in the live task container (you are root, network on). State PERSISTS between calls: files you write, packages you install, services you start all stay - this is the real machine the hidden tests inspect after you finish, so make your changes here, never in scratch copies. Returns exit_code + stdout/stderr tails. For services or long jobs, start them in the background (nohup ... &) and poll.",
             json!({"type":"object","properties":{
                 "command":{"type":"string","description":"a bash command line, run from the task workdir"}},"required":["command"]}),
         ),
@@ -271,10 +271,10 @@ pub fn tb_tools() -> Vec<Value> {
         ),
         f(
             "answer.submit",
-            "Finish the task: summary IS the final answer and overwrites ANSWER_PATH, including any file content you wrote there earlier. Match the requested answer format exactly (for example, one sentence or a number); do not turn a short answer into a work report. Do not append verification commentary unless the user requested it. For a code-change task, describe the change and verification. This triggers the checker, which runs YOUR .hs/checks against the live machine. Green ends the mission; red comes back as FEEDBACK. Your checks must be declared when you submit: write .hs/checks yourself in an earlier step, or pass them atomically in the optional checks field (one command per line, persisted to .hs/checks BEFORE the checker runs). Submit only when every check you declared passes.",
+            "Finish the task: writes your completion summary (summary: what you changed and how you verified it) to ANSWER_PATH and triggers the checker, which runs YOUR .hs/checks against the live machine. Green ends the mission; red comes back as FEEDBACK. Your checks must be declared when you submit: write .hs/checks yourself in an earlier step, or pass them atomically in the optional checks field (one command per line, persisted to .hs/checks BEFORE the checker runs). Submit only when every check you declared passes.",
             json!({"type":"object","properties":{
                 "path":{"type":"string","description":"the ANSWER_PATH value"},
-                "summary":{"type":"string","description":"the final answer content, written verbatim to ANSWER_PATH; obey the requested format"},
+                "summary":{"type":"string","description":"what you changed and how you verified it"},
                 "checks":{"type":"string","description":"optional: your verification commands, one per line; persisted to .hs/checks BEFORE the checker runs on this submission"}},"required":["path","summary"]}),
         ),
     ]

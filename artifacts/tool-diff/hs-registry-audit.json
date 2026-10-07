@@ -1,0 +1,565 @@
+[
+  {
+    "function": {
+      "description": "Registered plugin tool; call with a JSON args object (see the harness contract for this tool's argument shape).",
+      "name": "agent.list",
+      "parameters": {
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Your task list for multi-step work (todo_write). Pass todos=[{content, status: pending|in_progress|completed}] to replace the list (at most one in_progress); call with no todos to read it back.",
+      "name": "todo",
+      "parameters": {
+        "properties": {
+          "todos": {
+            "items": {
+              "properties": {
+                "content": {
+                  "type": "string"
+                },
+                "status": {
+                  "enum": [
+                    "pending",
+                    "in_progress",
+                    "completed"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "content",
+                "status"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Find files by glob pattern (e.g. **/*.rs), relative to the workspace or an optional subpath. Honors .gitignore; sorted; limit default 200.",
+      "name": "glob",
+      "parameters": {
+        "properties": {
+          "limit": {
+            "type": "integer"
+          },
+          "path": {
+            "type": "string"
+          },
+          "pattern": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pattern"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Persistent notes that survive context truncation. Record hypotheses, failing test names, and line numbers you will need later; read them back instead of re-discovering.",
+      "name": "notes.scratch",
+      "parameters": {
+        "properties": {
+          "content": {
+            "description": "text for write/append",
+            "type": "string"
+          },
+          "op": {
+            "enum": [
+              "write",
+              "append",
+              "read"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "op"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Search the web (Brave Search API; needs HS_BRAVE_API_KEY). Returns title, url, snippet per result. Follow up with web.fetch to read a page.",
+      "name": "web.search",
+      "parameters": {
+        "properties": {
+          "count": {
+            "description": "results, 1-20, default 5",
+            "type": "integer"
+          },
+          "query": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Fetch an http(s) URL as text (HTML is reduced to readable text). Private, loopback and non-http targets are refused. Use for docs and API references; returns status, content_type, text, truncated.",
+      "name": "web.fetch",
+      "parameters": {
+        "properties": {
+          "max_bytes": {
+            "description": "optional cap, default 200000",
+            "type": "integer"
+          },
+          "url": {
+            "description": "http(s) URL",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Registered plugin tool; call with a JSON args object (see the harness contract for this tool's argument shape).",
+      "name": "agent.spawn",
+      "parameters": {
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Registered plugin tool; call with a JSON args object (see the harness contract for this tool's argument shape).",
+      "name": "agent.spawn_poll",
+      "parameters": {
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Plan mode. op=enter: mutating tools (term.exec, edits, jobs start, agent.spawn, answer.submit) are blocked while you research. op=exit {plan}: save your plan and leave plan mode so work can start. op=status reads the saved plan.",
+      "name": "plan",
+      "parameters": {
+        "properties": {
+          "op": {
+            "enum": [
+              "enter",
+              "exit",
+              "status"
+            ],
+            "type": "string"
+          },
+          "plan": {
+            "description": "the plan text, for exit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "op"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Finish the task: summary IS the final answer and overwrites ANSWER_PATH, including any file content you wrote there earlier. Match the requested answer format exactly (for example, one sentence or a number); do not turn a short answer into a work report. Do not append verification commentary unless the user requested it. For a code-change task, describe the change and verification. This triggers the checker, which runs YOUR .hs/checks against the live machine. Green ends the mission; red comes back as FEEDBACK. Your checks must be declared when you submit: write .hs/checks yourself in an earlier step, or pass them atomically in the optional checks field (one command per line, persisted to .hs/checks BEFORE the checker runs). Submit only when every check you declared passes.",
+      "name": "answer.submit",
+      "parameters": {
+        "properties": {
+          "checks": {
+            "description": "optional: your verification commands, one per line; persisted to .hs/checks BEFORE the checker runs on this submission",
+            "type": "string"
+          },
+          "path": {
+            "description": "the ANSWER_PATH value",
+            "type": "string"
+          },
+          "summary": {
+            "description": "the final answer content, written verbatim to ANSWER_PATH; obey the requested format",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "summary"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Read a file window. The reply tells you total_lines and a truncated flag; if truncated, page forward with start_line=end_line+1. NEVER re-read the same window: recent results stay verbatim in your transcript. Put durable facts (hypotheses, line numbers, failing tests) in notes.scratch.",
+      "name": "repo.read",
+      "parameters": {
+        "properties": {
+          "max_lines": {
+            "description": "optional, default 400",
+            "type": "integer"
+          },
+          "path": {
+            "description": "repo-relative path",
+            "type": "string"
+          },
+          "start_line": {
+            "description": "1-indexed first line, optional",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Find code by literal substring; returns path:line hits (max 100). Honors the workspace .gitignore/.ignore files.",
+      "name": "repo.search",
+      "parameters": {
+        "properties": {
+          "pattern": {
+            "description": "literal substring to find",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pattern"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Voice: speak text aloud into a WAV file in the workspace with the configured text-to-speech voice. {text, path?} (relative .wav path, default .hs/voice/<time>.wav). Fails with a clear error when no voice is configured.",
+      "name": "speak",
+      "parameters": {
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Background jobs in the same confined shell as term.exec. op=start {command} returns at once with an id; op=list shows status and exit codes; op=output {id, tail_bytes?} reads the log while it runs; op=kill {id} ends it. Use for servers, watchers and long builds instead of blocking a step.",
+      "name": "jobs",
+      "parameters": {
+        "properties": {
+          "command": {
+            "description": "bash command line, for start",
+            "type": "string"
+          },
+          "id": {
+            "description": "job id, for output/kill",
+            "type": "string"
+          },
+          "op": {
+            "enum": [
+              "start",
+              "list",
+              "output",
+              "kill"
+            ],
+            "type": "string"
+          },
+          "tail_bytes": {
+            "description": "output tail cap, default 20000",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "op"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Registered plugin tool; call with a JSON args object (see the harness contract for this tool's argument shape).",
+      "name": "agent.send",
+      "parameters": {
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Registered plugin tool; call with a JSON args object (see the harness contract for this tool's argument shape).",
+      "name": "agent.interrupt",
+      "parameters": {
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Propose a better operating prompt for FUTURE missions. Recorded, versioned, and reviewed through the gated promotion path; it never changes this mission.",
+      "name": "policy.propose_prompt",
+      "parameters": {
+        "properties": {
+          "name": {
+            "description": "prompt name, e.g. swe-mission",
+            "type": "string"
+          },
+          "text": {
+            "description": "your improved prompt template",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "text"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Show a finished file from the workspace to the user (report, image, document). path is relative to the workspace; optional title.",
+      "name": "present",
+      "parameters": {
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Track the long-running goal of this session. op=create {objective, acceptance?} (one active goal at a time), op=get, op=update {status: active|done|blocked, note?}. This is your own tracker; the mission still closes only through the checker.",
+      "name": "goal",
+      "parameters": {
+        "properties": {
+          "acceptance": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "objective": {
+            "type": "string"
+          },
+          "op": {
+            "enum": [
+              "create",
+              "get",
+              "update"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "done",
+              "blocked"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "op"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Run bash in the task workdir in a fresh shell. Workspace files persist, but shell variables and cd do not persist between calls. Do not assume root privileges or installed tools; check only what the task needs. In confined sessions only the project and allowed scratch are writable; sandbox denial is a policy denial, not a reason to bypass confinement. Returns exit_code and stdout/stderr tails. Use jobs for background commands, services, and long builds; do not manage them with nohup or shell polling. Before deletion or moving files, verify the intended path and guard unset path variables.",
+      "name": "term.exec",
+      "parameters": {
+        "properties": {
+          "command": {
+            "description": "a bash command line, run from the task workdir",
+            "type": "string"
+          }
+        },
+        "required": [
+          "command"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Recurring prompts. op=create {prompt, every_secs>=60}, list, update {id, prompt?, every_secs?}, delete {id}, due (entries now due; advances them).",
+      "name": "schedule",
+      "parameters": {
+        "properties": {
+          "every_secs": {
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "op": {
+            "enum": [
+              "create",
+              "list",
+              "update",
+              "delete",
+              "due"
+            ],
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "op"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Named multi-step workflows. op=define {name, steps: [prompt,...]}, get {name}, list, delete {name}. The harness runs a workflow's steps as goals back to back.",
+      "name": "workflow",
+      "parameters": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "op": {
+            "enum": [
+              "define",
+              "get",
+              "list",
+              "delete"
+            ],
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "op"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Read a PNG, JPEG or GIF from the workspace: returns mime, width, height and base64 data (max 5 MB).",
+      "name": "read_image",
+      "parameters": {
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Ask the user one question and wait for the answer. Use only when a decision is genuinely theirs and you cannot proceed safely on a stated assumption. Optional options lists suggested answers. If no answer arrives you get an error: continue on your best assumption and say so.",
+      "name": "ask_user_question",
+      "parameters": {
+        "properties": {
+          "options": {
+            "description": "optional suggested answers",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "question": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Registered plugin tool; call with a JSON args object (see the harness contract for this tool's argument shape).",
+      "name": "checker.run",
+      "parameters": {
+        "type": "object"
+      }
+    },
+    "type": "function"
+  }
+]

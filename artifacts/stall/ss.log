@@ -1,0 +1,597 @@
+== 20:01:30
+ESTAB 0      0               169.254.0.21:50910          3.173.21.63:443  
+	 bytes_sent:28694 bytes_acked:28695 bytes_received:5671 segs_out:30 segs_in:12 data_segs_out:24 data_segs_in:5 lastsnd:2932 lastrcv:2452 lastack:2452
+== 20:01:35
+ESTAB 0      0               169.254.0.21:34540          3.173.21.63:443  
+ESTAB 0      0               169.254.0.21:34478          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:1204 lastrcv:936 lastack:936
+ESTAB 0      0               169.254.0.21:51124          3.173.21.63:443  
+	 bytes_sent:17073 bytes_acked:17074 bytes_received:102802 segs_out:137 segs_in:132 data_segs_out:16 data_segs_in:126 lastsnd:2568 lastrcv:4 lastack:4
+ESTAB 0      0               169.254.0.21:34528          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:188 lastrcv:184 lastack:184
+ESTAB 0      0               169.254.0.21:34500          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:588 lastrcv:304 lastack:304
+ESTAB 0      0               169.254.0.21:34532          3.173.21.63:443  
+	 bytes_sent:11382 bytes_acked:11383 bytes_received:4519 segs_out:15 segs_in:7 data_segs_out:10 data_segs_in:3 lastsnd:124 lastrcv:116 lastack:116
+ESTAB 0      0               169.254.0.21:34536          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:11 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:32 lastrcv:28 lastack:28
+== 20:01:40
+ESTAB 0      0               169.254.0.21:34836          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:460 lastrcv:140 lastack:140
+ESTAB 0      0               169.254.0.21:34856          3.173.21.63:443  
+	 bytes_sent:11382 bytes_acked:11383 bytes_received:4519 segs_out:15 segs_in:8 data_segs_out:10 data_segs_in:4 lastsnd:40 lastrcv:36 lastack:36
+ESTAB 0      0               169.254.0.21:51124          3.173.21.63:443  
+	 bytes_sent:17073 bytes_acked:17074 bytes_received:449345 segs_out:475 segs_in:498 data_segs_out:16 data_segs_in:492 lastsnd:7572 lastrcv:12 lastack:12
+ESTAB 0      0               169.254.0.21:34810          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:724 lastrcv:432 lastack:432
+ESTAB 0      0               169.254.0.21:34842          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:420 lastrcv:148 lastack:148
+ESTAB 0      0               169.254.0.21:34854          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:116 lastrcv:108 lastack:108
+ESTAB 0      0               169.254.0.21:34820          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:604 lastrcv:288 lastack:288
+== 20:01:45
+ESTAB 0      0               169.254.0.21:51124          3.173.21.63:443  
+	 bytes_sent:17073 bytes_acked:17074 bytes_received:780376 segs_out:803 segs_in:860 data_segs_out:16 data_segs_in:854 lastsnd:12580
+ESTAB 0      0               169.254.0.21:48732          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:252 lastrcv:244 lastack:244
+ESTAB 0      0               169.254.0.21:48720          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:424 lastrcv:140 lastack:140
+ESTAB 0      0               169.254.0.21:48702          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:596 lastrcv:316 lastack:316
+ESTAB 0      0               169.254.0.21:48660          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:992 lastrcv:692 lastack:692
+ESTAB 0      0               169.254.0.21:48740          3.173.21.63:443  
+	 bytes_sent:11382 bytes_acked:11383 bytes_received:4519 segs_out:15 segs_in:7 data_segs_out:10 data_segs_in:3 lastsnd:60 lastrcv:52 lastack:52
+ESTAB 0      0               169.254.0.21:48646          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:1072 lastrcv:800 lastack:800
+== 20:01:50
+ESTAB 0      0               169.254.0.21:48998          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:580 lastrcv:292 lastack:292
+ESTAB 0      0               169.254.0.21:49028          3.173.21.63:443  
+	 bytes_sent:11382 bytes_acked:11383 bytes_received:4519 segs_out:17 segs_in:9 data_segs_out:10 data_segs_in:5 lastsnd:68 lastrcv:64 lastack:64
+ESTAB 0      572             169.254.0.21:40020       172.66.169.219:443  
+	 bytes_sent:3981 bytes_acked:3410 bytes_received:2786 segs_out:9 segs_in:4 data_segs_out:6 data_segs_in:1 send 619465241bps lastrcv:4
+ESTAB 0      0               169.254.0.21:51124          3.173.21.63:443  
+	 bytes_sent:17073 bytes_acked:17074 bytes_received:1107420 segs_out:1162 segs_in:1253 data_segs_out:16 data_segs_in:1247 lastsnd:17588 lastrcv:8 lastack:8
+ESTAB 0      0               169.254.0.21:48982          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:612 lastrcv:328 lastack:328
+ESTAB 0      0               169.254.0.21:49004          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:348 lastrcv:80 lastack:80
+ESTAB 0      0               169.254.0.21:49026          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:10 segs_in:6 data_segs_out:5 data_segs_in:3 lastsnd:200 lastrcv:196 lastack:196
+ESTAB 0      0               169.254.0.21:49010          3.173.21.63:443  
+	 bytes_sent:11382 bytes_acked:11383 bytes_received:4519 segs_out:15 segs_in:7 data_segs_out:10 data_segs_in:3 lastsnd:228 lastrcv:220 lastack:220
+== 20:01:55
+ESTAB 0      0       169.254.0.21:40020 172.66.169.219:443 
+	 bytes_sent:3981 bytes_acked:3982 bytes_received:4490 segs_out:10 segs_in:6 data_segs_out:6 data_segs_in:2 lastsnd:5008 lastrcv:4828 lastack:4828
+ESTAB 0      0       169.254.0.21:51124    3.173.21.63:443 
+	 bytes_sent:17073 bytes_acked:17074 bytes_received:1439920 segs_out:1469 segs_in:1592 data_segs_out:16 data_segs_in:1586 lastsnd:22596 lastrcv:136 lastack:136
+ESTAB 0      0       169.254.0.21:49578    3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:724 lastrcv:372 lastack:372
+ESTAB 0      0       169.254.0.21:49568    3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:936 lastrcv:672 lastack:672
+ESTAB 0      0       169.254.0.21:49600    3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:424 lastrcv:140 lastack:140
+ESTAB 0      0       169.254.0.21:49606    3.173.21.63:443 
+	 bytes_sent:11382 bytes_acked:11383 bytes_received:4519 segs_out:16 segs_in:8 data_segs_out:10 data_segs_in:4 lastsnd:276 lastrcv:268 lastack:268
+ESTAB 0      0       169.254.0.21:49594    3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:700 lastrcv:416 lastack:416
+ESTAB 0      0       169.254.0.21:49534    3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:1232 lastrcv:956 lastack:956
+== 20:02:00
+ESTAB 0      0       169.254.0.21:49928    3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:968 lastrcv:668 lastack:668
+ESTAB 0      0       169.254.0.21:49880    3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:1344 lastrcv:1068 lastack:1068
+ESTAB 0      0       169.254.0.21:40020 172.66.169.219:443 
+	 bytes_sent:3981 bytes_acked:3982 bytes_received:4490 segs_out:10 segs_in:6 data_segs_out:6 data_segs_in:2 lastsnd:10016 lastrcv:9836 lastack:9836
+ESTAB 0      0       169.254.0.21:51124    3.173.21.63:443 
+	 bytes_sent:17073 bytes_acked:17074 bytes_received:1804266 segs_out:1810 segs_in:1964 data_segs_out:16 data_segs_in:1958 lastsnd:27604 lastrcv:16 lastack:16
+ESTAB 0      0       169.254.0.21:49946    3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:516 lastrcv:244 lastack:244
+ESTAB 0      0       169.254.0.21:49930    3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:928 lastrcv:664 lastack:664
+ESTAB 0      0       169.254.0.21:49944    3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:756 lastrcv:504 lastack:504
+ESTAB 0      0       169.254.0.21:49948    3.173.21.63:443 
+	 bytes_sent:11382 bytes_acked:11383 bytes_received:4519 segs_out:16 segs_in:8 data_segs_out:10 data_segs_in:4 lastsnd:208 lastrcv:200 lastack:200
+== 20:02:05
+ESTAB 0      0       169.254.0.21:46674    3.173.21.63:443 
+	 bytes_sent:11382 bytes_acked:11383 bytes_received:4519 segs_out:16 segs_in:9 data_segs_out:10 data_segs_in:5 lastsnd:20 lastrcv:12 lastack:12
+ESTAB 0      0       169.254.0.21:46648    3.173.21.63:443 
+	 bytes_sent:11382 bytes_acked:11383 bytes_received:4519 segs_out:16 segs_in:8 data_segs_out:10 data_segs_in:4 lastsnd:256 lastrcv:248 lastack:248
+ESTAB 0      0       169.254.0.21:46618    3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:1132 lastrcv:868 lastack:868
+ESTAB 0      0       169.254.0.21:40020 172.66.169.219:443 
+	 bytes_sent:3981 bytes_acked:3982 bytes_received:4490 segs_out:10 segs_in:6 data_segs_out:6 data_segs_in:2 lastsnd:15024 lastrcv:14844 lastack:14844
+ESTAB 0      0       169.254.0.21:51124    3.173.21.63:443 
+	 bytes_sent:17073 bytes_acked:17074 bytes_received:2146897 segs_out:2164 segs_in:2357 data_segs_out:16 data_segs_in:2351 lastsnd:32612 lastrcv:12 lastack:12
+ESTAB 0      0       169.254.0.21:46640    3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:736 lastrcv:456 lastack:456
+ESTAB 0      0       169.254.0.21:46606    3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:1196 lastrcv:932 lastack:932
+ESTAB 0      0       169.254.0.21:46662    3.173.21.63:443 
+	 bytes_sent:11382 bytes_acked:11383 bytes_received:4519 segs_out:15 segs_in:8 data_segs_out:10 data_segs_in:4 lastsnd:44 lastrcv:36 lastack:36
+== 20:02:10
+ESTAB 0      0       169.254.0.21:46932    3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:932 lastrcv:652 lastack:652
+ESTAB 0      0       169.254.0.21:46976    3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:400 lastrcv:124 lastack:124
+ESTAB 0      0       169.254.0.21:40020 172.66.169.219:443 
+	 bytes_sent:3981 bytes_acked:3982 bytes_received:4490 segs_out:10 segs_in:6 data_segs_out:6 data_segs_in:2 lastsnd:20032 lastrcv:19852 lastack:19852
+ESTAB 0      0       169.254.0.21:51124    3.173.21.63:443 
+	 bytes_sent:17073 bytes_acked:17074 bytes_received:2474637 segs_out:2510 segs_in:2735 data_segs_out:16 data_segs_in:2729 lastsnd:37620 lastrcv:72 lastack:72
+ESTAB 0      0       169.254.0.21:46930    3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:1100 lastrcv:812 lastack:812
+ESTAB 0      0       169.254.0.21:46904    3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:1636 lastrcv:1368 lastack:1368
+ESTAB 0      0       169.254.0.21:46966    3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:512 lastrcv:228 lastack:228
+ESTAB 0      0       169.254.0.21:46926    3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:1188 lastrcv:908 lastack:908
+== 20:02:15
+ESTAB 0      0       169.254.0.21:57930    3.173.21.63:443 
+	 bytes_sent:11382 bytes_acked:11383 bytes_received:4519 segs_out:16 segs_in:8 data_segs_out:10 data_segs_in:4 lastsnd:60 lastrcv:56 lastack:56
+ESTAB 0      0       169.254.0.21:57882    3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:1056 lastrcv:760 lastack:760
+ESTAB 0      0       169.254.0.21:57892    3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:996 lastrcv:720 lastack:720
+ESTAB 0      0       169.254.0.21:47218    3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:1376 lastrcv:1096 lastack:1096
+ESTAB 0      0       169.254.0.21:40020 172.66.169.219:443 
+	 bytes_sent:3981 bytes_acked:3982 bytes_received:4490 segs_out:10 segs_in:6 data_segs_out:6 data_segs_in:2 lastsnd:25040 lastrcv:24860 lastack:24860
+ESTAB 0      0       169.254.0.21:51124    3.173.21.63:443 
+	 bytes_sent:17073 bytes_acked:17074 bytes_received:2810871 segs_out:2865 segs_in:3122 data_segs_out:16 data_segs_in:3116 lastsnd:42628 lastrcv:8 lastack:8
+ESTAB 0      0       169.254.0.21:57920    3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:508 lastrcv:228 lastack:228
+ESTAB 0      0       169.254.0.21:57922    3.173.21.63:443 
+	 bytes_sent:11382 bytes_acked:11383 bytes_received:4519 segs_out:17 segs_in:9 data_segs_out:10 data_segs_in:5 lastsnd:100 lastrcv:92 lastack:92
+== 20:02:20
+ESTAB 0      0       169.254.0.21:58218  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:1284 lastrcv:1012 lastack:1012
+ESTAB 0      0       169.254.0.21:58238  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:984 lastrcv:712 lastack:712
+ESTAB 0      0       169.254.0.21:51124  3.173.21.63:443 
+	 bytes_sent:17073 bytes_acked:17074 bytes_received:3148082 segs_out:3190 segs_in:3482 data_segs_out:16 data_segs_in:3476 lastsnd:47636 lastrcv:4 lastack:4
+ESTAB 0      0       169.254.0.21:58284  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:596 lastrcv:312 lastack:312
+ESTAB 0      0       169.254.0.21:58250  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:980 lastrcv:676 lastack:676
+ESTAB 0      0       169.254.0.21:58272  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:916 lastrcv:652 lastack:652
+ESTAB 0      0       169.254.0.21:58294  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:10 segs_in:6 data_segs_out:5 data_segs_in:3 lastsnd:224 lastrcv:216 lastack:216
+== 20:02:25
+ESTAB 0      0       169.254.0.21:38332  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:744 lastrcv:468 lastack:468
+ESTAB 0      0       169.254.0.21:51124  3.173.21.63:443 
+	 bytes_sent:17073 bytes_acked:17074 bytes_received:3504564 segs_out:3547 segs_in:3878 data_segs_out:16 data_segs_in:3872 lastsnd:52644 lastrcv:4 lastack:4
+ESTAB 0      0       169.254.0.21:38370  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:56 lastrcv:48 lastack:48
+ESTAB 0      0       169.254.0.21:38384  3.173.21.63:443 
+ESTAB 0      0       169.254.0.21:38334  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:688 lastrcv:324 lastack:324
+ESTAB 0      0       169.254.0.21:38368  3.173.21.63:443 
+	 bytes_sent:11382 bytes_acked:11383 bytes_received:4519 segs_out:15 segs_in:7 data_segs_out:10 data_segs_in:3 lastsnd:116 lastrcv:108 lastack:108
+ESTAB 0      0       169.254.0.21:38340  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:580 lastrcv:316 lastack:316
+== 20:02:30
+ESTAB 0      0       169.254.0.21:38682  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:628 lastrcv:348 lastack:348
+ESTAB 0      0       169.254.0.21:38710  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:172 lastrcv:164 lastack:164
+ESTAB 0      0       169.254.0.21:38704  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:412 lastrcv:136 lastack:136
+ESTAB 0      0       169.254.0.21:38672  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:636 lastrcv:368 lastack:368
+ESTAB 0      0       169.254.0.21:38640  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:900 lastrcv:620 lastack:620
+ESTAB 0      0       169.254.0.21:38698  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:436 lastrcv:160 lastack:160
+== 20:02:35
+ESTAB 0      0       169.254.0.21:40936  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:1132 lastrcv:852 lastack:852
+ESTAB 0      0       169.254.0.21:40992  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:616 lastrcv:344 lastack:344
+ESTAB 0      0       169.254.0.21:41034  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:140 lastrcv:132 lastack:132
+ESTAB 0      0       169.254.0.21:41004  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:552 lastrcv:268 lastack:268
+ESTAB 0      0       169.254.0.21:40990  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:680 lastrcv:400 lastack:400
+ESTAB 0      0       169.254.0.21:40970  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:880 lastrcv:528 lastack:528
+== 20:02:40
+ESTAB 0      0       169.254.0.21:41344  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:364 lastrcv:100 lastack:100
+ESTAB 0      0       169.254.0.21:41352  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:316 lastrcv:36 lastack:36
+ESTAB 0      0       169.254.0.21:41300  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:816 lastrcv:552 lastack:552
+ESTAB 0      0       169.254.0.21:41356  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:124 lastrcv:120 lastack:120
+ESTAB 0      0       169.254.0.21:41362  3.173.21.63:443 
+	 bytes_sent:11382 bytes_acked:11383 bytes_received:4519 segs_out:15 segs_in:7 data_segs_out:10 data_segs_in:3 lastsnd:64 lastrcv:56 lastack:56
+ESTAB 0      0       169.254.0.21:41310  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:724 lastrcv:456 lastack:456
+== 20:02:45
+ESTAB 0      0       169.254.0.21:41656  3.173.21.63:443 
+	 bytes_sent:11382 bytes_acked:11383 bytes_received:4519 segs_out:17 segs_in:9 data_segs_out:10 data_segs_in:5 lastsnd:120 lastrcv:112 lastack:112
+ESTAB 0      0       169.254.0.21:41648  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:248 lastrcv:244 lastack:244
+ESTAB 0      0       169.254.0.21:41624  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:552 lastrcv:268 lastack:268
+ESTAB 0      0       169.254.0.21:41638  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:260 lastrcv:256 lastack:256
+ESTAB 0      0       169.254.0.21:41584  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:1036 lastrcv:624 lastack:624
+ESTAB 0      0       169.254.0.21:41652  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:10 segs_in:6 data_segs_out:5 data_segs_in:3 lastsnd:232 lastrcv:224 lastack:224
+== 20:02:50
+ESTAB 0      0       169.254.0.21:41914  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:876 lastrcv:604 lastack:604
+ESTAB 0      0       169.254.0.21:41932  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:808 lastrcv:528 lastack:528
+ESTAB 0      0       169.254.0.21:41964  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:436 lastrcv:152 lastack:152
+ESTAB 0      0       169.254.0.21:41988  3.173.21.63:443 
+ESTAB 0      0       169.254.0.21:41990  3.173.21.63:443 
+ESTAB 0      0       169.254.0.21:41960  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:520 lastrcv:244 lastack:244
+== 20:02:55
+ESTAB 0      0       169.254.0.21:32916  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:10 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:52 lastrcv:44 lastack:44
+ESTAB 0      0       169.254.0.21:32900  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:372 lastrcv:88 lastack:88
+ESTAB 0      0       169.254.0.21:32908  3.173.21.63:443 
+	 bytes_sent:11382 bytes_acked:11383 bytes_received:4519 segs_out:15 segs_in:7 data_segs_out:10 data_segs_in:3 lastsnd:236 lastrcv:228 lastack:228
+ESTAB 0      0       169.254.0.21:32912  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:68 lastrcv:60 lastack:60
+ESTAB 0      0       169.254.0.21:32874  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:428 lastrcv:152 lastack:152
+ESTAB 0      0       169.254.0.21:32856  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:828 lastrcv:552 lastack:552
+== 20:03:00
+ESTAB 0      0       169.254.0.21:33238  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:336 lastrcv:52 lastack:52
+ESTAB 0      0       169.254.0.21:33244  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:148 lastrcv:140 lastack:140
+ESTAB 0      0       169.254.0.21:33192  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:688 lastrcv:416 lastack:416
+ESTAB 0      0       169.254.0.21:33230  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:384 lastrcv:104 lastack:104
+ESTAB 0      0       169.254.0.21:33258  3.173.21.63:443 
+	 bytes_sent:11382 bytes_acked:11383 bytes_received:4340 segs_out:15 segs_in:7 data_segs_out:10 data_segs_in:3 lastsnd:4 lastrcv:4 lastack:4
+ESTAB 0      0       169.254.0.21:33248  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:10 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:36 lastrcv:28 lastack:28
+== 20:03:05
+ESTAB 0      0       169.254.0.21:36878  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:432 lastrcv:148 lastack:148
+ESTAB 0      0       169.254.0.21:36902  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:9 segs_in:6 data_segs_out:5 data_segs_in:3 lastsnd:28 lastrcv:20 lastack:20
+ESTAB 0      0       169.254.0.21:36850  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:1160 lastrcv:884 lastack:884
+ESTAB 0      0       169.254.0.21:36896  3.173.21.63:443 
+	 bytes_sent:11382 bytes_acked:11383 bytes_received:4519 segs_out:16 segs_in:8 data_segs_out:10 data_segs_in:4 lastsnd:232 lastrcv:228 lastack:228
+ESTAB 0      0       169.254.0.21:36856  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:1016 lastrcv:740 lastack:740
+ESTAB 0      0       169.254.0.21:36910  3.173.21.63:443 
+== 20:03:10
+ESTAB 0      0       169.254.0.21:37216  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:792 lastrcv:504 lastack:504
+ESTAB 0      0       169.254.0.21:37286  3.173.21.63:443 
+	 bytes_sent:11382 bytes_acked:11383 bytes_received:4519 segs_out:14 segs_in:7 data_segs_out:10 data_segs_in:3 lastsnd:44 lastrcv:36 lastack:36
+ESTAB 0      0       169.254.0.21:37248  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:476 lastrcv:196 lastack:196
+ESTAB 0      0       169.254.0.21:37230  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:752 lastrcv:468 lastack:468
+ESTAB 0      0       169.254.0.21:37242  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:652 lastrcv:376 lastack:376
+ESTAB 0      0       169.254.0.21:37270  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:88 lastrcv:84 lastack:84
+== 20:03:15
+ESTAB 0      0       169.254.0.21:37150  3.173.21.63:443 
+	 bytes_sent:11382 bytes_acked:11383 bytes_received:4519 segs_out:15 segs_in:8 data_segs_out:10 data_segs_in:4 lastsnd:20 lastrcv:12 lastack:12
+ESTAB 0      0       169.254.0.21:37132  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:80 lastrcv:72 lastack:72
+ESTAB 0      0       169.254.0.21:37096  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:1180 lastrcv:908 lastack:908
+ESTAB 0      0       169.254.0.21:37136  3.173.21.63:443 
+	 bytes_sent:11382 bytes_acked:11383 bytes_received:4519 segs_out:15 segs_in:8 data_segs_out:10 data_segs_in:4 lastsnd:24 lastrcv:16 lastack:16
+ESTAB 0      0       169.254.0.21:37120  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:1040 lastrcv:768 lastack:768
+ESTAB 0      0       169.254.0.21:37082  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:1336 lastrcv:980 lastack:980
+== 20:04:40
+ESTAB 0      0       169.254.0.21:37224  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:3532 lastrcv:3236 lastack:3236
+ESTAB 0      0       169.254.0.21:37358  3.173.21.63:443 
+	 bytes_sent:11382 bytes_acked:11383 bytes_received:4519 segs_out:15 segs_in:8 data_segs_out:10 data_segs_in:4 lastsnd:40 lastrcv:36 lastack:36
+ESTAB 0      0       169.254.0.21:37206  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:4184 lastrcv:3904 lastack:3904
+ESTAB 0      0       169.254.0.21:37350  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:732 lastrcv:444 lastack:444
+ESTAB 0      0       169.254.0.21:37252  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:10 segs_in:6 data_segs_out:5 data_segs_in:3 lastsnd:3216 lastrcv:3208 lastack:3208
+ESTAB 0      0       169.254.0.21:51234    3.5.87.26:443 
+	 bytes_sent:3610 bytes_acked:3611 bytes_received:6700 segs_out:15 segs_in:14 data_segs_out:6 data_segs_in:8 lastsnd:2044 lastrcv:2004 lastack:2004
+ESTAB 0      0       169.254.0.21:37336  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:1144 lastrcv:868 lastack:868
+== 20:04:45
+ESTAB 0      0       169.254.0.21:37224  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:8536 lastrcv:8240 lastack:8240
+ESTAB 0      0       169.254.0.21:41056  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:992 lastrcv:728 lastack:728
+ESTAB 0      0       169.254.0.21:41074  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:820 lastrcv:528 lastack:528
+ESTAB 0      0       169.254.0.21:37206  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:9188 lastrcv:8908 lastack:8908
+ESTAB 0      0       169.254.0.21:37252  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:10 segs_in:6 data_segs_out:5 data_segs_in:3 lastsnd:8220 lastrcv:8212 lastack:8212
+ESTAB 0      0       169.254.0.21:41078  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:76 lastrcv:68 lastack:68
+== 20:04:50
+ESTAB 0      0               169.254.0.21:37224          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:13544 lastrcv:13248 lastack:13248
+ESTAB 0      0               169.254.0.21:37206          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:14196 lastrcv:13916 lastack:13916
+ESTAB 0      0               169.254.0.21:41218          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:516 lastrcv:228 lastack:228
+ESTAB 0      0               169.254.0.21:37252          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:10 segs_in:6 data_segs_out:5 data_segs_in:3 lastsnd:13228 lastrcv:13220 lastack:13220
+ESTAB 0      0               169.254.0.21:41216          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:1012 lastrcv:724 lastack:724
+ESTAB 0      0               169.254.0.21:41208          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:1448 lastrcv:1112 lastack:1112
+== 20:04:55
+ESTAB 0      0               169.254.0.21:37224          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:18560 lastrcv:18264 lastack:18264
+ESTAB 0      0               169.254.0.21:39958          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:768 lastrcv:488 lastack:488
+ESTAB 0      0               169.254.0.21:39980          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:196 lastrcv:188 lastack:188
+ESTAB 0      0               169.254.0.21:39974          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:568 lastrcv:292 lastack:292
+ESTAB 0      0               169.254.0.21:37206          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:19212 lastrcv:18932 lastack:18932
+ESTAB 0      0               169.254.0.21:37252          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:10 segs_in:6 data_segs_out:5 data_segs_in:3 lastsnd:18244 lastrcv:18236 lastack:18236
+== 20:05:00
+ESTAB 0      0       169.254.0.21:37224  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:23568 lastrcv:23272 lastack:23272
+ESTAB 0      0       169.254.0.21:37206  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:24220 lastrcv:23940 lastack:23940
+ESTAB 0      0       169.254.0.21:40042  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:5163 segs_out:17 segs_in:9 data_segs_out:10 data_segs_in:5 lastsnd:1896 lastrcv:1616 lastack:1616
+ESTAB 0      0       169.254.0.21:37252  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:10 segs_in:6 data_segs_out:5 data_segs_in:3 lastsnd:23252 lastrcv:23244 lastack:23244
+ESTAB 0      0       169.254.0.21:40092  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:132 lastrcv:124 lastack:124
+ESTAB 0      0       169.254.0.21:40082  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:404 lastrcv:132 lastack:132
+== 20:05:05
+ESTAB 0      0       169.254.0.21:37224  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:28572 lastrcv:28276 lastack:28276
+ESTAB 0      0       169.254.0.21:37568  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:500 lastrcv:224 lastack:224
+ESTAB 0      0       169.254.0.21:37206  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:29224 lastrcv:28944 lastack:28944
+ESTAB 0      0       169.254.0.21:37556  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:5164 segs_out:17 segs_in:9 data_segs_out:10 data_segs_in:5 lastsnd:1240 lastrcv:948 lastack:948
+ESTAB 0      0       169.254.0.21:37252  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:10 segs_in:6 data_segs_out:5 data_segs_in:3 lastsnd:28256 lastrcv:28248 lastack:28248
+ESTAB 0      0       169.254.0.21:37550  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:5163 segs_out:16 segs_in:8 data_segs_out:10 data_segs_in:4 lastsnd:1272 lastrcv:992 lastack:992
+== 20:05:10
+ESTAB 0      0       169.254.0.21:37662  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:268 lastrcv:264 lastack:264
+ESTAB 0      0       169.254.0.21:37224  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:33580 lastrcv:33284 lastack:33284
+ESTAB 0      0       169.254.0.21:37656  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:5163 segs_out:17 segs_in:9 data_segs_out:10 data_segs_in:5 lastsnd:532 lastrcv:260 lastack:260
+ESTAB 0      0       169.254.0.21:37650  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:832 lastrcv:552 lastack:552
+ESTAB 0      0       169.254.0.21:37206  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:34232 lastrcv:33952 lastack:33952
+ESTAB 0      0       169.254.0.21:37252  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:10 segs_in:6 data_segs_out:5 data_segs_in:3 lastsnd:33264 lastrcv:33256 lastack:33256
+== 20:05:15
+ESTAB 0      0       169.254.0.21:37224  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:38588 lastrcv:38292 lastack:38292
+ESTAB 0      0       169.254.0.21:50518  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:800 lastrcv:464 lastack:464
+ESTAB 0      0       169.254.0.21:37206  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:39240 lastrcv:38960 lastack:38960
+ESTAB 0      0       169.254.0.21:50546  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:248 lastrcv:244 lastack:244
+ESTAB 0      0       169.254.0.21:37252  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:10 segs_in:6 data_segs_out:5 data_segs_in:3 lastsnd:38272 lastrcv:38264 lastack:38264
+ESTAB 0      0       169.254.0.21:50532  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:4519 segs_out:16 segs_in:8 data_segs_out:10 data_segs_in:4 lastsnd:304 lastrcv:296 lastack:296
+== 20:05:20
+ESTAB 0      0       169.254.0.21:37224  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:43596 lastrcv:43300 lastack:43300
+ESTAB 0      0       169.254.0.21:50634  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:1112 lastrcv:848 lastack:848
+ESTAB 0      0       169.254.0.21:37206  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:44248 lastrcv:43968 lastack:43968
+ESTAB 0      0       169.254.0.21:50638  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:4519 segs_out:15 segs_in:8 data_segs_out:10 data_segs_in:4 lastsnd:28 lastrcv:20 lastack:20
+ESTAB 0      0       169.254.0.21:37252  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:10 segs_in:6 data_segs_out:5 data_segs_in:3 lastsnd:43280 lastrcv:43272 lastack:43272
+ESTAB 0      0       169.254.0.21:50636  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:5163 segs_out:17 segs_in:9 data_segs_out:10 data_segs_in:5 lastsnd:512 lastrcv:176 lastack:176
+== 20:05:25
+ESTAB 0      0       169.254.0.21:37224  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:48604 lastrcv:48308 lastack:48308
+ESTAB 0      0       169.254.0.21:49634  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:188 lastrcv:180 lastack:180
+ESTAB 0      0       169.254.0.21:49610  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:944 lastrcv:664 lastack:664
+ESTAB 0      0       169.254.0.21:49626  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:444 lastrcv:176 lastack:176
+ESTAB 0      0       169.254.0.21:37206  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:49256 lastrcv:48976 lastack:48976
+ESTAB 0      0       169.254.0.21:37252  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:10 segs_in:6 data_segs_out:5 data_segs_in:3 lastsnd:48288 lastrcv:48280 lastack:48280
+== 20:05:30
+ESTAB 0      0       169.254.0.21:37224  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:53608 lastrcv:53312 lastack:53312
+ESTAB 0      0       169.254.0.21:49704  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:5165 segs_out:16 segs_in:8 data_segs_out:10 data_segs_in:4 lastsnd:660 lastrcv:396 lastack:396
+ESTAB 0      0       169.254.0.21:37206  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:54260 lastrcv:53980 lastack:53980
+ESTAB 0      0       169.254.0.21:49728  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:4519 segs_out:17 segs_in:9 data_segs_out:10 data_segs_in:5 lastsnd:128 lastrcv:120 lastack:120
+ESTAB 0      0       169.254.0.21:37252  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:10 segs_in:6 data_segs_out:5 data_segs_in:3 lastsnd:53292 lastrcv:53284 lastack:53284
+ESTAB 0      0       169.254.0.21:49714  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:180 lastrcv:176 lastack:176
+== 20:05:35
+ESTAB 0      0       169.254.0.21:37224  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:58616 lastrcv:58320 lastack:58320
+ESTAB 0      0       169.254.0.21:57168  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:1176 lastrcv:904 lastack:904
+ESTAB 0      0       169.254.0.21:37206  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:59268 lastrcv:58988 lastack:58988
+ESTAB 0      0       169.254.0.21:57156  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:1336 lastrcv:1064 lastack:1064
+ESTAB 0      0       169.254.0.21:37252  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:10 segs_in:6 data_segs_out:5 data_segs_in:3 lastsnd:58300 lastrcv:58292 lastack:58292
+ESTAB 0      0       169.254.0.21:57178  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:5164 segs_out:16 segs_in:8 data_segs_out:10 data_segs_in:4 lastsnd:1136 lastrcv:852 lastack:852
+== 20:05:40
+ESTAB 0      0       169.254.0.21:57332  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:4519 segs_out:15 segs_in:7 data_segs_out:10 data_segs_in:3 lastsnd:104 lastrcv:96 lastack:96
+ESTAB 0      0       169.254.0.21:57340  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:4519 segs_out:16 segs_in:9 data_segs_out:10 data_segs_in:5 lastsnd:36 lastrcv:28 lastack:28
+ESTAB 0      0       169.254.0.21:57312  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:692 lastrcv:436 lastack:436
+ESTAB 0      0       169.254.0.21:57284  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:1104 lastrcv:828 lastack:828
+ESTAB 0      0       169.254.0.21:57320  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:5164 segs_out:17 segs_in:9 data_segs_out:10 data_segs_in:5 lastsnd:652 lastrcv:368 lastack:368
+ESTAB 0      0       169.254.0.21:57294  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:1004 lastrcv:736 lastack:736
+== 20:05:45
+ESTAB 0      0       169.254.0.21:48880  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:5163 segs_out:16 segs_in:8 data_segs_out:10 data_segs_in:4 lastsnd:1016 lastrcv:736 lastack:736
+ESTAB 0      0       169.254.0.21:48918  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:548 lastrcv:268 lastack:268
+ESTAB 0      0       169.254.0.21:48902  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:760 lastrcv:492 lastack:492
+ESTAB 0      0       169.254.0.21:48944  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:4519 segs_out:17 segs_in:9 data_segs_out:10 data_segs_in:5 lastsnd:220 lastrcv:212 lastack:212
+ESTAB 0      0       169.254.0.21:48934  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:5165 segs_out:17 segs_in:9 data_segs_out:10 data_segs_in:5 lastsnd:464 lastrcv:176 lastack:176
+ESTAB 0      0       169.254.0.21:48896  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:932 lastrcv:656 lastack:656
+== 20:05:50
+ESTAB 0      0       169.254.0.21:49118  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:5163 segs_out:16 segs_in:8 data_segs_out:10 data_segs_in:4 lastsnd:664 lastrcv:400 lastack:400
+ESTAB 0      0       169.254.0.21:49156  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:5164 segs_out:16 segs_in:8 data_segs_out:10 data_segs_in:4 lastsnd:436 lastrcv:152 lastack:152
+ESTAB 0      0       169.254.0.21:49134  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:484 lastrcv:208 lastack:208
+ESTAB 0      0       169.254.0.21:49140  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:476 lastrcv:200 lastack:200
+ESTAB 0      0       169.254.0.21:49098  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:1076 lastrcv:796 lastack:796
+ESTAB 0      0       169.254.0.21:49110  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:5164 segs_out:17 segs_in:9 data_segs_out:10 data_segs_in:5 lastsnd:668 lastrcv:384 lastack:384
+== 20:05:55
+ESTAB 0      0       169.254.0.21:57960  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:5164 segs_out:16 segs_in:8 data_segs_out:10 data_segs_in:4 lastsnd:684 lastrcv:400 lastack:400
+ESTAB 0      0       169.254.0.21:57974  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:10 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:12 lastrcv:4 lastack:4
+ESTAB 0      0       169.254.0.21:57938  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5164 segs_out:13 segs_in:9 data_segs_out:5 data_segs_in:6 lastsnd:1296 lastrcv:1020 lastack:1020
+ESTAB 0      0       169.254.0.21:57968  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:4519 segs_out:14 segs_in:7 data_segs_out:10 data_segs_in:3 lastsnd:20 lastrcv:12 lastack:12
+ESTAB 0      0       169.254.0.21:57950  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:5163 segs_out:17 segs_in:9 data_segs_out:10 data_segs_in:5 lastsnd:1076 lastrcv:792 lastack:792
+ESTAB 0      0       169.254.0.21:57990  3.173.21.63:443 
+== 20:10:03
+ESTAB    0      0               169.254.0.21:49812         52.92.205.18:443  
+ESTAB    0      0               169.254.0.21:53972         52.92.160.26:443  
+	 bytes_sent:5579 bytes_acked:5580 bytes_received:6678 segs_out:14 segs_in:12 data_segs_out:7 data_segs_in:6 lastsnd:12 lastrcv:12 lastack:12
+ESTAB    0      0               169.254.0.21:60658        52.92.192.250:443  
+ESTAB    0      0               169.254.0.21:58130          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:2192 lastrcv:1928 lastack:1928
+ESTAB    0      0               169.254.0.21:58136          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:1952 lastrcv:1652 lastack:1652
+ESTAB    0      0               169.254.0.21:58144          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:1772 lastrcv:1496 lastack:1496
+ESTAB    0      0               169.254.0.21:58146          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:1408 lastrcv:1404 lastack:1404
+ESTAB    0      0               169.254.0.21:54254        52.92.184.138:443  
+ESTAB    0      0               169.254.0.21:58102          3.173.21.63:443  
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:5165 segs_out:17 segs_in:9 data_segs_out:10 data_segs_in:5 lastsnd:2308 lastrcv:2032 lastack:2032
+ESTAB    0      0               169.254.0.21:58118          3.173.21.63:443  
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:2268 lastrcv:2012 lastack:2012
+== 20:10:08
+ESTAB    0      0       169.254.0.21:58130  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:7204 lastrcv:6940 lastack:6940
+ESTAB    0      0       169.254.0.21:58136  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:6964 lastrcv:6664 lastack:6664
+ESTAB    0      0       169.254.0.21:58144  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:6784 lastrcv:6508 lastack:6508
+ESTAB    0      0       169.254.0.21:58146  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:6420 lastrcv:6416 lastack:6416
+ESTAB    0      0       169.254.0.21:58102  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:5165 segs_out:17 segs_in:9 data_segs_out:10 data_segs_in:5 lastsnd:7320 lastrcv:7044 lastack:7044
+ESTAB    0      0       169.254.0.21:58118  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:7280 lastrcv:7024 lastack:7024
+== 20:10:14
+ESTAB    0      0       169.254.0.21:58130  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:12208 lastrcv:11944 lastack:11944
+ESTAB    0      0       169.254.0.21:58136  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:11968 lastrcv:11668 lastack:11668
+ESTAB    0      0       169.254.0.21:58144  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:11788 lastrcv:11512 lastack:11512
+ESTAB    0      0       169.254.0.21:58146  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:11424 lastrcv:11420 lastack:11420
+ESTAB    0      0       169.254.0.21:58102  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:5165 segs_out:17 segs_in:9 data_segs_out:10 data_segs_in:5 lastsnd:12324 lastrcv:12048 lastack:12048
+ESTAB    0      0       169.254.0.21:58118  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:12284 lastrcv:12028 lastack:12028
+== 20:10:19
+ESTAB    0      0       169.254.0.21:58130  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:17216 lastrcv:16952 lastack:16952
+ESTAB    0      0       169.254.0.21:58136  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:16976 lastrcv:16676 lastack:16676
+ESTAB    0      0       169.254.0.21:58144  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:16796 lastrcv:16520 lastack:16520
+ESTAB    0      0       169.254.0.21:58146  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:16432 lastrcv:16428 lastack:16428
+ESTAB    0      0       169.254.0.21:58102  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:5165 segs_out:17 segs_in:9 data_segs_out:10 data_segs_in:5 lastsnd:17332 lastrcv:17056 lastack:17056
+ESTAB    0      0       169.254.0.21:58118  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:17292 lastrcv:17036 lastack:17036
+== 20:10:24
+ESTAB    0      0       169.254.0.21:58130  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:22224 lastrcv:21960 lastack:21960
+ESTAB    0      0       169.254.0.21:58136  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:21984 lastrcv:21684 lastack:21684
+ESTAB    0      0       169.254.0.21:58144  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:21804 lastrcv:21528 lastack:21528
+ESTAB    0      0       169.254.0.21:58146  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:21440 lastrcv:21436 lastack:21436
+ESTAB    0      0       169.254.0.21:58102  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:5165 segs_out:17 segs_in:9 data_segs_out:10 data_segs_in:5 lastsnd:22340 lastrcv:22064 lastack:22064
+ESTAB    0      0       169.254.0.21:58118  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:22300 lastrcv:22044 lastack:22044
+== 20:10:29
+ESTAB    0      0       169.254.0.21:58130  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:27236 lastrcv:26972 lastack:26972
+ESTAB    0      0       169.254.0.21:58136  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5163 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:26996 lastrcv:26696 lastack:26696
+ESTAB    0      0       169.254.0.21:58144  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:11 segs_in:7 data_segs_out:5 data_segs_in:4 lastsnd:26816 lastrcv:26540 lastack:26540
+ESTAB    0      0       169.254.0.21:58146  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:4519 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:26452 lastrcv:26448 lastack:26448
+ESTAB    0      0       169.254.0.21:58102  3.173.21.63:443 
+	 bytes_sent:11441 bytes_acked:11442 bytes_received:5165 segs_out:17 segs_in:9 data_segs_out:10 data_segs_in:5 lastsnd:27352 lastrcv:27076 lastack:27076
+ESTAB    0      0       169.254.0.21:58118  3.173.21.63:443 
+	 bytes_sent:3712 bytes_acked:3713 bytes_received:5165 segs_out:12 segs_in:8 data_segs_out:5 data_segs_in:5 lastsnd:27312 lastrcv:27056 lastack:27056

@@ -1,0 +1,5 @@
+export_zip(src, out) recursively walks every file under src, sorts their forward-slash relative names, and writes them into a single ZIP archive at out as uncompressed (stored, method 0) entries with hand-built local headers, central-directory records and an end-of-central-directory record, returning the number of files written.
+
+Grounded in a full read of crates/hs-loop/src/export.rs (70 lines, untruncated): walk() recurses and normalizes '\' to '/', the sort is by (name, path), each entry uses method 0 stored with a table-less crc32 (0xEDB88320 polynomial), followed by a PK\x05\x06 end-of-central-directory record carrying files.len() and the central-directory length/offset, and the buffer is written with File::create(out)?.write_all(&buf)? returning Ok(files.len()).
+
+Verification: the answer file is a single line, non-empty, and states the ZIP/stored-entry/number-of-files facts (checks use wc -l == 1 plus greps). No rustc exists in the container (only python3/unzip were available), so no runtime round-trip of the crate was possible; the answer rests on the source itself.
