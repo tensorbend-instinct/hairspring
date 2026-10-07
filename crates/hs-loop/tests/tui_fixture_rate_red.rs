@@ -1,0 +1,2 @@
+use hs_loop::{tui::TuiState,uipaint::UiEvent};
+#[test]fn scripted_and_seqmodel_never_show_measured_throughput(){for model in ["scripted","seqmodel"]{let mut s=TuiState::default();s.last_tok_per_s=Some(99);s.on_ui_event(&UiEvent::ModelCallStart{model:model.into()});s.on_ui_event(&UiEvent::ModelCallEnd{model:model.into(),input_tokens:100,output_tokens:100,cost_usd_micros:0});assert_eq!(s.last_tok_per_s,None,"fixture output is not provider throughput");}}

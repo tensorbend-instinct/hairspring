@@ -1876,8 +1876,10 @@ impl TuiState {
                 // known window. Unknown model -> unchanged (no guess).
                 if let Some(t0) = self.call_started.take() {
                     let secs = now.saturating_duration_since(t0).as_secs_f64();
-                    if secs > 0.0 && *output_tokens > 0 {
+                    if !matches!(model.as_str(),"scripted"|"seqmodel") && secs > 0.0 && *output_tokens > 0 {
                         self.last_tok_per_s = Some((*output_tokens as f64 / secs).round() as u64);
+                    } else {
+                        self.last_tok_per_s = None;
                     }
                 }
                 if let Some(win) = context_window_tokens(model) {

@@ -1,4 +1,4 @@
-┌ HAIRSPRING: Update todo list · 05ab9eca ─────────────────────────────────────────────────────────────────────────────┐
+┌ HAIRSPRING: Update todo list · c926df29 ─────────────────────────────────────────────────────────────────────────────┐
 │› Updategtodollistelp for commands, /quit to exit)                                                                    │
 │▣ ▶ todo_write  {"todos":[{"content":"Inspect parser","status":"completed"},{"content":"Run                           │
 │tests","status":"in_progress"},{"content":"…                                                                          │
@@ -33,4 +33,4 @@
   │Agent  Message HAIRSPRING...                                                                                      │  
   │scripted  @ files  shift+enter new line  tab modes                                                                │  
   └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘  
-/tmp/hs  scripted  1 call · 4235294 tok/s · cache 14%  shift+enter new line  tab modes                                  
+/tmp/hs  scripted  1 call · cache 14%  shift+enter new line  tab modes                                                  
