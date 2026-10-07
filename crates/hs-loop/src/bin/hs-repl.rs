@@ -212,6 +212,7 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
             >,
         ),
         ModelSet(Result<String, String>),
+        JobFollowupStarted(String),
         CapsInfo(String),
         CapsSet(String),
     }
@@ -275,7 +276,12 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
     let wmax = opts.max_steps;
     std::thread::spawn(move || {
         let mut session = session;
-        while let Ok(cmd) = goal_rx.recv() {
+        loop {
+            let cmd=match goal_rx.recv_timeout(Duration::from_millis(100)){
+                Ok(cmd)=>cmd,
+                Err(mpsc::RecvTimeoutError::Disconnected)=>break,
+                Err(mpsc::RecvTimeoutError::Timeout)=>{let followups=match session.take_job_followups(){Ok(v)=>v,Err(e)=>{let _=tx.send(TuiMsg::Done(Err(format!("job followup delivery failed: {e}"))));continue;}};for followup in followups{let _=tx.send(TuiMsg::JobFollowupStarted(followup.clone()));let r=session.run_goal(&followup).map(|m|(m,session.total_cost_micros())).map_err(|e|e.to_string());let _=tx.send(TuiMsg::Done(r));}continue;}
+            };
             match cmd {
                 UiCmd::Goal(goal) => {
                     let r = session
@@ -447,6 +453,7 @@ fn run_fullscreen(session: ReplSession, opts: &Opts) -> Result<(), Box<dyn std::
                         let _ = goal_tx.send(UiCmd::Goal(next));
                     }
                 }
+                TuiMsg::JobFollowupStarted(goal)=>{running=true;st.session_title=goal.chars().take(48).collect();st.push_goal_echo(&goal);},
                 TuiMsg::Switched(r) => match r {
                     Ok((label, short, id, stats, notice)) => {
                         st.model_label = label;

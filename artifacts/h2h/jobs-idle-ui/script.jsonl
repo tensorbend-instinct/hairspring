@@ -1,0 +1,2 @@
+{"tool":"bash","args":{"description":"Start idle completion probe","command":"sleep .3; printf idle-finished","run_in_background":true}}
+{"tool":"job_list","args":{}}

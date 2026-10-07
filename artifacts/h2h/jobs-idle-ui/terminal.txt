@@ -1,0 +1,36 @@
+┌ HAIRSPRING: Background job 5d446d13-c0b5-4490-8209-b5b797365 · 0e0ccc96 ─────────────────────────────────────────────┐
+│› Probenidlepjob/followup commands, /quit to exit)                                                                    │
+│▣ ▶ bash  sleep .3; printf idle-finished                                                                              │
+│  ✓ Completed in 0ms                                                                                                  │
+│── done: 1 steps, 1 calls, $0.0007 (steps_exhausted)                                                                  │
+│  · not passed (steps_exhausted) - re-run the same goal to continue this mission at step 2                            │
+│› Background job 5d446d13-c0b5-4490-8209-b5b79736547c finished while the session was idle. Collect its output with    │
+│job_output and report its outcome. Do not restart the job.                                                            │
+│▣ ▶ job_list  {}                                                                                                      │
+│  ✓ Completed in 0ms                                                                                                  │
+│── done: 1 steps, 1 calls, $0.0007 (steps_exhausted)                                                                  │
+│  · not passed (steps_exhausted) - re-run the same goal to continue this mission at step 2                            │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+                                                                                                                        
+  ┌ message or /command ─────────────────────────────────────────────────────────────────────────────────────────────┐  
+  │Agent  Message HAIRSPRING...                                                                                      │  
+  │scripted  @ files  shift+enter new line  tab modes                                                                │  
+  └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘  
+/tmp/hs  scripted  2 calls · 4331088 tok/s · cache 10%  shift+enter new line  tab modes                                 

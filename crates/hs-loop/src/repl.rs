@@ -1298,6 +1298,7 @@ pub fn load(
     }
 
     /// Goals injected mid-run via the gateway task inbox, drained.
+    pub fn take_job_followups(&mut self)->Result<Vec<String>,LoopError>{self.inner.take_job_followups()}
     pub fn take_queued_goals(&mut self) -> Vec<String> {
         self.inner.take_queued_goals()
     }

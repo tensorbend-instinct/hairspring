@@ -807,6 +807,8 @@ impl InnerLoop {
     }
 
     /// Goals queued by mid-run gateway adds, in injection order.
+    pub fn take_job_followups(&mut self)->Result<Vec<String>,LoopError>{let Some(jobs)=self.job_session.as_mut()else{return Ok(vec![])};let mut out=vec![];let notices=jobs.notifications();for (index,notice) in notices.iter().enumerate(){let id=notice["job"]["id"].as_str().unwrap_or("");if let Err(error)=self.writer.append(EventBuilder::new(EventKind::Observation).payload(Payload::Inline(serde_json::to_vec(&notice).expect("job notice serializes")))){for pending in &notices[index..]{jobs.retry_notice(pending["job"]["id"].as_str().unwrap_or(""));}return Err(error.into());}out.push(format!("Background job {id} finished while the session was idle. Collect its output with job_output and report its outcome. Do not restart the job."));}Ok(out)}
+
     pub fn take_queued_goals(&mut self) -> Vec<String> {
         self.queued_tasks.drain(..).collect()
     }

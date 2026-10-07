@@ -20,6 +20,7 @@ fn delta(j:&mut Job)->String{let s=j.state.lock().unwrap();let lost=j.out_cursor
 
 fn wait(j:&Job,d:Duration){let start=Instant::now();while j.state.lock().unwrap().finished.is_none()&&start.elapsed()<d{std::thread::sleep(Duration::from_millis(5))}}
 impl JobSession{
+ pub fn retry_notice(&mut self,id:&str){if let Some(job)=self.jobs.get_mut(id){job.notified=false}}
  pub fn owned_pids(&self)->Vec<u32>{self.jobs.values().map(|j|j.pid).collect()}
  pub fn uncollected(&self)->Vec<String>{self.jobs.values().filter(|j|!j.collected&&!j.state.lock().unwrap().cancelled).map(|j|j.id.clone()).collect()}
  pub fn notifications(&mut self)->Vec<Value>{let mut out=vec![];for j in self.jobs.values_mut(){let settled={let s=j.state.lock().unwrap();s.finished.is_some()&&!s.cancelled};if settled&&!j.notified&&!j.awaited{j.notified=true;out.push(json!({"job":view(j),"text":format!("Background job {} finished; collect its newer output with job_output.",j.id)}));}}out}
